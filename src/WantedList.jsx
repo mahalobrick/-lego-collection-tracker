@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { searchInput, filterSelect, clearFilterButton } from "./uiStyles";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from "recharts";
-import { asNumber, money, setImageUrl, priorityScore, recommendation } from "./utils/formatting";
+import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, retirementWaveLabel } from "./utils/formatting";
+
+// Source → default confidence level
+const SOURCE_CONFIDENCE = {
+  "LEGO Last Chance": "High",
+  "Brickset":         "High",
+  "BrickEconomy":     "High",
+  "Brick Fanatics":   "Medium",
+  "StoneWars":        "Medium",
+  "Manual":           "Low",
+};
 import { fetchBricksetSet } from "./utils/brickset";
 import WatchDetailPanel from "./WatchDetailPanel";
 
@@ -99,6 +109,8 @@ export default function WantedList({ onBuyNow }) {
     availability: "",
     retirementSource: "Brick Fanatics",
     lastRetirementUpdate: "",
+    exit_date: "",
+    isLastChance: false,
     notes: "",
     subtheme: "",
     minifigs: "",
@@ -222,6 +234,56 @@ export default function WantedList({ onBuyNow }) {
   useEffect(() => {
     localStorage.setItem("blWantedList", JSON.stringify(wanted));
   }, [wanted]);
+
+  // ── Retroactive Brickset refresh ─────────────────────────────────────────
+  // Silently enriches existing Buy List items that are missing exit_date or msrp.
+  // Runs once on mount, rate-limited to 1 fetch per 400ms to avoid hammering the API.
+  useEffect(() => {
+    const stale = wanted.filter(w =>
+      w.setNumber && !w.exit_date && w.retirementSource !== "LEGO Last Chance"
+    );
+    if (stale.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      for (const item of stale) {
+        if (cancelled) break;
+        const bsData = await fetchBricksetSet(item.setNumber);
+        if (!bsData || cancelled) { await new Promise(r => setTimeout(r, 400)); continue; }
+
+        setWanted(prev => prev.map(w => {
+          if (w.setNumber !== item.setNumber) return w;
+          const updates = {};
+
+          if (bsData.exit_date && !w.exit_date) {
+            const exitYear   = new Date(bsData.exit_date).getFullYear();
+            const currentYear = new Date().getFullYear();
+            updates.exit_date            = bsData.exit_date;
+            updates.retirementYear       = String(exitYear);
+            updates.retirementConfidence = "High";
+            updates.retiringSoon         = exitYear <= currentYear + 1;
+            updates.retirementSource     = "Brickset";
+            updates.lastRetirementUpdate = new Date().toISOString().slice(0, 10);
+          }
+          if (bsData.retail_price_us && !w.msrp) {
+            updates.msrp = bsData.retail_price_us;
+          }
+          if (bsData.minifigs  && !w.minifigs)  updates.minifigs  = bsData.minifigs;
+          if (bsData.subtheme  && !w.subtheme)  updates.subtheme  = bsData.subtheme;
+          if (bsData.age_min   && !w.ageMin)    updates.ageMin    = bsData.age_min;
+          if (bsData.rating    && !w.rating)    updates.rating    = bsData.rating;
+          if (bsData.packaging_type && !w.packagingType) updates.packagingType = bsData.packaging_type;
+
+          return Object.keys(updates).length ? { ...w, ...updates } : w;
+        }));
+
+        await new Promise(r => setTimeout(r, 400));
+      }
+    })();
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally runs once on mount
 
   const DEFAULT_WANTED_COLUMNS = [
     { key: "score", label: "Score", visible: false },
@@ -621,6 +683,7 @@ export default function WantedList({ onBuyNow }) {
             const exitDate = new Date(bsData.exit_date);
             const exitYear = exitDate.getFullYear();
             const currentYear = new Date().getFullYear();
+            updates.exit_date            = bsData.exit_date;
             updates.retirementYear       = String(exitYear);
             updates.retirementConfidence = "High";
             updates.retiringSoon         = exitYear <= currentYear + 1;
@@ -690,24 +753,11 @@ export default function WantedList({ onBuyNow }) {
     ]);
 
     setForm({
-      setNumber: "",
-      name: "",
-      theme: "",
-      msrp: "",
-      targetDiscount: "",
-      targetPrice: "",
-      priority: 3,
-      retiringSoon: false,
-      status: "Watch",
-      retirementYear: "",
-      retirementConfidence: "Medium",
-      notes: "",
-      subtheme: "",
-      minifigs: "",
-      weight: "",
-      rating: "",
-      packagingType: "",
-      ageMin: ""
+      setNumber: "", name: "", theme: "", msrp: "", targetDiscount: "", targetPrice: "",
+      priority: 3, retiringSoon: false, status: "Watch", retirementYear: "",
+      retirementConfidence: "Medium", notes: "", subtheme: "", minifigs: "",
+      weight: "", rating: "", packagingType: "", ageMin: "",
+      exit_date: "", isLastChance: false,
     });
   }
 
@@ -1061,7 +1111,7 @@ export default function WantedList({ onBuyNow }) {
           {(form.setNumber || form.name || form.theme || form.msrp || form.storePrice || form.notes) && (
             <button
               onClick={() => {
-                setForm({ setNumber: "", name: "", theme: "", msrp: "", targetDiscount: "", targetPrice: "", storePrice: "", priority: 3, retiringSoon: false, status: "Watch", retirementYear: "", retirementConfidence: "Medium", releaseYear: "", pieces: "", currentValue: "", availability: "", retirementSource: "Brick Fanatics", lastRetirementUpdate: "", notes: "", subtheme: "", minifigs: "", weight: "", rating: "", packagingType: "", ageMin: "" });
+                setForm({ setNumber: "", name: "", theme: "", msrp: "", targetDiscount: "", targetPrice: "", storePrice: "", priority: 3, retiringSoon: false, status: "Watch", retirementYear: "", retirementConfidence: "Medium", releaseYear: "", pieces: "", currentValue: "", availability: "", retirementSource: "Brick Fanatics", lastRetirementUpdate: "", notes: "", subtheme: "", minifigs: "", weight: "", rating: "", packagingType: "", ageMin: "", exit_date: "", isLastChance: false });
                 setLookupMessage("");
               }}
               style={{ background: "transparent", color: "#5d6f80", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "5px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
@@ -1128,6 +1178,32 @@ export default function WantedList({ onBuyNow }) {
                   <div style={miniValue}>{form.availability || "—"}</div>
                 </div>
               </div>
+
+              {/* ── Retirement banner ── */}
+              {(form.isLastChance || form.exit_date || form.retirementYear) && (() => {
+                const days  = form.exit_date ? daysUntilRetirement(form.exit_date) : null;
+                const wave  = form.exit_date ? retirementWaveLabel(form.exit_date) : null;
+                const label = form.isLastChance
+                  ? "🚨 LAST CHANCE TO BUY"
+                  : wave || (form.retirementYear ? `Retires ${form.retirementYear}` : null);
+                const urgentColor = (form.isLastChance || (days !== null && days <= 60)) ? "#ef4444" : "#f59e0b";
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, padding: "8px 12px", background: `${urgentColor}12`, border: `1px solid ${urgentColor}35`, borderRadius: 8 }}>
+                    <span style={{ color: urgentColor, fontSize: 16 }}>⏱</span>
+                    <div>
+                      <span style={{ color: urgentColor, fontWeight: 800, fontSize: 13 }}>{label}</span>
+                      {days !== null && !form.isLastChance && (
+                        <span style={{ color: "#8a9bb0", fontSize: 12, marginLeft: 8 }}>
+                          {days <= 0 ? "past exit date" : `${days} days remaining`}
+                        </span>
+                      )}
+                      {form.retirementSource && form.retirementSource !== "Brick Fanatics" && (
+                        <span style={{ color: "#5d6f80", fontSize: 11, marginLeft: 8 }}>via {form.retirementSource}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {form.storePrice && (
                 <div style={analysisPanel}>
@@ -1241,6 +1317,12 @@ export default function WantedList({ onBuyNow }) {
               <option>Critical</option>
               <option>Owned</option>
             </select>
+
+            <label style={{ ...checkLabel, marginTop: 4 }}>
+              <input type="checkbox" checked={!!form.isLastChance}
+                onChange={e => setForm({ ...form, isLastChance: e.target.checked })} />
+              🚨 On LEGO Last Chance to Buy
+            </label>
 
             <input style={inputStyle} placeholder="Notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
           </div>
@@ -1501,8 +1583,35 @@ export default function WantedList({ onBuyNow }) {
                 </label>
 
                 <label>
-                  Projected Retirement
+                  Exit Date (Brickset)
+                  <input type="date" value={wanted[selectedWantedIndex].exit_date ? wanted[selectedWantedIndex].exit_date.slice(0, 10) : ""}
+                    onChange={e => updateWanted(selectedWantedIndex, "exit_date", e.target.value ? new Date(e.target.value).toISOString() : "")} />
+                </label>
+
+                <label>
+                  Retirement Year <span style={{ color: "#5d6f80", fontWeight: 400, fontSize: 11 }}>(fallback)</span>
                   <input type="number" min="2020" max="2040" step="1" value={wanted[selectedWantedIndex].retirementYear || ""} onChange={e => updateWanted(selectedWantedIndex, "retirementYear", e.target.value)} />
+                </label>
+
+                <label>
+                  Retirement Source
+                  <select
+                    value={wanted[selectedWantedIndex].retirementSource || "Brick Fanatics"}
+                    onChange={e => {
+                      const src = e.target.value;
+                      updateWanted(selectedWantedIndex, "retirementSource", src);
+                      if (SOURCE_CONFIDENCE[src]) {
+                        updateWanted(selectedWantedIndex, "retirementConfidence", SOURCE_CONFIDENCE[src]);
+                      }
+                    }}
+                  >
+                    <option>LEGO Last Chance</option>
+                    <option>Brickset</option>
+                    <option>BrickEconomy</option>
+                    <option>Brick Fanatics</option>
+                    <option>StoneWars</option>
+                    <option>Manual</option>
+                  </select>
                 </label>
 
                 <label>
@@ -1515,23 +1624,19 @@ export default function WantedList({ onBuyNow }) {
                 </label>
 
                 <label>
-                  Retirement Source
-                  <select value={wanted[selectedWantedIndex].retirementSource || "Brick Fanatics"} onChange={e => updateWanted(selectedWantedIndex, "retirementSource", e.target.value)}>
-                    <option>Brickset</option>
-                    <option>Brick Fanatics</option>
-                    <option>BrickEconomy</option>
-                    <option>Manual</option>
-                  </select>
-                </label>
-
-                <label>
                   Last Retirement Update
                   <input type="date" value={wanted[selectedWantedIndex].lastRetirementUpdate || ""} onChange={e => updateWanted(selectedWantedIndex, "lastRetirementUpdate", e.target.value)} />
                 </label>
 
                 <label style={checkLabel}>
+                  <input type="checkbox" checked={!!wanted[selectedWantedIndex].isLastChance}
+                    onChange={e => updateWanted(selectedWantedIndex, "isLastChance", e.target.checked)} />
+                  🚨 On LEGO Last Chance to Buy
+                </label>
+
+                <label style={checkLabel}>
                   <input type="checkbox" checked={!!wanted[selectedWantedIndex].retiringSoon} onChange={e => updateWanted(selectedWantedIndex, "retiringSoon", e.target.checked)} />
-                  High Retirement Risk
+                  High Retirement Risk <span style={{ color: "#5d6f80", fontWeight: 400, fontSize: 11 }}>(legacy)</span>
                 </label>
 
                 <label>

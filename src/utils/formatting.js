@@ -38,6 +38,30 @@ export function conditionColor(raw) {
   return "#c9c9c9";
 }
 
+/**
+ * Returns days until a set retires. Negative = already past exit date.
+ */
+export function daysUntilRetirement(exitDate) {
+  if (!exitDate) return null;
+  return Math.floor((new Date(exitDate) - new Date()) / 86400000);
+}
+
+/**
+ * Maps an exit_date to its LEGO wave label (Jul/Dec waves are predictable).
+ * Returns null for non-standard months.
+ */
+export function retirementWaveLabel(exitDate) {
+  if (!exitDate) return null;
+  const d = new Date(exitDate);
+  const month = d.getMonth() + 1; // 1-12
+  const year  = d.getFullYear();
+  // Mid-year wave: exits May–August
+  if (month >= 5 && month <= 8)  return `Jul ${year} wave`;
+  // End-year wave: exits October–January
+  if (month >= 10 || month <= 1) return `Dec ${year} wave`;
+  return null;
+}
+
 export function priorityScore(item) {
   let score = 0;
 
@@ -45,17 +69,31 @@ export function priorityScore(item) {
   const priority = asNumber(item.priority) || 3;
   score += (6 - priority) * 10;
 
-  // Retirement urgency — retiringSoon flag takes precedence to avoid double-counting
-  if (item.retiringSoon) {
+  // ── Retirement urgency ─────────────────────────────────────────
+  if (item.isLastChance) {
+    // Confirmed on LEGO's "Last Chance to Buy" page — weeks remaining at most
+    score += 40;
+  } else if (item.exit_date) {
+    // Precise wave-aware urgency from Brickset exit_date
+    const days = daysUntilRetirement(item.exit_date);
+    if      (days <= 0)   score += 38; // past exit date — buy immediately or it's gone
+    else if (days <= 30)  score += 38; // under a month
+    else if (days <= 60)  score += 35; // 1–2 months (wave is imminent)
+    else if (days <= 120) score += 28; // 2–4 months (approaching wave)
+    else if (days <= 180) score += 22; // 4–6 months
+    else if (days <= 365) score += 15; // within the year
+    else                  score += 5;  // over a year out
+  } else if (item.retiringSoon) {
+    // Legacy manual flag — kept for backward compatibility
     score += 35;
   } else {
     const currentYear = new Date().getFullYear();
-    if (String(item.retirementYear) === String(currentYear))       score += 25;
-    else if (String(item.retirementYear) === String(currentYear + 1)) score += 10;
+    if      (String(item.retirementYear) === String(currentYear))       score += 25;
+    else if (String(item.retirementYear) === String(currentYear + 1))   score += 10;
   }
 
   // Retirement confidence bonus
-  if (item.retirementConfidence === "High")   score += 15;
+  if      (item.retirementConfidence === "High")   score += 15;
   else if (item.retirementConfidence === "Medium") score += 8;
 
   // Discount bonus — use live store price if available, otherwise target price
@@ -66,7 +104,7 @@ export function priorityScore(item) {
     const refPrice = storePrice > 0 ? storePrice : targetPrice;
     if (refPrice > 0) {
       const discount = ((msrp - refPrice) / msrp) * 100;
-      if (discount >= 30)      score += 25;
+      if      (discount >= 30) score += 25;
       else if (discount >= 20) score += 15;
       else if (discount >= 10) score += 8;
     }
