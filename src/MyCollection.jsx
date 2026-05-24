@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { searchInput, filterSelect, clearFilterButton, filterBar } from "./uiStyles";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, AreaChart, Area, CartesianGrid } from "recharts";
 import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
-import { asNumber, money, setImageUrl, CONDITION_LABELS, priorityScore, recommendation } from "./utils/formatting";
+import { asNumber, money, setImageUrl, CONDITION_LABELS, priorityScore, recommendation, daysUntilRetirement } from "./utils/formatting";
+import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import WatchDetailPanel from "./WatchDetailPanel";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
@@ -27,7 +28,9 @@ const DEFAULT_COLLECTION_ITEMS = [
   { key: "roi-leaders",   type: "panel", label: "ROI Leaders",        visible: true,  width: "half",  collapsed: false },
   { key: "most-valuable", type: "panel", label: "Most Valuable Sets", visible: true,  width: "half",  collapsed: false },
   { key: "watch-list",    type: "panel", label: "Watch List",         visible: true,  width: "half",  collapsed: false },
-  { key: "budget",        type: "panel", label: "Budget Snapshot",    visible: true,  width: "full",  collapsed: false },
+  { key: "budget",           type: "panel", label: "Budget Snapshot",    visible: true,  width: "full",  collapsed: false },
+  { key: "portfolio-history", type: "panel", label: "Portfolio History",  visible: true,  width: "full",  collapsed: false },
+  { key: "theme-performance", type: "panel", label: "Theme Performance",  visible: true,  width: "full",  collapsed: false },
 ];
 
 const DEFAULT_OWNED_COLUMNS = [
@@ -146,6 +149,19 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     return [...beItems, ...extraManual];
   });
 
+  // ── Sold / realized gains ────────────────────────────────────────────────
+  const [soldSets, setSoldSets] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("blSoldSets") || "[]"); } catch { return []; }
+  });
+  const [sellModal, setSellModal] = useState(false);
+  const [sellPrice, setSellPrice] = useState("");
+  const [sellDate,  setSellDate]  = useState(() => new Date().toISOString().slice(0, 10));
+  const [sellNotes, setSellNotes] = useState("");
+  const [retireDismissed, setRetireDismissed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("blOwnedRetireDismissed") || "[]"); } catch { return []; }
+  });
+  const [histRange, setHistRange] = useState("all");
+
   const [form, setForm] = useState({
     setNumber: "",
     name: "",
@@ -172,6 +188,28 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   useEffect(() => {
     localStorage.setItem("blCollChartTypes", JSON.stringify(chartTypes));
   }, [chartTypes]);
+
+  useEffect(() => {
+    localStorage.setItem("blSoldSets", JSON.stringify(soldSets));
+  }, [soldSets]);
+
+  useEffect(() => {
+    localStorage.setItem("blOwnedRetireDismissed", JSON.stringify(retireDismissed));
+  }, [retireDismissed]);
+
+  // ── Portfolio snapshot — record once per day ──────────────────────────────
+  useEffect(() => {
+    if (sets.length === 0) return;
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const history = JSON.parse(localStorage.getItem("blPortfolioHistory") || "[]");
+      if (history.some(h => h.date === today)) return;
+      const totalValue = sets.reduce((s, x) => s + (asNumber(x.totalValue) || asNumber(x.currentValue) * (asNumber(x.qty) || 1)), 0);
+      const totalPaid  = sets.reduce((s, x) => s + (asNumber(x.totalPaid)  || asNumber(x.paidPrice)    * (asNumber(x.qty) || 1)), 0);
+      const next = [...history.filter(h => h.date !== today), { date: today, value: totalValue, paid: totalPaid }];
+      localStorage.setItem("blPortfolioHistory", JSON.stringify(next.sort((a, b) => a.date.localeCompare(b.date)).slice(-365)));
+    } catch {}
+  }, [sets]);
 
   function cycleChartType(key) {
     setChartTypes(prev => {
@@ -261,6 +299,44 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       };
     } catch { return { total: 0, retiringSoon: 0, critical: 0, scored: [] }; }
   }, [refreshKey]);
+
+  // ── Portfolio history chart data ──────────────────────────────────────────
+  const portfolioHistory = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem("blPortfolioHistory") || "[]"); } catch { return []; }
+  }, [refreshKey, sets]);
+
+  // ── Theme performance table ───────────────────────────────────────────────
+  const themePerformance = useMemo(() => {
+    const byTheme = {};
+    sets.forEach(s => {
+      const t = s.theme || "Other";
+      if (!byTheme[t]) byTheme[t] = { theme: t, sets: 0, paid: 0, value: 0 };
+      byTheme[t].sets  += 1;
+      byTheme[t].paid  += asNumber(s.totalPaid)  || asNumber(s.paidPrice)    * (asNumber(s.qty) || 1);
+      byTheme[t].value += asNumber(s.totalValue) || asNumber(s.currentValue) * (asNumber(s.qty) || 1);
+    });
+    return Object.values(byTheme)
+      .map(t => ({ ...t, gain: t.value - t.paid, roi: t.paid > 0 ? ((t.value - t.paid) / t.paid) * 100 : null }))
+      .sort((a, b) => (b.roi ?? -999) - (a.roi ?? -999));
+  }, [sets]);
+
+  // ── Retirement alerts for owned sets ─────────────────────────────────────
+  const retirementAlertsForOwned = useMemo(() => {
+    const bsCache = (() => { try { return JSON.parse(localStorage.getItem("bricksetSetCache") || "{}"); } catch { return {}; } })();
+    const lc      = (() => { try { return JSON.parse(localStorage.getItem("legoLastChanceCache") || "null"); } catch { return null; } })();
+    const lcCodes = lc?.setCodes || [];
+    return sets.flatMap(s => {
+      const clean = String(s.setNumber || "").replace(/-1$/, "");
+      if (retireDismissed.includes(clean)) return [];
+      const bs = (bsCache[clean] || bsCache[`${clean}-1`] || {}).data || {};
+      const isLC = lcCodes.includes(clean) || lcCodes.includes(`${clean}-1`);
+      const exitDate = bs.exit_date || null;
+      const days = exitDate ? daysUntilRetirement(exitDate) : null;
+      if (isLC) return [{ ...s, alertType: "lastchance", days: 0 }];
+      if (days !== null && days >= 0 && days <= 60) return [{ ...s, alertType: "retiring", days }];
+      return [];
+    });
+  }, [sets, retireDismissed, refreshKey]);
 
   const budgetSnapshot = useMemo(() => {
     try {
@@ -527,6 +603,25 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     setSets(prev => prev.filter((_, i) => i !== index));
   }
 
+  function logSale(index) {
+    const s = sets[index];
+    const qty  = asNumber(s.qty) || 1;
+    const paid = asNumber(s.totalPaid) || asNumber(s.paidPrice) * qty;
+    const sold = asNumber(sellPrice);
+    const entry = {
+      setNumber: s.setNumber, name: s.name, theme: s.theme, condition: s.condition,
+      qty, soldPrice: sold, soldDate: sellDate, paidPrice: paid,
+      gain: sold - paid, roi: paid > 0 ? ((sold - paid) / paid) * 100 : null,
+      notes: sellNotes, loggedAt: new Date().toISOString()
+    };
+    setSoldSets(prev => [entry, ...prev]);
+    deleteSet(index);
+    setSelectedSetIndex(null);
+    setSellModal(false); setSellPrice(""); setSellNotes("");
+    setSellDate(new Date().toISOString().slice(0, 10));
+    setTab("sold");
+  }
+
   return (
     <div style={page} onMouseMove={e => setTipPos({ x: e.clientX, y: e.clientY })} onTouchStart={() => { setHoveredSet(null); setHoveredWatchItem(null); }}>
       <div style={tabHeader}>
@@ -538,6 +633,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           {[
             { key: "overview", label: "Overview" },
             { key: "collection", label: "Collection" },
+            { key: "sold", label: soldSets.length > 0 ? `Sold (${soldSets.length})` : "Sold" },
             { key: "add", label: "Add Set" }
           ].map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={tab === t.key ? activeTabStyle : tabBtnStyle}>
@@ -893,12 +989,165 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                           </button>
                         </div>
                       )
+                    ) : item.key === "portfolio-history" ? (
+                      <div style={{ ...panel, marginTop: 0 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+                          <h4 style={{ margin: 0 }}>Portfolio History</h4>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            {["30d","90d","1y","all"].map(r => (
+                              <button key={r} onClick={() => setHistRange(r)}
+                                style={{ background: histRange === r ? "#c9a84c" : "rgba(255,255,255,0.04)", color: histRange === r ? "#0d1623" : "#8a9bb0", border: `1px solid ${histRange === r ? "#c9a84c" : "rgba(255,255,255,0.1)"}`, borderRadius: 6, padding: "4px 10px", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+                                {r.toUpperCase()}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {(() => {
+                          const cutoff = histRange === "30d" ? 30 : histRange === "90d" ? 90 : histRange === "1y" ? 365 : 9999;
+                          const cutDate = new Date(); cutDate.setDate(cutDate.getDate() - cutoff);
+                          const data = portfolioHistory.filter(h => histRange === "all" || new Date(h.date) >= cutDate);
+                          if (data.length < 2) return (
+                            <div style={{ textAlign: "center", padding: "28px 20px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                              <div style={{ color: "#8a9bb0", fontSize: 13 }}>History builds automatically — sync or open the app daily to add data points.</div>
+                            </div>
+                          );
+                          const fmt = d => { const dt = new Date(d + "T12:00:00"); return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" }); };
+                          return (
+                            <ResponsiveContainer width="100%" height={220}>
+                              <AreaChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+                                <defs>
+                                  <linearGradient id="valueGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%"  stopColor="#c9a84c" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="#c9a84c" stopOpacity={0.02} />
+                                  </linearGradient>
+                                  <linearGradient id="paidGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.2} />
+                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.02} />
+                                  </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                                <XAxis dataKey="date" tickFormatter={fmt} tick={{ fill: "#5d6f80", fontSize: 10 }} axisLine={false} tickLine={false} minTickGap={40} />
+                                <YAxis tickFormatter={v => `$${(v/1000).toFixed(0)}k`} tick={{ fill: "#5d6f80", fontSize: 10 }} axisLine={false} tickLine={false} width={42} />
+                                <Tooltip formatter={(v, n) => [money(v), n === "value" ? "Portfolio Value" : "Cost Basis"]} labelFormatter={fmt} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
+                                <Area type="monotone" dataKey="paid"  stroke="#3b82f6" fill="url(#paidGrad)"  strokeWidth={1.5} dot={false} name="paid" />
+                                <Area type="monotone" dataKey="value" stroke="#c9a84c" fill="url(#valueGrad)" strokeWidth={2}   dot={false} name="value" />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          );
+                        })()}
+                      </div>
+                    ) : item.key === "theme-performance" ? (
+                      <div style={{ ...panel, marginTop: 0 }}>
+                        <h4 style={{ margin: "0 0 14px" }}>Theme Performance</h4>
+                        {themePerformance.length === 0 ? (
+                          <div style={{ color: "#5d6f80", padding: "20px 0" }}>No collection data yet.</div>
+                        ) : (
+                          <div style={{ overflowX: "auto" }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                              <thead>
+                                <tr>
+                                  {["Theme","Sets","Cost Basis","Market Value","Gain","ROI"].map(h => (
+                                    <th key={h} style={{ ...thStyle, textAlign: h === "Theme" ? "left" : "right" }}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {themePerformance.map(t => (
+                                  <tr key={t.theme}>
+                                    <td style={tdStyle}>{t.theme}</td>
+                                    <td style={tdStyleR}>{t.sets}</td>
+                                    <td style={tdStyleR}>{money(t.paid)}</td>
+                                    <td style={tdStyleR}>{money(t.value)}</td>
+                                    <td style={{ ...tdStyleR, color: t.gain >= 0 ? "#5aa832" : "#ff8b8b" }}>{money(t.gain)}</td>
+                                    <td style={{ ...tdStyleR, color: (t.roi ?? 0) >= 0 ? "#5aa832" : "#ff8b8b", fontWeight: 900 }}>
+                                      {t.roi != null ? `${t.roi >= 0 ? "+" : ""}${t.roi.toFixed(1)}%` : "—"}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
                     ) : null}
                 </div>
               );
             })}
           </div>
         </>
+      )}
+
+      {tab === "sold" && (
+        <section style={panel}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+            <div>
+              <h3 style={{ margin: "0 0 2px" }}>Realized Gains</h3>
+              <div style={{ color: "#8a9bb0", fontSize: 13 }}>Sets you've sold — logged for P&L tracking.</div>
+            </div>
+            {soldSets.length > 0 && (
+              <button onClick={() => { if (window.confirm("Clear all sold records?")) setSoldSets([]); }}
+                style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "#5d6f80", borderRadius: 8, padding: "6px 12px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+                Clear All
+              </button>
+            )}
+          </div>
+
+          {soldSets.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "48px 20px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 12 }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>🏷️</div>
+              <div style={{ fontWeight: 700, color: "#8a9bb0", marginBottom: 6 }}>No sales logged yet</div>
+              <div style={{ fontSize: 13, color: "#5d6f80" }}>When you mark a set as sold from the Collection tab, it appears here.</div>
+            </div>
+          ) : (() => {
+            const totalSold = soldSets.reduce((s, x) => s + asNumber(x.soldPrice), 0);
+            const totalPaid = soldSets.reduce((s, x) => s + asNumber(x.paidPrice), 0);
+            const totalGain = soldSets.reduce((s, x) => s + asNumber(x.gain), 0);
+            const overallRoi = totalPaid > 0 ? (totalGain / totalPaid) * 100 : 0;
+            return (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, marginBottom: 16 }}>
+                  {[
+                    { label: "Total Proceeds", value: money(totalSold) },
+                    { label: "Total Invested", value: money(totalPaid) },
+                    { label: "Realized Gain", value: money(totalGain), color: totalGain >= 0 ? "#5aa832" : "#ff8b8b" },
+                    { label: "Overall ROI", value: `${overallRoi >= 0 ? "+" : ""}${overallRoi.toFixed(1)}%`, color: overallRoi >= 0 ? "#5aa832" : "#ff8b8b" },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 14px" }}>
+                      <div style={{ color: "#8a9bb0", fontSize: 11, marginBottom: 4 }}>{label}</div>
+                      <div style={{ fontWeight: 900, fontSize: 16, color: color || "#e8e2d5" }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {soldSets.map((s, i) => {
+                    const roiColor = (s.roi ?? 0) >= 0 ? "#5aa832" : "#ff8b8b";
+                    return (
+                      <div key={i} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>{s.name || s.setNumber}</div>
+                          <div style={{ color: "#5d6f80", fontSize: 12 }}>{s.theme || "—"} · {s.soldDate || "no date"}</div>
+                          {s.notes && <div style={{ color: "#8a9bb0", fontSize: 12, marginTop: 2 }}>{s.notes}</div>}
+                        </div>
+                        <div style={{ display: "flex", gap: 16, alignItems: "center", flexShrink: 0 }}>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ color: "#5d6f80", fontSize: 11 }}>Sold / Paid</div>
+                            <div style={{ fontWeight: 700, fontSize: 13 }}>{money(s.soldPrice)} / {money(s.paidPrice)}</div>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ color: "#5d6f80", fontSize: 11 }}>Gain · ROI</div>
+                            <div style={{ fontWeight: 900, fontSize: 13, color: roiColor }}>{money(s.gain)} · {s.roi != null ? `${s.roi >= 0 ? "+" : ""}${s.roi.toFixed(1)}%` : "—"}</div>
+                          </div>
+                          <button onClick={() => { if (window.confirm("Remove this sale record?")) setSoldSets(prev => prev.filter((_, j) => j !== i)); }}
+                            style={{ background: "none", border: "none", color: "#5d6f80", cursor: "pointer", fontWeight: 900, fontSize: 18 }}>×</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
+        </section>
       )}
 
       {tab === "add" && (
@@ -1023,6 +1272,28 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             </div>
           </div>
           <div style={{ marginTop: 8, fontSize: 11, color: "#5d6f80", borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 6 }}>click for details</div>
+        </div>
+      )}
+
+      {tab === "collection" && retirementAlertsForOwned.length > 0 && (
+        <div style={{ background: "#3b1200", border: "1px solid #92400e", borderRadius: 12, padding: "12px 16px", marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div>
+            <div style={{ fontWeight: 800, color: "#f59e0b", marginBottom: 4 }}>
+              ⚠️ {retirementAlertsForOwned.length} owned {retirementAlertsForOwned.length === 1 ? "set" : "sets"} retiring soon — consider selling
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {retirementAlertsForOwned.slice(0, 5).map(s => (
+                <span key={s.setNumber} style={{ background: "#451a03", border: "1px solid #92400e", borderRadius: 999, padding: "2px 10px", fontSize: 12, color: "#fdba74" }}>
+                  {s.name || s.setNumber}{s.alertType === "lastchance" ? " 🚨" : ` (${s.days}d)`}
+                </span>
+              ))}
+              {retirementAlertsForOwned.length > 5 && <span style={{ fontSize: 12, color: "#8a9bb0" }}>+{retirementAlertsForOwned.length - 5} more</span>}
+            </div>
+          </div>
+          <button
+            onClick={() => { const codes = retirementAlertsForOwned.map(s => String(s.setNumber || "").replace(/-1$/, "")); setRetireDismissed(prev => [...new Set([...prev, ...codes])]); }}
+            style={{ background: "none", border: "none", color: "#8a9bb0", cursor: "pointer", fontSize: 18, fontWeight: 900, flexShrink: 0, padding: "0 4px" }}
+          >×</button>
         </div>
       )}
 
@@ -1244,9 +1515,39 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                   </label>
                 </div>
 
-                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
                   <button onClick={() => setSelectedSetIndex(null)}>Done</button>
+                  <button
+                    onClick={() => { setSellModal(v => !v); setSellPrice(""); setSellNotes(""); }}
+                    style={{ background: "transparent", border: "1px solid rgba(239,68,68,0.4)", color: "#ef4444", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                  >Mark as Sold</button>
                 </div>
+
+                {sellModal && (
+                  <div style={{ marginTop: 14, background: "#0f1a28", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 10, padding: 14 }}>
+                    <div style={{ fontWeight: 800, color: "#ef4444", marginBottom: 10, fontSize: 13 }}>Log Sale</div>
+                    <div style={formGrid}>
+                      <label>
+                        Sold Price ($)
+                        <input type="number" step="0.01" placeholder="e.g. 349.99" value={sellPrice} onChange={e => setSellPrice(e.target.value)} />
+                      </label>
+                      <label>
+                        Sold Date
+                        <input type="date" value={sellDate} onChange={e => setSellDate(e.target.value)} />
+                      </label>
+                      <label style={{ gridColumn: "1 / -1" }}>
+                        Notes (optional)
+                        <input placeholder="Platform, buyer, etc." value={sellNotes} onChange={e => setSellNotes(e.target.value)} />
+                      </label>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                      <button onClick={() => logSale(selectedSetIndex)} style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: 10, padding: "8px 18px", fontWeight: 800, cursor: "pointer" }}>
+                        Confirm Sale
+                      </button>
+                      <button onClick={() => setSellModal(false)} style={ghostBtn}>Cancel</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1335,6 +1636,10 @@ const stickyCheckbox = {
   zIndex: 6,
   background: "#0b1520"
 };
+
+const thStyle = { color: "#8a9bb0", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, padding: "6px 10px", borderBottom: "1px solid rgba(255,255,255,0.07)", whiteSpace: "nowrap" };
+const tdStyle  = { padding: "8px 10px", borderTop: "1px solid rgba(255,255,255,0.05)", whiteSpace: "nowrap" };
+const tdStyleR = { ...tdStyle, textAlign: "right", fontWeight: 700 };
 
 const hoverCtrlBtn = {
   background: "rgba(11,21,32,0.92)",

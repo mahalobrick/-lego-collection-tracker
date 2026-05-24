@@ -211,6 +211,9 @@ export default function WantedList({ onBuyNow }) {
   const [lcAlertDismissed, setLcAlertDismissed] = useState(() => {
     try { return JSON.parse(localStorage.getItem("blLCAlertDismissed") || "[]"); } catch { return []; }
   });
+  const [priceDropDismissed, setPriceDropDismissed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("blPriceDropDismissed") || "[]"); } catch { return []; }
+  });
   const [colGearOpen, setColGearOpen] = useState(false);
   const [bulkThemeOpen, setBulkThemeOpen] = useState(false);
   const [bulkTheme, setBulkTheme] = useState("");
@@ -550,6 +553,16 @@ export default function WantedList({ onBuyNow }) {
     return () => document.removeEventListener("keydown", onKey);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailItem, subTab, wanted, visibleWanted]);
+
+  // ── Price drop alerts: wanted sets that have hit their target price ───────
+  const priceDropAlerts = useMemo(() => {
+    return wanted.filter(w => {
+      const sp = asNumber(w.storePrice);
+      const tp = asNumber(w.targetPrice);
+      if (sp <= 0 || tp <= 0 || sp > tp) return false;
+      return !priceDropDismissed.includes(String(w.setNumber));
+    });
+  }, [wanted, priceDropDismissed]);
 
   function isNumericColumn(key) {
     return ["score", "msrp", "targetPrice", "discount"].includes(key);
@@ -1890,6 +1903,41 @@ export default function WantedList({ onBuyNow }) {
                 localStorage.setItem("blLCAlertDismissed", JSON.stringify(newDismissed));
               }}
               style={{ background: "transparent", border: "1px solid #7f1d1d", color: "#8a9bb0", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12, flexShrink: 0 }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {priceDropAlerts.length > 0 && (
+          <div style={{ background: "#132a1a", border: "1px solid #166534", borderRadius: 12, padding: "12px 18px", marginBottom: 12, display: "flex", alignItems: "flex-start", gap: 14 }}>
+            <span style={{ fontSize: 22, lineHeight: 1 }}>💰</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: "#5aa832", fontWeight: 800, fontSize: 14, marginBottom: 6 }}>
+                Price Drop — {priceDropAlerts.length} {priceDropAlerts.length === 1 ? "set is" : "sets are"} at or below your target price
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {priceDropAlerts.map(w => {
+                  const sp = asNumber(w.storePrice), tp = asNumber(w.targetPrice);
+                  const pct = tp > 0 ? ((tp - sp) / tp * 100).toFixed(0) : 0;
+                  return (
+                    <span key={w.setNumber}
+                      onClick={() => { setDetailItem(w); setDetailItemIndex(wanted.indexOf(w)); }}
+                      style={{ background: "#0a2e1a", border: "1px solid #166534", borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#86efac", cursor: "pointer", fontWeight: 700 }}
+                    >
+                      #{w.setNumber} {w.name ? `— ${w.name}` : ""} {pct > 0 ? `(${pct}% off target)` : "(at target)"}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const next = [...priceDropDismissed, ...priceDropAlerts.map(w => String(w.setNumber))];
+                setPriceDropDismissed(next);
+                localStorage.setItem("blPriceDropDismissed", JSON.stringify(next));
+              }}
+              style={{ background: "transparent", border: "1px solid #166534", color: "#8a9bb0", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12, flexShrink: 0 }}
             >
               Dismiss
             </button>

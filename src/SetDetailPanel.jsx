@@ -1,4 +1,6 @@
+import { useState, useEffect } from "react";
 import { asNumber, money, setImageUrl, conditionLabel, conditionColor, daysUntilRetirement } from "./utils/formatting";
+import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 
 function entryPaid(e) {
   return asNumber(e.paid_price ?? e.Paid ?? e.paid ?? 0);
@@ -33,6 +35,14 @@ export function openSetDetail(setNumber) {
 }
 
 export default function SetDetailPanel({ item, onClose, onEdit }) {
+  const [blPrice, setBlPrice] = useState(null);
+  useEffect(() => {
+    if (!item?.setNumber || !hasBrickLinkAuth()) { setBlPrice(null); return; }
+    fetchBrickLinkPriceGuide(String(item.setNumber).replace(/-1$/, ""))
+      .then(data => setBlPrice(data))
+      .catch(() => setBlPrice(null));
+  }, [item?.setNumber]);
+
   if (!item) return null;
 
   const entries = item.entries || [];
@@ -153,6 +163,16 @@ export default function SetDetailPanel({ item, onClose, onEdit }) {
           <StatBox label="Value / Copy" value={qty > 0 ? money(totalValue / qty) : "—"} />
           {retailPrice && totalPaid > 0 && <StatBox label="vs. Retail" value={`${(((totalValue / qty) - retailPrice) / retailPrice * 100) >= 0 ? "+" : ""}${(((totalValue / qty) - retailPrice) / retailPrice * 100).toFixed(1)}%`} color={(totalValue / qty) >= retailPrice ? "#5aa832" : "#ff8b8b"} />}
         </div>
+
+        {blPrice && (blPrice.avg_price_new > 0 || blPrice.avg_price_used > 0) && (
+          <div>
+            <div style={sectionLabel}>BrickLink Market Prices</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {blPrice.avg_price_new  > 0 && <StatBox label="BL Avg Sold (New)"  value={money(blPrice.avg_price_new)}  color="#3b82f6" />}
+              {blPrice.avg_price_used > 0 && <StatBox label="BL Avg Sold (Used)" value={money(blPrice.avg_price_used)} color="#8b5cf6" />}
+            </div>
+          </div>
+        )}
 
         {(forecast2yr || forecast5yr) && (
           <div>

@@ -54,6 +54,87 @@ const DEFAULT_ACQUISITION_COLUMNS = [
 ];
 
 
+// ── Portfolio history snapshot (call after any sync / import) ────────────
+function recordPortfolioSnapshot(totalValue, totalPaid) {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const history = JSON.parse(localStorage.getItem("blPortfolioHistory") || "[]");
+    const filtered = history.filter(h => h.date !== today);
+    filtered.push({ date: today, value: Number(totalValue) || 0, paid: Number(totalPaid) || 0 });
+    localStorage.setItem("blPortfolioHistory", JSON.stringify(
+      filtered.sort((a, b) => a.date.localeCompare(b.date)).slice(-365)
+    ));
+  } catch {}
+}
+
+// ── BrickEconomy CSV export parser ───────────────────────────────────────
+// Handles the CSV format exported from brickeconomy.com/user/collection
+function parseBECollectionCSV(text) {
+  const splitCSVRow = row => {
+    const out = []; let cur = ""; let inQ = false;
+    for (const ch of row) {
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { out.push(cur.trim()); cur = ""; }
+      else { cur += ch; }
+    }
+    out.push(cur.trim());
+    return out;
+  };
+  const rows = text.split(/\r?\n/).filter(Boolean).map(splitCSVRow);
+  const headers = rows.shift();
+  const setNumIdx = headers.findIndex(h => /number|set.?num/i.test(h));
+  if (setNumIdx < 0) return null; // unrecognised format
+
+  return rows.filter(r => r.length > 1 && r[setNumIdx]).map(row => {
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = row[i] || ""; });
+    const stripMoney = v => Number(String(v || "0").replace(/[^0-9.]/g, "")) || 0;
+    return {
+      set_number: obj.Number || obj["Set Number"] || obj.number || "",
+      name:        obj.Name   || obj.name   || "",
+      theme:       obj.Theme  || obj.theme  || "",
+      condition:   (obj.Condition || obj.condition || "new").toLowerCase().replace(/\s+/g, "_"),
+      paid_price:  stripMoney(obj.Paid  || obj.paid  || obj.paid_price),
+      current_value: stripMoney(obj.Value || obj.value || obj.current_value),
+      retired:     /yes|true|1/i.test(obj.Retired || obj.retired || ""),
+    };
+  }).filter(r => r.set_number);
+}
+
+// ── Brickset "My Sets" CSV parser ────────────────────────────────────────
+function parseBricksetMySetCSV(text) {
+  const splitCSVRow = row => {
+    const out = []; let cur = ""; let inQ = false;
+    for (const ch of row) {
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { out.push(cur.trim()); cur = ""; }
+      else { cur += ch; }
+    }
+    out.push(cur.trim());
+    return out;
+  };
+  const rows = text.split(/\r?\n/).filter(Boolean).map(splitCSVRow);
+  const headers = rows.shift();
+
+  return rows.filter(r => r.length > 1).flatMap(row => {
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = row[i] || ""; });
+    const setNumber = (obj["Set number"] || obj.SetNumber || obj.set_number || obj.Number || "").replace(/-1$/, "");
+    if (!setNumber) return [];
+    const qty = Number(obj.QtyOwned || obj["Qty owned"] || obj.quantity || 1) || 1;
+    const rrp = Number(String(obj.RRP || obj.rrp || "0").replace(/[^0-9.]/g, "")) || 0;
+    return [{
+      setNumber,
+      name:  obj.Name || obj.name || "",
+      theme: obj.Theme || obj.theme || "",
+      qty,
+      paidPrice: 0,
+      currentValue: rrp,
+      source: "Brickset"
+    }];
+  });
+}
+
 function normalizeBrickEconomyCollection(collection) {
   const bySet = {};
 
@@ -475,6 +556,91 @@ export default function AppSettings() {
     } catch (err) { setMessage(err.message || "Could not read Excel file."); }
   }
 
+  // ── BrickEconomy CSV export import ───────────────────────────────────────
+  async function importBrickEconomyExportCSV(e) {
+    const file = e?.target?.files?.[0];
+    if (!file) return;
+    if (e?.target) e.target.value = "";
+    try {
+      const text = await file.text();
+      const items = parseBECollectionCSV(text);
+      if (!items) { setMessage("Unrecognised format — use the CSV export from brickeconomy.com/user/collection."); return; }
+      if (items.length === 0) { setMessage("No sets found in this CSV."); return; }
+      const ok = window.confirm(`Import ${items.length} entries from BrickEconomy CSV? Replaces existing BrickEconomy data.`);
+      if (!ok) return;
+      const normalized = normalizeBrickEconomyCollection(items);
+      const totalPaid  = normalized.reduce((s, i) => s + i.totalPaid,  0);
+      const totalValue = normalized.reduce((s, i) => s + i.totalValue, 0);
+      recordPortfolioSnapshot(totalValue, totalPaid);
+      const syncInfo = {
+        lastSync: new Date().toISOString(),
+        setsCount: items.length,
+        uniqueSets: normalized.length,
+        duplicateGroups: normalized.filter(i => i.quantity > 1).length,
+        totalPaid, portfolioValue: totalValue,
+        unrealizedGain: totalValue - totalPaid,
+        valueSource: "BrickEconomy CSV export",
+        costBasisSource: "BrickEconomy CSV export",
+        inventorySource: "BrickEconomy CSV import"
+      };
+      localStorage.setItem("brickEconomyNormalizedCollection", JSON.stringify(normalized));
+      localStorage.setItem("brickEconomyCollectionSyncInfo", JSON.stringify(syncInfo));
+      setCollectionSyncInfo(syncInfo);
+      setMessage(`Imported ${normalized.length} unique sets (${items.length} entries) from BrickEconomy CSV. Refresh My Collection to see changes.`);
+    } catch (err) { setMessage("Could not parse BrickEconomy CSV: " + (err.message || err)); }
+  }
+
+  // ── Brickset "My Sets" CSV import ────────────────────────────────────────
+  async function importBricksetMySetCSV(e) {
+    const file = e?.target?.files?.[0];
+    if (!file) return;
+    if (e?.target) e.target.value = "";
+    try {
+      const text = await file.text();
+      const items = parseBricksetMySetCSV(text);
+      if (items.length === 0) { setMessage("No sets found — make sure this is a Brickset 'My Sets' CSV export."); return; }
+      const ok = window.confirm(`Import ${items.length} sets from Brickset? They'll be added as manual items with $0 paid price (update later).`);
+      if (!ok) return;
+      const existing = JSON.parse(localStorage.getItem("blOwnedSets") || "[]").filter(s => s.source !== "Brickset");
+      localStorage.setItem("blOwnedSets", JSON.stringify([...existing, ...items]));
+      setMessage(`Imported ${items.length} sets from Brickset. Open My Collection → Collection to review.`);
+    } catch (err) { setMessage("Could not parse Brickset CSV: " + (err.message || err)); }
+  }
+
+  // ── Enriched collection export ───────────────────────────────────────────
+  function exportEnrichedCSV() {
+    const sets = collectionSetsForExport();
+    const bsCache = JSON.parse(localStorage.getItem("bricksetSetCache") || "{}");
+    const beCache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
+
+    const headers = ["setNumber","name","theme","qty","avgPaid","avgValue","totalPaid","totalValue","gain","roi","condition","retired","exitDate","pieces","subtheme","minifigs","rating","forecast2yr","forecast5yr"];
+    const rows = sets.map(s => {
+      const clean = String(s.setNumber || "").replace(/-1$/, "");
+      const bs = (bsCache[clean] || bsCache[`${clean}-1`] || {}).data || {};
+      const be = (beCache[clean] || beCache[`${clean}-1`] || {}).data || {};
+      const qty   = Number(s.quantity || s.qty || 1);
+      const paid  = Number(s.totalPaid)  || (asNumber(s.paidPrice)   * qty);
+      const value = Number(s.totalValue) || (asNumber(s.currentValue) * qty);
+      const gain  = value - paid;
+      const roi   = paid > 0 ? ((gain / paid) * 100).toFixed(1) : "";
+      return [
+        s.setNumber || "", s.name || "", s.theme || "", qty,
+        (paid  / qty).toFixed(2), (value / qty).toFixed(2),
+        paid.toFixed(2), value.toFixed(2), gain.toFixed(2), roi,
+        s.condition || "", s.retired ? "Yes" : "No",
+        bs.exit_date || "",
+        be.pieces_count || bs.pieces || "",
+        bs.subtheme || "",
+        bs.minifigs != null ? bs.minifigs : "",
+        bs.rating || "",
+        be.forecast_value_new_2_years || "",
+        be.forecast_value_new_5_years || ""
+      ];
+    });
+    const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
+    downloadFile("brickledger-collection-enriched.csv", csv, "text/csv");
+  }
+
   async function handleDropCollection(e) {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
@@ -638,6 +804,7 @@ export default function AppSettings() {
       localStorage.setItem("brickEconomyNormalizedCollection", JSON.stringify(normalizedCollection));
       localStorage.setItem("brickEconomyCollectionSyncInfo", JSON.stringify(syncInfo));
 
+      recordPortfolioSnapshot(syncInfo.portfolioValue, syncInfo.totalPaid);
       setCollectionSyncInfo(syncInfo);
       setMessage(`BrickEconomy collection synced: ${syncInfo.setsCount} sets.`);
     } catch (err) {
@@ -811,13 +978,23 @@ export default function AppSettings() {
               <strong style={{ color: "#e8e2d5" }}>Drop file here</strong>
               <div style={{ fontSize: 12, marginTop: 4 }}>Excel · CSV · JSON</div>
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-              <label style={redBtn}>Import Excel<input type="file" accept=".xlsx,.xls" onChange={importCollectionExcel} style={{ display: "none" }} /></label>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ ...dataBlockDesc, marginBottom: 6, fontWeight: 700, color: "#c9a84c" }}>Import from services</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <label style={redBtn}>BrickEconomy CSV<input type="file" accept=".csv" onChange={importBrickEconomyExportCSV} style={{ display: "none" }} /></label>
+                <label style={ghostBtn}>Brickset My Sets CSV<input type="file" accept=".csv" onChange={importBricksetMySetCSV} style={{ display: "none" }} /></label>
+              </div>
+              <div style={{ ...dataBlockDesc, marginTop: 6 }}>BrickEconomy: go to your collection → Export → CSV. Brickset: My Sets → Export.</div>
+            </div>
+            <div style={{ ...dataBlockDesc, marginBottom: 6, fontWeight: 700, color: "#8a9bb0" }}>Manual import / export</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+              <label style={ghostBtn}>Import Excel<input type="file" accept=".xlsx,.xls" onChange={importCollectionExcel} style={{ display: "none" }} /></label>
               <label style={ghostBtn}>Import CSV<input type="file" accept=".csv" onChange={importCollectionCSV} style={{ display: "none" }} /></label>
               <label style={ghostBtn}>Import JSON<input type="file" accept=".json" onChange={importCollectionJSON} style={{ display: "none" }} /></label>
               <button onClick={exportCollectionCSV} style={ghostBtn}>Export CSV</button>
               <button onClick={exportCollectionJSON} style={ghostBtn}>Export JSON</button>
-              <button onClick={downloadCollectionTemplate} style={ghostBtn}>Download Template</button>
+              <button onClick={exportEnrichedCSV} style={ghostBtn}>Export Enriched CSV</button>
+              <button onClick={downloadCollectionTemplate} style={ghostBtn}>Template</button>
             </div>
           </div>
         </div>
