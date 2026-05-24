@@ -36,6 +36,7 @@ const API_ROUTES = {
   '/api/brickset-set':            require('./api/brickset-set'),
   '/api/bricklink-auth':          require('./api/bricklink-auth'),
   '/api/bricklink-priceguide':    require('./api/bricklink-priceguide'),
+  '/api/lego-last-chance':        require('./api/lego-last-chance'),
 }
 
 export default defineConfig({

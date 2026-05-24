@@ -13,6 +13,7 @@ const SOURCE_CONFIDENCE = {
   "Manual":           "Low",
 };
 import { fetchBricksetSet } from "./utils/brickset";
+import { getLastChanceCodes, isLastChanceSet, getCachedLastChanceCodes } from "./utils/legoLastChance";
 import WatchDetailPanel from "./WatchDetailPanel";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
@@ -111,6 +112,8 @@ export default function WantedList({ onBuyNow }) {
     lastRetirementUpdate: "",
     exit_date: "",
     isLastChance: false,
+    forecast2yr: "",
+    forecast5yr: "",
     notes: "",
     subtheme: "",
     minifigs: "",
@@ -125,6 +128,7 @@ export default function WantedList({ onBuyNow }) {
   const [filterStatus, setFilterStatus] = useState("");
   const [lookupMessage, setLookupMessage] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
+  const [lastChanceCodes, setLastChanceCodes] = useState(() => getCachedLastChanceCodes());
   const [selectedWantedIndex, setSelectedWantedIndex] = useState(null);
   const [checkedWanted, setCheckedWanted] = useState([]);
   const [sortKey, setSortKey] = useState("score");
@@ -282,6 +286,22 @@ export default function WantedList({ onBuyNow }) {
     })();
 
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally runs once on mount
+
+  // ── LEGO Last Chance auto-detection ──────────────────────────────────────
+  // Fetches the official LEGO "Last Chance to Buy" list (CDN-cached 24hr)
+  // and auto-flags any matching wanted items as isLastChance.
+  useEffect(() => {
+    getLastChanceCodes().then(codes => {
+      if (codes.size === 0) return;
+      setLastChanceCodes(codes);
+      setWanted(prev => prev.map(w => {
+        const shouldFlag = isLastChanceSet(w.setNumber, codes);
+        if (shouldFlag === w.isLastChance) return w;
+        return { ...w, isLastChance: shouldFlag };
+      }));
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally runs once on mount
 
@@ -648,6 +668,8 @@ export default function WantedList({ onBuyNow }) {
         retiringSoon: prev.retiringSoon,
         retirementSource: prev.retirementSource || "Manual",
         lastRetirementUpdate: prev.lastRetirementUpdate,
+        forecast2yr: setData.forecast_value_new_2_years || prev.forecast2yr,
+        forecast5yr: setData.forecast_value_new_5_years || prev.forecast5yr,
         targetPrice: setData.retail_price_us
           ? (Number(setData.retail_price_us) * (1 - Number(prev.targetDiscount || 0) / 100)).toFixed(2)
           : prev.targetPrice
@@ -757,7 +779,7 @@ export default function WantedList({ onBuyNow }) {
       priority: 3, retiringSoon: false, status: "Watch", retirementYear: "",
       retirementConfidence: "Medium", notes: "", subtheme: "", minifigs: "",
       weight: "", rating: "", packagingType: "", ageMin: "",
-      exit_date: "", isLastChance: false,
+      exit_date: "", isLastChance: false, forecast2yr: "", forecast5yr: "",
     });
   }
 
@@ -1111,7 +1133,7 @@ export default function WantedList({ onBuyNow }) {
           {(form.setNumber || form.name || form.theme || form.msrp || form.storePrice || form.notes) && (
             <button
               onClick={() => {
-                setForm({ setNumber: "", name: "", theme: "", msrp: "", targetDiscount: "", targetPrice: "", storePrice: "", priority: 3, retiringSoon: false, status: "Watch", retirementYear: "", retirementConfidence: "Medium", releaseYear: "", pieces: "", currentValue: "", availability: "", retirementSource: "Brick Fanatics", lastRetirementUpdate: "", notes: "", subtheme: "", minifigs: "", weight: "", rating: "", packagingType: "", ageMin: "", exit_date: "", isLastChance: false });
+                setForm({ setNumber: "", name: "", theme: "", msrp: "", targetDiscount: "", targetPrice: "", storePrice: "", priority: 3, retiringSoon: false, status: "Watch", retirementYear: "", retirementConfidence: "Medium", releaseYear: "", pieces: "", currentValue: "", availability: "", retirementSource: "Brick Fanatics", lastRetirementUpdate: "", notes: "", subtheme: "", minifigs: "", weight: "", rating: "", packagingType: "", ageMin: "", exit_date: "", isLastChance: false, forecast2yr: "", forecast5yr: "" });
                 setLookupMessage("");
               }}
               style={{ background: "transparent", color: "#5d6f80", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "5px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
@@ -1177,6 +1199,18 @@ export default function WantedList({ onBuyNow }) {
                   <div style={miniLabel}>Availability</div>
                   <div style={miniValue}>{form.availability || "—"}</div>
                 </div>
+                {form.forecast2yr && (
+                  <div style={miniStat}>
+                    <div style={miniLabel}>2yr Forecast</div>
+                    <div style={{ ...miniValue, color: "#5aa832" }}>{money(form.forecast2yr)}</div>
+                  </div>
+                )}
+                {form.forecast5yr && (
+                  <div style={miniStat}>
+                    <div style={miniLabel}>5yr Forecast</div>
+                    <div style={{ ...miniValue, color: "#5aa832" }}>{money(form.forecast5yr)}</div>
+                  </div>
+                )}
               </div>
 
               {/* ── Retirement banner ── */}
@@ -1249,6 +1283,70 @@ export default function WantedList({ onBuyNow }) {
                   {recommendation(priorityScore(form))}
                 </span>
 </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Retirement Intel panel ────────────────────────────────────────── */}
+        {form.setNumber && (
+          <div style={{ background: "rgba(11,21,32,0.7)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "14px 16px", marginBottom: 12 }}>
+            <div style={{ fontWeight: 800, fontSize: 13, color: "#8a9bb0", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Retirement Intel</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 12 }}>
+
+              {/* LEGO Official Last Chance */}
+              <div style={{ background: "#0b1520", border: `1px solid ${isLastChanceSet(form.setNumber, lastChanceCodes) ? "#ef444440" : "rgba(255,255,255,0.06)"}`, borderRadius: 8, padding: "10px 12px" }}>
+                <div style={{ fontSize: 11, color: "#5d6f80", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>LEGO Official</div>
+                {isLastChanceSet(form.setNumber, lastChanceCodes)
+                  ? <div style={{ color: "#ef4444", fontWeight: 800, fontSize: 13 }}>🚨 Last Chance to Buy</div>
+                  : <div style={{ color: "#5d6f80", fontSize: 13 }}>Not on Last Chance list</div>}
+              </div>
+
+              {/* Brickset exit date */}
+              <div style={{ background: "#0b1520", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "10px 12px" }}>
+                <div style={{ fontSize: 11, color: "#5d6f80", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Brickset</div>
+                {form.exit_date
+                  ? (() => {
+                      const days = daysUntilRetirement(form.exit_date);
+                      const wave = retirementWaveLabel(form.exit_date);
+                      const color = days <= 60 ? "#ef4444" : days <= 180 ? "#f59e0b" : "#5aa832";
+                      return (
+                        <>
+                          <div style={{ color, fontWeight: 800, fontSize: 13 }}>{wave || `Retires ${form.retirementYear}`}</div>
+                          <div style={{ color: "#5d6f80", fontSize: 11, marginTop: 2 }}>
+                            {days <= 0 ? "Past exit date" : `${days} days`}
+                          </div>
+                        </>
+                      );
+                    })()
+                  : <div style={{ color: "#5d6f80", fontSize: 13 }}>{form.retirementYear ? `Est. ${form.retirementYear}` : "No exit date"}</div>}
+              </div>
+
+              {/* Source */}
+              <div style={{ background: "#0b1520", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "10px 12px" }}>
+                <div style={{ fontSize: 11, color: "#5d6f80", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Source</div>
+                <div style={{ color: "#e8e2d5", fontSize: 13, fontWeight: 700 }}>{form.retirementSource || "—"}</div>
+                <div style={{ color: "#5d6f80", fontSize: 11, marginTop: 2 }}>{form.retirementConfidence ? `${form.retirementConfidence} confidence` : ""}</div>
+              </div>
+            </div>
+
+            {/* External links */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(() => {
+                const clean = String(form.setNumber || "").replace(/-1$/, "");
+                const theme = encodeURIComponent((form.theme || "") + " retiring");
+                const links = [
+                  { label: "Brick Fanatics ↗", url: `https://www.brickfanatics.com/?s=${theme}`, color: "#c9a84c" },
+                  { label: "Brickset ↗", url: form.brickset_url || `https://brickset.com/sets/${clean}-1`, color: "#3b82f6" },
+                  { label: "BrickEconomy ↗", url: `https://www.brickeconomy.com/set/${clean}-1`, color: "#10b981" },
+                  { label: "LEGO Last Chance ↗", url: "https://www.lego.com/en-us/categories/last-chance-to-buy", color: "#ef4444" },
+                ];
+                return links.map(({ label, url, color }) => (
+                  <a key={label} href={url} target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 12, color, fontWeight: 700, padding: "5px 10px", borderRadius: 6, border: `1px solid ${color}30`, background: `${color}10`, textDecoration: "none", whiteSpace: "nowrap" }}>
+                    {label}
+                  </a>
+                ));
+              })()}
             </div>
           </div>
         )}
