@@ -376,46 +376,6 @@ export default function WantedList({ onBuyNow }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally runs once on mount
 
-  // ── Keyboard shortcuts ───────────────────────────────────────────────────
-  useEffect(() => {
-    function onKey(e) {
-      const tag = document.activeElement?.tagName;
-      const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
-      if (e.key === "Escape") {
-        setDetailItem(null); setDetailItemIndex(null);
-        setSelectedWantedIndex(null);
-        setColGearOpen(false); setBulkThemeOpen(false);
-        return;
-      }
-      if (typing) return;
-      if (e.key === "n" || e.key === "N") {
-        setSubTab("research");
-        setTimeout(() => document.querySelector('input[placeholder*="set number"]')?.focus(), 80);
-      }
-      if ((e.key === "e" || e.key === "E") && detailItem) {
-        const idx = wanted.indexOf(detailItem);
-        if (idx >= 0) { setDetailItem(null); setDetailItemIndex(null); setSelectedWantedIndex(idx); }
-      }
-      if (e.key === "ArrowDown" && subTab === "queue") {
-        const sorted = visibleWanted;
-        const cur = detailItem ? sorted.indexOf(detailItem) : -1;
-        const next = sorted[Math.min(cur + 1, sorted.length - 1)];
-        if (next) { setDetailItem(next); setDetailItemIndex(wanted.indexOf(next)); }
-        e.preventDefault();
-      }
-      if (e.key === "ArrowUp" && subTab === "queue") {
-        const sorted = visibleWanted;
-        const cur = detailItem ? sorted.indexOf(detailItem) : sorted.length;
-        const prev = sorted[Math.max(cur - 1, 0)];
-        if (prev) { setDetailItem(prev); setDetailItemIndex(wanted.indexOf(prev)); }
-        e.preventDefault();
-      }
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detailItem, subTab, wanted, visibleWanted]);
-
   const DEFAULT_WANTED_COLUMNS = [
     // ── Intelligence ─────────────────────────────────────────────
     { key: "score",               label: "Score",        visible: false, group: "intelligence" },
@@ -550,6 +510,46 @@ export default function WantedList({ onBuyNow }) {
         return String(av).localeCompare(String(bv)) * direction;
       });
   }, [wanted, search, filterTheme, filterStatus, sortKey, sortDirection]);
+
+  // ── Keyboard shortcuts (declared after visibleWanted to avoid TDZ) ────────
+  useEffect(() => {
+    function onKey(e) {
+      const tag = document.activeElement?.tagName;
+      const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      if (e.key === "Escape") {
+        setDetailItem(null); setDetailItemIndex(null);
+        setSelectedWantedIndex(null);
+        setColGearOpen(false); setBulkThemeOpen(false);
+        return;
+      }
+      if (typing) return;
+      if (e.key === "n" || e.key === "N") {
+        setSubTab("research");
+        setTimeout(() => document.querySelector('input[placeholder*="set number"]')?.focus(), 80);
+      }
+      if ((e.key === "e" || e.key === "E") && detailItem) {
+        const idx = wanted.indexOf(detailItem);
+        if (idx >= 0) { setDetailItem(null); setDetailItemIndex(null); setSelectedWantedIndex(idx); }
+      }
+      if (e.key === "ArrowDown" && subTab === "queue") {
+        const sorted = visibleWanted;
+        const cur = detailItem ? sorted.indexOf(detailItem) : -1;
+        const next = sorted[Math.min(cur + 1, sorted.length - 1)];
+        if (next) { setDetailItem(next); setDetailItemIndex(wanted.indexOf(next)); }
+        e.preventDefault();
+      }
+      if (e.key === "ArrowUp" && subTab === "queue") {
+        const sorted = visibleWanted;
+        const cur = detailItem ? sorted.indexOf(detailItem) : sorted.length;
+        const prev = sorted[Math.max(cur - 1, 0)];
+        if (prev) { setDetailItem(prev); setDetailItemIndex(wanted.indexOf(prev)); }
+        e.preventDefault();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailItem, subTab, wanted, visibleWanted]);
 
   function isNumericColumn(key) {
     return ["score", "msrp", "targetPrice", "discount"].includes(key);
