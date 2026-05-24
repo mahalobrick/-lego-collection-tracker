@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "buildCommand": "vite build",
+  "installCommand": "npm install",
+  "outputDirectory": "dist",
+  "framework": null,
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" }
+  ]
+}

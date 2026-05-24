@@ -1,0 +1,1329 @@
+import { useEffect, useMemo, useState } from "react";
+import { searchInput, filterSelect, clearFilterButton, filterBar } from "./uiStyles";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from "recharts";
+import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
+import { asNumber, money, setImageUrl, CONDITION_LABELS, priorityScore, recommendation } from "./utils/formatting";
+import WatchDetailPanel from "./WatchDetailPanel";
+
+const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
+
+const DEFAULT_COLLECTION_ITEMS = [
+  { key: "qty",          type: "card",  label: "Owned Qty",        visible: true,  width: "auto",  collapsed: false },
+  { key: "value",        type: "card",  label: "Collection Value", visible: true,  width: "auto",  collapsed: false },
+  { key: "cost",         type: "card",  label: "Cost Basis",       visible: true,  width: "auto",  collapsed: false },
+  { key: "gain",         type: "card",  label: "Net Gain / Loss",  visible: true,  width: "auto",  collapsed: false },
+  { key: "roi",          type: "card",  label: "ROI",              visible: true,  width: "auto",  collapsed: false },
+  { key: "themes",       type: "card",  label: "Themes",           visible: true,  width: "auto",  collapsed: false },
+  { key: "duplicates",   type: "card",  label: "Multi-Copy Sets",  visible: true,  width: "auto",  collapsed: false },
+  { key: "active",       type: "card",  label: "Active Sets",      visible: false, width: "auto",  collapsed: false },
+  { key: "retired",      type: "card",  label: "Retired Sets",     visible: false, width: "auto",  collapsed: false },
+  { key: "newSets",      type: "card",  label: "New / Sealed",     visible: false, width: "auto",  collapsed: false },
+  { key: "usedSets",     type: "card",  label: "Used Sets",        visible: false, width: "auto",  collapsed: false },
+  { key: "avgValue",     type: "card",  label: "Avg Set Value",    visible: false, width: "auto",  collapsed: false },
+  { key: "avgPaid",      type: "card",  label: "Avg Paid / Set",   visible: false, width: "auto",  collapsed: false },
+  { key: "watchList",    type: "card",  label: "Watch List",       visible: false, width: "auto",  collapsed: false },
+  { key: "retiringSoon", type: "card",  label: "Retiring Soon",    visible: false, width: "auto",  collapsed: false },
+  { key: "theme-chart",   type: "panel", label: "Value by Theme",     visible: true,  width: "half",  collapsed: false },
+  { key: "roi-leaders",   type: "panel", label: "ROI Leaders",        visible: true,  width: "half",  collapsed: false },
+  { key: "most-valuable", type: "panel", label: "Most Valuable Sets", visible: true,  width: "half",  collapsed: false },
+  { key: "watch-list",    type: "panel", label: "Watch List",         visible: true,  width: "half",  collapsed: false },
+  { key: "budget",        type: "panel", label: "Budget Snapshot",    visible: true,  width: "full",  collapsed: false },
+];
+
+const DEFAULT_OWNED_COLUMNS = [
+  { key: "setNumber", label: "Set #", visible: true },
+  { key: "name", label: "Set Name", visible: true },
+  { key: "theme", label: "Theme", visible: true },
+  { key: "condition", label: "Condition", visible: true },
+  { key: "qty", label: "Qty", visible: true },
+  { key: "paid", label: "Paid", visible: true },
+  { key: "value", label: "Value", visible: true },
+  { key: "gain", label: "Gain/Loss", visible: true },
+  { key: "roi", label: "ROI %", visible: true },
+  { key: "notes", label: "Notes", visible: true }
+];
+
+export default function MyCollection({ onBuyNow, onSwitchTab }) {
+  const [tab, setTab] = useState("overview");
+  const [searchText, setSearchText] = useState("");
+  const [filterTheme, setFilterTheme] = useState("");
+  const [filterCondition, setFilterCondition] = useState("");
+  const [sortColumn, setSortColumn] = useState("setNumber");
+  const [sortDirection, setSortDirection] = useState("asc");
+  const [checkedSets, setCheckedSets] = useState([]);
+
+  const [selectedSetIndex, setSelectedSetIndex] = useState(null);
+  const [detailSet, setDetailSet] = useState(null);
+  const [detailSetIndex, setDetailSetIndex] = useState(null);
+  const [showAllThemes, setShowAllThemes] = useState(false);
+  const [showAllRoi, setShowAllRoi] = useState(false);
+  const [showAllValuable, setShowAllValuable] = useState(false);
+  const [showAllWatchHighlights, setShowAllWatchHighlights] = useState(false);
+  const [detailWatchItem, setDetailWatchItem] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [hoveredSet, setHoveredSet] = useState(null);
+  const [hoveredWatchItem, setHoveredWatchItem] = useState(null);
+  const [tipPos, setTipPos] = useState({ x: 0, y: 0 });
+  const [chartTypes, setChartTypes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("blCollChartTypes") || "{}"); } catch { return {}; }
+  });
+  const [collPillsCollapsed, setCollPillsCollapsed] = useState(false);
+  const [collGearOpen, setCollGearOpen] = useState(false);
+  const [hoveredCollItem, setHoveredCollItem] = useState(null);
+  const [draggedCollItem, setDraggedCollItem] = useState(null);
+  const [collectionItems, setCollectionItems] = useState(() => {
+    const saved = localStorage.getItem("blCollectionItems");
+    if (!saved) return DEFAULT_COLLECTION_ITEMS;
+    const parsed = JSON.parse(saved);
+    const typeMap = Object.fromEntries(DEFAULT_COLLECTION_ITEMS.map(c => [c.key, c.type]));
+    const labelMap = Object.fromEntries(DEFAULT_COLLECTION_ITEMS.map(c => [c.key, c.label]));
+    const merged = parsed.map(c => ({ ...c, type: typeMap[c.key] ?? c.type, label: labelMap[c.key] ?? c.label }));
+    const savedKeys = new Set(merged.map(c => c.key));
+    const missing = DEFAULT_COLLECTION_ITEMS.filter(c => !savedKeys.has(c.key));
+    return [...merged, ...missing];
+  });
+
+  const [ownedColumnsOpen, setOwnedColumnsOpen] = useState(false);
+  const [draggedOwnedColumn, setDraggedOwnedColumn] = useState(null);
+
+  const [ownedColumns, setOwnedColumns] = useState(() => {
+    const saved = localStorage.getItem("blOwnedColumns");
+    if (!saved) return DEFAULT_OWNED_COLUMNS;
+    const parsed = JSON.parse(saved);
+    const labelMap = Object.fromEntries(DEFAULT_OWNED_COLUMNS.map(c => [c.key, c.label]));
+    const merged = parsed.map(c => ({ ...c, label: labelMap[c.key] ?? c.label }));
+    const savedKeys = new Set(merged.map(c => c.key));
+    const missing = DEFAULT_OWNED_COLUMNS.filter(c => !savedKeys.has(c.key));
+    return missing.length ? [...merged, ...missing] : merged;
+  });
+
+  const [sets, setSets] = useState(() => {
+    // Load BrickEconomy-synced items
+    let beItems = [];
+    const brickEconomySaved = localStorage.getItem("brickEconomyNormalizedCollection");
+    if (brickEconomySaved) {
+      try {
+        beItems = JSON.parse(brickEconomySaved).map(item => {
+          const entries = item.entries || [];
+          const entryConditions = [...new Set(entries.map(e => e.condition).filter(Boolean))];
+          const condition = entryConditions.length === 1 ? entryConditions[0] : entryConditions.length > 1 ? "mixed" : null;
+          return {
+            setNumber: item.setNumber,
+            name: item.name,
+            theme: item.theme,
+            qty: item.quantity,
+            paidPrice: item.averagePaid,
+            currentValue: item.totalValue,
+            totalPaid: item.totalPaid,
+            totalValue: item.totalValue,
+            roiPct: item.roiPct,
+            retired: item.retired,
+            condition,
+            entries,
+            source: "BrickEconomy"
+          };
+        });
+      } catch {}
+    }
+
+    // Load manually-added items (excludes any stale BE entries previously saved here)
+    let manualItems = [];
+    const manualSaved = localStorage.getItem("blOwnedSets");
+    if (manualSaved) {
+      try {
+        manualItems = JSON.parse(manualSaved).filter(m => m.source !== "BrickEconomy");
+      } catch {}
+    }
+
+    if (beItems.length === 0) return manualItems;
+
+    // Merge: append manual items whose set number isn't already in BE data
+    const beSetNumbers = new Set(beItems.map(s => String(s.setNumber || "").replace(/-1$/, "")));
+    const extraManual = manualItems.filter(m => {
+      const num = String(m.setNumber || "").replace(/-1$/, "");
+      return !beSetNumbers.has(num);
+    });
+    return [...beItems, ...extraManual];
+  });
+
+  const [form, setForm] = useState({
+    setNumber: "",
+    name: "",
+    theme: "",
+    condition: "new",
+    qty: 1,
+    paidPrice: "",
+    currentValue: "",
+    notes: ""
+  });
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupMessage, setLookupMessage] = useState("");
+
+  useEffect(() => {
+    // Only persist manually-added items; BE data lives in brickEconomyNormalizedCollection
+    const manualItems = sets.filter(s => s.source !== "BrickEconomy");
+    localStorage.setItem("blOwnedSets", JSON.stringify(manualItems));
+  }, [sets]);
+
+  useEffect(() => {
+    localStorage.setItem("blCollectionItems", JSON.stringify(collectionItems));
+  }, [collectionItems]);
+
+  useEffect(() => {
+    localStorage.setItem("blCollChartTypes", JSON.stringify(chartTypes));
+  }, [chartTypes]);
+
+  function cycleChartType(key) {
+    setChartTypes(prev => {
+      const cur = prev[key] || "donut";
+      const next = cur === "donut" ? "pie" : cur === "pie" ? "bar" : "donut";
+      return { ...prev, [key]: next };
+    });
+  }
+
+  // Refresh localStorage-backed memos when returning to overview sub-tab
+  useEffect(() => {
+    if (tab === "overview") setRefreshKey(k => k + 1);
+  }, [tab]);
+
+  // Refresh when another window/tab writes to localStorage (e.g. Budget opened in a second tab)
+  useEffect(() => {
+    const handler = () => setRefreshKey(k => k + 1);
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, []);
+
+  const stats = useMemo(() => {
+    const totalQty = sets.reduce((sum, s) => sum + (asNumber(s.qty) || 1), 0);
+    // Prefer pre-computed totals for BE items (totalValue/totalPaid already account for qty).
+    // Fall back to per-unit × qty for manually added sets that don't have those fields.
+    const costBasis = sets.reduce((sum, s) => sum + (asNumber(s.totalPaid) || asNumber(s.paidPrice) * (asNumber(s.qty) || 1)), 0);
+    const value = sets.reduce((sum, s) => sum + (asNumber(s.totalValue) || asNumber(s.currentValue) * (asNumber(s.qty) || 1)), 0);
+    const themes = new Set(sets.map(s => s.theme).filter(Boolean)).size;
+    const duplicates = sets.filter(s => (asNumber(s.qty) || 1) > 1).length;
+    const activeSets = sets.filter(s => !s.retired).length;
+    const retiredSets = sets.filter(s => s.retired).length;
+    const newSets = sets.filter(s => !s.condition || s.condition === "new" || s.condition === "sealed").length;
+    const usedSets = sets.filter(s => s.condition && s.condition.startsWith("used_")).length;
+    const avgValue = sets.length ? value / sets.length : 0;
+    const avgPaid  = sets.length ? costBasis / sets.length : 0;
+
+    return {
+      totalQty, costBasis, value, themes, duplicates,
+      activeSets, retiredSets, newSets, usedSets, avgValue, avgPaid,
+      gainLoss: value - costBasis,
+      roi: costBasis ? ((value - costBasis) / costBasis) * 100 : 0
+    };
+  }, [sets]);
+
+  const themeChartData = useMemo(() => {
+    const byTheme = {};
+    sets.forEach(s => {
+      const t = s.theme || "Other";
+      if (!byTheme[t]) byTheme[t] = { qty: 0, value: 0 };
+      byTheme[t].qty += asNumber(s.qty) || 1;
+      // Use totalValue for BE items (already aggregated); fall back to per-unit × qty for manual
+      byTheme[t].value += asNumber(s.totalValue) || asNumber(s.currentValue) * (asNumber(s.qty) || 1);
+    });
+    return Object.entries(byTheme)
+      .sort((a, b) => b[1].value - a[1].value)
+      .map(([name, d]) => ({ name, qty: d.qty, value: d.value }));
+  }, [sets]);
+
+  const topRoiSets = useMemo(() => {
+    return [...sets]
+      .filter(s => asNumber(s.paidPrice) > 0)
+      .map(s => ({
+        ...s,
+        _roi: asNumber(s.roiPct) || ((asNumber(s.currentValue) - asNumber(s.paidPrice)) / asNumber(s.paidPrice)) * 100
+      }))
+      .sort((a, b) => b._roi - a._roi);
+  }, [sets]);
+
+  const topValueSets = useMemo(() => {
+    return [...sets].sort((a, b) =>
+      (asNumber(b.totalValue) || asNumber(b.currentValue) * (asNumber(b.qty) || 1)) -
+      (asNumber(a.totalValue) || asNumber(a.currentValue) * (asNumber(a.qty) || 1))
+    );
+  }, [sets]);
+
+  const watchListHighlights = useMemo(() => {
+    try {
+      const wl = JSON.parse(localStorage.getItem("blWantedList") || "[]");
+      const scored = [...wl]
+        .map(w => ({ ...w, _score: priorityScore(w) }))
+        .sort((a, b) => b._score - a._score);
+      return {
+        total: wl.length,
+        retiringSoon: wl.filter(w => w.retiringSoon || Number(w.retirementYear) <= new Date().getFullYear() + 1).length,
+        critical: wl.filter(w => ["Buy Soon", "Critical"].includes(w.status)).length,
+        scored
+      };
+    } catch { return { total: 0, retiringSoon: 0, critical: 0, scored: [] }; }
+  }, [refreshKey]);
+
+  const budgetSnapshot = useMemo(() => {
+    try {
+      const purchases = JSON.parse(localStorage.getItem("blPurchases") || "[]");
+      const annualBudget = asNumber(localStorage.getItem("blAnnualBudget")) || 0;
+      const totalSpent = purchases.reduce((sum, p) => sum + asNumber(p.amount) * (asNumber(p.qty) || 1), 0);
+      const pct = annualBudget ? Math.min((totalSpent / annualBudget) * 100, 100) : 0;
+      const color = pct >= 100 ? "#ef4444" : pct >= 70 ? "#f7b731" : "#22c55e";
+      const status = pct >= 100 ? "Over Budget" : pct >= 70 ? "Approaching Limit" : "Healthy";
+      return { annualBudget, totalSpent, remaining: annualBudget - totalSpent, pct, color, status };
+    } catch { return { annualBudget: 0, totalSpent: 0, remaining: 0, pct: 0, color: "#22c55e", status: "Healthy" }; }
+  }, [refreshKey]);
+
+  function normalizeSetNum(raw) {
+    const s = String(raw || "").trim();
+    return s && !s.includes("-") ? `${s}-1` : s;
+  }
+
+  async function lookupBE() {
+    const key = normalizeSetNum(form.setNumber);
+    if (!key) return;
+    setLookupLoading(true);
+    setLookupMessage("");
+    try {
+      const cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
+      let d = cache[key]?.data;
+      if (!d) {
+        const res = await fetch(`/api/brickeconomy-set?number=${encodeURIComponent(key)}&currency=USD`);
+        const json = await res.json();
+        if (!res.ok || json.error) { setLookupMessage(json.message || json.error || "Lookup failed."); return; }
+        d = json.data || json;
+        cache[key] = { fetchedAt: new Date().toISOString(), data: d };
+        localStorage.setItem("brickEconomySetCache", JSON.stringify(cache));
+      }
+      setForm(prev => ({
+        ...prev,
+        setNumber: d.set_number || key,
+        name: d.name || prev.name,
+        theme: d.theme || prev.theme,
+        currentValue: d.current_value_new || d.retail_price_us || prev.currentValue,
+      }));
+      setLookupMessage(`Found: ${d.name || key}`);
+    } catch {
+      setLookupMessage("Could not reach BrickEconomy.");
+    } finally {
+      setLookupLoading(false);
+    }
+  }
+
+  function addSet() {
+    if (!form.setNumber && !form.name) return;
+
+    setSets(prev => [
+      ...prev,
+      {
+        ...form,
+        qty: asNumber(form.qty) || 1,
+        paidPrice: asNumber(form.paidPrice),
+        currentValue: asNumber(form.currentValue)
+      }
+    ]);
+
+    setForm({ setNumber: "", name: "", theme: "", condition: "new", qty: 1, paidPrice: "", currentValue: "", notes: "" });
+    setLookupMessage("");
+  }
+
+  function dropCollItem(targetKey) {
+    if (!draggedCollItem || draggedCollItem === targetKey) return;
+    setCollectionItems(prev => {
+      const next = [...prev];
+      const from = next.findIndex(c => c.key === draggedCollItem);
+      const to   = next.findIndex(c => c.key === targetKey);
+      if (from < 0 || to < 0) return prev;
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+    setDraggedCollItem(null);
+  }
+
+  function toggleCollWidth(key) {
+    setCollectionItems(prev => prev.map(i => i.key === key ? { ...i, width: i.width === "full" ? "half" : "full" } : i));
+  }
+
+  function toggleCollCollapse(key) {
+    setCollectionItems(prev => prev.map(i => i.key === key ? { ...i, collapsed: !i.collapsed } : i));
+  }
+
+  function dropOwnedColumn(targetKey) {
+    if (!draggedOwnedColumn || draggedOwnedColumn === targetKey) return;
+
+    setOwnedColumns(prev => {
+      const next = [...prev];
+      const fromIndex = next.findIndex(col => col.key === draggedOwnedColumn);
+      const toIndex = next.findIndex(col => col.key === targetKey);
+
+      if (fromIndex < 0 || toIndex < 0) return prev;
+
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+
+      return next;
+    });
+
+    setDraggedOwnedColumn(null);
+  }
+
+  function toggleOwnedColumn(key) {
+    setOwnedColumns(prev =>
+      prev.map(col =>
+        col.key === key
+          ? { ...col, visible: !col.visible }
+          : col
+      )
+    );
+  }
+
+  function moveOwnedColumn(key, direction) {
+    setOwnedColumns(prev => {
+      const next = [...prev];
+
+      const index = next.findIndex(col => col.key === key);
+      const newIndex = index + direction;
+
+      if (index < 0 || newIndex < 0 || newIndex >= next.length) {
+        return prev;
+      }
+
+      const [item] = next.splice(index, 1);
+      next.splice(newIndex, 0, item);
+
+      return next;
+    });
+  }
+
+  function renderOwnedCell(set, column) {
+    const qty = asNumber(set.qty) || 1;
+    const paid = asNumber(set.totalPaid) || asNumber(set.paidPrice) * qty;
+    const value = asNumber(set.totalValue) || asNumber(set.currentValue) * qty;
+    const gain = value - paid;
+    const roi = paid > 0 ? ((gain / paid) * 100) : null;
+
+    if (column.key === "setNumber") return set.setNumber || "—";
+    if (column.key === "name") return set.name || "—";
+    if (column.key === "theme") return set.theme || "—";
+    if (column.key === "condition") return set.condition ? (CONDITION_LABELS[set.condition] || set.condition) : "—";
+    if (column.key === "qty") return qty;
+    if (column.key === "paid") return money(paid);
+    if (column.key === "value") return money(value);
+    if (column.key === "gain") return money(gain);
+    if (column.key === "roi") return roi !== null ? `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%` : "—";
+    if (column.key === "notes") return set.notes || "";
+
+    return "";
+  }
+
+  function isNumericOwnedColumn(key) {
+    return ["qty", "paid", "value", "gain", "roi"].includes(key);
+  }
+
+  const themes = Array.from(new Set(sets.map(s => s.theme).filter(Boolean))).sort();
+  const conditions = Array.from(new Set(sets.map(s => s.condition).filter(Boolean))).sort();
+
+  function sortHeader(column) {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortDirection(column === "value" || column === "gain" ? "desc" : "asc");
+    }
+  }
+
+  function sortLabel(label, column) {
+    if (sortColumn !== column) return label;
+    return label + (sortDirection === "asc" ? " ↑" : " ↓");
+  }
+
+  const visibleSets = sets
+    .filter(set => {
+      const q = searchText.toLowerCase();
+
+      const matchesSearch =
+        !q ||
+        String(set.setNumber || "").toLowerCase().includes(q) ||
+        String(set.name || "").toLowerCase().includes(q) ||
+        String(set.theme || "").toLowerCase().includes(q) ||
+        String(set.notes || "").toLowerCase().includes(q);
+
+      const matchesTheme = !filterTheme || set.theme === filterTheme;
+      const matchesCondition = !filterCondition || set.condition === filterCondition;
+
+      return matchesSearch && matchesTheme && matchesCondition;
+    })
+    .sort((a, b) => {
+      let result = 0;
+
+      if (sortColumn === "qty") {
+        result = asNumber(a.qty) - asNumber(b.qty);
+      } else if (sortColumn === "paid") {
+        const aPaid = asNumber(a.totalPaid) || asNumber(a.paidPrice) * (asNumber(a.qty) || 1);
+        const bPaid = asNumber(b.totalPaid) || asNumber(b.paidPrice) * (asNumber(b.qty) || 1);
+        result = aPaid - bPaid;
+      } else if (sortColumn === "value") {
+        const aVal = asNumber(a.totalValue) || asNumber(a.currentValue) * (asNumber(a.qty) || 1);
+        const bVal = asNumber(b.totalValue) || asNumber(b.currentValue) * (asNumber(b.qty) || 1);
+        result = aVal - bVal;
+      } else if (sortColumn === "gain") {
+        const aVal = asNumber(a.totalValue) || asNumber(a.currentValue) * (asNumber(a.qty) || 1);
+        const aPaid = asNumber(a.totalPaid) || asNumber(a.paidPrice) * (asNumber(a.qty) || 1);
+        const bVal = asNumber(b.totalValue) || asNumber(b.currentValue) * (asNumber(b.qty) || 1);
+        const bPaid = asNumber(b.totalPaid) || asNumber(b.paidPrice) * (asNumber(b.qty) || 1);
+        result = (aVal - aPaid) - (bVal - bPaid);
+      } else {
+        result = String(a[sortColumn] || "").localeCompare(String(b[sortColumn] || ""));
+      }
+
+      return sortDirection === "asc" ? result : -result;
+    });
+
+  function updateSet(index, field, value) {
+    setSets(prev => {
+      const next = [...prev];
+
+      next[index] = {
+        ...next[index],
+        [field]: field === "qty" || field === "paidPrice" || field === "currentValue"
+          ? asNumber(value)
+          : value
+      };
+
+      return next;
+    });
+  }
+
+  function toggleChecked(index) {
+    setCheckedSets(prev =>
+      prev.includes(index)
+        ? prev.filter(i => i !== index)
+        : [...prev, index]
+    );
+  }
+
+  function toggleAll() {
+    const visibleIndexes = visibleSets.map(set => sets.indexOf(set));
+    const allChecked = visibleIndexes.length > 0 && visibleIndexes.every(i => checkedSets.includes(i));
+
+    if (allChecked) {
+      setCheckedSets(prev => prev.filter(i => !visibleIndexes.includes(i)));
+    } else {
+      setCheckedSets(prev => Array.from(new Set([...prev, ...visibleIndexes])));
+    }
+  }
+
+  function deleteCheckedSets() {
+    if (checkedSets.length === 0) return;
+    if (!window.confirm(`Delete ${checkedSets.length} selected owned set(s)?`)) return;
+
+    setSets(prev => prev.filter((_, i) => !checkedSets.includes(i)));
+    setCheckedSets([]);
+    setSelectedSetIndex(null);
+  }
+
+  function deleteSet(index) {
+    setSets(prev => prev.filter((_, i) => i !== index));
+  }
+
+  return (
+    <div style={page} onMouseMove={e => setTipPos({ x: e.clientX, y: e.clientY })} onTouchStart={() => { setHoveredSet(null); setHoveredWatchItem(null); }}>
+      <div style={tabHeader}>
+        <div>
+          <h2 style={{ margin: 0 }}>My Collection</h2>
+          <p style={{ ...muted, margin: "4px 0 0" }}>Your portfolio at a glance — value, performance, watch list, and budget.</p>
+        </div>
+        <div style={tabBar}>
+          {[
+            { key: "overview", label: "Overview" },
+            { key: "collection", label: "Collection" },
+            { key: "add", label: "Add Set" }
+          ].map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)} style={tab === t.key ? activeTabStyle : tabBtnStyle}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab === "overview" && (
+        <>
+          {/* ── Stat pill container ─────────────────────────────────── */}
+          <div style={{ background: "rgba(11,21,32,0.7)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "14px 16px", marginBottom: 14, marginTop: 8, position: "relative" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: collPillsCollapsed ? 0 : 12 }}>
+              <span style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Collection Stats</span>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={() => setCollGearOpen(prev => !prev)} style={{ ...hoverCtrlBtn, color: collGearOpen ? "#c9a84c" : "#8a9bb0" }} title="Show / hide stats">⚙</button>
+                <button onClick={() => setCollPillsCollapsed(prev => !prev)} style={hoverCtrlBtn} title={collPillsCollapsed ? "Expand" : "Collapse"}>{collPillsCollapsed ? "▼" : "▲"}</button>
+              </div>
+            </div>
+
+            {collGearOpen && (
+              <div style={{ position: "absolute", top: 46, right: 10, zIndex: 30, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "12px 16px", minWidth: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
+                <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Stats</div>
+                {collectionItems.filter(i => i.type === "card").map(item => (
+                  <label key={item.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", color: item.visible ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
+                    <input type="checkbox" checked={item.visible} onChange={() => setCollectionItems(prev => prev.map(x => x.key === item.key ? { ...x, visible: !x.visible } : x))} style={{ accentColor: "#c9a84c" }} />
+                    {item.label}
+                  </label>
+                ))}
+                <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", margin: "10px 0 8px" }} />
+                <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Panels</div>
+                {collectionItems.filter(i => i.type === "panel").map(item => (
+                  <label key={item.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", color: item.visible ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
+                    <input type="checkbox" checked={item.visible} onChange={() => setCollectionItems(prev => prev.map(x => x.key === item.key ? { ...x, visible: !x.visible } : x))} style={{ accentColor: "#c9a84c" }} />
+                    {item.label}
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {!collPillsCollapsed && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
+                {collectionItems.filter(i => i.type === "card" && i.visible).map(item => (
+                  <div key={item.key} draggable
+                    onDragStart={() => setDraggedCollItem(item.key)}
+                    onDragEnd={() => setDraggedCollItem(null)}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={() => dropCollItem(item.key)}
+                    style={{ opacity: draggedCollItem === item.key ? 0.4 : 1, cursor: "grab" }}
+                  >
+                    {item.key === "qty"          ? <Card title="Owned Qty"        value={stats.totalQty} /> :
+                     item.key === "value"        ? <Card title="Collection Value" value={money(stats.value)} /> :
+                     item.key === "cost"         ? <Card title="Cost Basis"       value={money(stats.costBasis)} /> :
+                     item.key === "gain"         ? <Card title="Net Gain / Loss"  value={money(stats.gainLoss)} good={stats.gainLoss >= 0} /> :
+                     item.key === "roi"          ? <Card title="ROI"              value={`${stats.roi.toFixed(1)}%`} good={stats.roi >= 0} /> :
+                     item.key === "themes"       ? <Card title="Themes"           value={stats.themes} /> :
+                     item.key === "duplicates"   ? <Card title="Multi-Copy Sets"  value={stats.duplicates} /> :
+                     item.key === "active"       ? <Card title="Active Sets"      value={stats.activeSets} /> :
+                     item.key === "retired"      ? <Card title="Retired Sets"     value={stats.retiredSets} /> :
+                     item.key === "newSets"      ? <Card title="New / Sealed"     value={stats.newSets} /> :
+                     item.key === "usedSets"     ? <Card title="Used Sets"        value={stats.usedSets} /> :
+                     item.key === "avgValue"     ? <Card title="Avg Set Value"    value={money(stats.avgValue)} /> :
+                     item.key === "avgPaid"      ? <Card title="Avg Paid / Set"   value={money(stats.avgPaid)} /> :
+                     item.key === "watchList"    ? <Card title="Watch List"       value={watchListHighlights.total} /> :
+                     item.key === "retiringSoon" ? <Card title="Retiring Soon"    value={watchListHighlights.retiringSoon} /> : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Content panels ──────────────────────────────────────── */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14, alignItems: "start" }}>
+            {collectionItems.filter(item => item.type === "panel" && item.visible).map(item => {
+              const gridCol = item.width === "full" ? "1 / -1" : "span 2";
+              return (
+                <div key={item.key}
+                  style={{ gridColumn: gridCol, position: "relative" }}
+                  draggable
+                  onDragStart={() => setDraggedCollItem(item.key)}
+                  onDragEnd={() => setDraggedCollItem(null)}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={() => dropCollItem(item.key)}
+                  onMouseEnter={() => setHoveredCollItem(item.key)}
+                  onMouseLeave={() => setHoveredCollItem(null)}
+                >
+                  {hoveredCollItem === item.key && (
+                    <div style={{ position: "absolute", top: 10, right: 10, zIndex: 20, display: "flex", gap: 4 }}>
+                      {item.key === "theme-chart" && (() => {
+                        const ct = chartTypes["theme-chart"] || "donut";
+                        return (
+                          <button onClick={e => { e.stopPropagation(); cycleChartType("theme-chart"); }} style={hoverCtrlBtn}
+                            title={`Chart: ${ct} — click to switch to ${ct === "donut" ? "Pie" : ct === "pie" ? "Bar" : "Donut"}`}>
+                            {ct === "donut" ? "◎" : ct === "pie" ? "●" : "▬"}
+                          </button>
+                        );
+                      })()}
+                      <button onClick={e => { e.stopPropagation(); toggleCollWidth(item.key); }} style={hoverCtrlBtn} title={item.width === "full" ? "Half width" : "Full width"}>
+                        {item.width === "full" ? "◧" : "▣"}
+                      </button>
+                      <button onClick={e => { e.stopPropagation(); toggleCollCollapse(item.key); }} style={hoverCtrlBtn} title={item.collapsed ? "Expand" : "Collapse"}>
+                        {item.collapsed ? "▼" : "▲"}
+                      </button>
+                    </div>
+                  )}
+
+                  {item.collapsed ? (
+                      <div style={{ ...panel, marginTop: 0, padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontWeight: 700, color: "#8a9bb0", fontSize: 14 }}>{item.label}</span>
+                        <button onClick={() => toggleCollCollapse(item.key)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "4px 10px", color: "#8a9bb0", fontSize: 12, cursor: "pointer" }}>▼</button>
+                      </div>
+                    ) : item.key === "theme-chart" ? (
+                      <div style={{ ...panel, marginTop: 0 }}>
+                        <h4 style={{ margin: "0 0 14px" }}>Value by Theme</h4>
+                        {themeChartData.length > 0 ? (
+                          <>
+                            {(() => {
+                              const ct = chartTypes["theme-chart"] || "donut";
+                              return ct === "bar" ? (
+                                <div style={{ height: 240, marginBottom: 4 }}>
+                                  <ResponsiveContainer width="100%" height={240}>
+                                    <BarChart data={themeChartData.slice(0, 7)} layout="vertical" margin={{ left: 0, right: 16, top: 4, bottom: 4 }}>
+                                      <XAxis type="number" tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} tick={{ fill: "#8a9bb0", fontSize: 10 }} axisLine={false} tickLine={false} />
+                                      <YAxis type="category" dataKey="name" tick={{ fill: "#8a9bb0", fontSize: 10 }} axisLine={false} tickLine={false} width={90} />
+                                      <Tooltip formatter={v => [money(v), "Value"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
+                                      <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                                        {themeChartData.slice(0, 7).map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                                      </Bar>
+                                    </BarChart>
+                                  </ResponsiveContainer>
+                                </div>
+                              ) : (
+                                <div style={{ position: "relative", height: 240 }}>
+                                  <ResponsiveContainer width="100%" height={240}>
+                                    <PieChart>
+                                      <Pie data={themeChartData} cx="50%" cy="50%" innerRadius={ct === "donut" ? 68 : 0} outerRadius={106} dataKey="value" paddingAngle={ct === "donut" ? 2 : 1}>
+                                        {themeChartData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                                      </Pie>
+                                      <Tooltip formatter={v => money(v)} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
+                                    </PieChart>
+                                  </ResponsiveContainer>
+                                  {ct === "donut" && (
+                                    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+                                      <div style={{ fontSize: 20, fontWeight: 900, color: "#e8e2d5" }}>{money(stats.value)}</div>
+                                      <div style={{ color: "#8a9bb0", fontSize: 12 }}>Collection Value</div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                            <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                              {themeChartData.slice(0, showAllThemes ? 15 : 5).map((d, i) => (
+                                <div key={d.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, background: "#0b1520", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "8px 12px" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                    <span style={{ width: 12, height: 12, borderRadius: 999, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0, display: "inline-block" }} />
+                                    <div>
+                                      <div style={{ fontWeight: 700, fontSize: 13 }}>{d.name}</div>
+                                      <div style={{ color: "#5d6f80", fontSize: 12 }}>{d.qty} set{d.qty !== 1 ? "s" : ""}</div>
+                                    </div>
+                                  </div>
+                                  <div style={{ fontWeight: 900, fontSize: 13 }}>{money(d.value)}</div>
+                                </div>
+                              ))}
+                              {themeChartData.length > 5 && (
+                                <button onClick={() => setShowAllThemes(prev => !prev)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 12px", color: "#8a9bb0", fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
+                                  {showAllThemes ? "▲ Show less" : `▾ ${Math.min(themeChartData.length, 15) - 5} more themes`}
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ textAlign: "center", padding: "28px 20px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                            <div style={{ fontWeight: 700, color: "#8a9bb0", marginBottom: 4 }}>No collection data yet</div>
+                            <div style={{ fontSize: 13, color: "#5d6f80" }}>Sync from BrickEconomy in Settings → Data, or add sets manually below.</div>
+                          </div>
+                        )}
+                      </div>
+                    ) : item.key === "roi-leaders" ? (
+                      <div style={{ ...panel, marginTop: 0 }}>
+                        <h4 style={{ margin: "0 0 14px" }}>ROI Leaders</h4>
+                        {topRoiSets.length > 0 ? (
+                          <div style={{ display: "grid", gap: 8 }}>
+                            {topRoiSets.slice(0, showAllRoi ? 15 : 5).map((s, i) => {
+                              const realIndex = sets.findIndex(orig => orig.setNumber === s.setNumber);
+                              return (
+                                <div key={s.setNumber || i}
+                                  onClick={() => { setDetailSet(openSetDetail(s.setNumber) || s); setDetailSetIndex(realIndex); }}
+                                  onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; setHoveredSet(s); }}
+                                  onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; setHoveredSet(null); }}
+                                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0f1a28", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
+                                  <div>
+                                    <div style={{ fontWeight: 700, fontSize: 14 }}>{s.name || s.setNumber || "—"}</div>
+                                    <div style={{ color: "#5d6f80", fontSize: 12 }}>{s.theme || "—"}</div>
+                                  </div>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <span style={{ color: s._roi >= 0 ? "#5aa832" : "#ff8b8b", fontWeight: 900, fontSize: 15, whiteSpace: "nowrap" }}>
+                                      {s._roi >= 0 ? "+" : ""}{s._roi.toFixed(1)}%
+                                    </span>
+                                    <span style={{ color: "#5d6f80", fontSize: 16 }}>›</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {topRoiSets.length > 5 && (
+                              <button onClick={() => setShowAllRoi(prev => !prev)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 12px", color: "#8a9bb0", fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
+                                {showAllRoi ? "▲ Show less" : `▾ ${Math.min(topRoiSets.length, 15) - 5} more`}
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div style={{ color: "#5d6f80", padding: "20px 0" }}>Add sets with paid price and value to see ROI rankings.</div>
+                        )}
+                      </div>
+                    ) : item.key === "most-valuable" ? (
+                      <div style={{ ...panel, marginTop: 0 }}>
+                        <h4 style={{ margin: "0 0 14px" }}>Most Valuable Sets</h4>
+                        {topValueSets.length > 0 ? (
+                          <div style={{ display: "grid", gap: 8 }}>
+                            {topValueSets.slice(0, showAllValuable ? 15 : 5).map((s, i) => {
+                              const val = asNumber(s.totalValue) || asNumber(s.currentValue) * (asNumber(s.qty) || 1);
+                              return (
+                                <div key={s.setNumber || i}
+                                  onClick={() => { setDetailSet(openSetDetail(s.setNumber) || s); setDetailSetIndex(sets.indexOf(s)); }}
+                                  onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; setHoveredSet(s); }}
+                                  onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; setHoveredSet(null); }}
+                                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0f1a28", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
+                                  <div>
+                                    <div style={{ fontWeight: 700, fontSize: 14 }}>{s.name || s.setNumber || "—"}</div>
+                                    <div style={{ color: "#5d6f80", fontSize: 12 }}>{s.theme || "—"} · Qty {asNumber(s.qty) || 1}</div>
+                                  </div>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <span style={{ fontWeight: 900, fontSize: 14 }}>{money(val)}</span>
+                                    <span style={{ color: "#5d6f80", fontSize: 16 }}>›</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {topValueSets.length > 5 && (
+                              <button onClick={() => setShowAllValuable(prev => !prev)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 12px", color: "#8a9bb0", fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
+                                {showAllValuable ? "▲ Show less" : `▾ ${Math.min(topValueSets.length, 15) - 5} more`}
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div style={{ color: "#5d6f80", padding: "20px 0" }}>No sets yet.</div>
+                        )}
+                      </div>
+                    ) : item.key === "watch-list" ? (
+                      <div style={{ ...panel, marginTop: 0 }}>
+                        <h4 style={{ margin: "0 0 10px" }}>Watch List</h4>
+                        {watchListHighlights.total > 0 ? (
+                          <>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                              <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{watchListHighlights.total} tracked</span>
+                              {watchListHighlights.retiringSoon > 0 && <span style={{ background: "#3b0a0a", border: "1px solid #7f1d1d", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#ff8b8b", fontWeight: 700 }}>{watchListHighlights.retiringSoon} retiring soon</span>}
+                              {watchListHighlights.critical > 0 && <span style={{ background: "#451a03", border: "1px solid #92400e", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#f59e0b", fontWeight: 700 }}>{watchListHighlights.critical} urgent</span>}
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              {watchListHighlights.scored.slice(0, showAllWatchHighlights ? 15 : 5).map((wlItem, i) => {
+                                const rec = recommendation(wlItem._score);
+                                const recColor = rec === "Buy Now" ? "#ef4444" : rec === "Watch Closely" ? "#f59e0b" : "#5aa832";
+                                return (
+                                  <div key={wlItem.setNumber || i}
+                                    onClick={() => setDetailWatchItem(wlItem)}
+                                    onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; setHoveredWatchItem(wlItem); }}
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; setHoveredWatchItem(null); }}
+                                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0f1a28", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
+                                    <div>
+                                      <div style={{ fontWeight: 700, fontSize: 14 }}>{wlItem.name || wlItem.setNumber || "—"}</div>
+                                      <div style={{ color: "#5d6f80", fontSize: 12 }}>{wlItem.theme || "—"}</div>
+                                    </div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                      <div style={{ textAlign: "right" }}>
+                                        <div style={{ fontWeight: 900, fontSize: 15 }}>{wlItem._score}</div>
+                                        <div style={{ color: recColor, fontSize: 11, fontWeight: 700 }}>{rec}</div>
+                                      </div>
+                                      <span style={{ color: "#5d6f80", fontSize: 16 }}>›</span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              {watchListHighlights.total > 5 && (
+                                <button onClick={() => setShowAllWatchHighlights(prev => !prev)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 12px", color: "#8a9bb0", fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
+                                  {showAllWatchHighlights ? "▲ Show less" : `▾ ${Math.min(watchListHighlights.total, 15) - 5} more`}
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ textAlign: "center", padding: "28px 20px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                            <div style={{ fontWeight: 700, color: "#8a9bb0", marginBottom: 4 }}>Watch list is empty</div>
+                            <div style={{ fontSize: 13, color: "#5d6f80" }}>
+                              <span style={{ color: "#c9a84c", cursor: "pointer", textDecoration: "underline" }} onClick={() => onSwitchTab && onSwitchTab("acquisition")}>Switch to Wanted List</span> to track sets you want.
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : item.key === "budget" ? (
+                      budgetSnapshot.annualBudget > 0 ? (
+                        <div style={{ ...panel, marginTop: 0, display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+                          <div style={{ flex: "1 1 180px", minWidth: 180 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                              <h4 style={{ margin: 0 }}>Budget</h4>
+                              <span style={{ fontWeight: 700, fontSize: 13, color: budgetSnapshot.color }}>{budgetSnapshot.status}</span>
+                            </div>
+                            <div style={{ height: 6, borderRadius: 999, background: "#0b1520", overflow: "hidden" }}>
+                              <div style={{ width: `${budgetSnapshot.pct}%`, height: "100%", background: budgetSnapshot.color, borderRadius: 999 }} />
+                            </div>
+                            <div style={{ marginTop: 5, fontSize: 12, color: "#8a9bb0" }}>{budgetSnapshot.pct.toFixed(0)}% of annual budget used</div>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ color: "#8a9bb0", fontSize: 11, marginBottom: 2 }}>Annual Budget</div>
+                            <div style={{ fontWeight: 900, fontSize: 18 }}>{money(budgetSnapshot.annualBudget)}</div>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ color: "#8a9bb0", fontSize: 11, marginBottom: 2 }}>Spent</div>
+                            <div style={{ fontWeight: 900, fontSize: 18 }}>{money(budgetSnapshot.totalSpent)}</div>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ color: "#8a9bb0", fontSize: 11, marginBottom: 2 }}>Remaining</div>
+                            <div style={{ fontWeight: 900, fontSize: 18, color: budgetSnapshot.remaining >= 0 ? "#5aa832" : "#ff8b8b" }}>{money(budgetSnapshot.remaining)}</div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ ...panel, marginTop: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                          <div>
+                            <h4 style={{ margin: "0 0 4px" }}>Budget</h4>
+                            <div style={{ fontSize: 13, color: "#5d6f80" }}>No annual budget configured.</div>
+                          </div>
+                          <button onClick={() => onSwitchTab && onSwitchTab("settings")} style={{ background: "transparent", color: "#c9a84c", border: "1px solid rgba(201,168,76,0.3)", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                            Set Budget in Settings →
+                          </button>
+                        </div>
+                      )
+                    ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {tab === "add" && (
+      <section style={panel}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <h3 style={{ margin: 0 }}>Add Owned Set</h3>
+          {(form.setNumber || form.name || form.theme || form.paidPrice || form.currentValue || form.notes) && (
+            <button
+              onClick={() => { setForm({ setNumber: "", name: "", theme: "", condition: "new", qty: 1, paidPrice: "", currentValue: "", notes: "" }); setLookupMessage(""); }}
+              style={{ background: "transparent", color: "#5d6f80", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "5px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+            >
+              Reset
+            </button>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+          <input
+            placeholder="Set Number (e.g. 75192)"
+            value={form.setNumber}
+            onChange={e => setForm({ ...form, setNumber: e.target.value })}
+            onKeyDown={e => e.key === "Enter" && lookupBE()}
+            style={{ minWidth: 180 }}
+          />
+          <button onClick={lookupBE} disabled={lookupLoading} style={ghostBtn}>
+            {lookupLoading ? "Searching..." : "Search"}
+          </button>
+        </div>
+        {lookupMessage && <div style={{ fontSize: 13, color: lookupMessage.startsWith("Found") ? "#5aa832" : "#ff8b8b", marginBottom: 10 }}>{lookupMessage}</div>}
+
+        <div style={formGrid}>
+          <label>
+            Set Name
+            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+          </label>
+          <label>
+            Theme
+            <input value={form.theme} onChange={e => setForm({ ...form, theme: e.target.value })} />
+          </label>
+          <label>
+            Condition
+            <select value={form.condition} onChange={e => setForm({ ...form, condition: e.target.value })}>
+              <option value="new">New</option>
+              <option value="sealed">Sealed</option>
+              <option value="used_as_new">Used — Like New</option>
+              <option value="used_good">Used — Good</option>
+              <option value="used_acceptable">Used — Acceptable</option>
+            </select>
+          </label>
+          <label>
+            Qty
+            <input type="number" min="1" step="1" value={form.qty} onChange={e => setForm({ ...form, qty: e.target.value })} />
+          </label>
+          <label>
+            Paid Price ($)
+            <input type="number" min="0" step="0.01" value={form.paidPrice} onChange={e => setForm({ ...form, paidPrice: e.target.value })} />
+          </label>
+          <label>
+            Current Value ($)
+            <input type="number" min="0" step="0.01" value={form.currentValue} onChange={e => setForm({ ...form, currentValue: e.target.value })} />
+          </label>
+          <label>
+            Notes
+            <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
+          </label>
+        </div>
+
+        <button onClick={addSet} style={redBtn}>Add Set</button>
+      </section>
+      )}
+
+      <SetDetailPanel
+        item={detailSet}
+        onClose={() => { setDetailSet(null); setDetailSetIndex(null); }}
+        onEdit={detailSetIndex !== null ? () => { setDetailSet(null); setDetailSetIndex(null); setSelectedSetIndex(detailSetIndex); } : undefined}
+      />
+      <WatchDetailPanel
+        item={detailWatchItem}
+        onClose={() => setDetailWatchItem(null)}
+        onBuyNow={onBuyNow ? () => { setDetailWatchItem(null); onBuyNow(detailWatchItem); } : undefined}
+      />
+
+      {hoveredSet && (
+        <div style={{ position: "fixed", left: tipPos.x > window.innerWidth - 280 ? tipPos.x - 256 : tipPos.x + 16, top: tipPos.y > window.innerHeight - 230 ? tipPos.y - 215 : tipPos.y - 8, zIndex: 9999, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "10px 14px", pointerEvents: "none", boxShadow: "0 8px 32px rgba(0,0,0,0.55)", minWidth: 240 }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <img src={setImageUrl(hoveredSet.setNumber)} alt="" onError={e => { e.currentTarget.style.display = "none"; }}
+              style={{ width: 72, height: 72, objectFit: "contain", borderRadius: 8, background: "#111d2e", border: "1px solid rgba(255,255,255,0.07)", flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, color: "#e8e2d5", marginBottom: 6, fontSize: 13 }}>{hoveredSet.name || hoveredSet.setNumber || "Set"}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "3px 12px", fontSize: 12 }}>
+                {hoveredSet.setNumber && <><span style={{ color: "#5d6f80" }}>Set #</span><span style={{ color: "#e8e2d5" }}>{hoveredSet.setNumber}</span></>}
+                {hoveredSet.theme && <><span style={{ color: "#5d6f80" }}>Theme</span><span style={{ color: "#e8e2d5" }}>{hoveredSet.theme}</span></>}
+                {hoveredSet.condition && <><span style={{ color: "#5d6f80" }}>Condition</span><span style={{ color: "#e8e2d5", textTransform: "capitalize" }}>{hoveredSet.condition}</span></>}
+                <span style={{ color: "#5d6f80" }}>Qty</span><span style={{ color: "#e8e2d5" }}>{hoveredSet.qty || 1}</span>
+                <span style={{ color: "#5d6f80" }}>Paid</span><span style={{ color: "#e8e2d5" }}>{money(hoveredSet.totalPaid || (asNumber(hoveredSet.paidPrice) * (hoveredSet.qty || 1)))}</span>
+                <span style={{ color: "#5d6f80" }}>Value</span><span style={{ color: "#c9a84c", fontWeight: 700 }}>{money(hoveredSet.totalValue || (asNumber(hoveredSet.currentValue) * (hoveredSet.qty || 1)))}</span>
+                {hoveredSet.roiPct != null && <><span style={{ color: "#5d6f80" }}>ROI</span><span style={{ color: hoveredSet.roiPct >= 0 ? "#5aa832" : "#ff8b8b", fontWeight: 700 }}>{hoveredSet.roiPct >= 0 ? "+" : ""}{Number(hoveredSet.roiPct).toFixed(1)}%</span></>}
+                {hoveredSet.retired != null && <><span style={{ color: "#5d6f80" }}>Status</span><span style={{ color: hoveredSet.retired ? "#f59e0b" : "#5aa832" }}>{hoveredSet.retired ? "Retired" : "Active"}</span></>}
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "#5d6f80", borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 6 }}>click for details · double-click to edit</div>
+        </div>
+      )}
+
+      {hoveredWatchItem && (
+        <div style={{ position: "fixed", left: tipPos.x > window.innerWidth - 280 ? tipPos.x - 256 : tipPos.x + 16, top: tipPos.y > window.innerHeight - 230 ? tipPos.y - 215 : tipPos.y - 8, zIndex: 9999, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "10px 14px", pointerEvents: "none", boxShadow: "0 8px 32px rgba(0,0,0,0.55)", minWidth: 240 }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <img src={setImageUrl(hoveredWatchItem.setNumber)} alt="" onError={e => { e.currentTarget.style.display = "none"; }}
+              style={{ width: 72, height: 72, objectFit: "contain", borderRadius: 8, background: "#111d2e", border: "1px solid rgba(255,255,255,0.07)", flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, color: "#e8e2d5", marginBottom: 6, fontSize: 13 }}>{hoveredWatchItem.name || hoveredWatchItem.setNumber || "Set"}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "3px 12px", fontSize: 12 }}>
+                {hoveredWatchItem.setNumber && <><span style={{ color: "#5d6f80" }}>Set #</span><span style={{ color: "#e8e2d5" }}>{hoveredWatchItem.setNumber}</span></>}
+                {hoveredWatchItem.theme && <><span style={{ color: "#5d6f80" }}>Theme</span><span style={{ color: "#e8e2d5" }}>{hoveredWatchItem.theme}</span></>}
+                {hoveredWatchItem.msrp > 0 && <><span style={{ color: "#5d6f80" }}>MSRP</span><span style={{ color: "#c9a84c", fontWeight: 700 }}>{money(hoveredWatchItem.msrp)}</span></>}
+                {hoveredWatchItem.targetPrice > 0 && <><span style={{ color: "#5d6f80" }}>Target</span><span style={{ color: "#e8e2d5" }}>{money(hoveredWatchItem.targetPrice)}</span></>}
+                {hoveredWatchItem.status && <><span style={{ color: "#5d6f80" }}>Status</span><span style={{ color: hoveredWatchItem.status === "Critical" ? "#ef4444" : hoveredWatchItem.status === "Buy Soon" ? "#f59e0b" : "#e8e2d5" }}>{hoveredWatchItem.status}</span></>}
+                <span style={{ color: "#5d6f80" }}>Score</span><span style={{ color: "#e8e2d5", fontWeight: 700 }}>{hoveredWatchItem._score}</span>
+                {hoveredWatchItem.retiringSoon && <><span style={{ color: "#5d6f80" }}>Retiring</span><span style={{ color: "#f59e0b" }}>⚠ Soon</span></>}
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "#5d6f80", borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 6 }}>click for details</div>
+        </div>
+      )}
+
+      {tab === "collection" && (
+      <section style={panel}>
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+          marginBottom: 14
+        }}>
+          <h3 style={{ margin: 0 }}>Owned Sets</h3>
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input
+              placeholder="Search owned sets..."
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              style={searchInput}
+            />
+            <select value={filterTheme} onChange={e => setFilterTheme(e.target.value)} style={filterSelect}>
+              <option value="">All Themes</option>
+              {themes.map(theme => <option key={theme}>{theme}</option>)}
+            </select>
+            {conditions.length > 0 && (
+              <select value={filterCondition} onChange={e => setFilterCondition(e.target.value)} style={filterSelect}>
+                <option value="">All Conditions</option>
+                {conditions.map(c => <option key={c} value={c}>{CONDITION_LABELS[c] || c}</option>)}
+              </select>
+            )}
+            {(searchText || filterTheme || filterCondition) && (
+              <button onClick={() => { setSearchText(""); setFilterTheme(""); setFilterCondition(""); }} style={clearFilterButton}>
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {sets.length > 0 && (
+        <div style={{ display: "flex", gap: 10, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={visibleSets.length > 0 && visibleSets.every(set => checkedSets.includes(sets.indexOf(set)))}
+              onChange={toggleAll}
+            />
+            Check All
+          </label>
+
+          {checkedSets.length > 0 && (
+            <button
+              onClick={deleteCheckedSets}
+              style={{
+                background: "#7f1d1d",
+                color: "white",
+                border: "none",
+                borderRadius: 8,
+                padding: "8px 12px",
+                cursor: "pointer",
+                fontWeight: 800
+              }}
+            >
+              Delete Selected ({checkedSets.length})
+            </button>
+          )}
+        </div>
+        )}
+
+        {sets.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "48px 20px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 12, marginTop: 12 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#8a9bb0", marginBottom: 6 }}>Your collection is empty</div>
+            <div style={{ fontSize: 13, color: "#5d6f80" }}>Sync from BrickEconomy in Settings → Data, or use the form above to add your first set.</div>
+          </div>
+        ) : (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: selectedSetIndex !== null ? "1fr 380px" : "1fr",
+            gap: 16,
+            alignItems: "start"
+          }}>
+            <div style={{ overflow: "auto", maxHeight: 560 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
+              <thead>
+                <tr>
+                  <th style={{ ...th, ...stickyCheckbox }}></th>
+                  {ownedColumns.filter(col => col.visible).map(col => (
+                    <th
+                      key={col.key}
+                      draggable
+                      onDragStart={() => setDraggedOwnedColumn(col.key)}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={() => dropOwnedColumn(col.key)}
+                      style={{
+                        ...(isNumericOwnedColumn(col.key) ? thRightButton : thButton),
+                        opacity: draggedOwnedColumn === col.key ? 0.45 : 1
+                      }}
+                      onClick={() => sortHeader(col.key)}
+                      title="Drag to reorder. Click to sort."
+                    >
+                      ☰ {sortLabel(col.label, col.key)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {visibleSets.map((set) => {
+                  const index = sets.indexOf(set);
+                  const qty = asNumber(set.qty) || 1;
+                  const paid = asNumber(set.paidPrice) * qty;
+                  const value = asNumber(set.currentValue) * qty;
+                  const gain = value - paid;
+
+                  return (
+                    <tr
+                      key={`${set.setNumber}-${index}`}
+                      onClick={() => { setDetailSet(openSetDetail(set.setNumber) || set); setDetailSetIndex(index); }}
+                      onDoubleClick={() => setSelectedSetIndex(index)}
+                      onMouseEnter={e => {
+                        if (selectedSetIndex !== index) e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                        setHoveredSet(set);
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = selectedSetIndex === index ? "#332500" : "transparent";
+                        setHoveredSet(null);
+                      }}
+                      style={{
+                        cursor: "pointer",
+                        background: selectedSetIndex === index ? "#332500" : "transparent",
+                        transition: "background 0.12s ease"
+                      }}
+                    >
+                      <td style={{ ...td, ...stickyCheckbox }} onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={checkedSets.includes(index)}
+                          onChange={() => toggleChecked(index)}
+                        />
+                      </td>
+
+                      {ownedColumns.filter(col => col.visible).map(col => (
+                        <td
+                          key={col.key}
+                          style={
+                            col.key === "gain"
+                              ? {
+                                  ...tdRight,
+                                  color: gain >= 0 ? "#5aa832" : "#ff8b8b"
+                                }
+                              : isNumericOwnedColumn(col.key)
+                                ? tdRight
+                                : td
+                          }
+                        >
+                          {renderOwnedCell(set, col)}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+              </table>
+            </div>
+
+            {selectedSetIndex !== null && sets[selectedSetIndex] && (
+              <div style={{ ...editPanel, position: "sticky", top: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <h3 style={{ margin: 0 }}>Edit Owned Set</h3>
+                  <button onClick={() => setSelectedSetIndex(null)} style={circleButton}>×</button>
+                </div>
+
+                <div style={formGrid}>
+                  <label>
+                    Set Number
+                    <input value={sets[selectedSetIndex].setNumber || ""} onChange={e => updateSet(selectedSetIndex, "setNumber", e.target.value)} />
+                  </label>
+
+                  <label>
+                    Set Name
+                    <input value={sets[selectedSetIndex].name || ""} onChange={e => updateSet(selectedSetIndex, "name", e.target.value)} />
+                  </label>
+
+                  <label>
+                    Theme
+                    <input value={sets[selectedSetIndex].theme || ""} onChange={e => updateSet(selectedSetIndex, "theme", e.target.value)} />
+                  </label>
+
+                  <label>
+                    Condition
+                    <select value={sets[selectedSetIndex].condition || "new"} onChange={e => updateSet(selectedSetIndex, "condition", e.target.value)}>
+                      <option value="new">New</option>
+                      <option value="sealed">Sealed</option>
+                      <option value="used_as_new">Used — Like New</option>
+                      <option value="used_good">Used — Good</option>
+                      <option value="used_acceptable">Used — Acceptable</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    Qty
+                    <input type="number" min="1" value={sets[selectedSetIndex].qty || 1} onChange={e => updateSet(selectedSetIndex, "qty", e.target.value)} />
+                  </label>
+
+                  <label>
+                    Paid Price
+                    <input type="number" step="0.01" value={sets[selectedSetIndex].paidPrice || ""} onChange={e => updateSet(selectedSetIndex, "paidPrice", e.target.value)} />
+                  </label>
+
+                  <label>
+                    Current Value
+                    <input type="number" step="0.01" value={sets[selectedSetIndex].currentValue || ""} onChange={e => updateSet(selectedSetIndex, "currentValue", e.target.value)} />
+                  </label>
+
+                  <label>
+                    Notes
+                    <input value={sets[selectedSetIndex].notes || ""} onChange={e => updateSet(selectedSetIndex, "notes", e.target.value)} />
+                  </label>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                  <button onClick={() => setSelectedSetIndex(null)}>Done</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+      )}
+    </div>
+  );
+}
+
+function Card({ title, value, good }) {
+  const [tip, setTip] = useState(false);
+  return (
+    <div style={{ ...panel, marginTop: 0, overflow: "hidden" }}>
+      <div style={{ ...mutedSmall, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+      <div style={{ position: "relative" }} onMouseEnter={() => setTip(true)} onMouseLeave={() => setTip(false)}>
+        <div style={{ fontSize: 24, fontWeight: 900, color: good === undefined ? "white" : good ? "#5aa832" : "#ff8b8b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "default" }}>
+          {value}
+        </div>
+        {tip && <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: 0, zIndex: 50, background: "#0b1520", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, padding: "5px 10px", fontSize: 15, fontWeight: 700, color: "#e8e2d5", whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,0,0,0.5)", pointerEvents: "none" }}>{value}</div>}
+      </div>
+    </div>
+  );
+}
+
+const page = { background: "transparent", color: "#e8e2d5", minHeight: "100vh", padding: 22 };
+const tabHeader = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 8 };
+const tabBar = { display: "flex", gap: 8, flexWrap: "wrap" };
+const tabBtnStyle = { background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "10px 18px", fontWeight: 800, cursor: "pointer", fontSize: 14 };
+const activeTabStyle = { ...tabBtnStyle, background: "#c9a84c", color: "#0d1623", borderColor: "#c9a84c" };
+const metricGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 14, marginTop: 20 };
+const overviewGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 14, marginTop: 14 };
+const panel = { background: "rgba(20,31,48,0.82)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginTop: 18, boxShadow: "0 4px 24px rgba(0,0,0,0.35)" };
+const formGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 };
+const muted = { color: "#8a9bb0" };
+const mutedSmall = { color: "#8a9bb0", fontSize: 13 };
+const redBtn = { display: "inline-block", background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" };
+const ghostBtn = { background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" };
+const th = {
+  position: "sticky",
+  top: 0,
+  background: "#0b1520",
+  color: "#8a9bb0",
+  padding: 10,
+  textAlign: "left",
+  borderBottom: "1px solid rgba(255,255,255,0.07)",
+  zIndex: 5,
+  whiteSpace: "nowrap",
+  fontWeight: 700,
+  fontSize: 12,
+  letterSpacing: 0.5,
+  textTransform: "uppercase"
+};
+const thButton = { ...th, cursor: "pointer", userSelect: "none" };
+const thRight = { ...th, textAlign: "right" };
+const thRightButton = { ...thRight, cursor: "pointer", userSelect: "none" };
+const editPanel = {
+  background: "rgba(15,26,40,0.9)",
+  border: "1px solid rgba(255,255,255,0.07)",
+  borderRadius: 14,
+  padding: 18
+};
+
+const circleButton = {
+  border: "none",
+  background: "#1a2840",
+  color: "#e8e2d5",
+  borderRadius: 999,
+  width: 32,
+  height: 32,
+  cursor: "pointer",
+  fontWeight: 900,
+  fontSize: 16
+};
+
+const td = {
+  padding: 10,
+  borderTop: "1px solid rgba(255,255,255,0.05)",
+  whiteSpace: "nowrap"
+};
+const tdRight = { ...td, textAlign: "right", fontWeight: 800 };
+
+const stickyCheckbox = {
+  position: "sticky",
+  left: 0,
+  zIndex: 6,
+  background: "#0b1520"
+};
+
+const hoverCtrlBtn = {
+  background: "rgba(11,21,32,0.92)",
+  border: "1px solid rgba(255,255,255,0.18)",
+  borderRadius: 6,
+  color: "#8a9bb0",
+  fontSize: 13,
+  cursor: "pointer",
+  padding: "3px 8px",
+  fontWeight: 700,
+  lineHeight: 1.2
+};

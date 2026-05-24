@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables — NEVER commit these
+.env
+.env.local
+.env.*.local
+
+# Backup files (pre-git version control)
+src/*.before-*.jsx
+src/*.stable-*.jsx
+src/*.backup.jsx
+src-backup-before-budget/
+api/*.before-*.js
+
+# Personal data files
+collection.json
+*.csv
+
+# Claude-specific config
+.claude/
+
+# Build artifacts in public
+public/assets/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Vercel
+.vercel/

@@ -1,0 +1,52 @@
+module.exports = async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") return res.status(200).end();
+
+  const apiKey = process.env.BRICKECONOMY_API_KEY || "";
+  if (!apiKey) {
+    return res.status(500).json({
+      error: "Missing API key",
+      message: "BRICKECONOMY_API_KEY is not configured."
+    });
+  }
+
+  try {
+    const response = await fetch("https://www.brickeconomy.com/api/v1/collection/sets", {
+      headers: {
+        "accept": "application/json",
+        "User-Agent": "BrickLedger/1.0",
+        "x-apikey": apiKey
+      }
+    });
+
+    const text = await response.text();
+
+    if (response.status === 429) {
+      return res.status(429).json({
+        error: "BrickEconomy quota reached",
+        message: "BrickEconomy rate limit reached. Try again after your quota resets."
+      });
+    }
+
+    if (response.status === 401) {
+      return res.status(401).json({
+        error: "Unauthorized",
+        message: "BrickEconomy API key is invalid or missing."
+      });
+    }
+
+    try {
+      return res.status(response.status).json(JSON.parse(text));
+    } catch {
+      return res.status(502).json({
+        error: "BrickEconomy returned unexpected response",
+        preview: text.slice(0, 300)
+      });
+    }
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
