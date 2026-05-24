@@ -146,6 +146,12 @@ export default function WantedList({ onBuyNow }) {
   });
   const [wlPillsCollapsed, setWlPillsCollapsed] = useState(false);
   const [wlGearOpen, setWlGearOpen] = useState(false);
+  const [colGearOpen, setColGearOpen] = useState(false);
+  const [bulkThemeOpen, setBulkThemeOpen] = useState(false);
+  const [bulkTheme, setBulkTheme] = useState("");
+  const [bulkYear, setBulkYear] = useState("");
+  const [bulkConfidence, setBulkConfidence] = useState("Medium");
+  const [bulkSource, setBulkSource] = useState("Brick Fanatics");
   const [hoveredWLItem, setHoveredWLItem] = useState(null);
   const [draggedWLItem, setDraggedWLItem] = useState(null);
   const [wlItems, setWlItems] = useState(() => {
@@ -306,30 +312,37 @@ export default function WantedList({ onBuyNow }) {
   }, []); // intentionally runs once on mount
 
   const DEFAULT_WANTED_COLUMNS = [
-    { key: "score", label: "Score", visible: false },
-    { key: "recommendation", label: "Recommendation", visible: true },
-    { key: "priority", label: "Priority", visible: true },
-    { key: "status", label: "Status", visible: true },
-    { key: "retiringSoon", label: "Retiring", visible: true },
-    { key: "setNumber", label: "Set #", visible: true },
-    { key: "name", label: "Name", visible: true },
-    { key: "theme", label: "Theme", visible: true },
-    { key: "pieces", label: "Pieces", visible: false },
-    { key: "currentValue", label: "Mkt Value", visible: false },
-    { key: "retirementYear", label: "Projected", visible: true },
-    { key: "retirementConfidence", label: "Confidence", visible: true },
-    { key: "retirementSource", label: "Source", visible: true },
-    { key: "lastRetirementUpdate", label: "Updated", visible: true },
-    { key: "msrp", label: "MSRP", visible: true },
-    { key: "targetPrice", label: "Target", visible: true },
-    { key: "discount", label: "Discount", visible: true },
-    { key: "notes", label: "Notes", visible: true },
-    { key: "subtheme", label: "Subtheme", visible: false },
-    { key: "minifigs", label: "Minifigs", visible: false },
-    { key: "weight", label: "Weight (kg)", visible: false },
-    { key: "rating", label: "Rating", visible: false },
-    { key: "packagingType", label: "Packaging", visible: false },
-    { key: "ageMin", label: "Min Age", visible: false }
+    // ── Intelligence ─────────────────────────────────────────────
+    { key: "score",               label: "Score",        visible: false, group: "intelligence" },
+    { key: "recommendation",      label: "Rec.",         visible: true,  group: "intelligence" },
+    // ── Core ─────────────────────────────────────────────────────
+    { key: "priority",            label: "Priority",     visible: true,  group: "core" },
+    { key: "status",              label: "Status",       visible: true,  group: "core" },
+    { key: "setNumber",           label: "Set #",        visible: true,  group: "core" },
+    { key: "name",                label: "Name",         visible: true,  group: "core" },
+    // ── Retirement ───────────────────────────────────────────────
+    { key: "retiringSoon",        label: "Retiring",     visible: true,  group: "retirement" },
+    { key: "retirementYear",      label: "Projected",    visible: true,  group: "retirement" },
+    { key: "retirementConfidence",label: "Confidence",   visible: true,  group: "retirement" },
+    { key: "retirementSource",    label: "Source",       visible: true,  group: "retirement" },
+    { key: "lastRetirementUpdate",label: "Updated",      visible: false, group: "retirement" },
+    // ── Pricing ──────────────────────────────────────────────────
+    { key: "msrp",                label: "MSRP",         visible: true,  group: "pricing" },
+    { key: "targetPrice",         label: "Target",       visible: true,  group: "pricing" },
+    { key: "discount",            label: "Discount",     visible: true,  group: "pricing" },
+    { key: "currentValue",        label: "Mkt Value",    visible: false, group: "pricing" },
+    { key: "forecast2yr",         label: "2yr Forecast", visible: false, group: "pricing" },
+    { key: "forecast5yr",         label: "5yr Forecast", visible: false, group: "pricing" },
+    // ── Details ──────────────────────────────────────────────────
+    { key: "theme",               label: "Theme",        visible: true,  group: "details" },
+    { key: "pieces",              label: "Pieces",       visible: false, group: "details" },
+    { key: "subtheme",            label: "Subtheme",     visible: false, group: "details" },
+    { key: "minifigs",            label: "Minifigs",     visible: false, group: "details" },
+    { key: "rating",              label: "Rating",       visible: false, group: "details" },
+    { key: "packagingType",       label: "Packaging",    visible: false, group: "details" },
+    { key: "ageMin",              label: "Min Age",      visible: false, group: "details" },
+    { key: "weight",              label: "Weight (kg)",  visible: false, group: "details" },
+    { key: "notes",               label: "Notes",        visible: true,  group: "details" },
   ];
 
   const [columns, setColumns] = useState(() => {
@@ -337,7 +350,8 @@ export default function WantedList({ onBuyNow }) {
     if (!saved) return DEFAULT_WANTED_COLUMNS;
     const parsed = JSON.parse(saved);
     const labelMap = Object.fromEntries(DEFAULT_WANTED_COLUMNS.map(c => [c.key, c.label]));
-    const merged = parsed.map(c => ({ ...c, label: labelMap[c.key] ?? c.label }));
+    const groupMap = Object.fromEntries(DEFAULT_WANTED_COLUMNS.map(c => [c.key, c.group]));
+    const merged = parsed.map(c => ({ ...c, label: labelMap[c.key] ?? c.label, group: groupMap[c.key] ?? c.group }));
     const savedKeys = new Set(merged.map(c => c.key));
     const missing = DEFAULT_WANTED_COLUMNS.filter(c => !savedKeys.has(c.key));
     return missing.length ? [...merged, ...missing] : merged;
@@ -493,6 +507,8 @@ export default function WantedList({ onBuyNow }) {
     if (key === "rating") return item.rating ? `★ ${Number(item.rating).toFixed(1)}` : "—";
     if (key === "packagingType") return item.packagingType || "—";
     if (key === "ageMin") return item.ageMin ? `${item.ageMin}+` : "—";
+    if (key === "forecast2yr") return item.forecast2yr ? money(item.forecast2yr) : "—";
+    if (key === "forecast5yr") return item.forecast5yr ? money(item.forecast5yr) : "—";
 
     return "";
   }
@@ -537,6 +553,27 @@ export default function WantedList({ onBuyNow }) {
     });
 
     setDraggedColumn(null);
+  }
+
+  function applyBulkThemeRetirement() {
+    if (!bulkTheme) return;
+    const today = new Date().toISOString().slice(0, 10);
+    setWanted(prev => prev.map(w => {
+      if (String(w.theme || "").toLowerCase() !== String(bulkTheme).toLowerCase()) return w;
+      return {
+        ...w,
+        ...(bulkYear ? { retirementYear: bulkYear } : {}),
+        retirementConfidence: bulkConfidence,
+        retirementSource: bulkSource,
+        retiringSoon: bulkYear
+          ? Number(bulkYear) <= new Date().getFullYear() + 1
+          : w.retiringSoon,
+        lastRetirementUpdate: today,
+      };
+    }));
+    setBulkThemeOpen(false);
+    setBulkTheme("");
+    setBulkYear("");
   }
 
   function sortHeader(key) {
@@ -1500,6 +1537,169 @@ export default function WantedList({ onBuyNow }) {
               Clear
             </button>
           )}
+
+          {/* Column visibility gear */}
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => { setColGearOpen(o => !o); setBulkThemeOpen(false); }}
+              title="Show/hide columns"
+              style={{
+                background: colGearOpen ? "rgba(201,168,76,0.15)" : "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                color: "#c9a84c", borderRadius: 8, padding: "7px 12px",
+                cursor: "pointer", fontWeight: 700, fontSize: 14, lineHeight: 1
+              }}
+            >
+              ⚙ Columns
+            </button>
+            {colGearOpen && (
+              <div
+                onClick={e => e.stopPropagation()}
+                style={{
+                  position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 200,
+                  background: "#0d1623", border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 12, padding: "14px 16px", minWidth: 240,
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.6)", display: "flex", flexDirection: "column", gap: 12
+                }}
+              >
+                {[
+                  { id: "intelligence", label: "🧠 Intelligence" },
+                  { id: "core",         label: "📋 Core" },
+                  { id: "retirement",   label: "🔥 Retirement" },
+                  { id: "pricing",      label: "💰 Pricing" },
+                  { id: "details",      label: "📦 Details" },
+                ].map(grp => (
+                  <div key={grp.id}>
+                    <div style={{ color: "#8a9bb0", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+                      {grp.label}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {columns.filter(c => c.group === grp.id).map(col => (
+                        <label key={col.key} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: "#e8e2d5" }}>
+                          <input
+                            type="checkbox"
+                            checked={col.visible}
+                            onChange={() => setColumns(prev => prev.map(c => c.key === col.key ? { ...c, visible: !c.visible } : c))}
+                          />
+                          {col.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <button
+                  onClick={() => setColumns(DEFAULT_WANTED_COLUMNS)}
+                  style={{ marginTop: 4, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#8a9bb0", borderRadius: 7, padding: "5px 10px", cursor: "pointer", fontSize: 12 }}
+                >
+                  Reset to defaults
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Bulk theme retirement update */}
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => { setBulkThemeOpen(o => !o); setColGearOpen(false); }}
+              title="Apply retirement data to all sets of a theme"
+              style={{
+                background: bulkThemeOpen ? "rgba(201,168,76,0.15)" : "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                color: "#c9a84c", borderRadius: 8, padding: "7px 12px",
+                cursor: "pointer", fontWeight: 700, fontSize: 14, lineHeight: 1
+              }}
+            >
+              🔥 Bulk Retire
+            </button>
+            {bulkThemeOpen && (
+              <div
+                onClick={e => e.stopPropagation()}
+                style={{
+                  position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 200,
+                  background: "#0d1623", border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 12, padding: "16px", minWidth: 280,
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.6)", display: "flex", flexDirection: "column", gap: 12
+                }}
+              >
+                <div style={{ color: "#c9a84c", fontWeight: 800, fontSize: 13 }}>Bulk Theme Retirement Update</div>
+                <div style={{ color: "#8a9bb0", fontSize: 12, lineHeight: 1.4 }}>
+                  Apply retirement data to all Buy List items matching a theme.
+                </div>
+                <label style={{ fontSize: 12, color: "#e8e2d5" }}>
+                  Theme
+                  <select
+                    value={bulkTheme}
+                    onChange={e => setBulkTheme(e.target.value)}
+                    style={{ ...filterSelect, display: "block", width: "100%", marginTop: 4 }}
+                  >
+                    <option value="">— pick a theme —</option>
+                    {acquisitionThemes.map(t => (
+                      <option key={t} value={t}>{t} ({wanted.filter(w => w.theme === t).length})</option>
+                    ))}
+                  </select>
+                </label>
+                <label style={{ fontSize: 12, color: "#e8e2d5" }}>
+                  Retirement Year <span style={{ color: "#8a9bb0" }}>(leave blank to keep existing)</span>
+                  <input
+                    type="number"
+                    value={bulkYear}
+                    onChange={e => setBulkYear(e.target.value)}
+                    placeholder="e.g. 2026"
+                    style={{ display: "block", width: "100%", marginTop: 4, background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, padding: "6px 10px", color: "#e8e2d5", fontSize: 13 }}
+                  />
+                </label>
+                <label style={{ fontSize: 12, color: "#e8e2d5" }}>
+                  Confidence
+                  <select
+                    value={bulkConfidence}
+                    onChange={e => setBulkConfidence(e.target.value)}
+                    style={{ ...filterSelect, display: "block", width: "100%", marginTop: 4 }}
+                  >
+                    <option>High</option>
+                    <option>Medium</option>
+                    <option>Low</option>
+                  </select>
+                </label>
+                <label style={{ fontSize: 12, color: "#e8e2d5" }}>
+                  Source
+                  <select
+                    value={bulkSource}
+                    onChange={e => setBulkSource(e.target.value)}
+                    style={{ ...filterSelect, display: "block", width: "100%", marginTop: 4 }}
+                  >
+                    <option>LEGO Last Chance</option>
+                    <option>Brickset</option>
+                    <option>BrickEconomy</option>
+                    <option>Brick Fanatics</option>
+                    <option>StoneWars</option>
+                    <option>Manual</option>
+                  </select>
+                </label>
+                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                  <button
+                    onClick={applyBulkThemeRetirement}
+                    disabled={!bulkTheme}
+                    style={{
+                      flex: 1, background: bulkTheme ? "#1a3a1a" : "#1a2028",
+                      border: `1px solid ${bulkTheme ? "#166534" : "rgba(255,255,255,0.08)"}`,
+                      color: bulkTheme ? "#5aa832" : "#4a5568",
+                      borderRadius: 8, padding: "8px 14px", cursor: bulkTheme ? "pointer" : "not-allowed",
+                      fontWeight: 800, fontSize: 13
+                    }}
+                  >
+                    Apply to {bulkTheme ? wanted.filter(w => w.theme === bulkTheme).length : 0} sets
+                  </button>
+                  <button
+                    onClick={() => setBulkThemeOpen(false)}
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#8a9bb0", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontSize: 13 }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           </div>
         </div>
 

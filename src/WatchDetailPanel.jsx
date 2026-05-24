@@ -1,4 +1,4 @@
-import { asNumber, money, setImageUrl } from "./utils/formatting";
+import { asNumber, money, setImageUrl, daysUntilRetirement, retirementWaveLabel, priorityScore, recommendation } from "./utils/formatting";
 
 function StatBox({ label, value, color }) {
   return (
@@ -21,6 +21,8 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
   const pieces = cached.pieces_count || null;
   const releaseYear = cached.year || Number(String(cached.released_date || "").slice(0, 4)) || null;
   const marketValue = asNumber(cached.current_value_new) || null;
+  const forecast2yr = cached.forecast_value_new_2_years || null;
+  const forecast5yr = cached.forecast_value_new_5_years || null;
 
   const msrp = asNumber(item.msrp);
   const targetPrice = asNumber(item.targetPrice);
@@ -56,6 +58,11 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
               {item.retiringSoon && (
                 <span style={{ ...chip, background: "#3b0a0a", border: "1px solid #7f1d1d", color: "#ff8b8b", fontWeight: 700 }}>
                   Retiring Soon
+                </span>
+              )}
+              {item.isLastChance && (
+                <span style={{ ...chip, background: "#3b0a0a", border: "1px solid #7f1d1d", color: "#ef4444", fontWeight: 800 }}>
+                  🚨 Last Chance
                 </span>
               )}
             </div>
@@ -114,20 +121,60 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
                 color={marketValue >= msrp ? "#5aa832" : "#ff8b8b"}
               />
             )}
+            {(item.forecast2yr || forecast2yr) && (
+              <StatBox label="2yr Forecast" value={money(item.forecast2yr || forecast2yr)} color="#5aa832" />
+            )}
+            {(item.forecast5yr || forecast5yr) && (
+              <StatBox label="5yr Forecast" value={money(item.forecast5yr || forecast5yr)} color="#5aa832" />
+            )}
           </div>
         </div>
 
-        {/* ── Priority & retirement ── */}
-        {(score !== null || item.retirementYear || item.retirementConfidence) && (
+        {/* ── Buy Signal ── */}
+        <div>
+          <div style={sectionLabel}>Buy Signal</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {(() => {
+              const sc = priorityScore(item);
+              const rec = recommendation(sc);
+              const recColor = rec === "Buy Now" ? "#ef4444" : rec === "Watch Closely" ? "#f59e0b" : "#5aa832";
+              return (
+                <>
+                  <StatBox label="Score" value={sc} color="#e8e2d5" />
+                  <StatBox label="Recommendation" value={rec} color={recColor} />
+                </>
+              );
+            })()}
+            {item.exit_date
+              ? (() => {
+                  const days = daysUntilRetirement(item.exit_date);
+                  const wave = retirementWaveLabel(item.exit_date);
+                  const color = days <= 60 ? "#ef4444" : days <= 180 ? "#f59e0b" : "#8a9bb0";
+                  return (
+                    <>
+                      <StatBox label="Retires" value={wave || item.retirementYear || "—"} color={color} />
+                      <StatBox label="Days Left" value={days <= 0 ? "Past exit" : `${days} days`} color={color} />
+                    </>
+                  );
+                })()
+              : item.retirementYear
+                ? <StatBox label="Retirement Year" value={item.retirementYear} color={item.retiringSoon ? "#ff8b8b" : "#e8e2d5"} />
+                : null
+            }
+            {item.retirementConfidence && <StatBox label="Confidence" value={item.retirementConfidence} />}
+            {item.retirementSource && <StatBox label="Data Source" value={item.retirementSource} />}
+          </div>
+        </div>
+
+        {/* ── Details ── */}
+        {(item.subtheme || item.minifigs || item.rating || item.ageMin) && (
           <div>
-            <div style={sectionLabel}>Buy Signal</div>
+            <div style={sectionLabel}>Details</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              {score !== null && <StatBox label="Priority Score" value={score} />}
-              {item.retirementYear && (
-                <StatBox label="Retirement Year" value={item.retirementYear} color={item.retiringSoon ? "#ff8b8b" : "#e8e2d5"} />
-              )}
-              {item.retirementConfidence && <StatBox label="Confidence" value={item.retirementConfidence} />}
-              {item.retirementSource && <StatBox label="Data Source" value={item.retirementSource} />}
+              {item.subtheme && <StatBox label="Subtheme" value={item.subtheme} />}
+              {item.minifigs && <StatBox label="Minifigs" value={item.minifigs} />}
+              {item.rating && <StatBox label="Rating" value={`★ ${Number(item.rating).toFixed(1)}`} />}
+              {item.ageMin && <StatBox label="Min Age" value={`${item.ageMin}+`} />}
             </div>
           </div>
         )}
