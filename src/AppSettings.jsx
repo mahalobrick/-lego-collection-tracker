@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { importBudgetExcel, parseExcelFirstSheet } from "./utils/importBudgetExcel";
 import { asNumber } from "./utils/formatting";
 import { exportFullBackup as runExportBackup } from "./utils/exportBackup";
+import { getBrickLinkAccessToken, hasBrickLinkAuth } from "./utils/bricklink-client";
 
 const DEFAULT_STORES = ["Amazon", "Best Buy", "Bricklink", "LEGO", "Target", "Walmart"];
 const DEFAULT_ANNUAL_BUDGET = 10320;
@@ -132,6 +133,10 @@ export default function AppSettings() {
   const [openColumnSections, setOpenColumnSections] = useState({});
 
   const [settingsTab, setSettingsTab] = useState("general");
+
+  // ── BrickLink auth state ─────────────────────────────────────
+  const [blAccessTokenInput, setBlAccessTokenInput] = useState("");
+  const [blConnected, setBlConnected] = useState(() => hasBrickLinkAuth());
   const [newStore, setNewStore] = useState("");
 
   const [autoExportDays, setAutoExportDays] = useState(() =>
@@ -644,6 +649,24 @@ export default function AppSettings() {
     setMessage("BrickEconomy API cache cleared.");
   }
 
+  // ── BrickLink auth handlers ──────────────────────────────────
+  function saveBrickLinkToken() {
+    const trimmed = blAccessTokenInput.trim();
+    if (!trimmed) return;
+    localStorage.setItem("blBrickLinkAccessToken", trimmed);
+    setBlConnected(true);
+    setBlAccessTokenInput("");
+    setMessage("BrickLink access token saved.");
+  }
+
+  function disconnectBrickLink() {
+    localStorage.removeItem("blBrickLinkAccessToken");
+    localStorage.removeItem("blSessionToken");
+    localStorage.removeItem("blPriceGuideCache");
+    setBlConnected(false);
+    setMessage("BrickLink disconnected and session cache cleared.");
+  }
+
   return (
     <div style={page}>
       <div style={stTabHeader}>
@@ -930,6 +953,60 @@ export default function AppSettings() {
             Clear BrickEconomy Cache
           </button>
         </div>
+      </section>
+      )}
+
+      {settingsTab === "general" && (
+      <section style={panel}>
+        <h3 style={{ margin: "0 0 4px" }}>BrickLink</h3>
+        <p style={{ ...mutedSmall, margin: "0 0 14px" }}>
+          Connect your BrickLink account for real market pricing data.{" "}
+          <a
+            href="https://bricklink.com/v3/brickstore-access-management.page"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#c9a84c", textDecoration: "underline" }}
+          >
+            Get your access token
+          </a>{" "}
+          (free BrickLink buyer account — no seller account needed).
+        </p>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: "50%",
+            background: blConnected ? "#22c55e" : "#4d5e70",
+            flexShrink: 0
+          }} />
+          <span style={{ fontSize: 14, color: blConnected ? "#22c55e" : "#8a9bb0", fontWeight: 700 }}>
+            {blConnected ? "Connected" : "Not connected"}
+          </span>
+        </div>
+
+        {!blConnected && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div>
+              <div style={{ fontSize: 12, color: "#5d6f80", marginBottom: 5 }}>Access token</div>
+              <input
+                type="password"
+                placeholder="Paste your BrickLink access token"
+                value={blAccessTokenInput}
+                onChange={e => setBlAccessTokenInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && saveBrickLinkToken()}
+                style={{ width: 280 }}
+              />
+            </div>
+            <button onClick={saveBrickLinkToken} style={redBtn} disabled={!blAccessTokenInput.trim()}>
+              Connect
+            </button>
+          </div>
+        )}
+
+        {blConnected && (
+          <button onClick={disconnectBrickLink} style={ghostBtn}>
+            Disconnect
+          </button>
+        )}
       </section>
       )}
 

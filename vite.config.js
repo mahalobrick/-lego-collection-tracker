@@ -34,6 +34,8 @@ const API_ROUTES = {
   '/api/brickeconomy-collection': require('./api/brickeconomy-collection'),
   '/api/brickeconomy-set':        require('./api/brickeconomy-set'),
   '/api/brickset-set':            require('./api/brickset-set'),
+  '/api/bricklink-auth':          require('./api/bricklink-auth'),
+  '/api/bricklink-priceguide':    require('./api/bricklink-priceguide'),
 }
 
 export default defineConfig({
@@ -67,7 +69,10 @@ export default defineConfig({
           const query = Object.fromEntries(
             new NodeURL(req.url, 'http://localhost').searchParams
           )
-          handler({ method: req.method, query, headers: req.headers }, makeRes(res))
+          // Attach query onto the native IncomingMessage so POST handlers
+          // can also stream the request body via req.on("data", ...)
+          req.query = query
+          handler(req, makeRes(res))
         })
       }
     }
