@@ -145,7 +145,35 @@ export default function WantedList({ onBuyNow }) {
     try { return JSON.parse(localStorage.getItem("blWLChartTypes") || "{}"); } catch { return {}; }
   });
   const [wlPillsCollapsed, setWlPillsCollapsed] = useState(false);
+  // Custom fields schema: [{id, label, type}]
+  const [customFieldsSchema, setCustomFieldsSchema] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("blCustomFieldsSchema") || "[]"); } catch { return []; }
+  });
+  const [customFieldsGearOpen, setCustomFieldsGearOpen] = useState(false);
+  const [newCfLabel, setNewCfLabel] = useState("");
+  const [newCfType, setNewCfType] = useState("text");
+
+  useEffect(() => {
+    localStorage.setItem("blCustomFieldsSchema", JSON.stringify(customFieldsSchema));
+  }, [customFieldsSchema]);
+
+  function addCustomField() {
+    const label = newCfLabel.trim();
+    if (!label) return;
+    const id = `cf_${Date.now()}`;
+    setCustomFieldsSchema(prev => [...prev, { id, label, type: newCfType }]);
+    setNewCfLabel("");
+    setNewCfType("text");
+  }
+
+  function removeCustomField(id) {
+    setCustomFieldsSchema(prev => prev.filter(f => f.id !== id));
+  }
+
   const [wlGearOpen, setWlGearOpen] = useState(false);
+  const [lcAlertDismissed, setLcAlertDismissed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("blLCAlertDismissed") || "[]"); } catch { return []; }
+  });
   const [colGearOpen, setColGearOpen] = useState(false);
   const [bulkThemeOpen, setBulkThemeOpen] = useState(false);
   const [bulkTheme, setBulkTheme] = useState("");
@@ -510,6 +538,17 @@ export default function WantedList({ onBuyNow }) {
     if (key === "forecast2yr") return item.forecast2yr ? money(item.forecast2yr) : "—";
     if (key === "forecast5yr") return item.forecast5yr ? money(item.forecast5yr) : "—";
 
+    // Custom fields
+    const cf = customFieldsSchema.find(f => f.key === key || f.id === key);
+    if (cf) {
+      const val = (item.customFields || {})[cf.id];
+      if (cf.type === "checkbox") return (
+        <input type="checkbox" checked={!!val}
+          onChange={e => updateWanted(realIndex, "customFields", { ...(item.customFields || {}), [cf.id]: e.target.checked })} />
+      );
+      return val != null && val !== "" ? String(val) : "—";
+    }
+
     return "";
   }
 
@@ -639,6 +678,54 @@ export default function WantedList({ onBuyNow }) {
         return Number(a[0]) - Number(b[0]);
       })
       .map(([name, value]) => ({ name, value }));
+  }, [wanted]);
+
+  // Wave-aware timeline: groups sets into Jul/Dec waves using exit_date if present,
+  // otherwise estimates from retirementYear (Jul wave for that year as default)
+  const retirementWaves = useMemo(() => {
+    const now = new Date();
+    const cy = now.getFullYear();
+    const waveMap = {};
+
+    wanted.forEach(w => {
+      let waveKey, waveSort;
+      if (w.isLastChance) {
+        waveKey = "🚨 Last Chance Now";
+        waveSort = 0;
+      } else if (w.exit_date) {
+        const d = new Date(w.exit_date);
+        const m = d.getMonth() + 1;
+        const y = d.getFullYear();
+        const isJul = m >= 5 && m <= 8;
+        const isDec = m >= 10 || m <= 1;
+        if (y < cy || (y === cy && d < now)) {
+          waveKey = "⚠ Overdue";
+          waveSort = 1;
+        } else {
+          waveKey = isJul ? `☀ Jul ${y}` : isDec ? `❄ Dec ${y}` : `${y}`;
+          waveSort = y * 100 + (isJul ? 7 : 12);
+        }
+      } else if (w.retirementYear) {
+        const yr = Number(w.retirementYear);
+        if (!yr) return;
+        if (yr < cy) {
+          waveKey = "⚠ Overdue";
+          waveSort = 1;
+        } else {
+          waveKey = `☀ Jul ${yr}`;  // best-guess wave
+          waveSort = yr * 100 + 7;
+        }
+      } else {
+        return; // no retirement data — skip
+      }
+
+      if (!waveMap[waveKey]) waveMap[waveKey] = { sort: waveSort, sets: [] };
+      waveMap[waveKey].sets.push(w);
+    });
+
+    return Object.entries(waveMap)
+      .sort((a, b) => a[1].sort - b[1].sort)
+      .map(([label, { sets }]) => ({ label, sets }));
   }, [wanted]);
 
   const topPriorityItems = useMemo(() => {
@@ -1056,26 +1143,57 @@ export default function WantedList({ onBuyNow }) {
                           </div>
                         )}
                       </div>
-                    ) : item.key === "retirement-timeline" && retirementByYear.length > 0 ? (
+                    ) : item.key === "retirement-timeline" && retirementWaves.length > 0 ? (
                       <div style={{ ...panel, marginTop: 0 }}>
-                        <h4 style={{ margin: "0 0 14px" }}>Retirement Timeline</h4>
-                        <div style={{ display: "grid", gap: 8 }}>
-                          {(() => {
-                            const maxVal = Math.max(...retirementByYear.map(r => r.value));
-                            const cy = new Date().getFullYear();
-                            return retirementByYear.map(({ name, value }) => {
-                              const isUrgent = name === "Overdue" || name === String(cy + 1);
-                              return (
-                                <div key={name} style={{ display: "grid", gridTemplateColumns: "80px 1fr 36px", alignItems: "center", gap: 10 }}>
-                                  <span style={{ color: isUrgent ? "#ff8b8b" : "#8a9bb0", fontSize: 13, fontWeight: isUrgent ? 700 : 400 }}>{name}</span>
-                                  <div style={{ height: 8, background: "#0b1520", borderRadius: 999, overflow: "hidden" }}>
-                                    <div style={{ height: "100%", width: `${(value / maxVal) * 100}%`, background: isUrgent ? "#ef4444" : "#5aa832", borderRadius: 999 }} />
-                                  </div>
-                                  <span style={{ color: "#e8e2d5", fontWeight: 700, fontSize: 13, textAlign: "right" }}>{value}</span>
+                        <h4 style={{ margin: "0 0 16px" }}>Retirement Wave Timeline</h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                          {retirementWaves.map(({ label, sets }) => {
+                            const isUrgent = label.startsWith("🚨") || label.startsWith("⚠");
+                            const borderColor = isUrgent ? "#7f1d1d" : "rgba(255,255,255,0.08)";
+                            const labelColor = isUrgent ? "#ef4444" : "#c9a84c";
+                            return (
+                              <div key={label}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                                  <span style={{ color: labelColor, fontWeight: 800, fontSize: 14 }}>{label}</span>
+                                  <span style={{ color: "#8a9bb0", fontSize: 12 }}>— {sets.length} {sets.length === 1 ? "set" : "sets"}</span>
+                                  <div style={{ flex: 1, height: 1, background: borderColor }} />
                                 </div>
-                              );
-                            });
-                          })()}
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                  {sets.map((w, i) => {
+                                    const sc = priorityScore(w);
+                                    const chipBg = w.isLastChance ? "#3b0a0a"
+                                      : sc >= 70 ? "#1a0a00"
+                                      : "#0f1a28";
+                                    const chipBorder = w.isLastChance ? "#7f1d1d"
+                                      : sc >= 70 ? "rgba(245,158,11,0.35)"
+                                      : "rgba(255,255,255,0.07)";
+                                    const chipColor = w.isLastChance ? "#ef4444"
+                                      : sc >= 70 ? "#f59e0b"
+                                      : "#e8e2d5";
+                                    return (
+                                      <div
+                                        key={i}
+                                        onClick={() => { setDetailItem(w); setDetailItemIndex(wanted.indexOf(w)); }}
+                                        style={{ background: chipBg, border: `1px solid ${chipBorder}`, borderRadius: 10, padding: "8px 12px", cursor: "pointer", minWidth: 140 }}
+                                      >
+                                        <div style={{ fontSize: 11, color: "#8a9bb0", marginBottom: 3 }}>#{w.setNumber}</div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: chipColor, marginBottom: 4, lineHeight: 1.3 }}>
+                                          {w.name || w.setNumber}
+                                        </div>
+                                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                          {w.exit_date && (() => {
+                                            const days = daysUntilRetirement(w.exit_date);
+                                            return <span style={{ fontSize: 11, color: days <= 60 ? "#ef4444" : days <= 180 ? "#f59e0b" : "#5aa832" }}>{days <= 0 ? "past date" : `${days}d`}</span>;
+                                          })()}
+                                          <span style={{ fontSize: 11, color: "#8a9bb0" }}>Score: {sc}</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     ) : null}
@@ -1364,6 +1482,25 @@ export default function WantedList({ onBuyNow }) {
                 <div style={{ color: "#e8e2d5", fontSize: 13, fontWeight: 700 }}>{form.retirementSource || "—"}</div>
                 <div style={{ color: "#5d6f80", fontSize: 11, marginTop: 2 }}>{form.retirementConfidence ? `${form.retirementConfidence} confidence` : ""}</div>
               </div>
+
+              {/* BrickEconomy Investment Forecast */}
+              {(form.currentValue || form.forecast2yr || form.forecast5yr) && (
+                <div style={{ background: "#0b1520", border: "1px solid rgba(90,168,50,0.15)", borderRadius: 8, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 11, color: "#5d6f80", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Investment</div>
+                  {form.currentValue && (
+                    <div style={{ fontSize: 12, color: "#e8e2d5", marginBottom: 2 }}>
+                      <span style={{ color: "#5d6f80" }}>Mkt: </span>{money(form.currentValue)}
+                      {form.msrp && asNumber(form.msrp) > 0 && (
+                        <span style={{ marginLeft: 6, color: asNumber(form.currentValue) >= asNumber(form.msrp) ? "#5aa832" : "#ff8b8b", fontWeight: 700, fontSize: 11 }}>
+                          ({asNumber(form.currentValue) >= asNumber(form.msrp) ? "+" : ""}{(((asNumber(form.currentValue) - asNumber(form.msrp)) / asNumber(form.msrp)) * 100).toFixed(0)}%)
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {form.forecast2yr && <div style={{ fontSize: 12, color: "#5aa832", marginBottom: 2 }}><span style={{ color: "#5d6f80" }}>2yr: </span>{money(form.forecast2yr)}</div>}
+                  {form.forecast5yr && <div style={{ fontSize: 12, color: "#5aa832" }}><span style={{ color: "#5d6f80" }}>5yr: </span>{money(form.forecast5yr)}</div>}
+                </div>
+              )}
             </div>
 
             {/* External links */}
@@ -1498,7 +1635,40 @@ export default function WantedList({ onBuyNow }) {
       </>
       )}
 
-      {subTab === "queue" && (
+      {subTab === "queue" && (() => {
+        const lcSets = wanted.filter(w => w.isLastChance && w.setNumber && !lcAlertDismissed.includes(String(w.setNumber)));
+        return (
+        <>
+        {lcSets.length > 0 && (
+          <div style={{ background: "#3b0a0a", border: "1px solid #7f1d1d", borderRadius: 12, padding: "14px 18px", marginBottom: 12, display: "flex", alignItems: "flex-start", gap: 14 }}>
+            <span style={{ fontSize: 22, lineHeight: 1 }}>🚨</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: "#ef4444", fontWeight: 800, fontSize: 14, marginBottom: 6 }}>
+                Last Chance Alert — {lcSets.length} {lcSets.length === 1 ? "set" : "sets"} confirmed retiring
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {lcSets.map(w => (
+                  <span key={w.setNumber}
+                    onClick={() => { setDetailItem(w); setDetailItemIndex(wanted.indexOf(w)); }}
+                    style={{ background: "#4a0a0a", border: "1px solid #991b1b", borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#fca5a5", cursor: "pointer", fontWeight: 700 }}
+                  >
+                    #{w.setNumber} {w.name ? `— ${w.name}` : ""}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const newDismissed = [...lcAlertDismissed, ...lcSets.map(w => String(w.setNumber))];
+                setLcAlertDismissed(newDismissed);
+                localStorage.setItem("blLCAlertDismissed", JSON.stringify(newDismissed));
+              }}
+              style={{ background: "transparent", border: "1px solid #7f1d1d", color: "#8a9bb0", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12, flexShrink: 0 }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
       <section style={panel}>
         <div style={row}>
           <h3>Buy List</h3>
@@ -1593,6 +1763,48 @@ export default function WantedList({ onBuyNow }) {
                 >
                   Reset to defaults
                 </button>
+
+                {/* Custom fields section inside column gear */}
+                <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12, marginTop: 4 }}>
+                  <div style={{ color: "#8a9bb0", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+                    ✦ Custom Fields
+                  </div>
+                  {customFieldsSchema.map(cf => (
+                    <div key={cf.id} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                      <input
+                        type="checkbox"
+                        checked={columns.some(c => c.key === cf.id && c.visible)}
+                        onChange={e => {
+                          setColumns(prev => {
+                            const exists = prev.find(c => c.key === cf.id);
+                            if (exists) return prev.map(c => c.key === cf.id ? { ...c, visible: e.target.checked } : c);
+                            return [...prev, { key: cf.id, label: cf.label, visible: e.target.checked, group: "custom" }];
+                          });
+                        }}
+                      />
+                      <span style={{ fontSize: 13, color: "#e8e2d5", flex: 1 }}>{cf.label}</span>
+                      <span style={{ fontSize: 11, color: "#5d6f80", background: "rgba(255,255,255,0.04)", borderRadius: 4, padding: "1px 5px" }}>{cf.type}</span>
+                      <button onClick={() => removeCustomField(cf.id)} style={{ background: "transparent", border: "none", color: "#7f1d1d", cursor: "pointer", fontSize: 14, padding: "0 2px" }}>✕</button>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                    <input
+                      value={newCfLabel}
+                      onChange={e => setNewCfLabel(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && addCustomField()}
+                      placeholder="Field name…"
+                      style={{ flex: 1, background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "5px 8px", color: "#e8e2d5", fontSize: 12 }}
+                    />
+                    <select value={newCfType} onChange={e => setNewCfType(e.target.value)}
+                      style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "5px 6px", color: "#8a9bb0", fontSize: 12 }}>
+                      <option value="text">Text</option>
+                      <option value="number">Number</option>
+                      <option value="checkbox">Check</option>
+                      <option value="date">Date</option>
+                    </select>
+                    <button onClick={addCustomField} style={{ background: "#1a3a1a", border: "1px solid #166534", color: "#5aa832", borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>+</button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1943,6 +2155,34 @@ export default function WantedList({ onBuyNow }) {
                 </label>
               </div>
 
+              {customFieldsSchema.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ color: "#8a9bb0", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>✦ Custom Fields</div>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {customFieldsSchema.map(cf => {
+                      const val = (wanted[selectedWantedIndex].customFields || {})[cf.id] ?? "";
+                      const update = v => updateWanted(selectedWantedIndex, "customFields", {
+                        ...(wanted[selectedWantedIndex].customFields || {}),
+                        [cf.id]: v
+                      });
+                      return (
+                        <label key={cf.id}>
+                          {cf.label}
+                          {cf.type === "checkbox"
+                            ? <input type="checkbox" checked={!!val} onChange={e => update(e.target.checked)} style={{ marginLeft: 8 }} />
+                            : <input
+                                type={cf.type === "number" ? "number" : cf.type === "date" ? "date" : "text"}
+                                value={val}
+                                onChange={e => update(e.target.value)}
+                              />
+                          }
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div style={{ marginTop: 14 }}>
                 <button onClick={() => setSelectedWantedIndex(null)}>Done</button>
               </div>
@@ -1950,7 +2190,9 @@ export default function WantedList({ onBuyNow }) {
           )}
         </div>
       </section>
-      )}
+      </>
+      );
+      })()}
 
       <WatchDetailPanel
         item={detailItem}

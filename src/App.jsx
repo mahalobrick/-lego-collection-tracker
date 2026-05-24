@@ -58,12 +58,6 @@ export default function App() {
               BrickLedger
             </h1>
             <div style={{ width: 48, height: 2, background: "linear-gradient(90deg, transparent, #c9a84c, transparent)", margin: "12px auto 0", borderRadius: 999 }} />
-            <div style={{ marginTop: 10 }}>
-              <a href="https://ko-fi.com/mahalobrick" target="_blank" rel="noopener noreferrer"
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", borderRadius: 999, background: "rgba(201,168,76,0.08)", border: "1px solid rgba(201,168,76,0.2)", color: "#c9a84c", fontSize: 12, fontWeight: 700, textDecoration: "none", letterSpacing: 0.3 }}>
-                ☕ Support on Ko-fi
-              </a>
-            </div>
           </div>
 
           <div className="nav-wrap" style={{ display: "flex", justifyContent: "center", padding: "16px 24px 0" }}>

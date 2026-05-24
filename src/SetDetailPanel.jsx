@@ -1,4 +1,4 @@
-import { asNumber, money, setImageUrl, conditionLabel, conditionColor } from "./utils/formatting";
+import { asNumber, money, setImageUrl, conditionLabel, conditionColor, daysUntilRetirement } from "./utils/formatting";
 
 function entryPaid(e) {
   return asNumber(e.paid_price ?? e.Paid ?? e.paid ?? 0);
@@ -43,7 +43,7 @@ export default function SetDetailPanel({ item, onClose, onEdit }) {
   const roi = totalPaid > 0 ? (gain / totalPaid) * 100 : 0;
   const avgPaid = qty > 0 ? totalPaid / qty : 0;
 
-  // Enrich with cached BrickEconomy set data (pieces, year, retail price)
+  // Enrich with cached BrickEconomy set data
   const setCache = (() => {
     try { return JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}"); } catch { return {}; }
   })();
@@ -52,6 +52,31 @@ export default function SetDetailPanel({ item, onClose, onEdit }) {
   const pieces = cached.pieces_count || null;
   const releaseYear = cached.year || Number(String(cached.released_date || "").slice(0, 4)) || null;
   const retailPrice = asNumber(cached.retail_price_us) || null;
+  const forecast2yr = asNumber(cached.forecast_value_new_2_years) || null;
+  const forecast5yr = asNumber(cached.forecast_value_new_5_years) || null;
+
+  // Enrich with cached Brickset data (retirement, details)
+  const bsCache = (() => {
+    try { return JSON.parse(localStorage.getItem("bricksetSetCache") || "{}"); } catch { return {}; }
+  })();
+  const bsKey = item.setNumber || "";
+  const bsEntry = bsCache[bsKey] || bsCache[String(bsKey).replace(/-1$/, "")] || bsCache[`${String(bsKey).replace(/-1$/, "")}-1`] || {};
+  const bs = bsEntry.data || {};
+  const subtheme = bs.subtheme || null;
+  const minifigs = bs.minifigs != null ? bs.minifigs : null;
+  const rating = bs.rating ? Number(bs.rating) : null;
+  const ageMin = bs.age_min || null;
+  const exitDate = bs.exit_date || null;
+
+  // Last Chance detection from cached codes
+  const isLastChance = (() => {
+    try {
+      const lc = JSON.parse(localStorage.getItem("legoLastChanceCache") || "null");
+      if (!lc?.setCodes) return false;
+      const clean = String(item.setNumber || "").replace(/-1$/, "");
+      return lc.setCodes.includes(clean) || lc.setCodes.includes(`${clean}-1`);
+    } catch { return false; }
+  })();
 
   return (
     <>
@@ -75,6 +100,20 @@ export default function SetDetailPanel({ item, onClose, onEdit }) {
               }}>
                 {item.retired ? "Retired" : "Active"}
               </span>
+              {isLastChance && (
+                <span style={{ background: "#3b0a0a", border: "1px solid #7f1d1d", color: "#ef4444", borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 800 }}>
+                  🚨 Last Chance
+                </span>
+              )}
+              {exitDate && !item.retired && (() => {
+                const days = daysUntilRetirement(exitDate);
+                const color = days <= 60 ? "#ef4444" : days <= 180 ? "#f59e0b" : "#5aa832";
+                return (
+                  <span style={{ background: "#0f1a28", border: `1px solid ${color}40`, color, borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 700 }}>
+                    {days <= 0 ? "Past retirement date" : `Retires in ${days}d`}
+                  </span>
+                );
+              })()}
               <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>
                 {qty} {qty === 1 ? "copy" : "copies"}
               </span>
@@ -114,6 +153,42 @@ export default function SetDetailPanel({ item, onClose, onEdit }) {
           <StatBox label="Value / Copy" value={qty > 0 ? money(totalValue / qty) : "—"} />
           {retailPrice && totalPaid > 0 && <StatBox label="vs. Retail" value={`${(((totalValue / qty) - retailPrice) / retailPrice * 100) >= 0 ? "+" : ""}${(((totalValue / qty) - retailPrice) / retailPrice * 100).toFixed(1)}%`} color={(totalValue / qty) >= retailPrice ? "#5aa832" : "#ff8b8b"} />}
         </div>
+
+        {(forecast2yr || forecast5yr) && (
+          <div>
+            <div style={sectionLabel}>Investment Forecast</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {forecast2yr && <StatBox label="2yr Forecast" value={money(forecast2yr)} color="#5aa832" />}
+              {forecast5yr && <StatBox label="5yr Forecast" value={money(forecast5yr)} color="#5aa832" />}
+              {forecast2yr && retailPrice && (
+                <StatBox
+                  label="2yr vs. Retail"
+                  value={`${forecast2yr >= retailPrice ? "+" : ""}${(((forecast2yr - retailPrice) / retailPrice) * 100).toFixed(1)}%`}
+                  color={forecast2yr >= retailPrice ? "#5aa832" : "#ff8b8b"}
+                />
+              )}
+              {forecast5yr && retailPrice && (
+                <StatBox
+                  label="5yr vs. Retail"
+                  value={`${forecast5yr >= retailPrice ? "+" : ""}${(((forecast5yr - retailPrice) / retailPrice) * 100).toFixed(1)}%`}
+                  color={forecast5yr >= retailPrice ? "#5aa832" : "#ff8b8b"}
+                />
+              )}
+            </div>
+          </div>
+        )}
+
+        {(subtheme || minifigs != null || rating || ageMin) && (
+          <div>
+            <div style={sectionLabel}>Set Details</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {subtheme && <StatBox label="Subtheme" value={subtheme} />}
+              {minifigs != null && <StatBox label="Minifigs" value={minifigs} />}
+              {rating && <StatBox label="Rating" value={`★ ${rating.toFixed(1)}`} />}
+              {ageMin && <StatBox label="Min Age" value={`${ageMin}+`} />}
+            </div>
+          </div>
+        )}
 
         {entries.length > 0 && (
           <div>
@@ -168,3 +243,5 @@ export default function SetDetailPanel({ item, onClose, onEdit }) {
     </>
   );
 }
+
+const sectionLabel = { color: "#8a9bb0", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 };

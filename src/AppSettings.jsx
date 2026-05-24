@@ -148,6 +148,10 @@ export default function AppSettings() {
 
   const [importMode, setImportMode] = useState("add");
 
+  const [displayCurrency, setDisplayCurrency] = useState(() =>
+    localStorage.getItem("blDisplayCurrency") || "USD"
+  );
+
   const [annualBudget, setAnnualBudget] = useState(() => {
     return Number(localStorage.getItem("blAnnualBudget")) || DEFAULT_ANNUAL_BUDGET;
   });
@@ -688,6 +692,36 @@ export default function AppSettings() {
       </div>
 
       {message && <div style={notice}>{message}</div>}
+
+      {settingsTab === "general" && (
+      <section style={panel}>
+        <h3 style={{ margin: "0 0 4px" }}>Display Currency</h3>
+        <p style={{ ...mutedSmall, margin: "0 0 14px" }}>
+          Choose the currency symbol used throughout the app. Data is stored in USD — this only affects display.
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {[
+            { code: "USD", label: "$ USD" },
+            { code: "GBP", label: "£ GBP" },
+            { code: "EUR", label: "€ EUR" },
+            { code: "CAD", label: "CA$ CAD" },
+          ].map(({ code, label }) => (
+            <button
+              key={code}
+              onClick={() => { setDisplayCurrency(code); localStorage.setItem("blDisplayCurrency", code); }}
+              style={{
+                background: displayCurrency === code ? "#c9a84c" : "rgba(255,255,255,0.04)",
+                color: displayCurrency === code ? "#0d1623" : "#8a9bb0",
+                border: `1px solid ${displayCurrency === code ? "#c9a84c" : "rgba(255,255,255,0.1)"}`,
+                borderRadius: 8, padding: "8px 18px", fontWeight: 800, cursor: "pointer", fontSize: 13
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
+      )}
 
       {settingsTab === "general" && (
       <section style={panel}>

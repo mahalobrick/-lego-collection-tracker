@@ -3,12 +3,26 @@ export function asNumber(value) {
   return Number(String(value || "0").replace(/[$,]/g, "")) || 0;
 }
 
-export function money(value) {
-  return "$" + asNumber(value).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+// Currency config — symbols + locale for Intl formatting
+const CURRENCIES = {
+  USD: { symbol: "$",  locale: "en-US" },
+  GBP: { symbol: "£",  locale: "en-GB" },
+  EUR: { symbol: "€",  locale: "de-DE" },
+  CAD: { symbol: "CA$", locale: "en-CA" },
+};
+
+export function getDisplayCurrency() {
+  try { return localStorage.getItem("blDisplayCurrency") || "USD"; } catch { return "USD"; }
 }
+
+export function money(value, overrideCurrency) {
+  const code = overrideCurrency || getDisplayCurrency();
+  const { symbol, locale } = CURRENCIES[code] || CURRENCIES.USD;
+  const n = asNumber(value);
+  return symbol + n.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+export { CURRENCIES };
 
 export function setImageUrl(setNumber) {
   if (!setNumber) return "";
