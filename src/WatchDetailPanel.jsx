@@ -1,4 +1,6 @@
+import { useState, useEffect } from "react";
 import { asNumber, money, setImageUrl, daysUntilRetirement, retirementWaveLabel, priorityScore, recommendation } from "./utils/formatting";
+import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 
 function StatBox({ label, value, color }) {
   return (
@@ -10,6 +12,14 @@ function StatBox({ label, value, color }) {
 }
 
 export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
+  const [blPrice, setBlPrice] = useState(null);
+
+  useEffect(() => {
+    if (item?.setNumber && hasBrickLinkAuth()) {
+      fetchBrickLinkPriceGuide(item.setNumber).then(setBlPrice).catch(() => {});
+    }
+  }, [item?.setNumber]);
+
   if (!item) return null;
 
   // Pull cached BrickEconomy set data (pieces, year, market value)
@@ -120,6 +130,12 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
                 value={`${marketValue >= msrp ? "+" : ""}${(((marketValue - msrp) / msrp) * 100).toFixed(1)}%`}
                 color={marketValue >= msrp ? "#5aa832" : "#ff8b8b"}
               />
+            )}
+            {blPrice?.avg_price_new && (
+              <StatBox label="BL Avg (New)" value={money(blPrice.avg_price_new)} color="#3b82f6" />
+            )}
+            {blPrice?.avg_price_used && (
+              <StatBox label="BL Avg (Used)" value={money(blPrice.avg_price_used)} />
             )}
             {(item.forecast2yr || forecast2yr) && (
               <StatBox label="2yr Forecast" value={money(item.forecast2yr || forecast2yr)} color="#5aa832" />

@@ -124,6 +124,13 @@ export default function WantedList({ onBuyNow }) {
   });
 
   const [search, setSearch] = useState("");
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const handler = e => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
   const [filterTheme, setFilterTheme] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [lookupMessage, setLookupMessage] = useState("");
@@ -145,6 +152,36 @@ export default function WantedList({ onBuyNow }) {
     try { return JSON.parse(localStorage.getItem("blWLChartTypes") || "{}"); } catch { return {}; }
   });
   const [wlPillsCollapsed, setWlPillsCollapsed] = useState(false);
+  // ── Price deal log ───────────────────────────────────────────────────────
+  const [dealLog, setDealLog] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("blDealLog") || "[]"); } catch { return []; }
+  });
+
+  function logDeal(setNum, name, msrp, storePrice, discount) {
+    const entry = {
+      id: Date.now(),
+      setNumber: setNum,
+      name: name || setNum,
+      msrp,
+      storePrice,
+      discount: parseFloat(discount.toFixed(1)),
+      loggedAt: new Date().toISOString(),
+    };
+    setDealLog(prev => {
+      const next = [entry, ...prev].slice(0, 100); // keep last 100
+      localStorage.setItem("blDealLog", JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function deleteDealEntry(id) {
+    setDealLog(prev => {
+      const next = prev.filter(d => d.id !== id);
+      localStorage.setItem("blDealLog", JSON.stringify(next));
+      return next;
+    });
+  }
+
   // Custom fields schema: [{id, label, type}]
   const [customFieldsSchema, setCustomFieldsSchema] = useState(() => {
     try { return JSON.parse(localStorage.getItem("blCustomFieldsSchema") || "[]"); } catch { return []; }
@@ -339,6 +376,46 @@ export default function WantedList({ onBuyNow }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally runs once on mount
 
+  // ── Keyboard shortcuts ───────────────────────────────────────────────────
+  useEffect(() => {
+    function onKey(e) {
+      const tag = document.activeElement?.tagName;
+      const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      if (e.key === "Escape") {
+        setDetailItem(null); setDetailItemIndex(null);
+        setSelectedWantedIndex(null);
+        setColGearOpen(false); setBulkThemeOpen(false);
+        return;
+      }
+      if (typing) return;
+      if (e.key === "n" || e.key === "N") {
+        setSubTab("research");
+        setTimeout(() => document.querySelector('input[placeholder*="set number"]')?.focus(), 80);
+      }
+      if ((e.key === "e" || e.key === "E") && detailItem) {
+        const idx = wanted.indexOf(detailItem);
+        if (idx >= 0) { setDetailItem(null); setDetailItemIndex(null); setSelectedWantedIndex(idx); }
+      }
+      if (e.key === "ArrowDown" && subTab === "queue") {
+        const sorted = visibleWanted;
+        const cur = detailItem ? sorted.indexOf(detailItem) : -1;
+        const next = sorted[Math.min(cur + 1, sorted.length - 1)];
+        if (next) { setDetailItem(next); setDetailItemIndex(wanted.indexOf(next)); }
+        e.preventDefault();
+      }
+      if (e.key === "ArrowUp" && subTab === "queue") {
+        const sorted = visibleWanted;
+        const cur = detailItem ? sorted.indexOf(detailItem) : sorted.length;
+        const prev = sorted[Math.max(cur - 1, 0)];
+        if (prev) { setDetailItem(prev); setDetailItemIndex(wanted.indexOf(prev)); }
+        e.preventDefault();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailItem, subTab, wanted, visibleWanted]);
+
   const DEFAULT_WANTED_COLUMNS = [
     // ── Intelligence ─────────────────────────────────────────────
     { key: "score",               label: "Score",        visible: false, group: "intelligence" },
@@ -361,7 +438,12 @@ export default function WantedList({ onBuyNow }) {
     { key: "currentValue",        label: "Mkt Value",    visible: false, group: "pricing" },
     { key: "forecast2yr",         label: "2yr Forecast", visible: false, group: "pricing" },
     { key: "forecast5yr",         label: "5yr Forecast", visible: false, group: "pricing" },
+    // ── Pricing (continued) ──────────────────────────────────────
+    { key: "blPriceNew",          label: "BL Avg (New)", visible: false, group: "pricing" },
+    { key: "blPriceUsed",         label: "BL Avg (Used)",visible: false, group: "pricing" },
     // ── Details ──────────────────────────────────────────────────
+    { key: "owned",               label: "Owned",        visible: false, group: "details" },
+    { key: "ageMonths",           label: "Age",          visible: false, group: "details" },
     { key: "theme",               label: "Theme",        visible: true,  group: "details" },
     { key: "pieces",              label: "Pieces",       visible: false, group: "details" },
     { key: "subtheme",            label: "Subtheme",     visible: false, group: "details" },
@@ -537,6 +619,31 @@ export default function WantedList({ onBuyNow }) {
     if (key === "ageMin") return item.ageMin ? `${item.ageMin}+` : "—";
     if (key === "forecast2yr") return item.forecast2yr ? money(item.forecast2yr) : "—";
     if (key === "forecast5yr") return item.forecast5yr ? money(item.forecast5yr) : "—";
+    if (key === "blPriceNew")  return item.blPriceNew  ? money(item.blPriceNew)  : "—";
+    if (key === "blPriceUsed") return item.blPriceUsed ? money(item.blPriceUsed) : "—";
+    if (key === "owned") {
+      const isOwned = ownedSetNumbers.has(String(item.setNumber || "").replace(/-1$/, ""));
+      return isOwned
+        ? <span style={{ fontSize: 11, background: "#0a2e1a", border: "1px solid #166534", color: "#5aa832", borderRadius: 999, padding: "2px 7px", fontWeight: 700 }}>✓ Yes</span>
+        : <span style={{ color: "#5d6f80", fontSize: 12 }}>—</span>;
+    }
+    if (key === "ageMonths") {
+      const yr = item.releaseYear
+        ? Number(item.releaseYear)
+        : (() => {
+            try {
+              const c = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
+              const e = c[item.setNumber] || c[String(item.setNumber || "").replace(/-1$/, "")];
+              return e?.data?.year || Number(String(e?.data?.released_date || "").slice(0, 4)) || null;
+            } catch { return null; }
+          })();
+      if (!yr) return "—";
+      const months = Math.floor((Date.now() - new Date(`${yr}-07-01`).getTime()) / (1000 * 60 * 60 * 24 * 30.44));
+      if (months < 0) return "—";
+      const y = Math.floor(months / 12);
+      const m = months % 12;
+      return y > 0 ? `${y}yr ${m}mo` : `${m}mo`;
+    }
 
     // Custom fields
     const cf = customFieldsSchema.find(f => f.key === key || f.id === key);
@@ -944,7 +1051,20 @@ export default function WantedList({ onBuyNow }) {
         </div>
       </div>
 
-      {subTab === "overview" && (
+      {subTab === "overview" && wanted.length === 0 && (
+        <div style={{ textAlign: "center", padding: "60px 24px" }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🧱</div>
+          <div style={{ fontWeight: 900, fontSize: 20, color: "#e8e2d5", marginBottom: 8 }}>Your buy list is empty</div>
+          <div style={{ color: "#8a9bb0", fontSize: 14, marginBottom: 24, maxWidth: 360, margin: "0 auto 24px" }}>
+            Head to the Research tab to look up a set, check retirement dates, and add it to your queue.
+          </div>
+          <button onClick={() => setSubTab("research")} style={{ background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 10, padding: "12px 28px", fontWeight: 900, fontSize: 15, cursor: "pointer" }}>
+            Research a Set →
+          </button>
+        </div>
+      )}
+
+      {subTab === "overview" && wanted.length > 0 && (
         <>
           {/* ── Stat pill container ─────────────────────────────────── */}
           <div style={{ background: "rgba(11,21,32,0.7)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "14px 16px", marginBottom: 14, marginTop: 8, position: "relative" }}>
@@ -1254,6 +1374,7 @@ export default function WantedList({ onBuyNow }) {
         {calcMsg && <div style={{ fontSize: 13, color: "#8a9bb0", marginBottom: 12 }}>{calcMsg}</div>}
 
         {calcDiscount !== null ? (
+          <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
             <div style={{ ...calcCard, borderColor: `${calcDiscountColor()}40` }}>
               <div style={calcCardLabel}>Discount</div>
@@ -1273,9 +1394,51 @@ export default function WantedList({ onBuyNow }) {
               <div style={{ fontWeight: 900, fontSize: 20, color: "#5d6f80" }}>{money(calcMsrpVal)}</div>
             </div>
           </div>
+          {calcDiscount >= 10 && (
+            <button
+              onClick={() => logDeal(calcSetNum, "", calcMsrpVal, calcStoreVal, calcDiscount)}
+              style={{ marginTop: 10, background: "#0a2e1a", border: "1px solid #166534", color: "#5aa832", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}
+            >
+              📌 Log this deal
+            </button>
+          )}
+          </>
         ) : (
           <div style={{ textAlign: "center", padding: "20px 16px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 10, color: "#5d6f80", fontSize: 13 }}>
             Enter MSRP and store price to calculate the discount.
+          </div>
+        )}
+
+        {/* ── Deal log ─────────────────────────────────────────────── */}
+        {dealLog.length > 0 && (
+          <div style={{ marginTop: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: "#e8e2d5" }}>📌 Deal Log</div>
+              <button onClick={() => { setDealLog([]); localStorage.removeItem("blDealLog"); }}
+                style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.08)", color: "#5d6f80", borderRadius: 7, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>
+                Clear all
+              </button>
+            </div>
+            <div style={{ display: "grid", gap: 8 }}>
+              {dealLog.map(d => (
+                <div key={d.id} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#e8e2d5", marginBottom: 2 }}>
+                      {d.setNumber ? `#${d.setNumber}` : ""}{d.name && d.name !== d.setNumber ? ` — ${d.name}` : ""}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#8a9bb0" }}>
+                      {money(d.storePrice)} <span style={{ color: "#5aa832", fontWeight: 700 }}>{d.discount}% off</span>
+                      {d.msrp ? ` MSRP ${money(d.msrp)}` : ""}
+                      <span style={{ marginLeft: 8, color: "#5d6f80" }}>{new Date(d.loggedAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  <button onClick={() => deleteDealEntry(d.id)}
+                    style={{ background: "transparent", border: "none", color: "#5d6f80", cursor: "pointer", fontSize: 16, padding: "0 4px", flexShrink: 0 }}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1632,6 +1795,69 @@ export default function WantedList({ onBuyNow }) {
 
         <button onClick={addWanted} style={redBtn}>Add to Buy List</button>
       </section>
+
+      {/* ── Brickset CSV Import ─────────────────────────────────────────── */}
+      <section style={panel}>
+        <h3 style={{ margin: "0 0 6px" }}>Import from Brickset</h3>
+        <p style={{ color: "#8a9bb0", fontSize: 13, margin: "0 0 14px", lineHeight: 1.5 }}>
+          Export your Brickset wanted list as CSV (brickset.com → My Sets → Wanted → Export), then import it here to bulk-add sets.
+        </p>
+        <input
+          type="file"
+          accept=".csv"
+          onChange={e => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+              const text = ev.target.result;
+              const lines = text.split(/\r?\n/).filter(Boolean);
+              if (lines.length < 2) return;
+              // Detect header row — find Set Number column
+              const headers = lines[0].split(",").map(h => h.replace(/^"|"$/g, "").trim().toLowerCase());
+              const setNumIdx = headers.findIndex(h => h.includes("set") && h.includes("number") || h === "setnumber" || h === "set number" || h === "number");
+              const nameIdx   = headers.findIndex(h => h === "name" || h.includes("set name"));
+              const themeIdx  = headers.findIndex(h => h === "theme");
+              const yearIdx   = headers.findIndex(h => h === "year");
+              const piecesIdx = headers.findIndex(h => h === "pieces");
+              if (setNumIdx < 0) { alert("Couldn't find Set Number column in this CSV."); return; }
+              let added = 0, skipped = 0;
+              const existingNums = new Set(wanted.map(w => String(w.setNumber || "").replace(/-1$/, "")));
+              const newItems = [];
+              for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].match(/(".*?"|[^,]+)(?=,|$)/g)?.map(c => c.replace(/^"|"$/g, "").trim()) || lines[i].split(",").map(c => c.trim());
+                const raw = cols[setNumIdx] || "";
+                const setNum = raw.replace(/-1$/, "").replace(/^0+/, "") || raw;
+                if (!setNum || existingNums.has(setNum)) { skipped++; continue; }
+                existingNums.add(setNum);
+                newItems.push({
+                  setNumber: setNum,
+                  name:    nameIdx  >= 0 ? (cols[nameIdx]   || "") : "",
+                  theme:   themeIdx >= 0 ? (cols[themeIdx]  || "") : "",
+                  releaseYear: yearIdx >= 0 ? (cols[yearIdx] || "") : "",
+                  pieces:  piecesIdx >= 0 ? (cols[piecesIdx] || "") : "",
+                  msrp: "", targetPrice: "", targetDiscount: "", storePrice: "",
+                  priority: 3, status: "Watch", retiringSoon: false,
+                  retirementYear: "", retirementConfidence: "Medium",
+                  retirementSource: "Brickset", lastRetirementUpdate: new Date().toISOString().slice(0, 10),
+                  exit_date: "", isLastChance: false, forecast2yr: "", forecast5yr: "",
+                  currentValue: "", notes: "", subtheme: "", minifigs: "",
+                  weight: "", rating: "", packagingType: "", ageMin: "",
+                });
+                added++;
+              }
+              if (newItems.length > 0) setWanted(prev => [...prev, ...newItems]);
+              alert(`Imported ${added} sets${skipped ? `, skipped ${skipped} duplicates` : ""}.`);
+              e.target.value = "";
+            };
+            reader.readAsText(file);
+          }}
+          style={{ display: "block", color: "#8a9bb0", fontSize: 13, marginBottom: 8 }}
+        />
+        <div style={{ fontSize: 12, color: "#5d6f80" }}>
+          Duplicate set numbers are skipped automatically. You can enrich each set via the Research lookup afterward.
+        </div>
+      </section>
       </>
       )}
 
@@ -1945,7 +2171,65 @@ export default function WantedList({ onBuyNow }) {
         </div>
         )}
 
-        <div style={{
+        {/* ── Mobile card stack (< 640 px) ─────────────────────────── */}
+        {isMobile && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
+            {visibleWanted.length === 0 && (
+              <div style={{ textAlign: "center", padding: "40px 16px", color: "#5d6f80", fontSize: 14 }}>No sets match your filters.</div>
+            )}
+            {visibleWanted.map(item => {
+              const realIndex = wanted.indexOf(item);
+              const discount = asNumber(item.msrp) && asNumber(item.targetPrice)
+                ? ((asNumber(item.msrp) - asNumber(item.targetPrice)) / asNumber(item.msrp)) * 100 : 0;
+              const sc = priorityScore(item);
+              const rec = recommendation(sc);
+              const recColor = rec === "Buy Now" ? "#ef4444" : rec === "Watch Closely" ? "#f59e0b" : "#5aa832";
+              const isOwned = ownedSetNumbers.has(String(item.setNumber || "").replace(/-1$/, ""));
+              return (
+                <div key={`${item.setNumber}-${realIndex}`}
+                  onClick={() => { setDetailItem(item); setDetailItemIndex(realIndex); }}
+                  style={{ background: "rgba(15,26,40,0.9)", border: `1px solid ${item.isLastChance ? "#7f1d1d" : "rgba(255,255,255,0.08)"}`, borderRadius: 12, padding: "14px 16px", cursor: "pointer" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 11, color: "#8a9bb0", marginBottom: 2 }}>#{item.setNumber} · {item.theme || "—"}</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: item.isLastChance ? "#ef4444" : "#e8e2d5", lineHeight: 1.3 }}>
+                        {item.isLastChance && "🚨 "}{item.name || item.setNumber}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+                      <span style={{ background: recColor + "22", color: recColor, border: `1px solid ${recColor}44`, borderRadius: 999, padding: "3px 9px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>{rec}</span>
+                      {isOwned && <span style={{ fontSize: 10, background: "#0a2e1a", border: "1px solid #166534", color: "#5aa832", borderRadius: 999, padding: "2px 7px", fontWeight: 700 }}>✓ Owned</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                    <div><div style={{ fontSize: 10, color: "#5d6f80" }}>MSRP</div><div style={{ fontSize: 13, fontWeight: 700, color: "#e8e2d5" }}>{money(item.msrp) || "—"}</div></div>
+                    <div><div style={{ fontSize: 10, color: "#5d6f80" }}>Target</div><div style={{ fontSize: 13, fontWeight: 700, color: "#c9a84c" }}>{money(item.targetPrice) || "—"}</div></div>
+                    <div><div style={{ fontSize: 10, color: "#5d6f80" }}>Discount</div><div style={{ fontSize: 13, fontWeight: 700, color: discount >= 20 ? "#5aa832" : discount >= 10 ? "#f59e0b" : "#8a9bb0" }}>{discount > 0 ? `${discount.toFixed(0)}%` : "—"}</div></div>
+                  </div>
+                  {(item.retirementYear || item.exit_date || item.retiringSoon) && (
+                    <div style={{ marginTop: 8, fontSize: 11, color: item.retiringSoon ? "#f59e0b" : "#8a9bb0" }}>
+                      {item.exit_date ? `Retires: ${new Date(item.exit_date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}` : item.retirementYear ? `Est. retirement: ${item.retirementYear}` : "⚠ Retiring soon"}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
+                    <select value={item.status} onChange={e => { e.stopPropagation(); updateWanted(realIndex, "status", e.target.value); }}
+                      onClick={e => e.stopPropagation()}
+                      style={{ flex: 1, background: "#0b1520", border: "1px solid rgba(255,255,255,0.1)", color: "#e8e2d5", borderRadius: 7, padding: "5px 8px", fontSize: 12 }}>
+                      <option>Watch</option><option>Buy Soon</option><option>Critical</option><option>Owned</option>
+                    </select>
+                    <button onClick={e => { e.stopPropagation(); setSelectedWantedIndex(realIndex); }}
+                      style={{ background: "#1a2840", border: "1px solid rgba(255,255,255,0.08)", color: "#c9a84c", borderRadius: 7, padding: "5px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      Edit
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── Desktop table ────────────────────────────────────────── */}
+        {!isMobile && <div style={{
           display: "grid",
           gridTemplateColumns: selectedWantedIndex !== null ? "1fr 380px" : "1fr",
           gap: 16,
@@ -2188,7 +2472,7 @@ export default function WantedList({ onBuyNow }) {
               </div>
             </div>
           )}
-        </div>
+        </div>}
       </section>
       </>
       );
