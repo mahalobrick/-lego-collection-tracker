@@ -2,6 +2,25 @@ const CACHE_KEY = "bricksetSetCache";
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /**
+ * Search Brickset catalog by name query or theme.
+ * Returns { sets, total, noKey, error } — results are transient, not cached.
+ */
+export async function searchBricksetCatalog(query, theme = "") {
+  try {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (theme) params.set("theme", theme);
+    const res = await fetch(`/api/brickset-search?${params}`);
+    const json = await res.json();
+    if (json.error === "no_key") return { sets: [], noKey: true };
+    if (!res.ok || json.error) return { sets: [], error: json.message || json.error };
+    return { sets: json.sets || [], total: json.total };
+  } catch (err) {
+    return { sets: [], error: err.message };
+  }
+}
+
+/**
  * Fetch set data from Brickset, checking localStorage cache first.
  * Cache key format: brickset_{setNumber} inside a single "bricksetSetCache" object.
  * Returns the normalized data object, or null on error / no API key.

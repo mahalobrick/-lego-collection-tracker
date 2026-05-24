@@ -12,7 +12,7 @@ const SOURCE_CONFIDENCE = {
   "StoneWars":        "Medium",
   "Manual":           "Low",
 };
-import { fetchBricksetSet } from "./utils/brickset";
+import { fetchBricksetSet, searchBricksetCatalog } from "./utils/brickset";
 import { getLastChanceCodes, isLastChanceSet, getCachedLastChanceCodes } from "./utils/legoLastChance";
 import WatchDetailPanel from "./WatchDetailPanel";
 
@@ -40,6 +40,8 @@ const DEFAULT_WL_ITEMS = [
   { key: "avgMsrp",            type: "card",  label: "Avg MSRP",              visible: false, width: "auto",  collapsed: false },
   { key: "ownedCount",         type: "card",  label: "Already Owned",         visible: false, width: "auto",  collapsed: false },
   { key: "watchCount",         type: "card",  label: "Watch Status",          visible: false, width: "auto",  collapsed: false },
+  { key: "buyTotal",           type: "card",  label: "Buy List Cost",          visible: true,  width: "auto",  collapsed: false },
+  { key: "budgetAfterBuy",     type: "card",  label: "Budget After Buy",       visible: false, width: "auto",  collapsed: false },
   { key: "urgency-chart",       type: "panel", label: "Queue Urgency",         visible: true,  width: "half",  collapsed: false },
   { key: "top-priority",        type: "panel", label: "Top Priority Items",    visible: true,  width: "half",  collapsed: false },
   { key: "retirement-timeline", type: "panel", label: "Retirement Timeline",   visible: true,  width: "full",  collapsed: false },
@@ -214,6 +216,14 @@ export default function WantedList({ onBuyNow }) {
   const [priceDropDismissed, setPriceDropDismissed] = useState(() => {
     try { return JSON.parse(localStorage.getItem("blPriceDropDismissed") || "[]"); } catch { return []; }
   });
+
+  // ── Catalog search ────────────────────────────────────────────────────────
+  const [catalogMode, setCatalogMode]       = useState(false);
+  const [catalogQuery, setCatalogQuery]     = useState("");
+  const [catalogResults, setCatalogResults] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError]     = useState("");
+  const [dupeWarning, setDupeWarning]       = useState(null); // "owned" | "watchlist" | null
   const [colGearOpen, setColGearOpen] = useState(false);
   const [bulkThemeOpen, setBulkThemeOpen] = useState(false);
   const [bulkTheme, setBulkTheme] = useState("");
@@ -564,6 +574,30 @@ export default function WantedList({ onBuyNow }) {
     });
   }, [wanted, priceDropDismissed]);
 
+  // ── Catalog search debounce ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!catalogMode || catalogQuery.trim().length < 2) { setCatalogResults([]); return; }
+    const t = setTimeout(async () => {
+      setCatalogLoading(true); setCatalogError("");
+      const result = await searchBricksetCatalog(catalogQuery.trim());
+      setCatalogLoading(false);
+      if (result.noKey) { setCatalogError("Brickset API key not configured — set BRICKSET_API_KEY in .env.local"); setCatalogResults([]); }
+      else if (result.error) { setCatalogError(result.error); setCatalogResults([]); }
+      else setCatalogResults(result.sets || []);
+    }, 420);
+    return () => clearTimeout(t);
+  }, [catalogQuery, catalogMode]);
+
+  // ── Duplicate detection ───────────────────────────────────────────────────
+  useEffect(() => {
+    const num = String(form.setNumber || "").replace(/-1$/, "").trim();
+    if (!num) { setDupeWarning(null); return; }
+    if (ownedSetNumbers.has(num)) { setDupeWarning("owned"); return; }
+    const onList = wanted.some(w => String(w.setNumber || "").replace(/-1$/, "") === num);
+    setDupeWarning(onList ? "watchlist" : null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.setNumber, wanted]);
+
   function isNumericColumn(key) {
     return ["score", "msrp", "targetPrice", "discount"].includes(key);
   }
@@ -859,6 +893,16 @@ export default function WantedList({ onBuyNow }) {
   const wlAvgMsrp = wanted.length ? wlTotalMsrp / wanted.length : 0;
   const wlOwnedCount = wanted.filter(w => ownedSetNumbers.has(String(w.setNumber || "").replace(/-1$/, ""))).length;
   const wlWatchCount = wanted.filter(w => w.status === "Watch").length;
+  const wlBuyTotal = wanted.reduce((s, w) => s + (asNumber(w.targetPrice) || asNumber(w.msrp)), 0);
+  const wlBudgetAfterBuy = (() => {
+    try {
+      const annual  = asNumber(localStorage.getItem("blAnnualBudget")) || 0;
+      if (!annual) return null;
+      const purchases = JSON.parse(localStorage.getItem("blPurchases") || "[]");
+      const spent = purchases.reduce((s, p) => s + asNumber(p.amount) * (asNumber(p.qty) || 1), 0);
+      return annual - spent - wlBuyTotal;
+    } catch { return null; }
+  })();
 
   async function lookupBrickEconomy() {
     const lookupKey = normalizeSetNumber(form.setNumber);
@@ -1137,8 +1181,10 @@ export default function WantedList({ onBuyNow }) {
                      ) :
                      item.key === "totalMsrp"     ? <Metric title="Total MSRP"           value={money(wlTotalMsrp)} /> :
                      item.key === "avgMsrp"       ? <Metric title="Avg MSRP"             value={money(wlAvgMsrp)} /> :
-                     item.key === "ownedCount"    ? <Metric title="Already Owned"        value={wlOwnedCount} /> :
-                     item.key === "watchCount"    ? <Metric title="Watch Status"         value={wlWatchCount} /> : null}
+                     item.key === "ownedCount"     ? <Metric title="Already Owned"    value={wlOwnedCount} /> :
+                     item.key === "watchCount"     ? <Metric title="Watch Status"      value={wlWatchCount} /> :
+                     item.key === "buyTotal"       ? <Metric title="Buy List Cost"     value={money(wlBuyTotal)} /> :
+                     item.key === "budgetAfterBuy" ? <Metric title="Budget After Buy"  value={wlBudgetAfterBuy !== null ? money(wlBudgetAfterBuy) : "No budget set"} good={wlBudgetAfterBuy !== null ? wlBudgetAfterBuy >= 0 : undefined} /> : null}
                   </div>
                 ))}
               </div>
@@ -1474,21 +1520,111 @@ export default function WantedList({ onBuyNow }) {
           )}
         </div>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12, alignItems: "center" }}>
-          <input
-            placeholder="Set Number (e.g. 75192)"
-            value={form.setNumber}
-            onChange={e => setForm({ ...form, setNumber: e.target.value })}
-            onKeyDown={e => e.key === "Enter" && lookupBrickEconomy()}
-            style={{ minWidth: 180 }}
-          />
-
-          <button onClick={lookupBrickEconomy} style={{ ...redBtn, marginTop: 0 }} disabled={lookupLoading}>
-            {lookupLoading ? "Searching..." : "Search"}
+        {/* ── Mode toggle ── */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+          <button onClick={() => { setCatalogMode(false); setCatalogResults([]); setCatalogQuery(""); }}
+            style={{ background: !catalogMode ? "#c9a84c" : "rgba(255,255,255,0.04)", color: !catalogMode ? "#0d1623" : "#8a9bb0", border: `1px solid ${!catalogMode ? "#c9a84c" : "rgba(255,255,255,0.1)"}`, borderRadius: 8, padding: "6px 14px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+            By Set Number
           </button>
-
-          {lookupMessage && <span style={mutedSmall}>{lookupMessage}</span>}
+          <button onClick={() => { setCatalogMode(true); setCatalogResults([]); }}
+            style={{ background: catalogMode ? "#c9a84c" : "rgba(255,255,255,0.04)", color: catalogMode ? "#0d1623" : "#8a9bb0", border: `1px solid ${catalogMode ? "#c9a84c" : "rgba(255,255,255,0.1)"}`, borderRadius: 8, padding: "6px 14px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+            Search Catalog
+          </button>
         </div>
+
+        {!catalogMode && (
+          <>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
+              <input
+                placeholder="Set Number (e.g. 75192)"
+                value={form.setNumber}
+                onChange={e => setForm({ ...form, setNumber: e.target.value })}
+                onKeyDown={e => e.key === "Enter" && lookupBrickEconomy()}
+                style={{ minWidth: 180 }}
+              />
+              <button onClick={lookupBrickEconomy} style={{ ...redBtn, marginTop: 0 }} disabled={lookupLoading}>
+                {lookupLoading ? "Searching..." : "Look Up"}
+              </button>
+              {lookupMessage && <span style={mutedSmall}>{lookupMessage}</span>}
+            </div>
+            {dupeWarning === "owned" && (
+              <div style={{ background: "#3b2500", border: "1px solid #92400e", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "#fbbf24", marginBottom: 8 }}>
+                ⚠ You already own this set — it's in your collection
+              </div>
+            )}
+            {dupeWarning === "watchlist" && (
+              <div style={{ background: "#0f2035", border: "1px solid #1e40af", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "#93c5fd", marginBottom: 8 }}>
+                ℹ This set is already on your Wanted List
+              </div>
+            )}
+          </>
+        )}
+
+        {catalogMode && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
+              <input
+                placeholder="Search by set name or theme..."
+                value={catalogQuery}
+                onChange={e => setCatalogQuery(e.target.value)}
+                style={{ flex: 1 }}
+                autoFocus
+              />
+              {catalogLoading && <span style={mutedSmall}>Searching…</span>}
+            </div>
+            {catalogError && <div style={{ color: "#ff8b8b", fontSize: 13, marginBottom: 8 }}>{catalogError}</div>}
+            {catalogResults.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, maxHeight: 420, overflowY: "auto" }}>
+                {catalogResults.map(s => {
+                  const clean = String(s.setNumber || "").replace(/-1$/, "");
+                  const owned = ownedSetNumbers.has(clean);
+                  const onList = wanted.some(w => String(w.setNumber || "").replace(/-1$/, "") === clean);
+                  return (
+                    <div key={s.setNumber}
+                      onClick={() => {
+                        setForm(prev => ({
+                          ...prev,
+                          setNumber: clean,
+                          name:      s.name   || prev.name,
+                          theme:     s.theme  || prev.theme,
+                          msrp:      s.msrp   ? String(s.msrp) : prev.msrp,
+                          pieces:    s.pieces ? String(s.pieces) : prev.pieces,
+                          minifigs:  s.minifigs != null ? String(s.minifigs) : prev.minifigs,
+                          releaseYear: s.year ? String(s.year) : prev.releaseYear,
+                          exit_date:   s.exitDate || prev.exit_date,
+                        }));
+                        setCatalogMode(false);
+                        setCatalogResults([]);
+                        setCatalogQuery("");
+                        // Auto-trigger enrichment lookup
+                        setTimeout(() => lookupBrickEconomy(), 50);
+                      }}
+                      style={{ background: "#0f1a28", border: `1px solid ${onList ? "rgba(59,130,246,0.4)" : owned ? "rgba(234,179,8,0.4)" : "rgba(255,255,255,0.07)"}`, borderRadius: 10, padding: 10, cursor: "pointer", transition: "border-color 0.12s" }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(201,168,76,0.5)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = onList ? "rgba(59,130,246,0.4)" : owned ? "rgba(234,179,8,0.4)" : "rgba(255,255,255,0.07)"; }}
+                    >
+                      {s.thumbnail ? (
+                        <img src={s.thumbnail} alt="" onError={e => { e.currentTarget.style.display = "none"; }}
+                          style={{ width: "100%", height: 80, objectFit: "contain", borderRadius: 6, background: "#0b1520", marginBottom: 6 }} />
+                      ) : (
+                        <div style={{ width: "100%", height: 80, borderRadius: 6, background: "#0b1520", marginBottom: 6 }} />
+                      )}
+                      <div style={{ fontWeight: 700, fontSize: 12, lineHeight: 1.3, marginBottom: 4 }}>{s.name}</div>
+                      <div style={{ color: "#5d6f80", fontSize: 11 }}>#{clean} · {s.theme}</div>
+                      <div style={{ color: "#5d6f80", fontSize: 11 }}>{s.year}{s.pieces ? ` · ${s.pieces.toLocaleString()} pcs` : ""}</div>
+                      {s.msrp && <div style={{ color: "#c9a84c", fontWeight: 700, fontSize: 12, marginTop: 4 }}>{money(s.msrp)}</div>}
+                      {owned && <div style={{ color: "#fbbf24", fontSize: 11, marginTop: 2 }}>✓ Owned</div>}
+                      {onList && <div style={{ color: "#93c5fd", fontSize: 11, marginTop: 2 }}>✓ On list</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {catalogQuery.length >= 2 && !catalogLoading && catalogResults.length === 0 && !catalogError && (
+              <div style={{ color: "#5d6f80", fontSize: 13, padding: "20px 0" }}>No results — try a different name or theme.</div>
+            )}
+          </div>
+        )}
 
         {(form.name || form.theme || form.msrp) && (
           <div style={intelligenceCard}>

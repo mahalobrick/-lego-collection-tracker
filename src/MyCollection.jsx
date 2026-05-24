@@ -4,6 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis
 import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
 import { asNumber, money, setImageUrl, CONDITION_LABELS, priorityScore, recommendation, daysUntilRetirement } from "./utils/formatting";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
+import { searchBricksetCatalog } from "./utils/brickset";
 import WatchDetailPanel from "./WatchDetailPanel";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
@@ -174,6 +175,12 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   });
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupMessage, setLookupMessage] = useState("");
+  const [addDupeWarning, setAddDupeWarning] = useState(null); // "collection" | "watchlist" | null
+  const [addCatalogMode, setAddCatalogMode]       = useState(false);
+  const [addCatalogQuery, setAddCatalogQuery]     = useState("");
+  const [addCatalogResults, setAddCatalogResults] = useState([]);
+  const [addCatalogLoading, setAddCatalogLoading] = useState(false);
+  const [addCatalogError, setAddCatalogError]     = useState("");
 
   useEffect(() => {
     // Only persist manually-added items; BE data lives in brickEconomyNormalizedCollection
@@ -349,6 +356,33 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       return { annualBudget, totalSpent, remaining: annualBudget - totalSpent, pct, color, status };
     } catch { return { annualBudget: 0, totalSpent: 0, remaining: 0, pct: 0, color: "#22c55e", status: "Healthy" }; }
   }, [refreshKey]);
+
+  // ── Duplicate detection for Add Set ───────────────────────────────────────
+  useEffect(() => {
+    const num = String(form.setNumber || "").replace(/-1$/, "").trim();
+    if (!num) { setAddDupeWarning(null); return; }
+    const inCollection = sets.some(s => String(s.setNumber || "").replace(/-1$/, "") === num);
+    if (inCollection) { setAddDupeWarning("collection"); return; }
+    try {
+      const wl = JSON.parse(localStorage.getItem("blWantedList") || "[]");
+      const onList = wl.some(w => String(w.setNumber || "").replace(/-1$/, "") === num);
+      setAddDupeWarning(onList ? "watchlist" : null);
+    } catch { setAddDupeWarning(null); }
+  }, [form.setNumber, sets]);
+
+  // ── Catalog search debounce (Add Set) ─────────────────────────────────────
+  useEffect(() => {
+    if (!addCatalogMode || addCatalogQuery.trim().length < 2) { setAddCatalogResults([]); return; }
+    const t = setTimeout(async () => {
+      setAddCatalogLoading(true); setAddCatalogError("");
+      const result = await searchBricksetCatalog(addCatalogQuery.trim());
+      setAddCatalogLoading(false);
+      if (result.noKey) { setAddCatalogError("Brickset API key not configured."); setAddCatalogResults([]); }
+      else if (result.error) { setAddCatalogError(result.error); setAddCatalogResults([]); }
+      else setAddCatalogResults(result.sets || []);
+    }, 420);
+    return () => clearTimeout(t);
+  }, [addCatalogQuery, addCatalogMode]);
 
   function normalizeSetNum(raw) {
     const s = String(raw || "").trim();
@@ -1164,19 +1198,89 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           )}
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-          <input
-            placeholder="Set Number (e.g. 75192)"
-            value={form.setNumber}
-            onChange={e => setForm({ ...form, setNumber: e.target.value })}
-            onKeyDown={e => e.key === "Enter" && lookupBE()}
-            style={{ minWidth: 180 }}
-          />
-          <button onClick={lookupBE} disabled={lookupLoading} style={ghostBtn}>
-            {lookupLoading ? "Searching..." : "Search"}
+        {/* ── Mode toggle ── */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          <button onClick={() => { setAddCatalogMode(false); setAddCatalogResults([]); setAddCatalogQuery(""); }}
+            style={{ background: !addCatalogMode ? "#c9a84c" : "rgba(255,255,255,0.04)", color: !addCatalogMode ? "#0d1623" : "#8a9bb0", border: `1px solid ${!addCatalogMode ? "#c9a84c" : "rgba(255,255,255,0.1)"}`, borderRadius: 8, padding: "6px 14px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+            By Set Number
+          </button>
+          <button onClick={() => setAddCatalogMode(true)}
+            style={{ background: addCatalogMode ? "#c9a84c" : "rgba(255,255,255,0.04)", color: addCatalogMode ? "#0d1623" : "#8a9bb0", border: `1px solid ${addCatalogMode ? "#c9a84c" : "rgba(255,255,255,0.1)"}`, borderRadius: 8, padding: "6px 14px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+            Search Catalog
           </button>
         </div>
-        {lookupMessage && <div style={{ fontSize: 13, color: lookupMessage.startsWith("Found") ? "#5aa832" : "#ff8b8b", marginBottom: 10 }}>{lookupMessage}</div>}
+
+        {!addCatalogMode && (
+          <>
+            <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+              <input
+                placeholder="Set Number (e.g. 75192)"
+                value={form.setNumber}
+                onChange={e => setForm({ ...form, setNumber: e.target.value })}
+                onKeyDown={e => e.key === "Enter" && lookupBE()}
+                style={{ minWidth: 180 }}
+              />
+              <button onClick={lookupBE} disabled={lookupLoading} style={ghostBtn}>
+                {lookupLoading ? "Searching..." : "Look Up"}
+              </button>
+            </div>
+            {lookupMessage && <div style={{ fontSize: 13, color: lookupMessage.startsWith("Found") ? "#5aa832" : "#ff8b8b", marginBottom: 8 }}>{lookupMessage}</div>}
+            {addDupeWarning === "collection" && (
+              <div style={{ background: "#3b2500", border: "1px solid #92400e", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "#fbbf24", marginBottom: 8 }}>
+                ⚠ This set is already in your collection
+              </div>
+            )}
+            {addDupeWarning === "watchlist" && (
+              <div style={{ background: "#0f2035", border: "1px solid #1e40af", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "#93c5fd", marginBottom: 8 }}>
+                ℹ This set is on your Wanted List — adding it to your collection won't remove it from the list
+              </div>
+            )}
+          </>
+        )}
+
+        {addCatalogMode && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
+              <input placeholder="Search by set name or theme..." value={addCatalogQuery}
+                onChange={e => setAddCatalogQuery(e.target.value)} style={{ flex: 1 }} autoFocus />
+              {addCatalogLoading && <span style={{ color: "#8a9bb0", fontSize: 13 }}>Searching…</span>}
+            </div>
+            {addCatalogError && <div style={{ color: "#ff8b8b", fontSize: 13, marginBottom: 8 }}>{addCatalogError}</div>}
+            {addCatalogResults.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10, maxHeight: 380, overflowY: "auto" }}>
+                {addCatalogResults.map(s => {
+                  const clean = String(s.setNumber || "").replace(/-1$/, "");
+                  const inColl = sets.some(x => String(x.setNumber || "").replace(/-1$/, "") === clean);
+                  return (
+                    <div key={s.setNumber}
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, setNumber: clean, name: s.name || prev.name, theme: s.theme || prev.theme, currentValue: s.msrp ? String(s.msrp) : prev.currentValue }));
+                        setAddCatalogMode(false); setAddCatalogResults([]); setAddCatalogQuery("");
+                        setTimeout(() => lookupBE(), 50);
+                      }}
+                      style={{ background: "#0f1a28", border: `1px solid ${inColl ? "rgba(234,179,8,0.4)" : "rgba(255,255,255,0.07)"}`, borderRadius: 10, padding: 10, cursor: "pointer" }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(201,168,76,0.5)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = inColl ? "rgba(234,179,8,0.4)" : "rgba(255,255,255,0.07)"; }}
+                    >
+                      {s.thumbnail ? (
+                        <img src={s.thumbnail} alt="" onError={e => { e.currentTarget.style.display = "none"; }}
+                          style={{ width: "100%", height: 72, objectFit: "contain", borderRadius: 6, background: "#0b1520", marginBottom: 6 }} />
+                      ) : <div style={{ width: "100%", height: 72, borderRadius: 6, background: "#0b1520", marginBottom: 6 }} />}
+                      <div style={{ fontWeight: 700, fontSize: 12, lineHeight: 1.3, marginBottom: 3 }}>{s.name}</div>
+                      <div style={{ color: "#5d6f80", fontSize: 11 }}>#{clean} · {s.year}</div>
+                      {s.pieces && <div style={{ color: "#5d6f80", fontSize: 11 }}>{s.pieces.toLocaleString()} pcs</div>}
+                      {s.msrp && <div style={{ color: "#c9a84c", fontWeight: 700, fontSize: 12, marginTop: 4 }}>{money(s.msrp)}</div>}
+                      {inColl && <div style={{ color: "#fbbf24", fontSize: 11, marginTop: 2 }}>✓ Already owned</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {addCatalogQuery.length >= 2 && !addCatalogLoading && addCatalogResults.length === 0 && !addCatalogError && (
+              <div style={{ color: "#5d6f80", fontSize: 13, padding: "16px 0" }}>No results — try a different name.</div>
+            )}
+          </div>
+        )}
 
         <div style={formGrid}>
           <label>
