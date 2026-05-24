@@ -596,15 +596,45 @@ export default function WantedList({ onBuyNow }) {
       // Also fetch Brickset data and merge additional fields
       const bsData = await fetchBricksetSet(lookupKey);
       if (bsData) {
-        setForm(prev => ({
-          ...prev,
-          subtheme:     prev.subtheme     || bsData.subtheme     || "",
-          minifigs:     prev.minifigs     || bsData.minifigs     || "",
-          weight:       prev.weight       || bsData.weight       || "",
-          rating:       prev.rating       || bsData.rating       || "",
-          packagingType: prev.packagingType || bsData.packaging_type || "",
-          ageMin:       prev.ageMin       || bsData.age_min      || ""
-        }));
+        const bsExtras = [];
+        setForm(prev => {
+          const updates = {
+            subtheme:      prev.subtheme      || bsData.subtheme      || "",
+            minifigs:      prev.minifigs      || bsData.minifigs      || "",
+            weight:        prev.weight        || bsData.weight        || "",
+            rating:        prev.rating        || bsData.rating        || "",
+            packagingType: prev.packagingType || bsData.packaging_type || "",
+            ageMin:        prev.ageMin        || bsData.age_min       || "",
+          };
+
+          // Official MSRP from Brickset overrides BrickEconomy (more reliable)
+          if (bsData.retail_price_us) {
+            updates.msrp = bsData.retail_price_us;
+            if (asNumber(prev.targetDiscount) > 0) {
+              updates.targetPrice = (bsData.retail_price_us * (1 - asNumber(prev.targetDiscount) / 100)).toFixed(2);
+            }
+            bsExtras.push("MSRP");
+          }
+
+          // Real retirement date from LEGO via Brickset — replaces estimate
+          if (bsData.exit_date) {
+            const exitDate = new Date(bsData.exit_date);
+            const exitYear = exitDate.getFullYear();
+            const currentYear = new Date().getFullYear();
+            updates.retirementYear       = String(exitYear);
+            updates.retirementConfidence = "High";
+            updates.retiringSoon         = exitYear <= currentYear + 1;
+            updates.retirementSource     = "Brickset";
+            updates.lastRetirementUpdate = new Date().toISOString().slice(0, 10);
+            bsExtras.push("retirement date");
+          }
+
+          return { ...prev, ...updates };
+        });
+
+        if (bsExtras.length > 0) {
+          setLookupMessage(m => m + ` · Brickset: ${bsExtras.join(", ")}.`);
+        }
       }
     } catch (err) {
       setLookupMessage(err.message || "Could not reach BrickEconomy.");
@@ -1487,6 +1517,7 @@ export default function WantedList({ onBuyNow }) {
                 <label>
                   Retirement Source
                   <select value={wanted[selectedWantedIndex].retirementSource || "Brick Fanatics"} onChange={e => updateWanted(selectedWantedIndex, "retirementSource", e.target.value)}>
+                    <option>Brickset</option>
                     <option>Brick Fanatics</option>
                     <option>BrickEconomy</option>
                     <option>Manual</option>

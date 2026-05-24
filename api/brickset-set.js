@@ -36,7 +36,7 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  const params = JSON.stringify({ SetNumber: number });
+  const params = JSON.stringify({ setNumber: number });
   const apiUrl = `https://brickset.com/api/v3.asmx/getSets?apiKey=${encodeURIComponent(apiKey)}&userHash=&params=${encodeURIComponent(params)}`;
 
   try {
@@ -75,27 +75,43 @@ module.exports = async function handler(req, res) {
 
     const s = json.sets[0];
 
+    const lego = s.LEGOCom || {};
     const data = {
-      set_number:     `${s.number || ""}-${s.numberVariant || 1}`,
-      name:           s.name || "",
-      year:           s.year || null,
-      theme:          s.theme || "",
-      subtheme:       s.subtheme || "",
-      pieces:         s.pieces || null,
-      minifigs:       s.minifigs || null,
-      rating:         s.rating || null,
-      review_count:   s.reviewCount || 0,
-      packaging_type: s.packagingType || "",
-      age_min:        (s.ageRange && s.ageRange.min) || null,
-      weight:         (s.dimensions && s.dimensions.weight) || null,
-      height:         (s.dimensions && s.dimensions.height) || null,
-      width:          (s.dimensions && s.dimensions.width) || null,
-      depth:          (s.dimensions && s.dimensions.depth) || null,
-      image_url:      (s.image && s.image.imageURL) || "",
-      thumbnail_url:  (s.image && s.image.thumbnailURL) || "",
-      brickset_url:   s.bricksetURL || "",
-      availability:   s.availability || "",
-      released:       !!s.released
+      set_number:       `${s.number || ""}-${s.numberVariant || 1}`,
+      name:             s.name || "",
+      year:             s.year || null,
+      theme:            s.theme || "",
+      theme_group:      s.themeGroup || "",
+      subtheme:         s.subtheme || "",
+      pieces:           s.pieces || null,
+      minifigs:         s.minifigs || null,
+      rating:           s.rating || null,
+      review_count:     s.reviewCount || 0,
+      packaging_type:   s.packagingType || "",
+      age_min:          (s.ageRange && s.ageRange.min) || null,
+      height:           (s.dimensions && s.dimensions.height) || null,
+      width:            (s.dimensions && s.dimensions.width) || null,
+      depth:            (s.dimensions && s.dimensions.depth) || null,
+      image_url:        (s.image && s.image.imageURL) || "",
+      thumbnail_url:    (s.image && s.image.thumbnailURL) || "",
+      brickset_url:     s.bricksetURL || "",
+      availability:     s.availability || "",
+      released:         !!s.released,
+      // Official MSRP from LEGO.com
+      retail_price_us:  (lego.US && lego.US.retailPrice) || null,
+      retail_price_uk:  (lego.UK && lego.UK.retailPrice) || null,
+      retail_price_ca:  (lego.CA && lego.CA.retailPrice) || null,
+      retail_price_de:  (lego.DE && lego.DE.retailPrice) || null,
+      // Real retirement date from LEGO
+      launch_date:      s.launchDate || null,
+      exit_date:        s.exitDate || null,
+      // Community data
+      owned_by:         (s.collections && s.collections.ownedBy) || null,
+      wanted_by:        (s.collections && s.collections.wantedBy) || null,
+      // Extra
+      instructions_count: s.instructionsCount || null,
+      ean:              (s.barcode && s.barcode.EAN) || "",
+      tags:             (s.extendedData && s.extendedData.tags) || [],
     };
 
     return res.status(200).json({ data });
