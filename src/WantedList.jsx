@@ -2610,60 +2610,64 @@ export default function WantedList({ onBuyNow }) {
                     </td>
 
                     {columns.filter(col => col.visible).map(col => {
-                      // MSRP — click-to-edit inline
+                      const inpStyle = { background: "#0d1a2a", border: "1px solid rgba(201,168,76,0.5)", borderRadius: 6, color: "#e8e2d5", fontSize: 13, padding: "2px 6px", outline: "none" };
+
+                      // MSRP — double-click to edit inline
                       if (col.key === "msrp") {
                         const isEditing = inlineEdit?.index === realIndex && inlineEdit?.key === "msrp";
-                        if (isEditing) {
-                          return (
-                            <td key="msrp" style={tdRight} onClick={e => e.stopPropagation()}>
-                              <input
-                                autoFocus
-                                type="number"
-                                step="0.01"
-                                value={inlineEdit.value}
-                                onChange={e => setInlineEdit(v => ({ ...v, value: e.target.value }))}
-                                onBlur={() => { updateWanted(realIndex, "msrp", inlineEdit.value); setInlineEdit(null); }}
-                                onKeyDown={e => {
-                                  if (e.key === "Enter")  { updateWanted(realIndex, "msrp", inlineEdit.value); setInlineEdit(null); }
-                                  if (e.key === "Escape") setInlineEdit(null);
-                                }}
-                                style={{ width: 70, background: "#0d1a2a", border: "1px solid rgba(201,168,76,0.5)", borderRadius: 6, color: "#e8e2d5", fontSize: 13, padding: "2px 6px", outline: "none", textAlign: "right" }}
-                              />
-                            </td>
-                          );
-                        }
+                        if (isEditing) return (
+                          <td key="msrp" style={tdRight} onClick={e => e.stopPropagation()}>
+                            <input autoFocus type="number" step="0.01" value={inlineEdit.value}
+                              onChange={e => setInlineEdit(v => ({ ...v, value: e.target.value }))}
+                              onBlur={() => { updateWanted(realIndex, "msrp", inlineEdit.value); setInlineEdit(null); }}
+                              onKeyDown={e => { if (e.key === "Enter") { updateWanted(realIndex, "msrp", inlineEdit.value); setInlineEdit(null); } if (e.key === "Escape") setInlineEdit(null); }}
+                              style={{ ...inpStyle, width: 70, textAlign: "right" }} />
+                          </td>
+                        );
                         return (
-                          <td key="msrp" style={{ ...tdRight, cursor: "text" }} onClick={e => { e.stopPropagation(); setInlineEdit({ index: realIndex, key: "msrp", value: item.msrp ? String(item.msrp) : "" }); }}>
-                            <span title="Click to edit">{money(item.msrp)}</span>
+                          <td key="msrp" style={tdRight} onClick={e => e.stopPropagation()}
+                            onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ index: realIndex, key: "msrp", value: item.msrp ? String(item.msrp) : "" }); }}>
+                            <span title="Double-click to edit">{money(item.msrp)}</span>
                           </td>
                         );
                       }
 
-                      // Target Price — click-to-edit inline
+                      // Target Price — double-click to edit inline
                       if (col.key === "targetPrice") {
                         const isEditing = inlineEdit?.index === realIndex && inlineEdit?.key === "targetPrice";
-                        if (isEditing) {
-                          return (
-                            <td key="targetPrice" style={tdRight} onClick={e => e.stopPropagation()}>
-                              <input
-                                autoFocus
-                                type="number"
-                                step="0.01"
-                                value={inlineEdit.value}
-                                onChange={e => setInlineEdit(v => ({ ...v, value: e.target.value }))}
-                                onBlur={() => { updateWanted(realIndex, "targetPrice", inlineEdit.value); setInlineEdit(null); }}
-                                onKeyDown={e => {
-                                  if (e.key === "Enter")  { updateWanted(realIndex, "targetPrice", inlineEdit.value); setInlineEdit(null); }
-                                  if (e.key === "Escape") setInlineEdit(null);
-                                }}
-                                style={{ width: 70, background: "#0d1a2a", border: "1px solid rgba(201,168,76,0.5)", borderRadius: 6, color: "#e8e2d5", fontSize: 13, padding: "2px 6px", outline: "none", textAlign: "right" }}
-                              />
-                            </td>
-                          );
-                        }
+                        if (isEditing) return (
+                          <td key="targetPrice" style={tdRight} onClick={e => e.stopPropagation()}>
+                            <input autoFocus type="number" step="0.01" value={inlineEdit.value}
+                              onChange={e => setInlineEdit(v => ({ ...v, value: e.target.value }))}
+                              onBlur={() => { updateWanted(realIndex, "targetPrice", inlineEdit.value); setInlineEdit(null); }}
+                              onKeyDown={e => { if (e.key === "Enter") { updateWanted(realIndex, "targetPrice", inlineEdit.value); setInlineEdit(null); } if (e.key === "Escape") setInlineEdit(null); }}
+                              style={{ ...inpStyle, width: 70, textAlign: "right" }} />
+                          </td>
+                        );
                         return (
-                          <td key="targetPrice" style={{ ...tdRight, cursor: "text" }} onClick={e => { e.stopPropagation(); setInlineEdit({ index: realIndex, key: "targetPrice", value: item.targetPrice ? String(item.targetPrice) : "" }); }}>
-                            <span title="Click to edit">{money(item.targetPrice)}</span>
+                          <td key="targetPrice" style={tdRight} onClick={e => e.stopPropagation()}
+                            onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ index: realIndex, key: "targetPrice", value: item.targetPrice ? String(item.targetPrice) : "" }); }}>
+                            <span title="Double-click to edit">{money(item.targetPrice)}</span>
+                          </td>
+                        );
+                      }
+
+                      // Notes — double-click to edit inline
+                      if (col.key === "notes") {
+                        const isEditing = inlineEdit?.index === realIndex && inlineEdit?.key === "notes";
+                        if (isEditing) return (
+                          <td key="notes" style={td} onClick={e => e.stopPropagation()}>
+                            <input autoFocus value={inlineEdit.value}
+                              onChange={e => setInlineEdit(v => ({ ...v, value: e.target.value }))}
+                              onBlur={() => { updateWanted(realIndex, "notes", inlineEdit.value); setInlineEdit(null); }}
+                              onKeyDown={e => { if (e.key === "Enter") { updateWanted(realIndex, "notes", inlineEdit.value); setInlineEdit(null); } if (e.key === "Escape") setInlineEdit(null); }}
+                              style={{ ...inpStyle, width: 140 }} />
+                          </td>
+                        );
+                        return (
+                          <td key="notes" style={{ ...td, cursor: "default" }} onClick={e => e.stopPropagation()}
+                            onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ index: realIndex, key: "notes", value: item.notes || "" }); }}>
+                            <span title="Double-click to edit">{item.notes || <span style={{ color: "#3a4f63" }}>—</span>}</span>
                           </td>
                         );
                       }
@@ -2689,87 +2693,90 @@ export default function WantedList({ onBuyNow }) {
 
           {selectedWantedIndex !== null && wanted[selectedWantedIndex] && (
             <div style={{ ...editPanel, position: "sticky", top: 16 }}>
-              <div style={editHeader}>
-                <h3 style={{ margin: 0 }}>Edit Tracked Item</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#e8e2d5" }}>Edit Tracked Item</h3>
                 <button onClick={() => setSelectedWantedIndex(null)} style={circleButton}>×</button>
               </div>
 
-              <div style={editGrid}>
-                <label>
-                  Set Number
-                  <input value={wanted[selectedWantedIndex].setNumber || ""} onChange={e => updateWanted(selectedWantedIndex, "setNumber", e.target.value)} />
-                </label>
+              {(() => {
+                const w = wanted[selectedWantedIndex];
+                const lbl = { fontSize: 10, fontWeight: 700, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 5, display: "block" };
+                const inp = { width: "100%", background: "#0d1a2a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5", fontSize: 13, padding: "7px 10px", outline: "none", boxSizing: "border-box" };
+                const row = { display: "grid", gap: 10, marginBottom: 10 };
+                return (
+                  <div>
+                    {/* Row 1: Set # + Set Name */}
+                    <div style={{ ...row, gridTemplateColumns: "110px 1fr" }}>
+                      <label><span style={lbl}>Set #</span><input style={inp} value={w.setNumber || ""} onChange={e => updateWanted(selectedWantedIndex, "setNumber", e.target.value)} /></label>
+                      <label><span style={lbl}>Set Name</span><input style={inp} value={w.name || ""} onChange={e => updateWanted(selectedWantedIndex, "name", e.target.value)} /></label>
+                    </div>
 
-                <label>
-                  Set Name
-                  <input value={wanted[selectedWantedIndex].name || ""} onChange={e => updateWanted(selectedWantedIndex, "name", e.target.value)} />
-                </label>
+                    {/* Row 2: Theme */}
+                    <div style={{ ...row, gridTemplateColumns: "1fr" }}>
+                      <label>
+                        <span style={lbl}>Theme</span>
+                        <select style={inp} value={w.theme || ""} onChange={e => updateWanted(selectedWantedIndex, "theme", e.target.value)}>
+                          <option value="">— select —</option>
+                          {acquisitionThemes.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </label>
+                    </div>
 
-                <label>
-                  Theme
-                  <select value={wanted[selectedWantedIndex].theme || ""} onChange={e => updateWanted(selectedWantedIndex, "theme", e.target.value)}>
-                    <option value="">— select —</option>
-                    {acquisitionThemes.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </label>
+                    {/* Row 3: MSRP + Target Price */}
+                    <div style={{ ...row, gridTemplateColumns: "1fr 1fr" }}>
+                      <label><span style={lbl}>MSRP</span><input style={inp} type="number" step="0.01" value={w.msrp || ""} onChange={e => updateWanted(selectedWantedIndex, "msrp", e.target.value)} /></label>
+                      <label><span style={lbl}>Target Price</span><input style={inp} type="number" step="0.01" value={w.targetPrice || ""} onChange={e => updateWanted(selectedWantedIndex, "targetPrice", e.target.value)} /></label>
+                    </div>
 
-                <label>
-                  MSRP
-                  <input type="number" step="0.01" value={wanted[selectedWantedIndex].msrp || ""} onChange={e => updateWanted(selectedWantedIndex, "msrp", e.target.value)} />
-                </label>
+                    {/* Row 4: Exit Date + Retirement Year */}
+                    <div style={{ ...row, gridTemplateColumns: "1fr 1fr" }}>
+                      <label>
+                        <span style={lbl}>Exit Date</span>
+                        <input style={inp} type="date" value={w.exit_date ? w.exit_date.slice(0, 10) : ""}
+                          onChange={e => updateWanted(selectedWantedIndex, "exit_date", e.target.value ? new Date(e.target.value).toISOString() : "")} />
+                      </label>
+                      <label><span style={lbl}>Retire Year <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(fallback)</span></span><input style={inp} type="number" min="2020" max="2040" step="1" value={w.retirementYear || ""} onChange={e => updateWanted(selectedWantedIndex, "retirementYear", e.target.value)} /></label>
+                    </div>
 
-                <label>
-                  Target Price
-                  <input type="number" step="0.01" value={wanted[selectedWantedIndex].targetPrice || ""} onChange={e => updateWanted(selectedWantedIndex, "targetPrice", e.target.value)} />
-                </label>
+                    {/* Row 5: Retirement Source + Last Updated */}
+                    <div style={{ ...row, gridTemplateColumns: "1fr 1fr" }}>
+                      <label>
+                        <span style={lbl}>Retirement Source</span>
+                        <select style={inp} value={w.retirementSource || "Brick Fanatics"} onChange={e => updateWanted(selectedWantedIndex, "retirementSource", e.target.value)}>
+                          <option>Brick Fanatics</option>
+                          <option>Brickset</option>
+                          <option>LEGO Last Chance</option>
+                          <option>StoneWars</option>
+                          <option>BrickEconomy</option>
+                          <option>Manual</option>
+                        </select>
+                      </label>
+                      <label><span style={lbl}>Last Updated</span><input style={inp} type="date" value={w.lastRetirementUpdate || ""} onChange={e => updateWanted(selectedWantedIndex, "lastRetirementUpdate", e.target.value)} /></label>
+                    </div>
 
-                <label>
-                  Exit Date (Brickset)
-                  <input type="date" value={wanted[selectedWantedIndex].exit_date ? wanted[selectedWantedIndex].exit_date.slice(0, 10) : ""}
-                    onChange={e => updateWanted(selectedWantedIndex, "exit_date", e.target.value ? new Date(e.target.value).toISOString() : "")} />
-                </label>
+                    {/* Row 6: Flags */}
+                    <div style={{ ...row, gridTemplateColumns: "1fr 1fr", marginBottom: 10 }}>
+                      {[
+                        { field: "isLastChance", label: "🚨 Last Chance", activeColor: "#ef4444" },
+                        { field: "retiringSoon",  label: "⚠️ Retiring Soon", activeColor: "#f59e0b" },
+                      ].map(({ field, label, activeColor }) => {
+                        const on = !!w[field];
+                        return (
+                          <button key={field} onClick={() => updateWanted(selectedWantedIndex, field, !on)}
+                            style={{ border: `1px solid ${on ? activeColor : "rgba(255,255,255,0.1)"}`, borderRadius: 8, padding: "7px 10px", fontWeight: 700, fontSize: 12, cursor: "pointer", background: on ? `${activeColor}22` : "transparent", color: on ? activeColor : "#5d6f80", transition: "all 0.12s", textAlign: "center" }}>
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                <label>
-                  Retirement Year <span style={{ color: "#5d6f80", fontWeight: 400, fontSize: 11 }}>(fallback)</span>
-                  <input type="number" min="2020" max="2040" step="1" value={wanted[selectedWantedIndex].retirementYear || ""} onChange={e => updateWanted(selectedWantedIndex, "retirementYear", e.target.value)} />
-                </label>
-
-                <label>
-                  Retirement Source
-                  <select
-                    value={wanted[selectedWantedIndex].retirementSource || "Brick Fanatics"}
-                    onChange={e => updateWanted(selectedWantedIndex, "retirementSource", e.target.value)}
-                  >
-                    <option>Brick Fanatics</option>
-                    <option>Brickset</option>
-                    <option>LEGO Last Chance</option>
-                    <option>StoneWars</option>
-                    <option>BrickEconomy</option>
-                    <option>Manual</option>
-                  </select>
-                </label>
-
-                <label>
-                  Last Retirement Update
-                  <input type="date" value={wanted[selectedWantedIndex].lastRetirementUpdate || ""} onChange={e => updateWanted(selectedWantedIndex, "lastRetirementUpdate", e.target.value)} />
-                </label>
-
-                <label style={checkLabel}>
-                  <input type="checkbox" checked={!!wanted[selectedWantedIndex].isLastChance}
-                    onChange={e => updateWanted(selectedWantedIndex, "isLastChance", e.target.checked)} />
-                  🚨 On LEGO Last Chance to Buy
-                </label>
-
-                <label style={checkLabel}>
-                  <input type="checkbox" checked={!!wanted[selectedWantedIndex].retiringSoon} onChange={e => updateWanted(selectedWantedIndex, "retiringSoon", e.target.checked)} />
-                  High Retirement Risk <span style={{ color: "#5d6f80", fontWeight: 400, fontSize: 11 }}>(legacy)</span>
-                </label>
-
-                <label>
-                  Notes
-                  <input value={wanted[selectedWantedIndex].notes || ""} onChange={e => updateWanted(selectedWantedIndex, "notes", e.target.value)} />
-                </label>
-              </div>
+                    {/* Row 7: Notes */}
+                    <div style={{ ...row, gridTemplateColumns: "1fr" }}>
+                      <label><span style={lbl}>Notes</span><input style={inp} value={w.notes || ""} onChange={e => updateWanted(selectedWantedIndex, "notes", e.target.value)} /></label>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {customFieldsSchema.length > 0 && (
                 <div style={{ marginTop: 14 }}>
