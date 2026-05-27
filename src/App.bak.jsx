@@ -4,13 +4,12 @@ import BudgetDashboard from "./BudgetDashboard";
 import WantedList from "./WantedList";
 import MyCollection from "./MyCollection";
 import AppSettings from "./AppSettings";
-import { exportFullBackup, pushToCloud, fetchFromCloud, applyBackupToLocalStorage } from "./utils/exportBackup";
+import { exportFullBackup } from "./utils/exportBackup";
 
 export default function App() {
   const [view, setView] = useState("collection");
   const [pendingPurchase, setPendingPurchase] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [cloudRestoreData, setCloudRestoreData] = useState(null); // non-null = show restore banner
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(window.scrollY > 220);
@@ -38,33 +37,6 @@ export default function App() {
     }
   }, []);
 
-  // Cloud restore banner: on first load, if localStorage looks fresh (no sets),
-  // check for a cloud backup and offer to restore it.
-  useEffect(() => {
-    const localSets = localStorage.getItem("blOwnedSets");
-    const beNormalized = localStorage.getItem("brickEconomyNormalizedCollection");
-    const hasLocalData = (localSets && localSets !== "[]") || (beNormalized && beNormalized !== "[]");
-    if (hasLocalData) return; // existing data — no need to prompt
-    fetchFromCloud().then(data => {
-      if (data && data.app === "BrickLedger") setCloudRestoreData(data);
-    }).catch(() => {}); // silent — cloud may not be configured
-  }, []);
-
-  // Cloud auto-push: push on mount (after 10s grace) and every 5 minutes.
-  // Also push whenever the tab becomes visible again (user returns to the app).
-  useEffect(() => {
-    const doPush = () => pushToCloud().catch(() => {}); // always silent
-    const timer = setTimeout(doPush, 10_000); // 10s after mount
-    const interval = setInterval(doPush, 5 * 60_000); // every 5 min
-    const onVisible = () => { if (document.visibilityState === "visible") doPush(); };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, []);
-
   return (
     <>
       <style>{`
@@ -74,7 +46,6 @@ export default function App() {
           .app-shell { padding: 12px !important; }
           .app-title { font-size: 26px !important; letter-spacing: 3px !important; }
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 600px) {
           .app-header { padding: 18px 16px !important; }
           .nav-wrap { padding: 10px 12px !important; }
@@ -163,47 +134,10 @@ export default function App() {
                 onNavigateToSettings={() => setView("settings")}
               />
             )}
-{view === "settings" && <AppSettings />}
+            {view === "settings" && <AppSettings />}
           </div>
         </div>
       </div>
-
-      {/* Cloud restore banner — shown when localStorage is fresh and cloud backup exists */}
-      {cloudRestoreData && (
-        <div style={{
-          position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 300,
-          background: "linear-gradient(90deg, #0d1e35, #0f2540)",
-          borderTop: "1px solid rgba(201,168,76,0.4)",
-          boxShadow: "0 -4px 32px rgba(0,0,0,0.6)",
-          padding: "14px 20px",
-          display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
-          fontFamily: "'Inter', sans-serif",
-        }}>
-          <span style={{ fontSize: 20 }}>☁️</span>
-          <span style={{ flex: 1, color: "#e8e2d5", fontSize: 13 }}>
-            A cloud backup from{" "}
-            <strong>{cloudRestoreData.exportedAt ? new Date(cloudRestoreData.exportedAt).toLocaleString() : "a previous session"}</strong>{" "}
-            was found. Restore it to recover your collection?
-          </span>
-          <button
-            onClick={() => {
-              applyBackupToLocalStorage(cloudRestoreData);
-              setCloudRestoreData(null);
-              toast.success("Cloud backup restored — reloading…", { duration: 3000 });
-              setTimeout(() => window.location.reload(), 1500);
-            }}
-            style={{ background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 8, padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
-          >
-            Restore
-          </button>
-          <button
-            onClick={() => setCloudRestoreData(null)}
-            style={{ background: "transparent", color: "#5d6f80", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "8px 14px", fontSize: 13, cursor: "pointer" }}
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
 
       {showScrollTop && (
         <button

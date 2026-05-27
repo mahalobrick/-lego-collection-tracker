@@ -1,59 +1,82 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { searchInput, filterSelect, clearFilterButton, filterBar } from "./uiStyles";
+import { DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, AreaChart, Area, CartesianGrid } from "recharts";
 import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
-import { asNumber, money, setImageUrl, CONDITION_LABELS, priorityScore, recommendation, daysUntilRetirement } from "./utils/formatting";
+import { asNumber, money, setImageUrl, CONDITION_LABELS, conditionColor, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { searchBricksetCatalog } from "./utils/brickset";
 import WatchDetailPanel from "./WatchDetailPanel";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
+const CONDITION_CYCLE = ["new", "used_as_new", "used_good", "used_acceptable"];
 
 const DEFAULT_COLLECTION_ITEMS = [
-  { key: "qty",          type: "card",  label: "Owned Qty",        visible: true,  width: "auto",  collapsed: false },
+  { key: "qty",          type: "card",  label: "Total Sets",       visible: true,  width: "auto",  collapsed: false },
   { key: "value",        type: "card",  label: "Collection Value", visible: true,  width: "auto",  collapsed: false },
   { key: "cost",         type: "card",  label: "Cost Basis",       visible: true,  width: "auto",  collapsed: false },
   { key: "gain",         type: "card",  label: "Net Gain / Loss",  visible: true,  width: "auto",  collapsed: false },
   { key: "roi",          type: "card",  label: "ROI",              visible: true,  width: "auto",  collapsed: false },
   { key: "themes",       type: "card",  label: "Themes",           visible: true,  width: "auto",  collapsed: false },
   { key: "duplicates",   type: "card",  label: "Multi-Copy Sets",  visible: true,  width: "auto",  collapsed: false },
-  { key: "active",       type: "card",  label: "Active Sets",      visible: false, width: "auto",  collapsed: false },
   { key: "retired",      type: "card",  label: "Retired Sets",     visible: false, width: "auto",  collapsed: false },
-  { key: "newSets",      type: "card",  label: "New / Sealed",     visible: false, width: "auto",  collapsed: false },
-  { key: "usedSets",     type: "card",  label: "Used Sets",        visible: false, width: "auto",  collapsed: false },
+  { key: "newUsed",      type: "card",  label: "New / Used",       visible: false, width: "auto",  collapsed: false },
   { key: "avgValue",     type: "card",  label: "Avg Set Value",    visible: false, width: "auto",  collapsed: false },
   { key: "avgPaid",      type: "card",  label: "Avg Paid / Set",   visible: false, width: "auto",  collapsed: false },
-  { key: "watchList",    type: "card",  label: "Watch List",       visible: false, width: "auto",  collapsed: false },
+  { key: "pieces",       type: "card",  label: "Total Pieces",     visible: false, width: "auto",  collapsed: false },
+  { key: "minifigs",     type: "card",  label: "Minifigs",         visible: false, width: "auto",  collapsed: false },
+  { key: "retailValue",  type: "card",  label: "Retail Value",     visible: false, width: "auto",  collapsed: false },
+  { key: "newValue",     type: "card",  label: "New Sets Value",   visible: false, width: "auto",  collapsed: false },
+  { key: "usedValue",    type: "card",  label: "Used Sets Value",  visible: false, width: "auto",  collapsed: false },
+  { key: "watchList",    type: "card",  label: "Wanted List",      visible: false, width: "auto",  collapsed: false },
   { key: "retiringSoon", type: "card",  label: "Retiring Soon",    visible: false, width: "auto",  collapsed: false },
   { key: "theme-chart",   type: "panel", label: "Value by Theme",     visible: true,  width: "half",  collapsed: false },
   { key: "roi-leaders",   type: "panel", label: "ROI Leaders",        visible: true,  width: "half",  collapsed: false },
   { key: "most-valuable", type: "panel", label: "Most Valuable Sets", visible: true,  width: "half",  collapsed: false },
-  { key: "watch-list",    type: "panel", label: "Watch List",         visible: true,  width: "half",  collapsed: false },
+  { key: "watch-list",    type: "panel", label: "Wanted List",        visible: true,  width: "half",  collapsed: false },
   { key: "budget",           type: "panel", label: "Budget Snapshot",    visible: true,  width: "full",  collapsed: false },
   { key: "portfolio-history", type: "panel", label: "Portfolio History",  visible: true,  width: "full",  collapsed: false },
   { key: "theme-performance", type: "panel", label: "Theme Performance",  visible: true,  width: "full",  collapsed: false },
 ];
 
-const DEFAULT_OWNED_COLUMNS = [
-  { key: "setNumber", label: "Set #", visible: true },
-  { key: "name", label: "Set Name", visible: true },
-  { key: "theme", label: "Theme", visible: true },
-  { key: "condition", label: "Condition", visible: true },
-  { key: "qty", label: "Qty", visible: true },
-  { key: "paid", label: "Paid", visible: true },
-  { key: "value", label: "Value", visible: true },
-  { key: "gain", label: "Gain/Loss", visible: true },
-  { key: "roi", label: "ROI %", visible: true },
-  { key: "notes", label: "Notes", visible: true }
-];
+// DEFAULT_OWNED_COLUMNS imported from ./utils/columnDefaults
+
+// Default column widths (px). All columns are resizable; widths persist in blOwnedColWidths.
+// With Condition + Notes hidden (defaults), visible cols total ~700px — fits a ~720px panel.
+const OWNED_COL_WIDTHS = {
+  thumb:        52,
+  setNumber:    62,
+  name:        150,
+  theme:        84,
+  condition:    84,
+  qty:          66,
+  paid:         82,
+  value:        86,
+  gain:         82,
+  roi:          62,
+  minifigs:     68,
+  acquiredDate: 90,
+  retiredDate:  90,
+  releasedDate: 90,
+  blSoldNew:    92,
+  blSoldUsed:   92,
+  notes:        80,
+};
+
+function fmtShortDate(dateStr) {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
 
 export default function MyCollection({ onBuyNow, onSwitchTab }) {
   const [tab, setTab] = useState("overview");
   const [searchText, setSearchText] = useState("");
   const [filterTheme, setFilterTheme] = useState("");
   const [filterCondition, setFilterCondition] = useState("");
-  const [sortColumn, setSortColumn] = useState("setNumber");
-  const [sortDirection, setSortDirection] = useState("asc");
+  const [sortColumn, setSortColumn] = useState(() => localStorage.getItem("blOwnedSort") || "setNumber");
+  const [sortDirection, setSortDirection] = useState(() => localStorage.getItem("blOwnedSortDir") || "asc");
   const [checkedSets, setCheckedSets] = useState([]);
 
   const [selectedSetIndex, setSelectedSetIndex] = useState(null);
@@ -79,11 +102,19 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     const saved = localStorage.getItem("blCollectionItems");
     if (!saved) return DEFAULT_COLLECTION_ITEMS;
     const parsed = JSON.parse(saved);
+    // Migration: remove retired keys, carry forward their visibility into replacement
+    const legacyVisible = new Set(parsed.filter(c => c.visible).map(c => c.key));
+    const REMOVED_KEYS = new Set(["newSets", "usedSets"]);
+    const filtered = parsed.filter(c => !REMOVED_KEYS.has(c.key));
     const typeMap = Object.fromEntries(DEFAULT_COLLECTION_ITEMS.map(c => [c.key, c.type]));
     const labelMap = Object.fromEntries(DEFAULT_COLLECTION_ITEMS.map(c => [c.key, c.label]));
-    const merged = parsed.map(c => ({ ...c, type: typeMap[c.key] ?? c.type, label: labelMap[c.key] ?? c.label }));
+    const merged = filtered.map(c => ({ ...c, type: typeMap[c.key] ?? c.type, label: labelMap[c.key] ?? c.label }));
     const savedKeys = new Set(merged.map(c => c.key));
-    const missing = DEFAULT_COLLECTION_ITEMS.filter(c => !savedKeys.has(c.key));
+    const missing = DEFAULT_COLLECTION_ITEMS.filter(c => !savedKeys.has(c.key)).map(c => ({
+      ...c,
+      // newUsed inherits visibility if either old card was visible
+      visible: c.key === "newUsed" ? (legacyVisible.has("newSets") || legacyVisible.has("usedSets") || c.visible) : c.visible,
+    }));
     return [...merged, ...missing];
   });
 
@@ -101,6 +132,14 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     return missing.length ? [...merged, ...missing] : merged;
   });
 
+  const [columnWidths, setColumnWidths] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("blOwnedColWidths") || "{}");
+      return { ...OWNED_COL_WIDTHS, ...saved };
+    } catch { return { ...OWNED_COL_WIDTHS }; }
+  });
+  const resizingCol = useRef(null); // { key, startX, startWidth }
+
   const [sets, setSets] = useState(() => {
     // Load BrickEconomy-synced items
     let beItems = [];
@@ -111,20 +150,28 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           const entries = item.entries || [];
           const entryConditions = [...new Set(entries.map(e => e.condition).filter(Boolean))];
           const condition = entryConditions.length === 1 ? entryConditions[0] : entryConditions.length > 1 ? "mixed" : null;
+          // Pull per-entry fields — same across copies for set attributes; pick latest acquired
+          const acquiredDates = entries.map(e => e.aquired_date || e.acquired_date).filter(Boolean).sort();
           return {
-            setNumber: item.setNumber,
-            name: item.name,
-            theme: item.theme,
-            qty: item.quantity,
-            paidPrice: item.averagePaid,
+            setNumber:    item.setNumber,
+            name:         item.name,
+            theme:        item.theme,
+            qty:          item.quantity,
+            paidPrice:    item.averagePaid,
             currentValue: item.totalValue,
-            totalPaid: item.totalPaid,
-            totalValue: item.totalValue,
-            roiPct: item.roiPct,
-            retired: item.retired,
+            totalPaid:    item.totalPaid,
+            totalValue:   item.totalValue,
+            roiPct:       item.roiPct,
+            retired:      item.retired,
             condition,
             entries,
-            source: "BrickEconomy"
+            source:       "BrickEconomy",
+            // Fields from BE entry data
+            minifigs:     entries[0]?.minifigs_count ?? null,
+            acquiredDate: acquiredDates[acquiredDates.length - 1] || null, // most recent
+            retiredDate:  entries[0]?.retired_date || null,
+            releasedDate: entries[0]?.released_date || null,
+            notes:        entries.map(e => e.notes).filter(Boolean)[0] || "",
           };
         });
       } catch {}
@@ -148,6 +195,16 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       return !beSetNumbers.has(num);
     });
     return [...beItems, ...extraManual];
+  });
+
+  // ── BE sync info (for pieces, minifigs and aggregate stats) ─────────────
+  const [beSyncInfo] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("brickEconomyCollectionSyncInfo") || "{}"); } catch { return {}; }
+  });
+
+  // ── BrickLink price guide cache (6-month US sold) ────────────────────────
+  const [blPriceCache] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("blPriceGuideCache") || "{}"); } catch { return {}; }
   });
 
   // ── Sold / realized gains ────────────────────────────────────────────────
@@ -204,6 +261,19 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     localStorage.setItem("blOwnedRetireDismissed", JSON.stringify(retireDismissed));
   }, [retireDismissed]);
 
+  useEffect(() => {
+    localStorage.setItem("blOwnedColumns", JSON.stringify(ownedColumns));
+  }, [ownedColumns]);
+
+  useEffect(() => {
+    localStorage.setItem("blOwnedColWidths", JSON.stringify(columnWidths));
+  }, [columnWidths]);
+
+  useEffect(() => {
+    localStorage.setItem("blOwnedSort", sortColumn);
+    localStorage.setItem("blOwnedSortDir", sortDirection);
+  }, [sortColumn, sortDirection]);
+
   // ── Portfolio snapshot — record once per day ──────────────────────────────
   useEffect(() => {
     if (sets.length === 0) return;
@@ -246,16 +316,31 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     const value = sets.reduce((sum, s) => sum + (asNumber(s.totalValue) || asNumber(s.currentValue) * (asNumber(s.qty) || 1)), 0);
     const themes = new Set(sets.map(s => s.theme).filter(Boolean)).size;
     const duplicates = sets.filter(s => (asNumber(s.qty) || 1) > 1).length;
-    const activeSets = sets.filter(s => !s.retired).length;
     const retiredSets = sets.filter(s => s.retired).length;
-    const newSets = sets.filter(s => !s.condition || s.condition === "new" || s.condition === "sealed").length;
-    const usedSets = sets.filter(s => s.condition && s.condition.startsWith("used_")).length;
-    const avgValue = sets.length ? value / sets.length : 0;
-    const avgPaid  = sets.length ? costBasis / sets.length : 0;
+    const newSets     = sets.filter(s => !s.condition || s.condition === "new" || s.condition === "sealed").length;
+    const usedSets    = sets.filter(s => s.condition && s.condition.startsWith("used")).length;
+    const avgValue    = sets.length ? value / sets.length : 0;
+    const avgPaid     = sets.length ? costBasis / sets.length : 0;
+
+    // Stats sourced from normalized BE data (entries carry the raw fields)
+    const pieces      = sets.reduce((sum, s) => sum + (s.pieces || 0) * (asNumber(s.qty) || 1), 0);
+    const retailValue = sets.reduce((sum, s) => sum + (asNumber(s.totalRetailPrice) || asNumber(s.retailPrice) * (asNumber(s.qty) || 1)), 0);
+    const minifigs    = sets.reduce((sum, s) => sum + (asNumber(s.minifigs) || 0) * (asNumber(s.qty) || 1), 0);
+
+    // Entry-level counts — each copy counted individually, matching BE's method.
+    // BE sets use the entries[] array; manually-added sets fall back to a single synthetic entry.
+    const allEntries    = sets.flatMap(s => s.entries?.length ? s.entries : [{ condition: s.condition, current_value: asNumber(s.currentValue), retired: s.retired }]);
+    const newEntries    = allEntries.filter(e => !e.condition || e.condition === "new" || e.condition === "sealed").length;
+    const usedEntries   = allEntries.filter(e => e.condition && e.condition.startsWith("used")).length;
+    const newSetsValue  = allEntries.filter(e => !e.condition || e.condition === "new" || e.condition === "sealed")
+      .reduce((sum, e) => sum + (Number(e.current_value) || 0), 0);
+    const usedSetsValue = allEntries.filter(e => e.condition && e.condition.startsWith("used"))
+      .reduce((sum, e) => sum + (Number(e.current_value) || 0), 0);
 
     return {
       totalQty, costBasis, value, themes, duplicates,
-      activeSets, retiredSets, newSets, usedSets, avgValue, avgPaid,
+      retiredSets, newSets, usedSets, avgValue, avgPaid,
+      pieces, retailValue, minifigs, newEntries, usedEntries, newSetsValue, usedSetsValue,
       gainLoss: value - costBasis,
       roi: costBasis ? ((value - costBasis) / costBasis) * 100 : 0
     };
@@ -349,7 +434,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     try {
       const purchases = JSON.parse(localStorage.getItem("blPurchases") || "[]");
       const annualBudget = asNumber(localStorage.getItem("blAnnualBudget")) || 0;
-      const totalSpent = purchases.reduce((sum, p) => sum + asNumber(p.amount) * (asNumber(p.qty) || 1), 0);
+      const totalSpent = purchases.reduce((sum, p) => sum + lineCashPaid(p), 0);
       const pct = annualBudget ? Math.min((totalSpent / annualBudget) * 100, 100) : 0;
       const color = pct >= 100 ? "#ef4444" : pct >= 70 ? "#f7b731" : "#22c55e";
       const status = pct >= 100 ? "Over Budget" : pct >= 70 ? "Approaching Limit" : "Healthy";
@@ -506,6 +591,33 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     });
   }
 
+  function startResize(colKey, e) {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingCol.current = {
+      key: colKey,
+      startX: e.clientX,
+      startWidth: columnWidths[colKey] ?? 80,
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function onMove(ev) {
+      const { key, startX, startWidth } = resizingCol.current;
+      const newW = Math.max(36, startWidth + (ev.clientX - startX));
+      setColumnWidths(prev => ({ ...prev, [key]: newW }));
+    }
+    function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      resizingCol.current = null;
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
   function renderOwnedCell(set, column) {
     const qty = asNumber(set.qty) || 1;
     const paid = asNumber(set.totalPaid) || asNumber(set.paidPrice) * qty;
@@ -522,6 +634,22 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     if (column.key === "value") return money(value);
     if (column.key === "gain") return money(gain);
     if (column.key === "roi") return roi !== null ? `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%` : "—";
+    if (column.key === "minifigs") return set.minifigs != null ? set.minifigs : "—";
+    if (column.key === "acquiredDate") return fmtShortDate(set.acquiredDate);
+    if (column.key === "retiredDate")  return fmtShortDate(set.retiredDate);
+    if (column.key === "releasedDate") return fmtShortDate(set.releasedDate);
+    if (column.key === "blSoldNew") {
+      const blKey = String(set.setNumber || "").replace(/-1$/, "");
+      const bl = blPriceCache[blKey]?.data;
+      const v = bl?.qty_avg_price_new ?? bl?.avg_price_new;
+      return v != null ? money(v) : "—";
+    }
+    if (column.key === "blSoldUsed") {
+      const blKey = String(set.setNumber || "").replace(/-1$/, "");
+      const bl = blPriceCache[blKey]?.data;
+      const v = bl?.qty_avg_price_used ?? bl?.avg_price_used;
+      return v != null ? money(v) : "—";
+    }
     if (column.key === "notes") return set.notes || "";
 
     return "";
@@ -548,21 +676,23 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     return label + (sortDirection === "asc" ? " ↑" : " ↓");
   }
 
-  const visibleSets = sets
-    .filter(set => {
-      const q = searchText.toLowerCase();
-
-      const matchesSearch =
-        !q ||
-        String(set.setNumber || "").toLowerCase().includes(q) ||
-        String(set.name || "").toLowerCase().includes(q) ||
-        String(set.theme || "").toLowerCase().includes(q) ||
-        String(set.notes || "").toLowerCase().includes(q);
-
+  const visibleSets = (searchText.trim()
+    ? (() => {
+        const q = searchText.trim().toLowerCase();
+        return sets.filter(s =>
+          (s.setNumber || "").toLowerCase().includes(q) ||
+          (s.name     || "").toLowerCase().includes(q) ||
+          (s.theme    || "").toLowerCase().includes(q) ||
+          (s.subtheme || "").toLowerCase().includes(q) ||
+          (s.notes    || "").toLowerCase().includes(q) ||
+          String(s.year || "").includes(q)
+        );
+      })()
+    : sets
+  ).filter(set => {
       const matchesTheme = !filterTheme || set.theme === filterTheme;
       const matchesCondition = !filterCondition || set.condition === filterCondition;
-
-      return matchesSearch && matchesTheme && matchesCondition;
+      return matchesTheme && matchesCondition;
     })
     .sort((a, b) => {
       let result = 0;
@@ -661,19 +791,22 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       <div style={tabHeader}>
         <div>
           <h2 style={{ margin: 0 }}>My Collection</h2>
-          <p style={{ ...muted, margin: "4px 0 0" }}>Your portfolio at a glance — value, performance, watch list, and budget.</p>
+          <p style={{ ...muted, margin: "4px 0 0" }}>Track collection value, growth, and ROI across your sets.</p>
         </div>
         <div style={tabBar}>
           {[
             { key: "overview", label: "Overview" },
-            { key: "collection", label: "Collection" },
+            { key: "collection", label: "Browse" },
             { key: "sold", label: soldSets.length > 0 ? `Sold (${soldSets.length})` : "Sold" },
-            { key: "add", label: "Add Set" }
           ].map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={tab === t.key ? activeTabStyle : tabBtnStyle}>
               {t.label}
             </button>
           ))}
+          <div style={{ width: 1, height: 18, background: "rgba(255,255,255,0.12)", alignSelf: "center" }} />
+          <button onClick={() => setTab("add")} style={tab === "add" ? addSetBtnActive : addSetBtn}>
+            + Add Set
+          </button>
         </div>
       </div>
 
@@ -730,7 +863,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             )}
 
             {!collPillsCollapsed && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
                 {collectionItems.filter(i => i.type === "card" && i.visible).map(item => (
                   <div key={item.key} draggable
                     onDragStart={() => setDraggedCollItem(item.key)}
@@ -739,20 +872,33 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                     onDrop={() => dropCollItem(item.key)}
                     style={{ opacity: draggedCollItem === item.key ? 0.4 : 1, cursor: "grab" }}
                   >
-                    {item.key === "qty"          ? <Card title="Owned Qty"        value={stats.totalQty} /> :
+                    {item.key === "qty"          ? <Card title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} /> :
                      item.key === "value"        ? <Card title="Collection Value" value={money(stats.value)} /> :
                      item.key === "cost"         ? <Card title="Cost Basis"       value={money(stats.costBasis)} /> :
                      item.key === "gain"         ? <Card title="Net Gain / Loss"  value={money(stats.gainLoss)} good={stats.gainLoss >= 0} /> :
                      item.key === "roi"          ? <Card title="ROI"              value={`${stats.roi.toFixed(1)}%`} good={stats.roi >= 0} /> :
                      item.key === "themes"       ? <Card title="Themes"           value={stats.themes} /> :
                      item.key === "duplicates"   ? <Card title="Multi-Copy Sets"  value={stats.duplicates} /> :
-                     item.key === "active"       ? <Card title="Active Sets"      value={stats.activeSets} /> :
-                     item.key === "retired"      ? <Card title="Retired Sets"     value={stats.retiredSets} /> :
-                     item.key === "newSets"      ? <Card title="New / Sealed"     value={stats.newSets} /> :
-                     item.key === "usedSets"     ? <Card title="Used Sets"        value={stats.usedSets} /> :
+                     item.key === "retired"      ? <Card title="Retired Sets"     value={stats.retiredSets} sub={sets.length ? `${((stats.retiredSets / sets.length) * 100).toFixed(1)}% of unique sets` : null} /> :
+                     item.key === "newUsed"      ? (
+                       <div style={{ ...panel, marginTop: 0, minHeight: 88, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "14px 16px" }}>
+                         <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>New / Used</div>
+                         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                           <span style={{ fontSize: 22, fontWeight: 900, color: "#5aa832", lineHeight: 1.1 }}>{stats.newEntries}</span>
+                           <span style={{ fontSize: 14, color: "#3d4f60", fontWeight: 700 }}>/</span>
+                           <span style={{ fontSize: 22, fontWeight: 900, color: "#e8e2d5", lineHeight: 1.1 }}>{stats.usedEntries}</span>
+                         </div>
+                         <div style={{ fontSize: 11, color: "#3d4f60", minHeight: 14 }}>new · used</div>
+                       </div>
+                     ) :
                      item.key === "avgValue"     ? <Card title="Avg Set Value"    value={money(stats.avgValue)} /> :
                      item.key === "avgPaid"      ? <Card title="Avg Paid / Set"   value={money(stats.avgPaid)} /> :
-                     item.key === "watchList"    ? <Card title="Watch List"       value={watchListHighlights.total} /> :
+                     item.key === "pieces"       ? <Card title="Total Pieces"     value={(stats.pieces || beSyncInfo.piecesCount || 0).toLocaleString()} /> :
+                     item.key === "minifigs"     ? <Card title="Minifigs"         value={(stats.minifigs || beSyncInfo.minifsCount || 0).toLocaleString()} /> :
+                     item.key === "retailValue"  ? <Card title="Retail Value"     value={money(stats.retailValue || beSyncInfo.retailValue)} /> :
+                     item.key === "newValue"     ? <Card title="New Sets Value"   value={money(stats.newSetsValue)} sub={`${stats.newEntries} sets`} /> :
+                     item.key === "usedValue"    ? <Card title="Used Sets Value"  value={money(stats.usedSetsValue)} sub={`${stats.usedEntries} sets`} /> :
+                     item.key === "watchList"    ? <Card title="Wanted List"      value={watchListHighlights.total} /> :
                      item.key === "retiringSoon" ? <Card title="Retiring Soon"    value={watchListHighlights.retiringSoon} /> : null}
                   </div>
                 ))}
@@ -761,9 +907,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           </div>
 
           {/* ── Content panels ──────────────────────────────────────── */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14, alignItems: "start" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, alignItems: "start" }}>
             {collectionItems.filter(item => item.type === "panel" && item.visible).map(item => {
-              const gridCol = item.width === "full" ? "1 / -1" : "span 2";
+              const gridCol = item.width === "full" ? "1 / -1" : "span 1";
               return (
                 <div key={item.key}
                   style={{ gridColumn: gridCol, position: "relative" }}
@@ -876,8 +1022,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                               return (
                                 <div key={s.setNumber || i}
                                   onClick={() => { setDetailSet(openSetDetail(s.setNumber) || s); setDetailSetIndex(realIndex); }}
-                                  onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; setHoveredSet(s); }}
-                                  onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; setHoveredSet(null); }}
+                                  onMouseEnter={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.18)"; setHoveredSet(s); }}
+                                  onMouseLeave={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.06)"; setHoveredSet(null); }}
                                   style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0f1a28", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
                                   <div>
                                     <div style={{ fontWeight: 700, fontSize: 14 }}>{s.name || s.setNumber || "—"}</div>
@@ -912,8 +1058,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                               return (
                                 <div key={s.setNumber || i}
                                   onClick={() => { setDetailSet(openSetDetail(s.setNumber) || s); setDetailSetIndex(sets.indexOf(s)); }}
-                                  onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; setHoveredSet(s); }}
-                                  onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; setHoveredSet(null); }}
+                                  onMouseEnter={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.18)"; setHoveredSet(s); }}
+                                  onMouseLeave={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.06)"; setHoveredSet(null); }}
                                   style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0f1a28", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
                                   <div>
                                     <div style={{ fontWeight: 700, fontSize: 14 }}>{s.name || s.setNumber || "—"}</div>
@@ -938,7 +1084,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                       </div>
                     ) : item.key === "watch-list" ? (
                       <div style={{ ...panel, marginTop: 0 }}>
-                        <h4 style={{ margin: "0 0 10px" }}>Watch List</h4>
+                        <h4 style={{ margin: "0 0 10px" }}>Wanted List</h4>
                         {watchListHighlights.total > 0 ? (
                           <>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
@@ -953,8 +1099,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                                 return (
                                   <div key={wlItem.setNumber || i}
                                     onClick={() => setDetailWatchItem(wlItem)}
-                                    onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; setHoveredWatchItem(wlItem); }}
-                                    onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; setHoveredWatchItem(null); }}
+                                    onMouseEnter={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.18)"; setHoveredWatchItem(wlItem); }}
+                                    onMouseLeave={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.06)"; setHoveredWatchItem(null); }}
                                     style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0f1a28", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
                                     <div>
                                       <div style={{ fontWeight: 700, fontSize: 14 }}>{wlItem.name || wlItem.setNumber || "—"}</div>
@@ -1080,7 +1226,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                               <thead>
                                 <tr>
-                                  {["Theme","Sets","Cost Basis","Market Value","Gain","ROI"].map(h => (
+                                  {["Theme","Sets","Cost Basis","Value","Gain","ROI"].map(h => (
                                     <th key={h} style={{ ...thStyle, textAlign: h === "Theme" ? "left" : "right" }}>{h}</th>
                                   ))}
                                 </tr>
@@ -1259,8 +1405,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         setTimeout(() => lookupBE(), 50);
                       }}
                       style={{ background: "#0f1a28", border: `1px solid ${inColl ? "rgba(234,179,8,0.4)" : "rgba(255,255,255,0.07)"}`, borderRadius: 10, padding: 10, cursor: "pointer" }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(201,168,76,0.5)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = inColl ? "rgba(234,179,8,0.4)" : "rgba(255,255,255,0.07)"; }}
+                      onMouseEnter={e => { e.currentTarget.style.border = "1px solid rgba(201,168,76,0.5)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.border = inColl ? "1px solid rgba(234,179,8,0.4)" : "1px solid rgba(255,255,255,0.07)"; }}
                     >
                       {s.thumbnail ? (
                         <img src={s.thumbnail} alt="" onError={e => { e.currentTarget.style.display = "none"; }}
@@ -1413,7 +1559,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         }}>
           <h3 style={{ margin: 0 }}>Owned Sets</h3>
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <input
               placeholder="Search owned sets..."
               value={searchText}
@@ -1435,6 +1581,41 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                 Clear
               </button>
             )}
+            <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.1)", alignSelf: "center", margin: "0 2px", flexShrink: 0 }} />
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setOwnedColumnsOpen(prev => !prev)}
+                style={{ ...hoverCtrlBtn, color: ownedColumnsOpen ? "#c9a84c" : "#8a9bb0", padding: "5px 8px", display: "flex", alignItems: "center" }}
+                title={`Column visibility — ${ownedColumns.filter(c => c.visible).length} of ${ownedColumns.length} shown`}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+                  <rect x="0" y="0" width="14" height="3" rx="1"/>
+                  <rect x="0" y="5" width="3.5" height="9" rx="1"/>
+                  <rect x="5.25" y="5" width="3.5" height="9" rx="1"/>
+                  <rect x="10.5" y="5" width="3.5" height="9" rx="1"/>
+                </svg>
+              </button>
+              {ownedColumnsOpen && (
+                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 40, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "12px 16px", minWidth: 190, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <span style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Columns</span>
+                    <button onClick={() => setColumnWidths({ ...OWNED_COL_WIDTHS })} style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "#8a9bb0", fontSize: 11, cursor: "pointer", padding: "2px 7px" }} title="Reset all column widths to defaults">Reset widths</button>
+                  </div>
+                  {ownedColumns.map((col, i) => (
+                    <div key={col.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, cursor: "pointer", color: col.visible ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
+                        <input type="checkbox" checked={col.visible} onChange={() => toggleOwnedColumn(col.key)} style={{ accentColor: "#c9a84c" }} />
+                        {col.label}
+                      </label>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        <button onClick={() => moveOwnedColumn(col.key, -1)} disabled={i === 0} style={{ background: "none", border: "none", color: i === 0 ? "#2a3a4a" : "#8a9bb0", cursor: i === 0 ? "default" : "pointer", padding: "0 2px", fontSize: 10, lineHeight: 1 }}>▲</button>
+                        <button onClick={() => moveOwnedColumn(col.key, 1)} disabled={i === ownedColumns.length - 1} style={{ background: "none", border: "none", color: i === ownedColumns.length - 1 ? "#2a3a4a" : "#8a9bb0", cursor: i === ownedColumns.length - 1 ? "default" : "pointer", padding: "0 2px", fontSize: 10, lineHeight: 1 }}>▼</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1480,26 +1661,57 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             gap: 16,
             alignItems: "start"
           }}>
-            <div style={{ overflow: "auto", maxHeight: 560 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
-              <thead>
+            {(() => {
+              const visibleCols = ownedColumns.filter(c => c.visible);
+              const defaultTotalW = 36 + visibleCols.reduce((s, c) => s + (OWNED_COL_WIDTHS[c.key] ?? 80), 0);
+              const currentTotalW = 36 + visibleCols.reduce((s, c) => s + (columnWidths[c.key] ?? 80), 0);
+              // Only show horizontal scrollbar when the user has deliberately expanded columns beyond defaults.
+              // This hides the 3px browser-rounding artifact from table-layout:fixed + width:100%.
+              const needsHScroll = currentTotalW > defaultTotalW + 10;
+              return (
+            <div style={{ overflowX: needsHScroll ? "auto" : "clip" }}>
+            <div style={{ overflowY: "auto", maxHeight: 560 }}>
+              <table style={{
+                borderCollapse: "collapse", tableLayout: "fixed", width: "100%",
+                minWidth: currentTotalW
+              }}>
+              <thead style={{ position: "sticky", top: 0, zIndex: 5 }}>
                 <tr>
-                  <th style={{ ...th, ...stickyCheckbox }}></th>
+                  <th style={{ ...th, width: 36 }}></th>
                   {ownedColumns.filter(col => col.visible).map(col => (
                     <th
                       key={col.key}
                       draggable
-                      onDragStart={() => setDraggedOwnedColumn(col.key)}
+                      onDragStart={e => {
+                        if (e.target !== e.currentTarget) { e.preventDefault(); return; }
+                        setDraggedOwnedColumn(col.key);
+                      }}
+                      onDragEnd={() => setDraggedOwnedColumn(null)}
                       onDragOver={e => e.preventDefault()}
                       onDrop={() => dropOwnedColumn(col.key)}
                       style={{
                         ...(isNumericOwnedColumn(col.key) ? thRightButton : thButton),
-                        opacity: draggedOwnedColumn === col.key ? 0.45 : 1
+                        opacity: draggedOwnedColumn === col.key ? 0.45 : 1,
+                        width: columnWidths[col.key] ?? 80,
+                        position: "relative",
+                        overflow: "hidden",
                       }}
                       onClick={() => sortHeader(col.key)}
-                      title="Drag to reorder. Click to sort."
+                      title="Click to sort · Drag label to reorder · Drag right edge to resize"
                     >
-                      ☰ {sortLabel(col.label, col.key)}
+                      <span style={{ color: "rgba(255,255,255,0.22)", fontSize: 9, marginRight: 3, letterSpacing: -1 }}>⠿</span>
+                      {sortLabel(col.label, col.key)}
+                      <div
+                        onMouseDown={e => startResize(col.key, e)}
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                          position: "absolute", right: 0, top: 0, bottom: 0, width: 7,
+                          cursor: "col-resize", zIndex: 10,
+                          borderRight: "2px solid transparent",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderRightColor = "rgba(201,168,76,0.6)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderRightColor = "transparent"; }}
+                      />
                     </th>
                   ))}
                 </tr>
@@ -1540,29 +1752,61 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         />
                       </td>
 
-                      {ownedColumns.filter(col => col.visible).map(col => (
-                        <td
-                          key={col.key}
-                          style={
-                            col.key === "gain"
-                              ? {
-                                  ...tdRight,
-                                  color: gain >= 0 ? "#5aa832" : "#ff8b8b"
-                                }
-                              : isNumericOwnedColumn(col.key)
+                      {ownedColumns.filter(col => col.visible).map(col => {
+                        // Thumbnail image column
+                        if (col.key === "thumb") {
+                          const imgUrl = setImageUrl(set.setNumber);
+                          return (
+                            <td key="thumb" style={{ ...td, padding: "2px 6px", width: 52, minWidth: 52 }}>
+                              <img
+                                src={imgUrl}
+                                alt=""
+                                style={{ width: 44, height: 32, objectFit: "contain", borderRadius: 4, display: "block" }}
+                                onError={e => { e.currentTarget.style.opacity = "0"; }}
+                              />
+                            </td>
+                          );
+                        }
+
+                        // Condition pill — click to cycle through conditions inline
+                        if (col.key === "condition") {
+                          const cond = set.condition || "new";
+                          const color = conditionColor(cond);
+                          const nextCond = CONDITION_CYCLE[(CONDITION_CYCLE.indexOf(cond) + 1) % CONDITION_CYCLE.length];
+                          return (
+                            <td key="condition" style={td} onClick={e => { e.stopPropagation(); updateSet(index, "condition", nextCond); }} title={`Click to cycle → ${CONDITION_LABELS[nextCond]}`}>
+                              <span style={{ color, fontWeight: 700, fontSize: 11, padding: "2px 7px", borderRadius: 10, border: `1px solid ${color}50`, background: `${color}18`, cursor: "pointer", whiteSpace: "nowrap", userSelect: "none" }}>
+                                {CONDITION_LABELS[cond] || cond}
+                              </span>
+                            </td>
+                          );
+                        }
+                        return (
+                          <td
+                            key={col.key}
+                            style={
+                              col.key === "name"
+                                ? { ...td, overflow: "hidden", textOverflow: "ellipsis" }
+                                : col.key === "gain"
+                                ? { ...tdRight, color: gain >= 0 ? "#5aa832" : "#ff8b8b" }
+                                : isNumericOwnedColumn(col.key)
                                 ? tdRight
                                 : td
-                          }
-                        >
-                          {renderOwnedCell(set, col)}
-                        </td>
-                      ))}
+                            }
+                          >
+                            {renderOwnedCell(set, col)}
+                          </td>
+                        );
+                      })}
                     </tr>
                   );
                 })}
               </tbody>
               </table>
             </div>
+            </div>
+              ); // end IIFE return
+            })()} {/* end IIFE for scroll/width calc */}
 
             {selectedSetIndex !== null && sets[selectedSetIndex] && (
               <div style={{ ...editPanel, position: "sticky", top: 16 }}>
@@ -1662,26 +1906,34 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   );
 }
 
-function Card({ title, value, good }) {
+function Card({ title, value, good, sub }) {
   const [tip, setTip] = useState(false);
   return (
-    <div style={{ ...panel, marginTop: 0, overflow: "hidden" }}>
-      <div style={{ ...mutedSmall, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+    <div style={{
+      ...panel, marginTop: 0, overflow: "hidden",
+      minHeight: 88,
+      display: "flex", flexDirection: "column", justifyContent: "space-between",
+      padding: "14px 16px",
+    }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
       <div style={{ position: "relative" }} onMouseEnter={() => setTip(true)} onMouseLeave={() => setTip(false)}>
-        <div style={{ fontSize: 24, fontWeight: 900, color: good === undefined ? "white" : good ? "#5aa832" : "#ff8b8b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "default" }}>
+        <div style={{ fontSize: 22, fontWeight: 900, color: good === undefined ? "#e8e2d5" : good ? "#5aa832" : "#ff8b8b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "default", lineHeight: 1.1 }}>
           {value}
         </div>
         {tip && <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: 0, zIndex: 50, background: "#0b1520", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, padding: "5px 10px", fontSize: 15, fontWeight: 700, color: "#e8e2d5", whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,0,0,0.5)", pointerEvents: "none" }}>{value}</div>}
       </div>
+      <div style={{ fontSize: 11, color: "#3d4f60", minHeight: 14 }}>{sub || ""}</div>
     </div>
   );
 }
 
 const page = { background: "transparent", color: "#e8e2d5", minHeight: "100vh", padding: 22 };
 const tabHeader = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 8 };
-const tabBar = { display: "flex", gap: 8, flexWrap: "wrap" };
-const tabBtnStyle = { background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "10px 18px", fontWeight: 800, cursor: "pointer", fontSize: 14 };
-const activeTabStyle = { ...tabBtnStyle, background: "#c9a84c", color: "#0d1623", borderColor: "#c9a84c" };
+const tabBar = { display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" };
+const tabBtnStyle = { background: "none", border: "none", borderBottom: "2px solid transparent", color: "#5d6f80", padding: "8px 0 10px", fontWeight: 700, cursor: "pointer", fontSize: 14, lineHeight: 1 };
+const activeTabStyle = { ...tabBtnStyle, color: "#e8e2d5", borderBottom: "2px solid #c9a84c" };
+const addSetBtn = { background: "none", border: "1px solid rgba(90,168,50,0.3)", borderRadius: 8, color: "#5aa832", padding: "5px 12px", fontWeight: 700, fontSize: 13, cursor: "pointer" };
+const addSetBtnActive = { ...addSetBtn, background: "#1a3a1a", border: "1px solid #2d5a2d" };
 const metricGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 14, marginTop: 20 };
 const overviewGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 14, marginTop: 14 };
 const panel = { background: "rgba(20,31,48,0.82)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginTop: 18, boxShadow: "0 4px 24px rgba(0,0,0,0.35)" };
@@ -1691,15 +1943,14 @@ const mutedSmall = { color: "#8a9bb0", fontSize: 13 };
 const redBtn = { display: "inline-block", background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" };
 const ghostBtn = { background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" };
 const th = {
-  position: "sticky",
-  top: 0,
   background: "#0b1520",
   color: "#8a9bb0",
-  padding: 10,
+  padding: "10px 10px 10px 10px",
   textAlign: "left",
   borderBottom: "1px solid rgba(255,255,255,0.07)",
-  zIndex: 5,
   whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
   fontWeight: 700,
   fontSize: 12,
   letterSpacing: 0.5,

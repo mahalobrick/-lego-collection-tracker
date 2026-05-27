@@ -3,6 +3,19 @@ export function asNumber(value) {
   return Number(String(value || "0").replace(/[$,]/g, "")) || 0;
 }
 
+// ── Purchase line totaling (canonical — use everywhere) ───────────────────
+// lineTotal: face value × qty, respecting newer `total` field and legacy `amount`
+export function lineTotal(p) {
+  if (p.total != null) return asNumber(p.total);
+  return asNumber(p.faceValue ?? p.amount) * (asNumber(p.qty) || 1);
+}
+
+// lineCashPaid: what was actually paid after GC / rewards
+export function lineCashPaid(p) {
+  if (p.cashPaid != null) return asNumber(p.cashPaid);
+  return Math.max(0, lineTotal(p) - asNumber(p.gcApplied));
+}
+
 // Currency config — symbols + locale for Intl formatting
 const CURRENCIES = {
   USD: { symbol: "$",  locale: "en-US" },
@@ -19,6 +32,8 @@ export function money(value, overrideCurrency) {
   const code = overrideCurrency || getDisplayCurrency();
   const { symbol, locale } = CURRENCIES[code] || CURRENCIES.USD;
   const n = asNumber(value);
+  // Place symbol after the minus sign for negatives: -$1,234.56 not $-1,234.56
+  if (n < 0) return "-" + symbol + Math.abs(n).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return symbol + n.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 

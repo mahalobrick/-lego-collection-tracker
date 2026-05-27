@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
+import Papa from "papaparse";
+import Fuse from "fuse.js";
+import toast from "react-hot-toast";
+import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
+import { DEFAULT_WANTED_COLUMNS } from "./utils/columnDefaults";
+import { fireOpenNotifications } from "./utils/notifications";
+import { recordPriceSnapshot, getPriceTrend } from "./utils/priceHistory";
+import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { searchInput, filterSelect, clearFilterButton } from "./uiStyles";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from "recharts";
-import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, retirementWaveLabel } from "./utils/formatting";
+import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, retirementWaveLabel, lineCashPaid } from "./utils/formatting";
 
 // Source → default confidence level
 const SOURCE_CONFIDENCE = {
@@ -40,7 +48,7 @@ const DEFAULT_WL_ITEMS = [
   { key: "avgMsrp",            type: "card",  label: "Avg MSRP",              visible: false, width: "auto",  collapsed: false },
   { key: "ownedCount",         type: "card",  label: "Already Owned",         visible: false, width: "auto",  collapsed: false },
   { key: "watchCount",         type: "card",  label: "Watch Status",          visible: false, width: "auto",  collapsed: false },
-  { key: "buyTotal",           type: "card",  label: "Buy List Cost",          visible: true,  width: "auto",  collapsed: false },
+  { key: "buyTotal",           type: "card",  label: "Tracking Cost",          visible: true,  width: "auto",  collapsed: false },
   { key: "budgetAfterBuy",     type: "card",  label: "Budget After Buy",       visible: false, width: "auto",  collapsed: false },
   { key: "urgency-chart",       type: "panel", label: "Queue Urgency",         visible: true,  width: "half",  collapsed: false },
   { key: "top-priority",        type: "panel", label: "Top Priority Items",    visible: true,  width: "half",  collapsed: false },
@@ -137,6 +145,7 @@ export default function WantedList({ onBuyNow }) {
   const [filterStatus, setFilterStatus] = useState("");
   const [lookupMessage, setLookupMessage] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [lastChanceCodes, setLastChanceCodes] = useState(() => getCachedLastChanceCodes());
   const [selectedWantedIndex, setSelectedWantedIndex] = useState(null);
   const [checkedWanted, setCheckedWanted] = useState([]);
@@ -218,18 +227,14 @@ export default function WantedList({ onBuyNow }) {
   });
 
   // ── Catalog search ────────────────────────────────────────────────────────
-  const [catalogMode, setCatalogMode]       = useState(false);
   const [catalogQuery, setCatalogQuery]     = useState("");
   const [catalogResults, setCatalogResults] = useState([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError]     = useState("");
   const [dupeWarning, setDupeWarning]       = useState(null); // "owned" | "watchlist" | null
   const [colGearOpen, setColGearOpen] = useState(false);
-  const [bulkThemeOpen, setBulkThemeOpen] = useState(false);
-  const [bulkTheme, setBulkTheme] = useState("");
-  const [bulkYear, setBulkYear] = useState("");
-  const [bulkConfidence, setBulkConfidence] = useState("Medium");
-  const [bulkSource, setBulkSource] = useState("Brick Fanatics");
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [bfRetirement, setBfRetirement] = useState(null); // { retiring, retirementDate, theme, name } from Brick Fanatics
   const [hoveredWLItem, setHoveredWLItem] = useState(null);
   const [draggedWLItem, setDraggedWLItem] = useState(null);
   const [wlItems, setWlItems] = useState(() => {
@@ -244,16 +249,21 @@ export default function WantedList({ onBuyNow }) {
     return [...merged, ...missing];
   });
 
-  // Pre-compute owned set numbers for badge display
+  // Pre-compute owned set numbers for badge display.
+  // Depends on `wanted` as a proxy refresh trigger: any tab switch or item add
+  // re-renders this component, keeping the Set in sync with localStorage.
   const ownedSetNumbers = useMemo(() => {
     try {
       const manual = JSON.parse(localStorage.getItem("blOwnedSets") || "[]");
+      const beOwned = JSON.parse(localStorage.getItem("brickEconomyOwnedSets") || "[]");
       const beNorm = JSON.parse(localStorage.getItem("brickEconomyNormalizedCollection") || "[]");
-      return new Set([...manual, ...beNorm].map(s => String(s.setNumber || "").replace(/-1$/, "")));
+      return new Set([...manual, ...beOwned, ...beNorm].map(s => String(s.setNumber || "").replace(/-1$/, "")));
     } catch { return new Set(); }
-  }, []);
+  // [] — reads fresh on every mount; WantedList remounts on tab switch so collection changes are always picked up
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Store Price Calculator (standalone widget) ────────────────
+  const [calcOpen,     setCalcOpen]     = useState(false);
   const [calcSetNum,   setCalcSetNum]   = useState("");
   const [calcMsrp,     setCalcMsrp]     = useState("");
   const [calcStore,    setCalcStore]    = useState("");
@@ -389,44 +399,6 @@ export default function WantedList({ onBuyNow }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally runs once on mount
 
-  const DEFAULT_WANTED_COLUMNS = [
-    // ── Intelligence ─────────────────────────────────────────────
-    { key: "score",               label: "Score",        visible: false, group: "intelligence" },
-    { key: "recommendation",      label: "Rec.",         visible: true,  group: "intelligence" },
-    // ── Core ─────────────────────────────────────────────────────
-    { key: "priority",            label: "Priority",     visible: true,  group: "core" },
-    { key: "status",              label: "Status",       visible: true,  group: "core" },
-    { key: "setNumber",           label: "Set #",        visible: true,  group: "core" },
-    { key: "name",                label: "Name",         visible: true,  group: "core" },
-    // ── Retirement ───────────────────────────────────────────────
-    { key: "retiringSoon",        label: "Retiring",     visible: true,  group: "retirement" },
-    { key: "retirementYear",      label: "Projected",    visible: true,  group: "retirement" },
-    { key: "retirementConfidence",label: "Confidence",   visible: true,  group: "retirement" },
-    { key: "retirementSource",    label: "Source",       visible: true,  group: "retirement" },
-    { key: "lastRetirementUpdate",label: "Updated",      visible: false, group: "retirement" },
-    // ── Pricing ──────────────────────────────────────────────────
-    { key: "msrp",                label: "MSRP",         visible: true,  group: "pricing" },
-    { key: "targetPrice",         label: "Target",       visible: true,  group: "pricing" },
-    { key: "discount",            label: "Discount",     visible: true,  group: "pricing" },
-    { key: "currentValue",        label: "Mkt Value",    visible: false, group: "pricing" },
-    { key: "forecast2yr",         label: "2yr Forecast", visible: false, group: "pricing" },
-    { key: "forecast5yr",         label: "5yr Forecast", visible: false, group: "pricing" },
-    // ── Pricing (continued) ──────────────────────────────────────
-    { key: "blPriceNew",          label: "BL Avg (New)", visible: false, group: "pricing" },
-    { key: "blPriceUsed",         label: "BL Avg (Used)",visible: false, group: "pricing" },
-    // ── Details ──────────────────────────────────────────────────
-    { key: "owned",               label: "Owned",        visible: false, group: "details" },
-    { key: "ageMonths",           label: "Age",          visible: false, group: "details" },
-    { key: "theme",               label: "Theme",        visible: true,  group: "details" },
-    { key: "pieces",              label: "Pieces",       visible: false, group: "details" },
-    { key: "subtheme",            label: "Subtheme",     visible: false, group: "details" },
-    { key: "minifigs",            label: "Minifigs",     visible: false, group: "details" },
-    { key: "rating",              label: "Rating",       visible: false, group: "details" },
-    { key: "packagingType",       label: "Packaging",    visible: false, group: "details" },
-    { key: "ageMin",              label: "Min Age",      visible: false, group: "details" },
-    { key: "weight",              label: "Weight (kg)",  visible: false, group: "details" },
-    { key: "notes",               label: "Notes",        visible: true,  group: "details" },
-  ];
 
   const [columns, setColumns] = useState(() => {
     const saved = localStorage.getItem("blAcquisitionColumns");
@@ -482,22 +454,18 @@ export default function WantedList({ onBuyNow }) {
     new Set(wanted.map(item => item.status).filter(Boolean))
   ).sort();
 
+  const fuseWanted = useMemo(() => new Fuse(wanted, {
+    keys: ["setNumber", "name", "theme", "status"],
+    threshold: 0.3,
+    distance: 100,
+  }), [wanted]);
+
   const visibleWanted = useMemo(() => {
-    const q = search.toLowerCase();
-
-    return wanted
+    return (search.trim() ? fuseWanted.search(search).map(r => r.item) : wanted)
       .filter(item => {
-        const matchesSearch =
-          !q ||
-          String(item.setNumber || "").toLowerCase().includes(q) ||
-          String(item.name || "").toLowerCase().includes(q) ||
-          String(item.theme || "").toLowerCase().includes(q) ||
-          String(item.status || "").toLowerCase().includes(q);
-
         const matchesTheme = !filterTheme || item.theme === filterTheme;
         const matchesStatus = !filterStatus || item.status === filterStatus;
-
-        return matchesSearch && matchesTheme && matchesStatus;
+        return matchesTheme && matchesStatus;
       })
       .sort((a, b) => {
         const direction = sortDirection === "asc" ? 1 : -1;
@@ -505,8 +473,9 @@ export default function WantedList({ onBuyNow }) {
         const getValue = item => {
           if (sortKey === "score") return priorityScore(item);
           if (sortKey === "discount") {
-            return asNumber(item.msrp)
-              ? ((asNumber(item.msrp) - asNumber(item.targetPrice)) / asNumber(item.msrp)) * 100
+            const refPrice = asNumber(item.storePrice) || asNumber(item.targetPrice);
+            return asNumber(item.msrp) && refPrice
+              ? ((asNumber(item.msrp) - refPrice) / asNumber(item.msrp)) * 100
               : 0;
           }
 
@@ -532,7 +501,7 @@ export default function WantedList({ onBuyNow }) {
       if (e.key === "Escape") {
         setDetailItem(null); setDetailItemIndex(null);
         setSelectedWantedIndex(null);
-        setColGearOpen(false); setBulkThemeOpen(false);
+        setColGearOpen(false); setShortcutsOpen(false);
         return;
       }
       if (typing) return;
@@ -540,9 +509,8 @@ export default function WantedList({ onBuyNow }) {
         setSubTab("research");
         setTimeout(() => document.querySelector('input[placeholder*="set number"]')?.focus(), 80);
       }
-      if ((e.key === "e" || e.key === "E") && detailItem) {
-        const idx = wanted.indexOf(detailItem);
-        if (idx >= 0) { setDetailItem(null); setDetailItemIndex(null); setSelectedWantedIndex(idx); }
+      if ((e.key === "e" || e.key === "E") && detailItem && detailItemIndex !== null) {
+        setDetailItem(null); setDetailItemIndex(null); setSelectedWantedIndex(detailItemIndex);
       }
       if (e.key === "ArrowDown" && subTab === "queue") {
         const sorted = visibleWanted;
@@ -569,14 +537,30 @@ export default function WantedList({ onBuyNow }) {
     return wanted.filter(w => {
       const sp = asNumber(w.storePrice);
       const tp = asNumber(w.targetPrice);
-      if (sp <= 0 || tp <= 0 || sp > tp) return false;
+      if (sp <= 0 || tp <= 0) return false; // no valid price data — skip, don't alert
+      if (sp > tp) return false;             // store price above target — not a deal
       return !priceDropDismissed.includes(String(w.setNumber));
     });
   }, [wanted, priceDropDismissed]);
 
+  // ── Browser notifications on app open ────────────────────────────────────
+  // Fires at most once per calendar day (throttled inside fireOpenNotifications).
+  useEffect(() => {
+    const drops = wanted.filter(w => {
+      const sp = asNumber(w.storePrice);
+      const tp = asNumber(w.targetPrice);
+      return sp > 0 && tp > 0 && sp <= tp && !priceDropDismissed.includes(String(w.setNumber));
+    });
+    const lastChance = wanted.filter(w =>
+      w.isLastChance && !lcAlertDismissed.includes(String(w.setNumber))
+    );
+    fireOpenNotifications(drops, lastChance);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally runs once on mount
+
   // ── Catalog search debounce ───────────────────────────────────────────────
   useEffect(() => {
-    if (!catalogMode || catalogQuery.trim().length < 2) { setCatalogResults([]); return; }
+    if (catalogQuery.trim().length < 2) { setCatalogResults([]); return; }
     const t = setTimeout(async () => {
       setCatalogLoading(true); setCatalogError("");
       const result = await searchBricksetCatalog(catalogQuery.trim());
@@ -586,7 +570,12 @@ export default function WantedList({ onBuyNow }) {
       else setCatalogResults(result.sets || []);
     }, 420);
     return () => clearTimeout(t);
-  }, [catalogQuery, catalogMode]);
+  }, [catalogQuery]);
+
+  // ── Rebrickable — load catalog in background when Research tab opens ────────
+  useEffect(() => {
+    if (subTab === "research") loadRebrickable();
+  }, [subTab]);
 
   // ── Duplicate detection ───────────────────────────────────────────────────
   useEffect(() => {
@@ -599,7 +588,7 @@ export default function WantedList({ onBuyNow }) {
   }, [form.setNumber, wanted]);
 
   function isNumericColumn(key) {
-    return ["score", "msrp", "targetPrice", "discount"].includes(key);
+    return ["score", "msrp", "storePrice", "targetPrice", "discount"].includes(key);
   }
 
   function renderCell(item, key, realIndex, discount) {
@@ -649,12 +638,39 @@ export default function WantedList({ onBuyNow }) {
     }
     if (key === "theme") return item.theme || "—";
     if (key === "pieces") return item.pieces ? item.pieces.toLocaleString() : "—";
-    if (key === "currentValue") return item.currentValue ? money(item.currentValue) : "—";
+    if (key === "currentValue") {
+      if (!item.currentValue) return "—";
+      const trend = getPriceTrend(item.setNumber, "value");
+      const arrow = trend === "up" ? "↑" : trend === "down" ? "↓" : trend === "flat" ? "→" : null;
+      const arrowColor = trend === "up" ? "#5aa832" : trend === "down" ? "#ef4444" : "#5d6f80";
+      return (
+        <span>
+          {money(item.currentValue)}
+          {arrow && <span style={{ marginLeft: 4, fontSize: 11, color: arrowColor, fontWeight: 700 }}>{arrow}</span>}
+        </span>
+      );
+    }
     if (key === "retirementYear") return item.retirementYear || "—";
     if (key === "retirementConfidence") return item.retirementConfidence || "—";
     if (key === "retirementSource") return item.retirementSource || "—";
     if (key === "lastRetirementUpdate") return item.lastRetirementUpdate || "—";
     if (key === "msrp") return money(item.msrp);
+    if (key === "storePrice") {
+      return (
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={item.storePrice || ""}
+          onChange={e => updateWanted(realIndex, "storePrice", e.target.value)}
+          placeholder="—"
+          style={{
+            width: 72, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: 6, padding: "3px 6px", color: "#e8e2d5", fontSize: 12,
+          }}
+        />
+      );
+    }
     if (key === "targetPrice") return money(item.targetPrice);
     if (key === "discount") return discount ? `${discount.toFixed(1)}%` : "—";
     if (key === "notes") return item.notes || "";
@@ -666,8 +682,30 @@ export default function WantedList({ onBuyNow }) {
     if (key === "ageMin") return item.ageMin ? `${item.ageMin}+` : "—";
     if (key === "forecast2yr") return item.forecast2yr ? money(item.forecast2yr) : "—";
     if (key === "forecast5yr") return item.forecast5yr ? money(item.forecast5yr) : "—";
-    if (key === "blPriceNew")  return item.blPriceNew  ? money(item.blPriceNew)  : "—";
-    if (key === "blPriceUsed") return item.blPriceUsed ? money(item.blPriceUsed) : "—";
+    if (key === "blPriceNew") {
+      if (!item.blPriceNew) return "—";
+      const trend = getPriceTrend(item.setNumber, "blPriceNew");
+      const arrow = trend === "up" ? "↑" : trend === "down" ? "↓" : trend === "flat" ? "→" : null;
+      const arrowColor = trend === "up" ? "#5aa832" : trend === "down" ? "#ef4444" : "#5d6f80";
+      return (
+        <span>
+          {money(item.blPriceNew)}
+          {arrow && <span style={{ marginLeft: 4, fontSize: 11, color: arrowColor, fontWeight: 700 }}>{arrow}</span>}
+        </span>
+      );
+    }
+    if (key === "blPriceUsed") {
+      if (!item.blPriceUsed) return "—";
+      const trend = getPriceTrend(item.setNumber, "blPriceUsed");
+      const arrow = trend === "up" ? "↑" : trend === "down" ? "↓" : trend === "flat" ? "→" : null;
+      const arrowColor = trend === "up" ? "#5aa832" : trend === "down" ? "#ef4444" : "#5d6f80";
+      return (
+        <span>
+          {money(item.blPriceUsed)}
+          {arrow && <span style={{ marginLeft: 4, fontSize: 11, color: arrowColor, fontWeight: 700 }}>{arrow}</span>}
+        </span>
+      );
+    }
     if (key === "owned") {
       const isOwned = ownedSetNumbers.has(String(item.setNumber || "").replace(/-1$/, ""));
       return isOwned
@@ -746,27 +784,6 @@ export default function WantedList({ onBuyNow }) {
     });
 
     setDraggedColumn(null);
-  }
-
-  function applyBulkThemeRetirement() {
-    if (!bulkTheme) return;
-    const today = new Date().toISOString().slice(0, 10);
-    setWanted(prev => prev.map(w => {
-      if (String(w.theme || "").toLowerCase() !== String(bulkTheme).toLowerCase()) return w;
-      return {
-        ...w,
-        ...(bulkYear ? { retirementYear: bulkYear } : {}),
-        retirementConfidence: bulkConfidence,
-        retirementSource: bulkSource,
-        retiringSoon: bulkYear
-          ? Number(bulkYear) <= new Date().getFullYear() + 1
-          : w.retiringSoon,
-        lastRetirementUpdate: today,
-      };
-    }));
-    setBulkThemeOpen(false);
-    setBulkTheme("");
-    setBulkYear("");
   }
 
   function sortHeader(key) {
@@ -893,19 +910,81 @@ export default function WantedList({ onBuyNow }) {
   const wlAvgMsrp = wanted.length ? wlTotalMsrp / wanted.length : 0;
   const wlOwnedCount = wanted.filter(w => ownedSetNumbers.has(String(w.setNumber || "").replace(/-1$/, ""))).length;
   const wlWatchCount = wanted.filter(w => w.status === "Watch").length;
-  const wlBuyTotal = wanted.reduce((s, w) => s + (asNumber(w.targetPrice) || asNumber(w.msrp)), 0);
+  const wlBuyTotal = wanted.reduce((s, w) => {
+    const tp = asNumber(w.targetPrice);
+    return s + (tp > 0 ? tp : asNumber(w.msrp));
+  }, 0);
   const wlBudgetAfterBuy = (() => {
     try {
       const annual  = asNumber(localStorage.getItem("blAnnualBudget")) || 0;
       if (!annual) return null;
       const purchases = JSON.parse(localStorage.getItem("blPurchases") || "[]");
-      const spent = purchases.reduce((s, p) => s + asNumber(p.amount) * (asNumber(p.qty) || 1), 0);
+      const spent = purchases.reduce((s, p) => s + lineCashPaid(p), 0);
       return annual - spent - wlBuyTotal;
     } catch { return null; }
   })();
 
-  async function lookupBrickEconomy() {
-    const lookupKey = normalizeSetNumber(form.setNumber);
+  // ── Bulk price refresh ────────────────────────────────────────────────────
+  // Re-fetches BrickEconomy data for every tracked set (rate-limited 1/500ms).
+  // Updates currentValue, forecast fields, and records a price history snapshot.
+  async function bulkRefreshPrices() {
+    if (refreshing) return;
+    const items = wanted.filter(w => w.setNumber);
+    if (!items.length) return;
+
+    setRefreshing(true);
+    let updated = 0;
+
+    for (const item of items) {
+      const key = normalizeSetNumber(item.setNumber);
+      try {
+        const res  = await fetch(`/api/brickeconomy-set?number=${encodeURIComponent(key)}&currency=USD`);
+        if (!res.ok) { await new Promise(r => setTimeout(r, 500)); continue; }
+        const json = await res.json();
+        if (json.error) { await new Promise(r => setTimeout(r, 500)); continue; }
+        const data = json.data || json;
+
+        // Update BrickEconomy cache
+        try {
+          const cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
+          cache[key] = { fetchedAt: new Date().toISOString(), data };
+          localStorage.setItem("brickEconomySetCache", JSON.stringify(cache));
+        } catch {}
+
+        // Record price snapshot
+        recordPriceSnapshot(key, {
+          msrp:       data.retail_price_us,
+          value:      data.current_value_new,
+        });
+
+        // Patch the matching wanted item
+        setWanted(prev => prev.map(w => {
+          const wKey = normalizeSetNumber(w.setNumber);
+          if (wKey !== key) return w;
+          const updates = {};
+          if (data.retail_price_us)             updates.msrp        = data.retail_price_us;
+          if (data.current_value_new)            updates.currentValue = data.current_value_new;
+          if (data.forecast_value_new_2_years)   updates.forecast2yr  = data.forecast_value_new_2_years;
+          if (data.forecast_value_new_5_years)   updates.forecast5yr  = data.forecast_value_new_5_years;
+          return Object.keys(updates).length ? { ...w, ...updates } : w;
+        }));
+
+        updated++;
+      } catch {}
+
+      await new Promise(r => setTimeout(r, 500)); // ~2 items/second
+    }
+
+    setRefreshing(false);
+    if (updated > 0) {
+      toast.success(`Refreshed ${updated} of ${items.length} sets.`);
+    } else {
+      toast.error("Could not refresh prices — check your connection.");
+    }
+  }
+
+  async function lookupBrickEconomy(setNumOverride) {
+    const lookupKey = normalizeSetNumber(setNumOverride ?? form.setNumber);
 
     if (!lookupKey) {
       setLookupMessage("Enter a set number first.");
@@ -914,11 +993,25 @@ export default function WantedList({ onBuyNow }) {
 
     setLookupLoading(true);
     setLookupMessage("");
+    setBfRetirement(null);
+
+    // Pre-fill metadata instantly from local Rebrickable catalog (no network needed)
+    const rb = rbLookupSet(lookupKey);
+    if (rb) {
+      setForm(prev => ({
+        ...prev,
+        name:        prev.name        || rb.name,
+        theme:       prev.theme       || rb.theme,
+        releaseYear: prev.releaseYear || String(rb.year    || ""),
+        pieces:      prev.pieces      || String(rb.numParts || ""),
+      }));
+    }
 
     try {
       const cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
 
       let setData = cache[lookupKey]?.data;
+      const wasCached = !!setData;
 
       if (!setData) {
         const res = await fetch(`/api/brickeconomy-set?number=${encodeURIComponent(lookupKey)}&currency=USD`);
@@ -963,7 +1056,7 @@ export default function WantedList({ onBuyNow }) {
           : prev.targetPrice
       }));
 
-      setLookupMessage(`Loaded ${setData.set_number || lookupKey} from ${cache[lookupKey] ? "cache/API" : "BrickEconomy"}.`);
+      setLookupMessage(`Loaded ${setData.set_number || lookupKey} from ${wasCached ? "cache" : "BrickEconomy"}.`);
 
       // Also fetch Brickset data and merge additional fields
       const bsData = await fetchBricksetSet(lookupKey);
@@ -1009,6 +1102,61 @@ export default function WantedList({ onBuyNow }) {
           setLookupMessage(m => m + ` · Brickset: ${bsExtras.join(", ")}.`);
         }
       }
+
+      // ── Price history snapshot ────────────────────────────────────────────
+      recordPriceSnapshot(lookupKey, {
+        msrp:  bsData?.retail_price_us || setData.retail_price_us,
+        value: setData.current_value_new,
+      });
+
+      // ── BrickLink price guide (non-blocking, only if authenticated) ───────
+      if (hasBrickLinkAuth()) {
+        fetchBrickLinkPriceGuide(lookupKey).then(blData => {
+          if (!blData) return;
+          setForm(prev => ({
+            ...prev,
+            blPriceNew:  blData.avg_price_new  || prev.blPriceNew,
+            blPriceUsed: blData.avg_price_used || prev.blPriceUsed,
+          }));
+          if (blData.avg_price_new || blData.avg_price_used) {
+            recordPriceSnapshot(lookupKey, {
+              msrp:       bsData?.retail_price_us || setData.retail_price_us,
+              value:      setData.current_value_new,
+              blPriceNew:  blData.avg_price_new,
+              blPriceUsed: blData.avg_price_used,
+            });
+            setLookupMessage(m => m + " · BL prices loaded.");
+          }
+        }).catch(() => {}); // BL failures are non-fatal
+      }
+
+      // ── Brick Fanatics retirement data (non-blocking) ─────────────────────
+      const bfNum = String(lookupKey).replace(/-1$/, "");
+      fetch(`/api/brickfanatics-retiring?number=${encodeURIComponent(bfNum)}`)
+        .then(r => r.json())
+        .then(bfData => {
+          if (!bfData || bfData.error) return;
+          setBfRetirement(bfData);
+          // Only update form retirement fields if Brickset didn't already provide an exit date
+          if (bfData.retiring && bfData.retirementDate) {
+            setForm(prev => {
+              if (prev.retirementSource === "Brickset") return prev; // Brickset is authoritative
+              const yrMatch = bfData.retirementDate.match(/\b(20\d{2})\b/);
+              const yr = yrMatch ? Number(yrMatch[1]) : null;
+              return {
+                ...prev,
+                retirementYear:       yr ? String(yr) : prev.retirementYear,
+                retirementConfidence: "High",
+                retirementSource:     "Brick Fanatics",
+                retiringSoon:         yr ? yr <= new Date().getFullYear() + 1 : prev.retiringSoon,
+                lastRetirementUpdate: new Date().toISOString().slice(0, 10),
+              };
+            });
+            setLookupMessage(m => m + ` · BF: ${bfData.retirementDate}.`);
+          }
+        })
+        .catch(() => {}); // BF failures are non-fatal
+
     } catch (err) {
       setLookupMessage(err.message || "Could not reach BrickEconomy.");
     } finally {
@@ -1037,7 +1185,7 @@ export default function WantedList({ onBuyNow }) {
 
   function deleteCheckedWanted() {
     if (checkedWanted.length === 0) return;
-    if (!window.confirm(`Delete ${checkedWanted.length} buy list item(s)?`)) return;
+    if (!window.confirm(`Delete ${checkedWanted.length} tracked item(s)?`)) return;
 
     setWanted(prev => prev.filter((_, i) => !checkedWanted.includes(i)));
     setCheckedWanted([]);
@@ -1046,11 +1194,13 @@ export default function WantedList({ onBuyNow }) {
 
   function addWanted() {
     if (!form.setNumber && !form.name) return;
+    if (dupeWarning === "watchlist") return; // already on list — block silently (warning already visible)
 
     setWanted(prev => [
       ...prev,
       {
         ...form,
+        id: `wl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         msrp: asNumber(form.msrp),
         targetDiscount: asNumber(form.targetDiscount),
         targetPrice: asNumber(form.targetPrice) || (
@@ -1069,6 +1219,7 @@ export default function WantedList({ onBuyNow }) {
       weight: "", rating: "", packagingType: "", ageMin: "",
       exit_date: "", isLastChance: false, forecast2yr: "", forecast5yr: "",
     });
+    setBfRetirement(null);
   }
 
   function updateWanted(index, field, value) {
@@ -1076,7 +1227,7 @@ export default function WantedList({ onBuyNow }) {
       const next = [...prev];
       next[index] = {
         ...next[index],
-        [field]: ["msrp", "targetPrice", "priority"].includes(field)
+        [field]: ["msrp", "targetPrice", "storePrice", "priority"].includes(field)
           ? asNumber(value)
           : value
       };
@@ -1095,23 +1246,48 @@ export default function WantedList({ onBuyNow }) {
           <h2 style={{ margin: 0 }}>Wanted List</h2>
           <p style={{ ...muted, margin: "4px 0 0" }}>Sets on your radar — retirement alerts, target prices, and buy priorities.</p>
         </div>
-        <div style={acTabBar}>
+        <div style={{ ...acTabBar, position: "relative" }}>
           {[
             { key: "overview", label: "Overview" },
-            { key: "queue", label: "Buy List" },
+            { key: "queue", label: "Tracking" },
             { key: "research", label: "Research" }
           ].map(t => (
             <button key={t.key} onClick={() => setSubTab(t.key)} style={subTab === t.key ? acActiveTab : acTabBtn}>
               {t.label}
             </button>
           ))}
+          <div style={{ width: 1, height: 18, background: "rgba(255,255,255,0.12)", alignSelf: "center" }} />
+          <button
+            onClick={() => setShortcutsOpen(v => !v)}
+            style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#5d6f80", cursor: "pointer", fontSize: 13, padding: "6px 10px", lineHeight: 1, display: "flex", alignItems: "center", gap: 5 }}
+            title="Keyboard shortcuts (N, E, ↑↓, Esc)"
+          >⌨ <span style={{ fontSize: 11 }}>Keys</span></button>
+          {shortcutsOpen && (
+            <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 50, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 12, padding: "14px 18px", minWidth: 260, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <span style={{ fontWeight: 700, color: "#e8e2d5", fontSize: 13 }}>Keyboard Shortcuts</span>
+                <button onClick={() => setShortcutsOpen(false)} style={{ background: "none", border: "none", color: "#5d6f80", cursor: "pointer", fontSize: 16, fontWeight: 900 }}>×</button>
+              </div>
+              {[
+                { key: "N", desc: "Jump to Research tab & focus search" },
+                { key: "E", desc: "Edit selected set" },
+                { key: "↑ / ↓", desc: "Navigate Tracking rows" },
+                { key: "Esc", desc: "Close panels / clear selection" },
+              ].map(({ key, desc }) => (
+                <div key={key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "5px 0", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                  <kbd style={{ background: "#1a2840", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 5, padding: "2px 7px", fontSize: 12, fontWeight: 700, color: "#c9a84c", whiteSpace: "nowrap" }}>{key}</kbd>
+                  <span style={{ color: "#8a9bb0", fontSize: 13 }}>{desc}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {subTab === "overview" && wanted.length === 0 && (
         <div style={{ textAlign: "center", padding: "60px 24px" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>🧱</div>
-          <div style={{ fontWeight: 900, fontSize: 20, color: "#e8e2d5", marginBottom: 8 }}>Your buy list is empty</div>
+          <div style={{ fontWeight: 900, fontSize: 20, color: "#e8e2d5", marginBottom: 8 }}>Your tracking list is empty</div>
           <div style={{ color: "#8a9bb0", fontSize: 14, marginBottom: 24, maxWidth: 360, margin: "0 auto 24px" }}>
             Head to the Research tab to look up a set, check retirement dates, and add it to your queue.
           </div>
@@ -1164,7 +1340,7 @@ export default function WantedList({ onBuyNow }) {
                     style={{ opacity: draggedWLItem === item.key ? 0.4 : 1, cursor: "grab" }}
                   >
                     {item.key === "wantedCount"  ? <Metric title="Wanted Sets"          value={wanted.length} /> :
-                     item.key === "retiringSoon"  ? <Metric title="High Retirement Risk" value={wanted.filter(w => w.retiringSoon).length} /> :
+                     item.key === "retiringSoon"  ? <Metric title="High Retirement Risk" value={wanted.filter(w => w.retiringSoon || (w.retirementYear && Number(w.retirementYear) <= new Date().getFullYear() + 1)).length} /> :
                      item.key === "critical"      ? <Metric title="Critical / Buy Soon"  value={wanted.filter(w => ["Buy Soon", "Critical"].includes(w.status)).length} /> :
                      item.key === "avgScore"      ? (
                        <div style={{ ...panel, marginTop: 0, overflow: "hidden" }}>
@@ -1183,7 +1359,7 @@ export default function WantedList({ onBuyNow }) {
                      item.key === "avgMsrp"       ? <Metric title="Avg MSRP"             value={money(wlAvgMsrp)} /> :
                      item.key === "ownedCount"     ? <Metric title="Already Owned"    value={wlOwnedCount} /> :
                      item.key === "watchCount"     ? <Metric title="Watch Status"      value={wlWatchCount} /> :
-                     item.key === "buyTotal"       ? <Metric title="Buy List Cost"     value={money(wlBuyTotal)} /> :
+                     item.key === "buyTotal"       ? <Metric title="Tracking Cost"     value={money(wlBuyTotal)} /> :
                      item.key === "budgetAfterBuy" ? <Metric title="Budget After Buy"  value={wlBudgetAfterBuy !== null ? money(wlBudgetAfterBuy) : "No budget set"} good={wlBudgetAfterBuy !== null ? wlBudgetAfterBuy >= 0 : undefined} /> : null}
                   </div>
                 ))}
@@ -1289,8 +1465,8 @@ export default function WantedList({ onBuyNow }) {
                               return (
                                 <div key={wlItem.setNumber || i}
                                   onClick={() => { setDetailItem(wlItem); setDetailItemIndex(realIndex); }}
-                                  onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; setHoveredWanted(wlItem); }}
-                                  onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; setHoveredWanted(null); }}
+                                  onMouseEnter={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.18)"; setHoveredWanted(wlItem); }}
+                                  onMouseLeave={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.06)"; setHoveredWanted(null); }}
                                   style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0f1a28", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
                                   <div>
                                     <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
@@ -1317,7 +1493,7 @@ export default function WantedList({ onBuyNow }) {
                           </div>
                         ) : (
                           <div style={{ textAlign: "center", padding: "28px 20px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 10 }}>
-                            <div style={{ fontWeight: 700, color: "#8a9bb0", marginBottom: 4 }}>Watch list is empty</div>
+                            <div style={{ fontWeight: 700, color: "#8a9bb0", marginBottom: 4 }}>Tracking list is empty</div>
                             <div style={{ fontSize: 13, color: "#5d6f80" }}>Add a set using Research to start tracking prices and retirement dates.</div>
                           </div>
                         )}
@@ -1386,20 +1562,32 @@ export default function WantedList({ onBuyNow }) {
       {subTab === "research" && (
       <>
 
-      {/* ── Store Price Calculator ── */}
-      <section style={panel}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-          <div style={{ fontWeight: 800, fontSize: 16, color: "#e8e2d5" }}>Store Price Calculator</div>
-          {(calcSetNum || calcMsrp || calcStore) && (
-            <button
-              onClick={() => { setCalcSetNum(""); setCalcMsrp(""); setCalcStore(""); setCalcMsg(""); }}
-              style={{ background: "transparent", color: "#5d6f80", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "5px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-            >
-              Reset
-            </button>
-          )}
+      {/* ── Store Price Calculator (collapsible) ── */}
+      <section style={{ ...panel, padding: "14px 18px" }}>
+        <div
+          onClick={() => setCalcOpen(v => !v)}
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none" }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 16 }}>💰</span>
+            <div style={{ fontWeight: 800, fontSize: 15, color: "#e8e2d5" }}>In Store Deal Calculator</div>
+            {!calcOpen && (calcSetNum || calcMsrp || calcStore) && (
+              <span style={{ fontSize: 11, background: "#1a3a1a", border: "1px solid #2d5a2d", color: "#5aa832", borderRadius: 999, padding: "2px 8px", fontWeight: 700 }}>active</span>
+            )}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {calcOpen && (calcSetNum || calcMsrp || calcStore) && (
+              <button
+                onClick={e => { e.stopPropagation(); setCalcSetNum(""); setCalcMsrp(""); setCalcStore(""); setCalcMsg(""); }}
+                style={{ background: "transparent", color: "#5d6f80", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "4px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+              >Reset</button>
+            )}
+            <span style={{ color: "#5d6f80", fontSize: 13, fontWeight: 700 }}>{calcOpen ? "▲" : "▼"}</span>
+          </div>
         </div>
-        <div style={{ color: "#8a9bb0", fontSize: 13, marginBottom: 18 }}>
+
+        {calcOpen && (<>
+        <div style={{ color: "#8a9bb0", fontSize: 13, margin: "10px 0 16px" }}>
           Spotted a deal? Enter the store price to instantly see your real discount.
         </div>
 
@@ -1426,7 +1614,7 @@ export default function WantedList({ onBuyNow }) {
           <div>
             <div style={calcLabel}>Store Price</div>
             <input value={calcStore} onChange={e => setCalcStore(e.target.value)} placeholder="e.g. 599.99" type="number" step="0.01"
-              style={{ ...inputStyle, borderColor: calcStore ? "rgba(201,168,76,0.4)" : undefined }} />
+              style={{ ...inputStyle, border: calcStore ? "1px solid rgba(201,168,76,0.4)" : inputStyle.border }} />
           </div>
         </div>
 
@@ -1435,7 +1623,7 @@ export default function WantedList({ onBuyNow }) {
         {calcDiscount !== null ? (
           <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
-            <div style={{ ...calcCard, borderColor: `${calcDiscountColor()}40` }}>
+            <div style={{ ...calcCard, border: `1px solid ${calcDiscountColor()}40` }}>
               <div style={calcCardLabel}>Discount</div>
               <div style={{ fontWeight: 900, fontSize: 28, color: calcDiscountColor() }}>{calcDiscount.toFixed(1)}%</div>
               {calcDiscountLabel() && <div style={{ fontSize: 12, color: calcDiscountColor(), fontWeight: 700, marginTop: 4 }}>{calcDiscountLabel()}</div>}
@@ -1501,12 +1689,19 @@ export default function WantedList({ onBuyNow }) {
           </div>
         )}
 
+        </>)}
       </section>
 
       {/* ── Research & Add Set ── */}
       <section style={panel}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <h3 style={{ margin: 0 }}>Research & Add Set</h3>
+          <h3 style={{ margin: 0 }}>
+            Research &amp; Add Set
+            <span
+              title="Look up a set by number or search the catalog. BrickEconomy and Brickset data are merged automatically. Fill in a target discount, then click 'Add to Tracking' to add it to your Wanted List."
+              style={{ marginLeft: 6, fontSize: 12, color: "#5d6f80", cursor: "default", fontWeight: 400, border: "1px solid #5d6f80", borderRadius: "50%", padding: "0 4px", lineHeight: "16px", display: "inline-block", verticalAlign: "middle" }}
+            >?</span>
+          </h3>
           {(form.setNumber || form.name || form.theme || form.msrp || form.storePrice || form.notes) && (
             <button
               onClick={() => {
@@ -1520,60 +1715,59 @@ export default function WantedList({ onBuyNow }) {
           )}
         </div>
 
-        {/* ── Mode toggle ── */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-          <button onClick={() => { setCatalogMode(false); setCatalogResults([]); setCatalogQuery(""); }}
-            style={{ background: !catalogMode ? "#c9a84c" : "rgba(255,255,255,0.04)", color: !catalogMode ? "#0d1623" : "#8a9bb0", border: `1px solid ${!catalogMode ? "#c9a84c" : "rgba(255,255,255,0.1)"}`, borderRadius: 8, padding: "6px 14px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
-            By Set Number
-          </button>
-          <button onClick={() => { setCatalogMode(true); setCatalogResults([]); }}
-            style={{ background: catalogMode ? "#c9a84c" : "rgba(255,255,255,0.04)", color: catalogMode ? "#0d1623" : "#8a9bb0", border: `1px solid ${catalogMode ? "#c9a84c" : "rgba(255,255,255,0.1)"}`, borderRadius: 8, padding: "6px 14px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
-            Search Catalog
-          </button>
+        {/* ── Unified search input ── */}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
+          <input
+            placeholder="Set number or name…"
+            value={form.setNumber || catalogQuery}
+            onChange={e => {
+              const val = e.target.value;
+              if (!val || /^\d/.test(val)) {
+                // Numeric → set number mode
+                setCatalogQuery("");
+                setCatalogResults([]);
+                setForm(prev => {
+                  const next = { ...prev, setNumber: val };
+                  if (rbReady() && val.length >= 4) {
+                    const rb = rbLookupSet(val);
+                    if (rb) {
+                      if (!prev.name)        next.name        = rb.name;
+                      if (!prev.theme)       next.theme       = rb.theme;
+                      if (!prev.releaseYear) next.releaseYear = String(rb.year     || "");
+                      if (!prev.pieces)      next.pieces      = String(rb.numParts || "");
+                    }
+                  }
+                  return next;
+                });
+              } else {
+                // Text → catalog search mode
+                setForm(prev => ({ ...prev, setNumber: "" }));
+                setCatalogQuery(val);
+              }
+            }}
+            onKeyDown={e => e.key === "Enter" && form.setNumber && lookupBrickEconomy()}
+            style={{ flex: 1, minWidth: 180 }}
+          />
+          {form.setNumber && (
+            <button onClick={() => lookupBrickEconomy()} style={{ ...redBtn, marginTop: 0 }} disabled={lookupLoading}>
+              {lookupLoading ? "Searching..." : "Look Up"}
+            </button>
+          )}
+          {catalogLoading && <span style={mutedSmall}>Searching…</span>}
+          {lookupMessage && <span style={mutedSmall}>{lookupMessage}</span>}
         </div>
-
-        {!catalogMode && (
-          <>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
-              <input
-                placeholder="Set Number (e.g. 75192)"
-                value={form.setNumber}
-                onChange={e => setForm({ ...form, setNumber: e.target.value })}
-                onKeyDown={e => e.key === "Enter" && lookupBrickEconomy()}
-                style={{ minWidth: 180 }}
-              />
-              <button onClick={lookupBrickEconomy} style={{ ...redBtn, marginTop: 0 }} disabled={lookupLoading}>
-                {lookupLoading ? "Searching..." : "Look Up"}
-              </button>
-              {lookupMessage && <span style={mutedSmall}>{lookupMessage}</span>}
-            </div>
-            {dupeWarning === "owned" && (
-              <div style={{ background: "#3b2500", border: "1px solid #92400e", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "#fbbf24", marginBottom: 8 }}>
-                ⚠ You already own this set — it's in your collection
-              </div>
-            )}
-            {dupeWarning === "watchlist" && (
-              <div style={{ background: "#0f2035", border: "1px solid #1e40af", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "#93c5fd", marginBottom: 8 }}>
-                ℹ This set is already on your Wanted List
-              </div>
-            )}
-          </>
+        {dupeWarning === "owned" && (
+          <div style={{ background: "#3b2500", border: "1px solid #92400e", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "#fbbf24", marginBottom: 8 }}>
+            ⚠ You already own this set — it's in your collection
+          </div>
         )}
-
-        {catalogMode && (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
-              <input
-                placeholder="Search by set name or theme..."
-                value={catalogQuery}
-                onChange={e => setCatalogQuery(e.target.value)}
-                style={{ flex: 1 }}
-                autoFocus
-              />
-              {catalogLoading && <span style={mutedSmall}>Searching…</span>}
-            </div>
-            {catalogError && <div style={{ color: "#ff8b8b", fontSize: 13, marginBottom: 8 }}>{catalogError}</div>}
-            {catalogResults.length > 0 && (
+        {dupeWarning === "watchlist" && (
+          <div style={{ background: "#0f2035", border: "1px solid #1e40af", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "#93c5fd", marginBottom: 8 }}>
+            ℹ This set is already on your Wanted List
+          </div>
+        )}
+        {catalogError && <div style={{ color: "#ff8b8b", fontSize: 13, marginBottom: 8 }}>{catalogError}</div>}
+        {catalogResults.length > 0 && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, maxHeight: 420, overflowY: "auto" }}>
                 {catalogResults.map(s => {
                   const clean = String(s.setNumber || "").replace(/-1$/, "");
@@ -1593,15 +1787,14 @@ export default function WantedList({ onBuyNow }) {
                           releaseYear: s.year ? String(s.year) : prev.releaseYear,
                           exit_date:   s.exitDate || prev.exit_date,
                         }));
-                        setCatalogMode(false);
                         setCatalogResults([]);
                         setCatalogQuery("");
-                        // Auto-trigger enrichment lookup
-                        setTimeout(() => lookupBrickEconomy(), 50);
+                        // Auto-trigger enrichment lookup — pass clean directly to avoid stale closure
+                        lookupBrickEconomy(clean);
                       }}
                       style={{ background: "#0f1a28", border: `1px solid ${onList ? "rgba(59,130,246,0.4)" : owned ? "rgba(234,179,8,0.4)" : "rgba(255,255,255,0.07)"}`, borderRadius: 10, padding: 10, cursor: "pointer", transition: "border-color 0.12s" }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(201,168,76,0.5)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = onList ? "rgba(59,130,246,0.4)" : owned ? "rgba(234,179,8,0.4)" : "rgba(255,255,255,0.07)"; }}
+                      onMouseEnter={e => { e.currentTarget.style.border = "1px solid rgba(201,168,76,0.5)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.border = onList ? "1px solid rgba(59,130,246,0.4)" : owned ? "1px solid rgba(234,179,8,0.4)" : "1px solid rgba(255,255,255,0.07)"; }}
                     >
                       {s.thumbnail ? (
                         <img src={s.thumbnail} alt="" onError={e => { e.currentTarget.style.display = "none"; }}
@@ -1620,10 +1813,8 @@ export default function WantedList({ onBuyNow }) {
                 })}
               </div>
             )}
-            {catalogQuery.length >= 2 && !catalogLoading && catalogResults.length === 0 && !catalogError && (
-              <div style={{ color: "#5d6f80", fontSize: 13, padding: "20px 0" }}>No results — try a different name or theme.</div>
-            )}
-          </div>
+        {catalogQuery.length >= 2 && !catalogLoading && catalogResults.length === 0 && !catalogError && (
+          <div style={{ color: "#5d6f80", fontSize: 13, padding: "20px 0" }}>No results — try a different name or theme.</div>
         )}
 
         {(form.name || form.theme || form.msrp) && (
@@ -1742,14 +1933,10 @@ export default function WantedList({ onBuyNow }) {
               )}
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-                <span style={scoreChip(priorityScore(form))}>
-                  Score {priorityScore(form)}
-                </span>
-
                 <span style={recommendationChip(priorityScore(form))}>
                   {recommendation(priorityScore(form))}
                 </span>
-</div>
+              </div>
             </div>
           </div>
         )}
@@ -1788,11 +1975,18 @@ export default function WantedList({ onBuyNow }) {
                   : <div style={{ color: "#5d6f80", fontSize: 13 }}>{form.retirementYear ? `Est. ${form.retirementYear}` : "No exit date"}</div>}
               </div>
 
-              {/* Source */}
-              <div style={{ background: "#0b1520", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "10px 12px" }}>
-                <div style={{ fontSize: 11, color: "#5d6f80", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Source</div>
-                <div style={{ color: "#e8e2d5", fontSize: 13, fontWeight: 700 }}>{form.retirementSource || "—"}</div>
-                <div style={{ color: "#5d6f80", fontSize: 11, marginTop: 2 }}>{form.retirementConfidence ? `${form.retirementConfidence} confidence` : ""}</div>
+              {/* Brick Fanatics retirement date */}
+              <div style={{ background: "#0b1520", border: `1px solid ${bfRetirement?.retiring ? "rgba(201,168,76,0.3)" : "rgba(255,255,255,0.06)"}`, borderRadius: 8, padding: "10px 12px" }}>
+                <div style={{ fontSize: 11, color: "#5d6f80", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Brick Fanatics</div>
+                {bfRetirement === null
+                  ? <div style={{ color: "#5d6f80", fontSize: 13 }}>—</div>
+                  : bfRetirement.retiring
+                    ? <>
+                        <div style={{ color: "#c9a84c", fontWeight: 800, fontSize: 13 }}>{bfRetirement.retirementDate || "Retiring"}</div>
+                        {bfRetirement.theme && <div style={{ color: "#5d6f80", fontSize: 11, marginTop: 2 }}>{bfRetirement.theme}</div>}
+                      </>
+                    : <div style={{ color: "#5d6f80", fontSize: 13 }}>Not listed</div>
+                }
               </div>
 
               {/* BrickEconomy Investment Forecast */}
@@ -1819,9 +2013,8 @@ export default function WantedList({ onBuyNow }) {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {(() => {
                 const clean = String(form.setNumber || "").replace(/-1$/, "");
-                const theme = encodeURIComponent((form.theme || "") + " retiring");
                 const links = [
-                  { label: "Brick Fanatics ↗", url: `https://www.brickfanatics.com/?s=${theme}`, color: "#c9a84c" },
+                  { label: "Brick Fanatics ↗", url: "https://www.brickfanatics.com/every-lego-set-retiring-this-year-and-beyond", color: "#c9a84c" },
                   { label: "Brickset ↗", url: form.brickset_url || `https://brickset.com/sets/${clean}-1`, color: "#3b82f6" },
                   { label: "BrickEconomy ↗", url: `https://www.brickeconomy.com/set/${clean}-1`, color: "#10b981" },
                   { label: "LEGO Last Chance ↗", url: "https://www.lego.com/en-us/categories/last-chance-to-buy", color: "#ef4444" },
@@ -1857,11 +2050,12 @@ export default function WantedList({ onBuyNow }) {
 
             <input style={inputStyle} placeholder="Set Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
             <input style={inputStyle} placeholder="Theme" value={form.theme} onChange={e => setForm({ ...form, theme: e.target.value })} />
-            <input style={inputStyle} placeholder="MSRP" type="number" step="0.01" value={form.msrp} onChange={e => setForm({ ...form, msrp: e.target.value })} />
           </div>
 
           <div style={fieldGroup}>
             <div style={groupTitle}>Deal Target</div>
+
+            <input style={inputStyle} placeholder="MSRP" type="number" step="0.01" value={form.msrp} onChange={e => setForm({ ...form, msrp: e.target.value })} />
 
             <input
               style={inputStyle}
@@ -1880,8 +2074,7 @@ export default function WantedList({ onBuyNow }) {
               }}
             />
 
-            <input style={inputStyle} placeholder="Generated Target Price" type="number" step="0.01" value={form.targetPrice} onChange={e => setForm({ ...form, targetPrice: e.target.value })} />
-            <input style={inputStyle} placeholder="Store Price" type="number" step="0.01" value={form.storePrice || ""} onChange={e => setForm({ ...form, storePrice: e.target.value })} />
+            <input style={inputStyle} placeholder="Target Price" type="number" step="0.01" value={form.targetPrice} onChange={e => setForm({ ...form, targetPrice: e.target.value })} />
           </div>
 
           <div style={fieldGroup}>
@@ -1942,7 +2135,7 @@ export default function WantedList({ onBuyNow }) {
           </div>
         )}
 
-        <button onClick={addWanted} style={redBtn}>Add to Buy List</button>
+        <button onClick={addWanted} disabled={dupeWarning === "watchlist"} style={{ ...redBtn, ...(dupeWarning === "watchlist" ? { opacity: 0.4, cursor: "not-allowed" } : {}) }}>Add to Tracking</button>
       </section>
 
       {/* ── Brickset CSV Import ─────────────────────────────────────────── */}
@@ -1957,49 +2150,51 @@ export default function WantedList({ onBuyNow }) {
           onChange={e => {
             const file = e.target.files?.[0];
             if (!file) return;
-            const reader = new FileReader();
-            reader.onload = ev => {
-              const text = ev.target.result;
-              const lines = text.split(/\r?\n/).filter(Boolean);
-              if (lines.length < 2) return;
-              // Detect header row — find Set Number column
-              const headers = lines[0].split(",").map(h => h.replace(/^"|"$/g, "").trim().toLowerCase());
-              const setNumIdx = headers.findIndex(h => h.includes("set") && h.includes("number") || h === "setnumber" || h === "set number" || h === "number");
-              const nameIdx   = headers.findIndex(h => h === "name" || h.includes("set name"));
-              const themeIdx  = headers.findIndex(h => h === "theme");
-              const yearIdx   = headers.findIndex(h => h === "year");
-              const piecesIdx = headers.findIndex(h => h === "pieces");
-              if (setNumIdx < 0) { alert("Couldn't find Set Number column in this CSV."); return; }
-              let added = 0, skipped = 0;
-              const existingNums = new Set(wanted.map(w => String(w.setNumber || "").replace(/-1$/, "")));
-              const newItems = [];
-              for (let i = 1; i < lines.length; i++) {
-                const cols = lines[i].match(/(".*?"|[^,]+)(?=,|$)/g)?.map(c => c.replace(/^"|"$/g, "").trim()) || lines[i].split(",").map(c => c.trim());
-                const raw = cols[setNumIdx] || "";
-                const setNum = raw.replace(/-1$/, "").replace(/^0+/, "") || raw;
-                if (!setNum || existingNums.has(setNum)) { skipped++; continue; }
-                existingNums.add(setNum);
-                newItems.push({
-                  setNumber: setNum,
-                  name:    nameIdx  >= 0 ? (cols[nameIdx]   || "") : "",
-                  theme:   themeIdx >= 0 ? (cols[themeIdx]  || "") : "",
-                  releaseYear: yearIdx >= 0 ? (cols[yearIdx] || "") : "",
-                  pieces:  piecesIdx >= 0 ? (cols[piecesIdx] || "") : "",
-                  msrp: "", targetPrice: "", targetDiscount: "", storePrice: "",
-                  priority: 3, status: "Watch", retiringSoon: false,
-                  retirementYear: "", retirementConfidence: "Medium",
-                  retirementSource: "Brickset", lastRetirementUpdate: new Date().toISOString().slice(0, 10),
-                  exit_date: "", isLastChance: false, forecast2yr: "", forecast5yr: "",
-                  currentValue: "", notes: "", subtheme: "", minifigs: "",
-                  weight: "", rating: "", packagingType: "", ageMin: "",
-                });
-                added++;
-              }
-              if (newItems.length > 0) setWanted(prev => [...prev, ...newItems]);
-              alert(`Imported ${added} sets${skipped ? `, skipped ${skipped} duplicates` : ""}.`);
-              e.target.value = "";
-            };
-            reader.readAsText(file);
+            Papa.parse(file, {
+              header: true,
+              skipEmptyLines: true,
+              complete: ({ data }) => {
+                if (!data.length) { toast.error("No data found in CSV."); return; }
+                // Normalize all header keys to lowercase for flexible column matching
+                const rows = data.map(row => Object.fromEntries(
+                  Object.entries(row).map(([k, v]) => [k.toLowerCase().trim(), String(v ?? "").trim()])
+                ));
+                const sample = rows[0];
+                const setNumKey = Object.keys(sample).find(k =>
+                  (k.includes("set") && k.includes("number")) || k === "setnumber" || k === "set number"
+                );
+                if (!setNumKey) { toast.error("Couldn't find a Set Number column in this CSV."); return; }
+                let added = 0, skipped = 0;
+                const existingNums = new Set(wanted.map(w => String(w.setNumber || "").replace(/-1$/, "")));
+                const newItems = [];
+                for (const row of rows) {
+                  const raw = row[setNumKey] || "";
+                  const setNum = raw.replace(/-1$/, "").replace(/^0+/, "") || raw;
+                  if (!setNum || existingNums.has(setNum)) { skipped++; continue; }
+                  existingNums.add(setNum);
+                  newItems.push({
+                    id: `wl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                    setNumber: setNum,
+                    name:       row.name || row["set name"] || "",
+                    theme:      row.theme || "",
+                    releaseYear: row.year || "",
+                    pieces:     row.pieces || "",
+                    msrp: "", targetPrice: "", targetDiscount: "", storePrice: "",
+                    priority: 3, status: "Watch", retiringSoon: false,
+                    retirementYear: "", retirementConfidence: "Medium",
+                    retirementSource: "Brickset", lastRetirementUpdate: new Date().toISOString().slice(0, 10),
+                    exit_date: "", isLastChance: false, forecast2yr: "", forecast5yr: "",
+                    currentValue: "", notes: "", subtheme: "", minifigs: "",
+                    weight: "", rating: "", packagingType: "", ageMin: "",
+                  });
+                  added++;
+                }
+                if (newItems.length > 0) setWanted(prev => [...prev, ...newItems]);
+                toast.success(`Imported ${added} set${added !== 1 ? "s" : ""}${skipped ? ` · ${skipped} duplicate${skipped !== 1 ? "s" : ""} skipped` : ""}.`);
+                e.target.value = "";
+              },
+              error: () => toast.error("Failed to parse CSV."),
+            });
           }}
           style={{ display: "block", color: "#8a9bb0", fontSize: 13, marginBottom: 8 }}
         />
@@ -2081,11 +2276,11 @@ export default function WantedList({ onBuyNow }) {
         )}
       <section style={panel}>
         <div style={row}>
-          <h3>Buy List</h3>
+          <h3>Tracking</h3>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input
-            placeholder="Search buy list..."
+            placeholder="Search tracking..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={searchInput}
@@ -2118,19 +2313,42 @@ export default function WantedList({ onBuyNow }) {
             </button>
           )}
 
+          {/* Bulk price refresh */}
+          <button
+            onClick={bulkRefreshPrices}
+            disabled={refreshing}
+            title={refreshing ? "Refreshing prices…" : `Refresh BrickEconomy prices for all ${wanted.length} tracked sets`}
+            style={{
+              background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)",
+              color: refreshing ? "#5d6f80" : "#8a9bb0", borderRadius: 8, padding: "7px 11px",
+              cursor: refreshing ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 700,
+              display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
+            }}
+          >
+            {refreshing ? (
+              <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>↻</span>
+            ) : "↻"}{" "}
+            {refreshing ? "Refreshing…" : "Refresh Prices"}
+          </button>
+
           {/* Column visibility gear */}
           <div style={{ position: "relative" }}>
             <button
-              onClick={() => { setColGearOpen(o => !o); setBulkThemeOpen(false); }}
-              title="Show/hide columns"
+              onClick={() => setColGearOpen(o => !o)}
+              title={`Column visibility — ${columns.filter(c => c.visible).length} of ${columns.length} shown`}
               style={{
                 background: colGearOpen ? "rgba(201,168,76,0.15)" : "rgba(255,255,255,0.05)",
                 border: "1px solid rgba(255,255,255,0.12)",
-                color: "#c9a84c", borderRadius: 8, padding: "7px 12px",
-                cursor: "pointer", fontWeight: 700, fontSize: 14, lineHeight: 1
+                color: colGearOpen ? "#c9a84c" : "#8a9bb0", borderRadius: 8, padding: "7px 9px",
+                cursor: "pointer", lineHeight: 1, display: "flex", alignItems: "center"
               }}
             >
-              ⚙ Columns
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+                <rect x="0" y="0" width="14" height="3" rx="1"/>
+                <rect x="0" y="5" width="3.5" height="9" rx="1"/>
+                <rect x="5.25" y="5" width="3.5" height="9" rx="1"/>
+                <rect x="10.5" y="5" width="3.5" height="9" rx="1"/>
+              </svg>
             </button>
             {colGearOpen && (
               <div
@@ -2219,108 +2437,6 @@ export default function WantedList({ onBuyNow }) {
             )}
           </div>
 
-          {/* Bulk theme retirement update */}
-          <div style={{ position: "relative" }}>
-            <button
-              onClick={() => { setBulkThemeOpen(o => !o); setColGearOpen(false); }}
-              title="Apply retirement data to all sets of a theme"
-              style={{
-                background: bulkThemeOpen ? "rgba(201,168,76,0.15)" : "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                color: "#c9a84c", borderRadius: 8, padding: "7px 12px",
-                cursor: "pointer", fontWeight: 700, fontSize: 14, lineHeight: 1
-              }}
-            >
-              🔥 Bulk Retire
-            </button>
-            {bulkThemeOpen && (
-              <div
-                onClick={e => e.stopPropagation()}
-                style={{
-                  position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 200,
-                  background: "#0d1623", border: "1px solid rgba(255,255,255,0.12)",
-                  borderRadius: 12, padding: "16px", minWidth: 280,
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.6)", display: "flex", flexDirection: "column", gap: 12
-                }}
-              >
-                <div style={{ color: "#c9a84c", fontWeight: 800, fontSize: 13 }}>Bulk Theme Retirement Update</div>
-                <div style={{ color: "#8a9bb0", fontSize: 12, lineHeight: 1.4 }}>
-                  Apply retirement data to all Buy List items matching a theme.
-                </div>
-                <label style={{ fontSize: 12, color: "#e8e2d5" }}>
-                  Theme
-                  <select
-                    value={bulkTheme}
-                    onChange={e => setBulkTheme(e.target.value)}
-                    style={{ ...filterSelect, display: "block", width: "100%", marginTop: 4 }}
-                  >
-                    <option value="">— pick a theme —</option>
-                    {acquisitionThemes.map(t => (
-                      <option key={t} value={t}>{t} ({wanted.filter(w => w.theme === t).length})</option>
-                    ))}
-                  </select>
-                </label>
-                <label style={{ fontSize: 12, color: "#e8e2d5" }}>
-                  Retirement Year <span style={{ color: "#8a9bb0" }}>(leave blank to keep existing)</span>
-                  <input
-                    type="number"
-                    value={bulkYear}
-                    onChange={e => setBulkYear(e.target.value)}
-                    placeholder="e.g. 2026"
-                    style={{ display: "block", width: "100%", marginTop: 4, background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, padding: "6px 10px", color: "#e8e2d5", fontSize: 13 }}
-                  />
-                </label>
-                <label style={{ fontSize: 12, color: "#e8e2d5" }}>
-                  Confidence
-                  <select
-                    value={bulkConfidence}
-                    onChange={e => setBulkConfidence(e.target.value)}
-                    style={{ ...filterSelect, display: "block", width: "100%", marginTop: 4 }}
-                  >
-                    <option>High</option>
-                    <option>Medium</option>
-                    <option>Low</option>
-                  </select>
-                </label>
-                <label style={{ fontSize: 12, color: "#e8e2d5" }}>
-                  Source
-                  <select
-                    value={bulkSource}
-                    onChange={e => setBulkSource(e.target.value)}
-                    style={{ ...filterSelect, display: "block", width: "100%", marginTop: 4 }}
-                  >
-                    <option>LEGO Last Chance</option>
-                    <option>Brickset</option>
-                    <option>BrickEconomy</option>
-                    <option>Brick Fanatics</option>
-                    <option>StoneWars</option>
-                    <option>Manual</option>
-                  </select>
-                </label>
-                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                  <button
-                    onClick={applyBulkThemeRetirement}
-                    disabled={!bulkTheme}
-                    style={{
-                      flex: 1, background: bulkTheme ? "#1a3a1a" : "#1a2028",
-                      border: `1px solid ${bulkTheme ? "#166534" : "rgba(255,255,255,0.08)"}`,
-                      color: bulkTheme ? "#5aa832" : "#4a5568",
-                      borderRadius: 8, padding: "8px 14px", cursor: bulkTheme ? "pointer" : "not-allowed",
-                      fontWeight: 800, fontSize: 13
-                    }}
-                  >
-                    Apply to {bulkTheme ? wanted.filter(w => w.theme === bulkTheme).length : 0} sets
-                  </button>
-                  <button
-                    onClick={() => setBulkThemeOpen(false)}
-                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#8a9bb0", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontSize: 13 }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
 
           </div>
         </div>
@@ -2509,7 +2625,7 @@ export default function WantedList({ onBuyNow }) {
           {selectedWantedIndex !== null && wanted[selectedWantedIndex] && (
             <div style={{ ...editPanel, position: "sticky", top: 16 }}>
               <div style={editHeader}>
-                <h3 style={{ margin: 0 }}>Edit Buy List Item</h3>
+                <h3 style={{ margin: 0 }}>Edit Tracked Item</h3>
                 <button onClick={() => setSelectedWantedIndex(null)} style={circleButton}>×</button>
               </div>
 
@@ -2710,9 +2826,9 @@ function Metric({ title, value }) {
 
 const page = { background: "transparent", color: "#e8e2d5", minHeight: "100vh", padding: 22 };
 const acTabHeader = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 8 };
-const acTabBar = { display: "flex", gap: 8, flexWrap: "wrap" };
-const acTabBtn = { background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "10px 18px", fontWeight: 800, cursor: "pointer", fontSize: 14 };
-const acActiveTab = { ...acTabBtn, background: "#c9a84c", color: "#0d1623", borderColor: "#c9a84c" };
+const acTabBar = { display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" };
+const acTabBtn = { background: "none", border: "none", borderBottom: "2px solid transparent", color: "#5d6f80", padding: "8px 0 10px", fontWeight: 700, cursor: "pointer", fontSize: 14, lineHeight: 1 };
+const acActiveTab = { ...acTabBtn, color: "#e8e2d5", borderBottom: "2px solid #c9a84c" };
 const panel = { background: "rgba(20,31,48,0.82)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginTop: 18, boxShadow: "0 4px 24px rgba(0,0,0,0.35)" };
 const metricGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 14, marginTop: 20 };
 const acOverviewGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 14, marginTop: 14 };

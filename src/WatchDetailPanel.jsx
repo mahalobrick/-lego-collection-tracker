@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { asNumber, money, setImageUrl, daysUntilRetirement, retirementWaveLabel, priorityScore, recommendation } from "./utils/formatting";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
+import { getPriceHistory } from "./utils/priceHistory";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 function StatBox({ label, value, color }) {
   return (
@@ -145,6 +147,47 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
             )}
           </div>
         </div>
+
+        {/* ── Price History Chart ── */}
+        {(() => {
+          const history = getPriceHistory(item.setNumber).filter(s => s.value != null || s.blPriceNew != null);
+          if (history.length < 2) return null;
+          const hasValue  = history.some(s => s.value    != null);
+          const hasBL     = history.some(s => s.blPriceNew != null);
+          return (
+            <div>
+              <div style={sectionLabel}>Price History</div>
+              <div style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "12px 4px 8px" }}>
+                <ResponsiveContainer width="100%" height={110}>
+                  <LineChart data={history} margin={{ top: 4, right: 10, bottom: 0, left: 0 }}>
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 10, fill: "#5d6f80" }}
+                      tickFormatter={d => d.slice(5)}
+                      minTickGap={30}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: "#5d6f80" }}
+                      tickFormatter={v => `$${v}`}
+                      width={44}
+                    />
+                    <Tooltip
+                      contentStyle={{ background: "#0d1623", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, fontSize: 12 }}
+                      labelStyle={{ color: "#8a9bb0" }}
+                      formatter={(v, name) => [money(v), name === "value" ? "Market Value" : "BL Avg (New)"]}
+                    />
+                    {hasValue && <Line type="monotone" dataKey="value" stroke="#c9a84c" strokeWidth={2} dot={false} connectNulls />}
+                    {hasBL    && <Line type="monotone" dataKey="blPriceNew" stroke="#3b82f6" strokeWidth={1.5} dot={false} connectNulls />}
+                  </LineChart>
+                </ResponsiveContainer>
+                <div style={{ display: "flex", gap: 14, justifyContent: "center", marginTop: 6 }}>
+                  {hasValue && <span style={{ fontSize: 11, color: "#c9a84c" }}>● Market Value</span>}
+                  {hasBL    && <span style={{ fontSize: 11, color: "#3b82f6" }}>● BL Avg (New)</span>}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── Buy Signal ── */}
         <div>

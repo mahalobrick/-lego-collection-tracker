@@ -33,7 +33,8 @@ export default function PurchaseDetailPanel({ item, onClose, onEdit }) {
   const msrp = asNumber(cached.retail_price_us) || null;
 
   const qty = asNumber(item.qty) || 1;
-  const unitPrice = asNumber(item.amount);
+  const unitPrice = asNumber(item.faceValue ?? item.amount);
+  const cashPaid = item.cashPaid != null ? asNumber(item.cashPaid) : Math.max(0, unitPrice * qty - asNumber(item.gcApplied));
   const total = unitPrice * qty;
   const vsRetail = msrp && unitPrice > 0 ? ((unitPrice - msrp) / msrp) * 100 : null;
 
@@ -92,17 +93,48 @@ export default function PurchaseDetailPanel({ item, onClose, onEdit }) {
           <StatBox label="Date"       value={longDate(item.date)} />
           <StatBox label="Qty"        value={qty} />
           <StatBox label="Unit Price" value={money(unitPrice)} />
-          <StatBox label="Total"      value={money(total)} />
-          {msrp ? (
+          <StatBox label="Subtotal"   value={money(total)} />
+          {item.gcApplied ? (
+            <StatBox label="Cash Paid" value={money(cashPaid)} color="#4caf7d" />
+          ) : (
+            msrp ? (
+              <StatBox
+                label="vs. MSRP"
+                value={vsRetail !== null ? `${vsRetail >= 0 ? "+" : ""}${vsRetail.toFixed(1)}%` : "—"}
+                color={vsRetail !== null ? (vsRetail <= 0 ? "#5aa832" : "#ff8b8b") : undefined}
+              />
+            ) : (
+              <StatBox label="Set Name" value={item.name || "—"} />
+            )
+          )}
+          {item.tax      != null && <StatBox label="Tax / Fee" value={money(item.tax)} />}
+          {item.shipping != null && <StatBox label="Shipping"  value={money(item.shipping)} />}
+          {item.gcApplied != null && msrp && (
             <StatBox
               label="vs. MSRP"
               value={vsRetail !== null ? `${vsRetail >= 0 ? "+" : ""}${vsRetail.toFixed(1)}%` : "—"}
               color={vsRetail !== null ? (vsRetail <= 0 ? "#5aa832" : "#ff8b8b") : undefined}
             />
-          ) : (
-            <StatBox label="Set Name" value={item.name || "—"} />
           )}
         </div>
+
+        {/* ── Order info ── */}
+        {(item.orderLabel || item.orderNotes) && (
+          <div style={{ background: "#0f1a28", border: "1px solid rgba(201,168,76,0.18)", borderRadius: 10, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+            {item.orderLabel && (
+              <div>
+                <div style={{ color: "#5d6f80", fontSize: 11, marginBottom: 3 }}>Order #</div>
+                <div style={{ fontFamily: "monospace", color: "#c9a84c", fontWeight: 700, fontSize: 14, letterSpacing: 0.5 }}>{item.orderLabel}</div>
+              </div>
+            )}
+            {item.orderNotes && (
+              <div>
+                <div style={{ color: "#5d6f80", fontSize: 11, marginBottom: 3 }}>Order Notes</div>
+                <div style={{ fontSize: 13, color: "#8a9bb0", lineHeight: 1.5 }}>{item.orderNotes}</div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Notes ── */}
         {item.notes && (

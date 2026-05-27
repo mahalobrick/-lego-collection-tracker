@@ -37,7 +37,7 @@ module.exports = async function handler(req, res) {
   // ── Try primary API endpoint ─────────────────────────────────
   const primaryUrl =
     `https://api.bricklink.com/api/store/v1/items/SET/${encodeURIComponent(number)}/price` +
-    `?guide_type=sold&new_or_used=N`;
+    `?guide_type=sold&new_or_used=N&country_code=US&region=north_america&currency_code=USD`;
 
   try {
     const primaryRes = await fetch(primaryUrl, {
@@ -58,7 +58,7 @@ module.exports = async function handler(req, res) {
         // Fetch used prices from the same API
         const usedUrl =
           `https://api.bricklink.com/api/store/v1/items/SET/${encodeURIComponent(number)}/price` +
-          `?guide_type=sold&new_or_used=U`;
+          `?guide_type=sold&new_or_used=U&country_code=US&region=north_america&currency_code=USD`;
         let usedData = {};
         try {
           const usedRes = await fetch(usedUrl, {

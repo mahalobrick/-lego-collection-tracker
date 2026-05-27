@@ -4,11 +4,12 @@ module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  const q     = String(req.query.q     || "").trim();
-  const theme = String(req.query.theme || "").trim();
+  const q         = String(req.query.q         || "").trim();
+  const theme     = String(req.query.theme     || "").trim();
+  const setNumber = String(req.query.setNumber || "").trim();
 
-  if (!q && !theme) {
-    return res.status(400).json({ error: "Provide ?q= (name search) or ?theme= (theme filter)" });
+  if (!q && !theme && !setNumber) {
+    return res.status(400).json({ error: "Provide ?q= (name/number search), ?setNumber= (exact/prefix), or ?theme=" });
   }
 
   const apiKey = process.env.BRICKSET_API_KEY || "";
@@ -17,10 +18,11 @@ module.exports = async function handler(req, res) {
   }
 
   const params = {
-    pageSize: 24,
-    orderBy: "YearFromDESC",
-    ...(q     ? { query: q } : {}),
-    ...(theme ? { theme }    : {}),
+    pageSize: 20,
+    orderBy: setNumber ? "SetNumberASC" : "YearFromDESC",
+    ...(setNumber ? { setNumber } : {}),
+    ...(q         ? { query: q } : {}),
+    ...(theme     ? { theme }    : {}),
   };
 
   const apiUrl = `https://brickset.com/api/v3.asmx/getSets?apiKey=${encodeURIComponent(apiKey)}&userHash=&params=${encodeURIComponent(JSON.stringify(params))}`;
@@ -49,7 +51,6 @@ module.exports = async function handler(req, res) {
       pieces:       s.pieces       || null,
       minifigs:     s.minifigs     || null,
       msrp:         (s.LEGOCom?.US?.retailPrice) || null,
-      exitDate:     s.exitDate     || null,
       availability: s.availability || "",
       thumbnail:    (s.image?.thumbnailURL) || "",
     }));

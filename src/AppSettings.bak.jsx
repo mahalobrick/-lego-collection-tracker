@@ -3,9 +3,9 @@ import toast from "react-hot-toast";
 import Papa from "papaparse";
 import { importBudgetExcel, parseExcelFirstSheet } from "./utils/importBudgetExcel";
 import { asNumber } from "./utils/formatting";
-import { exportFullBackup as runExportBackup, pushToCloud, fetchFromCloud, applyBackupToLocalStorage } from "./utils/exportBackup";
-import { getBrickLinkAccessToken, hasBrickLinkAuth, getBrickLinkSession, bulkSyncPrices } from "./utils/bricklink-client";
-import { DEFAULT_WANTED_COLUMNS, DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
+import { exportFullBackup as runExportBackup } from "./utils/exportBackup";
+import { getBrickLinkAccessToken, hasBrickLinkAuth } from "./utils/bricklink-client";
+import { DEFAULT_WANTED_COLUMNS } from "./utils/columnDefaults";
 import { notificationsSupported, notificationPermission, requestNotificationPermission } from "./utils/notifications";
 
 const DEFAULT_STORES = ["Amazon", "Best Buy", "Bricklink", "LEGO", "Target", "Walmart"];
@@ -23,7 +23,18 @@ const DEFAULT_PURCHASE_COLUMNS = [
   { key: "notes", label: "Notes", visible: false }
 ];
 
-// DEFAULT_OWNED_COLUMNS imported from ./utils/columnDefaults
+const DEFAULT_OWNED_COLUMNS = [
+  { key: "setNumber", label: "Set #", visible: true },
+  { key: "name", label: "Set Name", visible: true },
+  { key: "theme", label: "Theme", visible: true },
+  { key: "condition", label: "Condition", visible: true },
+  { key: "qty", label: "Qty", visible: true },
+  { key: "paid", label: "Paid", visible: true },
+  { key: "value", label: "Value", visible: true },
+  { key: "gain", label: "Gain/Loss", visible: true },
+  { key: "roi", label: "ROI %", visible: true },
+  { key: "notes", label: "Notes", visible: true }
+];
 
 
 
@@ -63,19 +74,13 @@ function parseBECollectionCSV(text) {
     headers.forEach((h, i) => { obj[h] = row[i] || ""; });
     const stripMoney = v => Number(String(v || "0").replace(/[^0-9.]/g, "")) || 0;
     return {
-      set_number:    obj.Number || obj["Set Number"] || obj.number || "",
-      name:          obj.Name   || obj.name   || "",
-      theme:         obj.Theme  || obj.theme  || "",
-      condition:     (obj.Condition || obj.condition || "new").toLowerCase().replace(/\s+/g, "_"),
-      paid_price:    stripMoney(obj.Paid         || obj.paid         || obj.paid_price),
-      current_value: stripMoney(obj.Value        || obj.value        || obj.current_value),
-      retail_price:  stripMoney(obj.Retail       || obj.retail       || obj.retail_price || obj["Retail Price"] || ""),
-      pieces_count:  Number(obj.Pieces || obj.pieces || obj.pieces_count || 0) || 0,
-      subtheme:      obj.Subtheme || obj.subtheme || "",
-      year:          Number(obj.Year || obj.year || 0) || 0,
-      retired:       /yes|true|1/i.test(obj.Retired || obj.retired || ""),
-      acquired_date: obj.Date || obj.date || obj.acquired_date || "",
-      notes:         obj.Notes || obj.notes || "",
+      set_number: obj.Number || obj["Set Number"] || obj.number || "",
+      name:        obj.Name   || obj.name   || "",
+      theme:       obj.Theme  || obj.theme  || "",
+      condition:   (obj.Condition || obj.condition || "new").toLowerCase().replace(/\s+/g, "_"),
+      paid_price:  stripMoney(obj.Paid  || obj.paid  || obj.paid_price),
+      current_value: stripMoney(obj.Value || obj.value || obj.current_value),
+      retired:     /yes|true|1/i.test(obj.Retired || obj.retired || ""),
     };
   }).filter(r => r.set_number);
 }
@@ -126,33 +131,26 @@ function normalizeBrickEconomyCollection(collection) {
         setNumber,
         name: item.name || item.Name || "",
         theme: item.theme || item.Theme || "",
-        subtheme: item.subtheme || item.Subtheme || "",
-        year: Number(item.year || item.Year || 0) || 0,
-        pieces: Number(item.pieces_count || item.Pieces || 0) || 0,
         quantity: 0,
         totalPaid: 0,
         totalValue: 0,
-        totalRetailPrice: 0,
         retired: !!item.retired,
         entries: []
       };
     }
 
-    const paid        = Number(item.paid_price    ?? item.Paid    ?? item.paid    ?? 0) || 0;
-    const value       = Number(item.current_value ?? item.Value   ?? item.value   ?? 0) || 0;
-    const retailPrice = Number(item.retail_price  ?? item.Retail  ?? 0) || 0;
+    const paid = Number(item.paid_price ?? item.Paid ?? item.paid ?? 0) || 0;
+    const value = Number(item.current_value ?? item.Value ?? item.value ?? 0) || 0;
 
-    bySet[setNumber].quantity         += 1;
-    bySet[setNumber].totalPaid        += paid;
-    bySet[setNumber].totalValue       += value;
-    bySet[setNumber].totalRetailPrice += retailPrice;
+    bySet[setNumber].quantity += 1;
+    bySet[setNumber].totalPaid += paid;
+    bySet[setNumber].totalValue += value;
     bySet[setNumber].entries.push(item);
   });
 
   const normalized = Object.values(bySet).map(item => ({
     ...item,
-    averagePaid:   item.quantity ? item.totalPaid  / item.quantity : 0,
-    retailPrice:   item.quantity ? item.totalRetailPrice / item.quantity : 0,
+    averagePaid: item.quantity ? item.totalPaid / item.quantity : 0,
     unrealizedGain: item.totalValue - item.totalPaid,
     roiPct: item.totalPaid ? ((item.totalValue - item.totalPaid) / item.totalPaid) * 100 : null
   }));
@@ -203,11 +201,6 @@ export default function AppSettings() {
   // ── BrickLink auth state ─────────────────────────────────────
   const [blAccessTokenInput, setBlAccessTokenInput] = useState("");
   const [blConnected, setBlConnected] = useState(() => hasBrickLinkAuth());
-  const [blTesting, setBlTesting] = useState(false);
-  const [blPriceSync, setBlPriceSync] = useState(null); // null | { done, total, status }
-  const [blPriceSyncLast, setBlPriceSyncLast] = useState(() => localStorage.getItem("blPriceSyncLast") || null);
-
-
   const [newStore, setNewStore] = useState("");
   const [editingStore, setEditingStore] = useState(null);   // store name currently being renamed
   const [editingStoreName, setEditingStoreName] = useState(""); // live value in the rename input
@@ -222,10 +215,6 @@ export default function AppSettings() {
   const [lastExportAt, setLastExportAt] = useState(
     () => localStorage.getItem("blLastAutoExport") || ""
   );
-  const [lastCloudPush, setLastCloudPush] = useState(
-    () => localStorage.getItem("blLastCloudPush") || ""
-  );
-  const [cloudBusy, setCloudBusy] = useState(false);
 
   const [importMode, setImportMode] = useState("add");
 
@@ -441,44 +430,6 @@ export default function AppSettings() {
     }
   }
 
-  // ── Cloud Backup ─────────────────────────────────────────────
-  async function handlePushToCloud() {
-    setCloudBusy(true);
-    try {
-      const result = await pushToCloud();
-      if (result === null) {
-        toast.error("Cloud backup not configured — add KV_REST_API_URL and KV_REST_API_TOKEN to your environment.");
-      } else {
-        const ts = result.savedAt || new Date().toISOString();
-        setLastCloudPush(ts);
-        toast.success("Saved to cloud ✓");
-      }
-    } catch (err) {
-      toast.error(`Cloud push failed: ${err.message}`);
-    } finally {
-      setCloudBusy(false);
-    }
-  }
-
-  async function handlePullFromCloud() {
-    if (!window.confirm("Pull from cloud? This will overwrite your local data with the cloud backup.")) return;
-    setCloudBusy(true);
-    try {
-      const data = await fetchFromCloud();
-      if (!data) {
-        toast.error("No cloud backup found.");
-      } else {
-        applyBackupToLocalStorage(data);
-        toast.success("Cloud backup restored — reloading…", { duration: 3000 });
-        setTimeout(() => window.location.reload(), 1500);
-      }
-    } catch (err) {
-      toast.error(`Cloud pull failed: ${err.message}`);
-    } finally {
-      setCloudBusy(false);
-    }
-  }
-
   async function importFullBackup(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -489,30 +440,18 @@ export default function AppSettings() {
         "Restore full backup? This will replace ALL data — collection, wanted list, budget, and settings. Cannot be undone."
       );
       if (!ok) return;
-      // ── Collection ────────────────────────────────────────────
-      if (Array.isArray(data.ownedSets))             localStorage.setItem("blOwnedSets",                      JSON.stringify(data.ownedSets));
-      if (Array.isArray(data.brickEconomyNormalized))localStorage.setItem("brickEconomyNormalizedCollection", JSON.stringify(data.brickEconomyNormalized));
-      if (data.brickEconomySetCache  && typeof data.brickEconomySetCache  === "object") localStorage.setItem("brickEconomySetCache",           JSON.stringify(data.brickEconomySetCache));
-      if (data.brickEconomySyncInfo  && typeof data.brickEconomySyncInfo  === "object") localStorage.setItem("brickEconomyCollectionSyncInfo", JSON.stringify(data.brickEconomySyncInfo));
-      if (Array.isArray(data.soldSets))              localStorage.setItem("blSoldSets",        JSON.stringify(data.soldSets));
-      if (Array.isArray(data.portfolioHistory))      localStorage.setItem("blPortfolioHistory", JSON.stringify(data.portfolioHistory));
-      // ── Wanted List ───────────────────────────────────────────
-      if (Array.isArray(data.wantedList))            localStorage.setItem("blWantedList",       JSON.stringify(data.wantedList));
-      // ── Budget ────────────────────────────────────────────────
-      if (Array.isArray(data.budgetPurchases))       localStorage.setItem("blPurchases",        JSON.stringify(data.budgetPurchases));
-      if (Array.isArray(data.stores))                localStorage.setItem("blStores",           JSON.stringify(data.stores));
+      if (Array.isArray(data.ownedSets)) localStorage.setItem("blOwnedSets", JSON.stringify(data.ownedSets));
+      if (Array.isArray(data.brickEconomyNormalized)) localStorage.setItem("brickEconomyNormalizedCollection", JSON.stringify(data.brickEconomyNormalized));
+      if (data.brickEconomySetCache && typeof data.brickEconomySetCache === "object") localStorage.setItem("brickEconomySetCache", JSON.stringify(data.brickEconomySetCache));
+      if (Array.isArray(data.wantedList)) localStorage.setItem("blWantedList", JSON.stringify(data.wantedList));
+      if (Array.isArray(data.budgetPurchases)) localStorage.setItem("blPurchases", JSON.stringify(data.budgetPurchases));
+      if (Array.isArray(data.stores)) localStorage.setItem("blStores", JSON.stringify(data.stores));
       if (data.storeBudgets && typeof data.storeBudgets === "object") localStorage.setItem("blStoreBudgets", JSON.stringify(data.storeBudgets));
-      if (data.annualBudget)                         localStorage.setItem("blAnnualBudget",     data.annualBudget);
-      // ── Settings ──────────────────────────────────────────────
+      if (data.annualBudget) localStorage.setItem("blAnnualBudget", data.annualBudget);
       if (data.settings) {
-        if (data.settings.currency)           localStorage.setItem("blDisplayCurrency",        data.settings.currency);
-        if (data.settings.ownedColumns)       localStorage.setItem("blOwnedColumns",           JSON.stringify(data.settings.ownedColumns));
-        if (data.settings.acquisitionColumns) localStorage.setItem("blAcquisitionColumns",     JSON.stringify(data.settings.acquisitionColumns));
-        if (data.settings.purchaseColumns)    localStorage.setItem("blPurchaseColumns",        JSON.stringify(data.settings.purchaseColumns));
-        if (data.settings.dashboardWidgets)   localStorage.setItem("blDashboardWidgetSettings",JSON.stringify(data.settings.dashboardWidgets));
-        if (data.settings.collectionItems)    localStorage.setItem("blCollectionItems",        JSON.stringify(data.settings.collectionItems));
-        if (data.settings.ownedColWidths)     localStorage.setItem("blOwnedColWidths",         JSON.stringify(data.settings.ownedColWidths));
-        if (data.settings.autoExportDays != null) localStorage.setItem("blAutoExportDays",    String(data.settings.autoExportDays));
+        if (data.settings.ownedColumns) localStorage.setItem("blOwnedColumns", JSON.stringify(data.settings.ownedColumns));
+        if (data.settings.acquisitionColumns) localStorage.setItem("blAcquisitionColumns", JSON.stringify(data.settings.acquisitionColumns));
+        if (data.settings.purchaseColumns) localStorage.setItem("blPurchaseColumns", JSON.stringify(data.settings.purchaseColumns));
       }
       toast.success("Backup restored. Reloading…");
       setTimeout(() => window.location.reload(), 1200);
@@ -613,33 +552,18 @@ export default function AppSettings() {
       if (items.length === 0) { toast.error("No sets found in this CSV."); return; }
       const ok = window.confirm(`Import ${items.length} entries from BrickEconomy CSV? Replaces existing BrickEconomy data.`);
       if (!ok) return;
-      const normalized    = normalizeBrickEconomyCollection(items);
-      const totalPaid     = normalized.reduce((s, i) => s + i.totalPaid,  0);
-      const totalValue    = normalized.reduce((s, i) => s + i.totalValue, 0);
-      const retailValue   = normalized.reduce((s, i) => s + (i.totalRetailPrice || 0), 0);
-      const totalCopies   = items.length;
-      const retiredCount  = normalized.filter(i => i.retired).length;
-      const retiredPct    = normalized.length ? Math.round(retiredCount / normalized.length * 10000) / 100 : 0;
-      const newValue      = items.filter(e => e.condition === "new").reduce((s, e) => s + (Number(e.current_value) || 0), 0);
-      const usedValue     = items.filter(e => e.condition !== "new").reduce((s, e) => s + (Number(e.current_value) || 0), 0);
+      const normalized = normalizeBrickEconomyCollection(items);
+      const totalPaid  = normalized.reduce((s, i) => s + i.totalPaid,  0);
+      const totalValue = normalized.reduce((s, i) => s + i.totalValue, 0);
       recordPortfolioSnapshot(totalValue, totalPaid);
       const syncInfo = {
         lastSync: new Date().toISOString(),
-        setsCount:      items.length,
-        uniqueSets:     normalized.length,
-        newCount:       items.filter(e => e.condition === "new").length,
-        usedCount:      items.filter(e => e.condition !== "new").length,
-        piecesCount:    normalized.reduce((s, i) => s + (i.pieces || 0) * (i.quantity || 1), 0),
+        setsCount: items.length,
+        uniqueSets: normalized.length,
         duplicateGroups: normalized.filter(i => i.quantity > 1).length,
-        totalPaid,
-        portfolioValue: totalValue,
+        totalPaid, portfolioValue: totalValue,
         unrealizedGain: totalValue - totalPaid,
-        retiredCount,
-        retiredPct,
-        retailValue:    Math.round(retailValue * 100) / 100,
-        newValue:       Math.round(newValue    * 100) / 100,
-        usedValue:      Math.round(usedValue   * 100) / 100,
-        valueSource:     "BrickEconomy CSV export",
+        valueSource: "BrickEconomy CSV export",
         costBasisSource: "BrickEconomy CSV export",
         inventorySource: "BrickEconomy CSV import"
       };
@@ -869,38 +793,22 @@ export default function AppSettings() {
         ? normalizeBrickEconomyCollection(collection)
         : [];
 
-      const totalPaid       = normalizedCollection.reduce((sum, item) => sum + item.totalPaid, 0);
-      const totalValue      = normalizedCollection.reduce((sum, item) => sum + item.totalValue, 0);
-      const retailValue     = normalizedCollection.reduce((sum, item) => sum + (item.totalRetailPrice || 0), 0);
+      const totalPaid = normalizedCollection.reduce((sum, item) => sum + item.totalPaid, 0);
+      const totalValue = normalizedCollection.reduce((sum, item) => sum + item.totalValue, 0);
       const duplicateGroups = normalizedCollection.filter(item => item.quantity > 1).length;
-      const totalCopies     = Array.isArray(collection) ? collection.length : normalizedCollection.reduce((s, i) => s + (i.quantity || 1), 0);
-      const retiredCount    = normalizedCollection.filter(item => item.retired).length;
-      const retiredPct      = normalizedCollection.length ? Math.round(retiredCount / normalizedCollection.length * 10000) / 100 : 0;
-      const apiData         = data.data || data;
-      const newValue        = Array.isArray(collection) ? collection.filter(e => e.condition === "new").reduce((s, e) => s + (Number(e.current_value) || 0), 0) : 0;
-      const usedValue       = Array.isArray(collection) ? collection.filter(e => e.condition !== "new").reduce((s, e) => s + (Number(e.current_value) || 0), 0) : 0;
 
       const syncInfo = {
         lastSync: new Date().toISOString(),
-        setsCount:     apiData.sets_count        ?? (Array.isArray(collection) ? collection.length : 0),
-        uniqueSets:    apiData.sets_unique_count  ?? normalizedCollection.length,
-        newCount:      apiData.sets_new_count     ?? collection.filter(e => e.condition === "new").length,
-        usedCount:     apiData.sets_used_count    ?? collection.filter(e => e.condition !== "new").length,
-        piecesCount:   apiData.sets_pieces_count  ?? 0,
-        minifsCount:   apiData.sets_minifigs_count ?? 0,
+        setsCount: Array.isArray(collection) ? collection.length : 0,
+        uniqueSets: normalizedCollection.length,
         duplicateGroups,
         totalPaid,
-        portfolioValue:  apiData.current_value ?? periods?.[0]?.value ?? totalValue,
-        unrealizedGain:  (apiData.current_value ?? totalValue) - totalPaid,
-        retiredCount,
-        retiredPct,
-        retailValue:   Math.round(retailValue * 100) / 100,
-        newValue:      Math.round(newValue    * 100) / 100,
-        usedValue:     Math.round(usedValue   * 100) / 100,
-        valueSource:      "BrickEconomy current_value",
-        costBasisSource:  "BrickEconomy paid_price",
-        inventorySource:  "BrickEconomy collection sync",
-        currency: apiData.currency || "USD"
+        portfolioValue: periods?.[0]?.value || totalValue,
+        unrealizedGain: totalValue - totalPaid,
+        valueSource: "BrickEconomy current_value",
+        costBasisSource: "BrickEconomy paid_price",
+        inventorySource: "BrickEconomy collection sync",
+        currency: data.data?.currency || data.currency || "USD"
       };
 
       localStorage.setItem("brickEconomyCollectionCache", JSON.stringify({
@@ -944,43 +852,6 @@ export default function AppSettings() {
     localStorage.removeItem("blPriceGuideCache");
     setBlConnected(false);
     toast.success("BrickLink disconnected and session cache cleared.");
-  }
-
-  async function testBrickLinkConnection() {
-    setBlTesting(true);
-    try {
-      const session = await getBrickLinkSession();
-      if (session) {
-        toast.success("BrickLink connected — price guide is active.");
-      } else {
-        toast.error("Authentication failed. Check your access token and try again.");
-      }
-    } catch {
-      toast.error("BrickLink connection test failed.");
-    } finally {
-      setBlTesting(false);
-    }
-  }
-
-  async function syncBrickLinkPrices() {
-    if (blPriceSync) return; // already running
-    try {
-      const raw = JSON.parse(localStorage.getItem("brickEconomyNormalizedCollection") || "[]");
-      const setNumbers = raw.map(s => s.setNumber).filter(Boolean);
-      if (setNumbers.length === 0) { toast.error("No sets in collection to sync."); return; }
-      setBlPriceSync({ done: 0, total: setNumbers.length, status: "running" });
-      const { synced, skipped, failed } = await bulkSyncPrices(setNumbers, ({ done, total }) => {
-        setBlPriceSync({ done, total, status: "running" });
-      });
-      const now = new Date().toISOString();
-      localStorage.setItem("blPriceSyncLast", now);
-      setBlPriceSyncLast(now);
-      setBlPriceSync(null);
-      toast.success(`BL prices synced — ${synced} updated, ${skipped} cached, ${failed} failed.`, { duration: 6000 });
-    } catch (err) {
-      setBlPriceSync(null);
-      toast.error("BL price sync failed: " + (err.message || err));
-    }
   }
 
   // ── Notification handlers ────────────────────────────────────
@@ -1105,31 +976,6 @@ export default function AppSettings() {
             <button onClick={exportFullBackup} style={smallButton}>Export Now</button>
           </div>
         )}
-      </section>
-      )}
-
-      {settingsTab === "general" && (
-      <section style={panel}>
-        <h3 style={{ margin: "0 0 4px" }}>Cloud Backup</h3>
-        <p style={{ ...mutedSmall, margin: "0 0 14px" }}>
-          Sync your data to the cloud so it survives a browser wipe or device switch.
-          Requires Upstash Redis connected via Vercel — add <code style={{ color: "#c9a84c", fontSize: 12 }}>KV_REST_API_URL</code> and{" "}
-          <code style={{ color: "#c9a84c", fontSize: 12 }}>KV_REST_API_TOKEN</code> to your environment.
-        </p>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <button onClick={handlePushToCloud} disabled={cloudBusy} style={{ ...smallButton, opacity: cloudBusy ? 0.6 : 1 }}>
-            {cloudBusy ? "Working…" : "Push to Cloud"}
-          </button>
-          <button onClick={handlePullFromCloud} disabled={cloudBusy} style={{ ...smallButton, opacity: cloudBusy ? 0.6 : 1 }}>
-            Pull from Cloud
-          </button>
-          {lastCloudPush && (
-            <div style={{ fontSize: 13, color: "#5d6f80" }}>
-              Last push:{" "}
-              <span style={{ color: "#8a9bb0" }}>{new Date(lastCloudPush).toLocaleString()}</span>
-            </div>
-          )}
-        </div>
       </section>
       )}
 
@@ -1280,8 +1126,7 @@ export default function AppSettings() {
           marginTop: 12,
           marginBottom: 12
         }}>
-          {/* ── Sync timestamp ── */}
-          <div style={{ ...miniStat, gridColumn: "1 / -1" }}>
+          <div style={miniStat}>
             <div style={mutedSmall}>Last Collection Sync</div>
             <strong>
               {collectionSyncInfo.lastSync
@@ -1290,93 +1135,61 @@ export default function AppSettings() {
             </strong>
           </div>
 
-          {/* ── Inventory counts ── */}
           <div style={miniStat}>
-            <div style={mutedSmall}>Total Owned</div>
-            <strong>{(collectionSyncInfo.setsCount || 0).toLocaleString()}</strong>
+            <div style={mutedSmall}>Inventory Entries</div>
+            <strong>{collectionSyncInfo.setsCount || 0}</strong>
           </div>
+
           <div style={miniStat}>
             <div style={mutedSmall}>Unique Sets</div>
-            <strong>{(collectionSyncInfo.uniqueSets || 0).toLocaleString()}</strong>
+            <strong>{collectionSyncInfo.uniqueSets || 0}</strong>
           </div>
+
           <div style={miniStat}>
             <div style={mutedSmall}>Multi-Copy Sets</div>
-            <strong>{(collectionSyncInfo.duplicateGroups || 0).toLocaleString()}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>New / Sealed</div>
-            <strong>{(collectionSyncInfo.newCount || 0).toLocaleString()}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Used</div>
-            <strong>{(collectionSyncInfo.usedCount || 0).toLocaleString()}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Retired Sets</div>
-            <strong>
-              {(collectionSyncInfo.retiredCount || 0).toLocaleString()}
-              {collectionSyncInfo.retiredPct ? <span style={{ fontWeight: 400, color: "#5d6f80", fontSize: 11, marginLeft: 4 }}>({Number(collectionSyncInfo.retiredPct).toFixed(1)}%)</span> : null}
-            </strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Total Pieces</div>
-            <strong>{(collectionSyncInfo.piecesCount || 0).toLocaleString()}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Minifigs</div>
-            <strong>{(collectionSyncInfo.minifsCount || 0).toLocaleString()}</strong>
+            <strong>{collectionSyncInfo.duplicateGroups || 0}</strong>
           </div>
 
-          {/* ── Values ── */}
           <div style={miniStat}>
             <div style={mutedSmall}>Portfolio Value</div>
-            <strong style={{ color: "#c9a84c" }}>
-              ${(collectionSyncInfo.portfolioValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <strong>
+              {collectionSyncInfo.portfolioValue
+                ? `$${Number(collectionSyncInfo.portfolioValue).toLocaleString()}`
+                : "$0"}
             </strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Total Paid</div>
-            <strong>${(collectionSyncInfo.totalPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Unrealized Gain</div>
-            <strong style={{ color: (collectionSyncInfo.unrealizedGain || 0) >= 0 ? "#5aa832" : "#ff8b8b" }}>
-              {(collectionSyncInfo.unrealizedGain || 0) >= 0 ? "+" : ""}${(collectionSyncInfo.unrealizedGain || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>ROI</div>
-            <strong style={{ color: (collectionSyncInfo.unrealizedGain || 0) >= 0 ? "#5aa832" : "#ff8b8b" }}>
-              {collectionSyncInfo.totalPaid
-                ? `${((collectionSyncInfo.unrealizedGain / collectionSyncInfo.totalPaid) * 100).toFixed(1)}%`
-                : "—"}
-            </strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Retail Value</div>
-            <strong>${(collectionSyncInfo.retailValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>New Sets Value</div>
-            <strong>${(collectionSyncInfo.newValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Used Sets Value</div>
-            <strong>${(collectionSyncInfo.usedValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
           </div>
 
-          {/* ── Sources ── */}
+          <div style={miniStat}>
+            <div style={mutedSmall}>Total Paid</div>
+            <strong>
+              {collectionSyncInfo.totalPaid
+                ? `$${Number(collectionSyncInfo.totalPaid).toLocaleString()}`
+                : "$0"}
+            </strong>
+          </div>
+
+          <div style={miniStat}>
+            <div style={mutedSmall}>Unrealized Gain</div>
+            <strong>
+              {collectionSyncInfo.unrealizedGain
+                ? `$${Number(collectionSyncInfo.unrealizedGain).toLocaleString()}`
+                : "$0"}
+            </strong>
+          </div>
+
           <div style={miniStat}>
             <div style={mutedSmall}>Inventory Source</div>
-            <strong style={{ fontSize: 11 }}>{collectionSyncInfo.inventorySource || "—"}</strong>
+            <strong>{collectionSyncInfo.inventorySource || "—"}</strong>
           </div>
+
           <div style={miniStat}>
             <div style={mutedSmall}>Value Source</div>
-            <strong style={{ fontSize: 11 }}>{collectionSyncInfo.valueSource || "—"}</strong>
+            <strong>{collectionSyncInfo.valueSource || "—"}</strong>
           </div>
+
           <div style={miniStat}>
             <div style={mutedSmall}>Cost Basis Source</div>
-            <strong style={{ fontSize: 11 }}>{collectionSyncInfo.costBasisSource || "—"}</strong>
+            <strong>{collectionSyncInfo.costBasisSource || "—"}</strong>
           </div>
         </div>
 
@@ -1469,45 +1282,13 @@ export default function AppSettings() {
         )}
 
         {blConnected && (
-          <>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-              <button onClick={testBrickLinkConnection} disabled={blTesting} style={ghostBtn}>
-                {blTesting ? "Testing…" : "Test Connection"}
-              </button>
-              <button
-                onClick={syncBrickLinkPrices}
-                disabled={!!blPriceSync}
-                style={redBtn}
-              >
-                {blPriceSync ? `Syncing… ${blPriceSync.done}/${blPriceSync.total}` : "Sync BL Prices"}
-              </button>
-              <button onClick={disconnectBrickLink} style={ghostBtn}>
-                Disconnect
-              </button>
-            </div>
-            {blPriceSync && (
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ height: 4, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-                  <div style={{
-                    height: "100%",
-                    borderRadius: 999,
-                    background: "#c9a84c",
-                    width: `${Math.round((blPriceSync.done / blPriceSync.total) * 100)}%`,
-                    transition: "width 0.3s ease"
-                  }} />
-                </div>
-              </div>
-            )}
-            {blPriceSyncLast && !blPriceSync && (
-              <div style={{ fontSize: 11, color: "#5d6f80" }}>
-                Last synced: {new Date(blPriceSyncLast).toLocaleString()}
-              </div>
-            )}
-            <div style={{ fontSize: 11, color: "#5d6f80", marginTop: 4 }}>
-              Fetches 6-month US sold prices (new &amp; used) for every set. Cached 12 hours.
-            </div>
-          </>
+          <button onClick={disconnectBrickLink} style={ghostBtn}>
+            Disconnect
+          </button>
         )}
+        <div style={{ marginTop: 14, padding: "10px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, fontSize: 12, color: "#5d6f80" }}>
+          ⏳ BrickLink price guide queries require server endpoints not yet deployed. Your token is saved and will be active once launched.
+        </div>
       </section>
       )}
 

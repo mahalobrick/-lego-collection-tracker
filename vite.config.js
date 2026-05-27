@@ -21,7 +21,7 @@ function makeRes(nativeRes) {
   return {
     setHeader: (k, v) => nativeRes.setHeader(k, v),
     status(c) { code = c; return this },
-    end() { nativeRes.statusCode = code; nativeRes.end() },
+    end(data) { nativeRes.statusCode = code; nativeRes.end(data) },
     json(data) {
       nativeRes.statusCode = code
       nativeRes.setHeader('Content-Type', 'application/json')
@@ -31,16 +31,20 @@ function makeRes(nativeRes) {
 }
 
 const API_ROUTES = {
-  '/api/brickeconomy-collection': require('./api/brickeconomy-collection'),
-  '/api/brickeconomy-set':        require('./api/brickeconomy-set'),
-  '/api/brickset-set':            require('./api/brickset-set'),
-  '/api/bricklink-auth':          require('./api/bricklink-auth'),
-  '/api/bricklink-priceguide':    require('./api/bricklink-priceguide'),
-  '/api/lego-last-chance':        require('./api/lego-last-chance'),
+  '/api/brickeconomy-collection':   require('./api/brickeconomy-collection'),
+  '/api/brickeconomy-set':          require('./api/brickeconomy-set'),
+  '/api/brickset-set':              require('./api/brickset-set'),
+  '/api/brickset-search':           require('./api/brickset-search'),
+  '/api/bricklink-auth':            require('./api/bricklink-auth'),
+  '/api/bricklink-priceguide':      require('./api/bricklink-priceguide'),
+  '/api/lego-last-chance':          require('./api/lego-last-chance'),
+  '/api/brickfanatics-retiring':    require('./api/brickfanatics-retiring'),
 }
 
 export default defineConfig({
+  server: { port: 5179, strictPort: true },
   build: {
+    chunkSizeWarningLimit: 1000, // exceljs is ~930 KB but lazy-loaded; suppress warning
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -49,9 +53,6 @@ export default defineConfig({
           }
           if (id.includes("node_modules/recharts") || id.includes("node_modules/d3-") || id.includes("node_modules/victory-vendor")) {
             return "vendor-charts";
-          }
-          if (id.includes("node_modules/xlsx")) {
-            return "vendor-xlsx";
           }
         }
       }
