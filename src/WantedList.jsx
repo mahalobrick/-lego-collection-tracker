@@ -1533,7 +1533,9 @@ export default function WantedList({ onBuyNow }) {
                                       <div
                                         key={i}
                                         onClick={() => { setDetailItem(w); setDetailItemIndex(wanted.indexOf(w)); }}
-                                        style={{ background: chipBg, border: `1px solid ${chipBorder}`, borderRadius: 10, padding: "8px 12px", cursor: "pointer", minWidth: 140 }}
+                                        onMouseEnter={e => { e.currentTarget.style.filter = "brightness(1.25)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                                        onMouseLeave={e => { e.currentTarget.style.filter = ""; e.currentTarget.style.transform = ""; }}
+                                        style={{ background: chipBg, border: `1px solid ${chipBorder}`, borderRadius: 10, padding: "8px 12px", cursor: "pointer", minWidth: 140, transition: "filter 0.12s, transform 0.12s" }}
                                       >
                                         <div style={{ fontSize: 11, color: "#8a9bb0", marginBottom: 3 }}>#{w.setNumber}</div>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: chipColor, marginBottom: 4, lineHeight: 1.3 }}>
@@ -2819,7 +2821,7 @@ export default function WantedList({ onBuyNow }) {
       <WatchDetailPanel
         item={detailItem}
         onClose={() => { setDetailItem(null); setDetailItemIndex(null); }}
-        onEdit={detailItemIndex !== null ? () => { setDetailItem(null); setDetailItemIndex(null); setSelectedWantedIndex(detailItemIndex); } : undefined}
+        onEdit={detailItemIndex !== null ? () => { setDetailItem(null); setDetailItemIndex(null); setSelectedWantedIndex(detailItemIndex); setSubTab("queue"); } : undefined}
         onBuyNow={detailItem ? () => { setDetailItem(null); setDetailItemIndex(null); openBuyModal(detailItem); } : undefined}
       />
 
