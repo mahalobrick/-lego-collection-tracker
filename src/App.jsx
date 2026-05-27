@@ -8,7 +8,7 @@ import { exportFullBackup, pushToCloud, fetchFromCloud, applyBackupToLocalStorag
 import { syncBEValues, runDailyBEBatch } from "./utils/beSyncValues";
 
 export default function App() {
-  const [view, setView] = useState("collection");
+  const [view, setView] = useState(() => localStorage.getItem("blLastTab") || "collection");
   const [pendingPurchase, setPendingPurchase] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [cloudRestoreData, setCloudRestoreData] = useState(null); // non-null = show restore banner
@@ -19,9 +19,11 @@ export default function App() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  function switchTab(tab) { setView(tab); localStorage.setItem("blLastTab", tab); }
+
   function handleBuyNow(item) {
     setPendingPurchase(item);
-    setView("budget");
+    switchTab("budget");
   }
 
   // Auto-export: check on every app boot whether the interval has elapsed.
@@ -126,7 +128,7 @@ export default function App() {
                 <button
                   key={tab.key}
                   className="nav-pill-btn"
-                  onClick={() => setView(tab.key)}
+                  onClick={() => switchTab(tab.key)}
                   style={{
                     border: "none",
                     borderRadius: 999,
@@ -165,13 +167,13 @@ export default function App() {
           />
 
           <div className="page-content">
-            {view === "collection" && <MyCollection onBuyNow={handleBuyNow} onSwitchTab={setView} />}
+            {view === "collection" && <MyCollection onBuyNow={handleBuyNow} onSwitchTab={switchTab} />}
             {view === "acquisition" && <WantedList onBuyNow={handleBuyNow} />}
             {view === "budget" && (
               <BudgetDashboard
                 pendingPurchase={pendingPurchase}
                 onPendingPurchaseConsumed={() => setPendingPurchase(null)}
-                onNavigateToSettings={() => setView("settings")}
+                onNavigateToSettings={() => switchTab("settings")}
               />
             )}
 {view === "settings" && <AppSettings />}
