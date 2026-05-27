@@ -262,6 +262,7 @@ export default function WantedList({ onBuyNow }) {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [bfRetirement, setBfRetirement] = useState(null); // { retiring, retirementDate, theme, name } from Brick Fanatics
   const [hoveredWLItem, setHoveredWLItem] = useState(null);
+  const [hoveredTimelineChip, setHoveredTimelineChip] = useState(null); // "waveLabel-index"
   const [draggedWLItem, setDraggedWLItem] = useState(null);
   const [wlItems, setWlItems] = useState(() => {
     const saved = localStorage.getItem("blWLItems");
@@ -1533,9 +1534,14 @@ export default function WantedList({ onBuyNow }) {
                                       <div
                                         key={i}
                                         onClick={() => { setDetailItem(w); setDetailItemIndex(wanted.indexOf(w)); }}
-                                        onMouseEnter={e => { e.currentTarget.style.filter = "brightness(1.25)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-                                        onMouseLeave={e => { e.currentTarget.style.filter = ""; e.currentTarget.style.transform = ""; }}
-                                        style={{ background: chipBg, border: `1px solid ${chipBorder}`, borderRadius: 10, padding: "8px 12px", cursor: "pointer", minWidth: 140, transition: "filter 0.12s, transform 0.12s" }}
+                                        onMouseEnter={() => setHoveredTimelineChip(`${label}-${i}`)}
+                                        onMouseLeave={() => setHoveredTimelineChip(null)}
+                                        style={{
+                                          background: chipBg, border: `1px solid ${chipBorder}`, borderRadius: 10, padding: "8px 12px", cursor: "pointer", minWidth: 140,
+                                          transition: "filter 0.12s, transform 0.12s",
+                                          filter: hoveredTimelineChip === `${label}-${i}` ? "brightness(1.3)" : "none",
+                                          transform: hoveredTimelineChip === `${label}-${i}` ? "translateY(-2px)" : "none",
+                                        }}
                                       >
                                         <div style={{ fontSize: 11, color: "#8a9bb0", marginBottom: 3 }}>#{w.setNumber}</div>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: chipColor, marginBottom: 4, lineHeight: 1.3 }}>
