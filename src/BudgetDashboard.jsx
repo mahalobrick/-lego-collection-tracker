@@ -41,11 +41,15 @@ const DEFAULT_BUDGET_ITEMS = [
   { key: "vsBudget",        type: "card",  label: "vs Annual Budget", visible: false, width: "auto",  collapsed: false },
   { key: "topStore",        type: "card",  label: "Top Store",        visible: false, width: "auto",  collapsed: false },
   { key: "months",          type: "card",  label: "Months Tracked",   visible: false, width: "auto",  collapsed: false },
-  { key: "store-breakdown", type: "panel", label: "Spending by Store",visible: true,  width: "full",  collapsed: false },
-  { key: "monthly-chart",   type: "panel", label: "Monthly Spend",    visible: true,  width: "full",  collapsed: false },
-  { key: "growth-chart",    type: "panel", label: "Investment Curve", visible: true,  width: "full",  collapsed: false },
-  { key: "store-pie",       type: "panel", label: "Store Pie Chart",  visible: true,  width: "half",  collapsed: false },
-  { key: "theme-spend",     type: "panel", label: "Spending by Theme",visible: true,  width: "half",  collapsed: false },
+  { key: "gcSaved",          type: "card",  label: "GC / Rewards Saved",  visible: false, width: "auto",  collapsed: false },
+  { key: "savedVsMsrp",      type: "card",  label: "Saved vs MSRP",       visible: false, width: "auto",  collapsed: false },
+  { key: "savingsRate",      type: "card",  label: "Savings Rate",         visible: false, width: "auto",  collapsed: false },
+  { key: "store-breakdown",  type: "panel", label: "Spending by Store",   visible: true,  width: "full",  collapsed: false },
+  { key: "monthly-chart",    type: "panel", label: "Monthly Spend",       visible: true,  width: "full",  collapsed: false },
+  { key: "growth-chart",     type: "panel", label: "Investment Curve",    visible: true,  width: "full",  collapsed: false },
+  { key: "store-pie",        type: "panel", label: "Store Pie Chart",     visible: true,  width: "half",  collapsed: false },
+  { key: "theme-spend",      type: "panel", label: "Spending by Theme",   visible: true,  width: "half",  collapsed: false },
+  { key: "savings-breakdown", type: "panel", label: "Savings vs MSRP",   visible: false, width: "half",  collapsed: false },
 ];
 
 // lineTotal and lineCashPaid imported from utils/formatting
@@ -326,6 +330,28 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
     return Object.entries(byTheme)
       .sort((a, b) => b[1] - a[1])
       .map(([name, value]) => ({ name, value }));
+  })();
+
+  // Savings vs MSRP — only purchases where msrp was captured (via Brickset lookup or Buy Now)
+  const msrpPurchases = yearPurchases.filter(p => asNumber(p.msrp) > 0);
+  const totalMsrpExposure = msrpPurchases.reduce((s, p) => s + asNumber(p.msrp) * (asNumber(p.qty) || 1), 0);
+  const totalPaidForMsrp  = msrpPurchases.reduce((s, p) => s + asNumber(p.faceValue) * (asNumber(p.qty) || 1), 0);
+  const savedVsMsrp  = totalMsrpExposure - totalPaidForMsrp;
+  const savingsRate  = totalMsrpExposure > 0 ? (savedVsMsrp / totalMsrpExposure) * 100 : null;
+  const gcTotal      = yearPurchases.reduce((s, p) => s + (asNumber(p.gcApplied) || 0), 0);
+
+  // Per-store savings breakdown for savings panel
+  const storeSavingsData = (() => {
+    const byStore = {};
+    msrpPurchases.forEach(p => {
+      const s = p.store || "Unknown";
+      if (!byStore[s]) byStore[s] = { msrp: 0, paid: 0 };
+      byStore[s].msrp += asNumber(p.msrp) * (asNumber(p.qty) || 1);
+      byStore[s].paid += asNumber(p.faceValue) * (asNumber(p.qty) || 1);
+    });
+    return Object.entries(byStore)
+      .map(([store, d]) => ({ store, msrp: d.msrp, paid: d.paid, saved: d.msrp - d.paid, pct: d.msrp > 0 ? ((d.msrp - d.paid) / d.msrp) * 100 : 0 }))
+      .sort((a, b) => b.saved - a.saved);
   })();
 
   // Cumulative spend over all time (not filtered by year) for portfolio growth chart
@@ -1324,14 +1350,17 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                     onDrop={() => dropBudgetItem(item.key)}
                     style={{ opacity: draggedBudgetItem === item.key ? 0.4 : 1, cursor: "grab" }}
                   >
-                    {item.key === "spend"     ? <Metric title={`${yearLabel} spend`}   value={money(spent)}                   sub={`of ${money(annualBudget)} annual budget`} /> :
-                     item.key === "remaining" ? <Metric title="Budget remaining"        value={money(remaining)}                sub={`${monthsTracked} months tracked`} good={remaining >= 0} /> :
-                     item.key === "avgMonth"  ? <Metric title="Avg / month"             value={money(avgMonthly)}               sub={`target ${money(monthlyTarget)}/mo`} /> :
-                     item.key === "purchases" ? <Metric title="Purchases"               value={yearPurchases.length}            sub="items logged" /> :
-                     item.key === "projected" ? <Metric title="Projected annual"        value={money(projected)} /> :
-                     item.key === "vsBudget"  ? <Metric title="vs annual budget"        value={money(projected - annualBudget)} good={projected < annualBudget} /> :
-                     item.key === "topStore"  ? <Metric title="Top store"               value={storeTotals[0]?.store || "—"} /> :
-                     item.key === "months"    ? <Metric title="Months tracked"          value={monthsTracked}                   sub="months with purchases" /> : null}
+                    {item.key === "spend"        ? <Metric title={`${yearLabel} spend`}   value={money(spent)}                   sub={`of ${money(annualBudget)} annual budget`} /> :
+                     item.key === "remaining"   ? <Metric title="Budget remaining"        value={money(remaining)}                sub={`${monthsTracked} months tracked`} good={remaining >= 0} /> :
+                     item.key === "avgMonth"    ? <Metric title="Avg / month"             value={money(avgMonthly)}               sub={`target ${money(monthlyTarget)}/mo`} /> :
+                     item.key === "purchases"   ? <Metric title="Purchases"               value={yearPurchases.length}            sub="items logged" /> :
+                     item.key === "projected"   ? <Metric title="Projected annual"        value={money(projected)} /> :
+                     item.key === "vsBudget"    ? <Metric title="vs annual budget"        value={money(projected - annualBudget)} good={projected < annualBudget} /> :
+                     item.key === "topStore"    ? <Metric title="Top store"               value={storeTotals[0]?.store || "—"} /> :
+                     item.key === "months"      ? <Metric title="Months tracked"          value={monthsTracked}                   sub="months with purchases" /> :
+                     item.key === "gcSaved"     ? <Metric title="GC / rewards saved"      value={money(gcTotal)}                  sub={gcTotal > 0 ? `${yearLabel}` : "none applied"} good={gcTotal > 0} /> :
+                     item.key === "savedVsMsrp" ? <Metric title="Saved vs MSRP"           value={savingsRate !== null ? money(savedVsMsrp) : "—"} sub={savingsRate !== null ? `${savingsRate.toFixed(1)}% avg discount` : "use set lookup to track"} good={savedVsMsrp > 0} /> :
+                     item.key === "savingsRate" ? <Metric title="Avg savings rate"        value={savingsRate !== null ? `${savingsRate.toFixed(1)}%` : "—"} sub={savingsRate !== null ? `vs MSRP · ${msrpPurchases.length} tracked` : "use set lookup to track"} good={savingsRate !== null && savingsRate > 0} /> : null}
                   </div>
                 ))}
               </div>
@@ -1517,6 +1546,59 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                           </span>
                         ))}
                       </div>
+                    </div>
+                  ) : item.key === "savings-breakdown" ? (
+                    <div style={{ ...card, marginBottom: 0 }}>
+                      <h4 style={{ margin: "0 0 14px", color: "#e8e2d5" }}>Savings vs MSRP</h4>
+                      {msrpPurchases.length === 0 ? (
+                        <div style={{ textAlign: "center", padding: "24px 16px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                          <div style={{ fontWeight: 700, color: "#8a9bb0", marginBottom: 4 }}>No MSRP data yet</div>
+                          <div style={{ fontSize: 13, color: "#5d6f80" }}>Use the set number lookup when logging purchases to capture MSRP and track your savings.</div>
+                        </div>
+                      ) : (
+                        <div style={{ display: "grid", gap: 12 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 6 }}>
+                            {[
+                              { label: "MSRP Total", value: money(totalMsrpExposure), color: "#8a9bb0" },
+                              { label: "Paid Total",  value: money(totalPaidForMsrp),  color: "#e8e2d5" },
+                              { label: "Total Saved", value: money(savedVsMsrp),       color: "#5aa832" },
+                            ].map(({ label, value, color }) => (
+                              <div key={label} style={{ background: "#0b1520", borderRadius: 10, padding: "10px 12px", border: "1px solid rgba(255,255,255,0.06)" }}>
+                                <div style={{ fontSize: 11, color: "#5d6f80", marginBottom: 4 }}>{label}</div>
+                                <div style={{ fontWeight: 900, fontSize: 15, color }}>{value}</div>
+                              </div>
+                            ))}
+                          </div>
+                          {/* Overall savings bar */}
+                          <div>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                              <span style={{ fontSize: 12, color: "#8a9bb0" }}>Avg discount vs MSRP</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: "#5aa832" }}>{savingsRate !== null ? `${savingsRate.toFixed(1)}%` : "—"}</span>
+                            </div>
+                            <div style={{ height: 8, background: "#0b1520", borderRadius: 999, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
+                              <div style={{ height: "100%", width: `${Math.min(savingsRate || 0, 100)}%`, background: "linear-gradient(90deg, #5aa832, #4caf7d)", borderRadius: 999, transition: "width 0.3s" }} />
+                            </div>
+                          </div>
+                          {/* Per-store breakdown */}
+                          {storeSavingsData.length > 1 && (
+                            <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
+                              <div style={{ fontSize: 11, color: "#5d6f80", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>By Store</div>
+                              {storeSavingsData.map(({ store, msrp, paid, saved, pct }) => (
+                                <div key={store} style={{ display: "grid", gridTemplateColumns: "90px 1fr 64px 52px", alignItems: "center", gap: 10 }}>
+                                  <span style={{ color: "#8a9bb0", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{store}</span>
+                                  <div style={{ position: "relative", height: 8, background: "#0b1520", borderRadius: 999, overflow: "hidden" }}>
+                                    <div style={{ position: "absolute", height: "100%", width: `${(paid / msrp) * 100}%`, background: "#c9a84c", borderRadius: 999 }} />
+                                    <div style={{ position: "absolute", height: "100%", left: `${(paid / msrp) * 100}%`, right: 0, background: "#5aa832", borderRadius: "0 999px 999px 0" }} />
+                                  </div>
+                                  <span style={{ color: "#5aa832", fontWeight: 700, fontSize: 12, textAlign: "right" }}>−{money(saved)}</span>
+                                  <span style={{ color: "#8a9bb0", fontSize: 12, textAlign: "right" }}>{pct.toFixed(1)}%</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div style={{ fontSize: 11, color: "#5d6f80", marginTop: 2 }}>Based on {msrpPurchases.length} of {yearPurchases.length} purchases with MSRP data.</div>
+                        </div>
+                      )}
                     </div>
                   ) : item.key === "theme-spend" ? (
                     <div style={{ ...card, marginBottom: 0 }}>

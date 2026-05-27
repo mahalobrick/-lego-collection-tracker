@@ -26,7 +26,11 @@ const DEFAULT_WL_ITEMS = [
   { key: "watchCount",         type: "card",  label: "Watch Status",          visible: false, width: "auto",  collapsed: false },
   { key: "buyTotal",           type: "card",  label: "Tracking Cost",          visible: true,  width: "auto",  collapsed: false },
   { key: "budgetAfterBuy",     type: "card",  label: "Budget After Buy",       visible: false, width: "auto",  collapsed: false },
+  { key: "targetSavings",      type: "card",  label: "Potential Savings",      visible: false, width: "auto",  collapsed: false },
   { key: "retirement-timeline", type: "panel", label: "Retirement Timeline",   visible: true,  width: "full",  collapsed: false },
+  { key: "urgency-chart",      type: "panel", label: "Urgency Breakdown",      visible: false, width: "half",  collapsed: false },
+  { key: "msrp-vs-target",     type: "panel", label: "MSRP vs Target",         visible: false, width: "half",  collapsed: false },
+  { key: "theme-breakdown",    type: "panel", label: "By Theme",               visible: false, width: "half",  collapsed: false },
 ];
 
 export default function WantedList({ onBuyNow }) {
@@ -1056,6 +1060,27 @@ export default function WantedList({ onBuyNow }) {
     const tp = asNumber(w.targetPrice);
     return s + (tp > 0 ? tp : asNumber(w.msrp));
   }, 0);
+  // Potential savings: sum of (MSRP - targetPrice) for items where targetPrice < MSRP
+  const wlTargetSavings = wanted.reduce((s, w) => {
+    const msrp = asNumber(w.msrp);
+    const tp   = asNumber(w.targetPrice);
+    return s + (msrp > 0 && tp > 0 && tp < msrp ? msrp - tp : 0);
+  }, 0);
+  // Theme breakdown for wanted panel
+  const wlThemeData = (() => {
+    const byTheme = {};
+    wanted.forEach(w => {
+      const t = w.theme || "Unknown";
+      byTheme[t] = (byTheme[t] || 0) + 1;
+    });
+    return Object.entries(byTheme).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
+  })();
+  // MSRP vs target comparison data
+  const wlMsrpVsTargetData = wanted
+    .filter(w => asNumber(w.msrp) > 0)
+    .map(w => ({ name: w.name || w.setNumber, msrp: asNumber(w.msrp), target: asNumber(w.targetPrice) || asNumber(w.msrp) }))
+    .sort((a, b) => b.msrp - a.msrp)
+    .slice(0, 10);
   const wlBudgetAfterBuy = (() => {
     try {
       const annual  = asNumber(localStorage.getItem("blAnnualBudget")) || 0;
@@ -1454,13 +1479,14 @@ export default function WantedList({ onBuyNow }) {
                     onDrop={() => dropWLItem(item.key)}
                     style={{ opacity: draggedWLItem === item.key ? 0.4 : 1, cursor: "grab" }}
                   >
-                    {item.key === "wantedCount"   ? <Metric title="Wanted Sets"          value={wanted.length} /> :
-                     item.key === "retiringSoon"   ? <Metric title="Retiring This Year"   value={wanted.filter(w => w.retiringSoon || (w.retirementYear && Number(w.retirementYear) <= new Date().getFullYear() + 1)).length} /> :
-                     item.key === "totalMsrp"      ? <Metric title="Total MSRP"           value={money(wlTotalMsrp)} /> :
-                     item.key === "avgMsrp"        ? <Metric title="Avg MSRP"             value={money(wlAvgMsrp)} /> :
-                     item.key === "ownedCount"     ? <Metric title="Already Owned"        value={wlOwnedCount} /> :
-                     item.key === "buyTotal"       ? <Metric title="Tracking Cost"        value={money(wlBuyTotal)} /> :
-                     item.key === "budgetAfterBuy" ? <Metric title="Budget After Buy"     value={wlBudgetAfterBuy !== null ? money(wlBudgetAfterBuy) : "No budget set"} good={wlBudgetAfterBuy !== null ? wlBudgetAfterBuy >= 0 : undefined} /> : null}
+                    {item.key === "wantedCount"    ? <Metric title="Wanted Sets"          value={wanted.length} /> :
+                     item.key === "retiringSoon"    ? <Metric title="Retiring This Year"   value={wanted.filter(w => w.retiringSoon || (w.retirementYear && Number(w.retirementYear) <= new Date().getFullYear() + 1)).length} /> :
+                     item.key === "totalMsrp"       ? <Metric title="Total MSRP"           value={money(wlTotalMsrp)} /> :
+                     item.key === "avgMsrp"         ? <Metric title="Avg MSRP"             value={money(wlAvgMsrp)} /> :
+                     item.key === "ownedCount"      ? <Metric title="Already Owned"        value={wlOwnedCount} /> :
+                     item.key === "buyTotal"        ? <Metric title="Tracking Cost"        value={money(wlBuyTotal)} /> :
+                     item.key === "budgetAfterBuy"  ? <Metric title="Budget After Buy"     value={wlBudgetAfterBuy !== null ? money(wlBudgetAfterBuy) : "No budget set"} good={wlBudgetAfterBuy !== null ? wlBudgetAfterBuy >= 0 : undefined} /> :
+                     item.key === "targetSavings"   ? <Metric title="Potential Savings"    value={money(wlTargetSavings)} sub="MSRP vs target price" good={wlTargetSavings > 0} /> : null}
                   </div>
                 ))}
               </div>
@@ -1484,11 +1510,12 @@ export default function WantedList({ onBuyNow }) {
                 >
                   {hoveredWLItem === item.key && (
                     <div style={{ position: "absolute", top: 10, right: 10, zIndex: 20, display: "flex", gap: 4 }}>
-                      {item.key === "urgency-chart" && (() => {
-                        const ct = chartTypes["urgency-chart"] || "donut";
+                      {(item.key === "urgency-chart" || item.key === "theme-breakdown") && (() => {
+                        const ct = chartTypes[item.key] || (item.key === "theme-breakdown" ? "bar" : "donut");
+                        const nextLabel = ct === "donut" ? "Pie" : ct === "pie" ? "Bar" : ct === "bar" ? "Donut" : "Bar";
                         return (
-                          <button onClick={e => { e.stopPropagation(); cycleChartType("urgency-chart"); }} style={hoverCtrlBtn}
-                            title={`Chart: ${ct} — click to switch to ${ct === "donut" ? "Pie" : ct === "pie" ? "Bar" : "Donut"}`}>
+                          <button onClick={e => { e.stopPropagation(); cycleChartType(item.key); }} style={hoverCtrlBtn}
+                            title={`Switch to ${nextLabel}`}>
                             {ct === "donut" ? "◎" : ct === "pie" ? "●" : "▬"}
                           </button>
                         );
@@ -1557,6 +1584,137 @@ export default function WantedList({ onBuyNow }) {
                             );
                           })}
                         </div>
+                      </div>
+                    ) : item.key === "urgency-chart" ? (
+                      <div style={{ ...panel, marginTop: 0 }}>
+                        <h4 style={{ margin: "0 0 14px" }}>Urgency Breakdown</h4>
+                        {(() => {
+                          const now = new Date();
+                          const buckets = [
+                            { label: "Last Chance", count: wanted.filter(w => w.isLastChance).length, color: "#ef4444" },
+                            { label: "< 60 days",   count: wanted.filter(w => !w.isLastChance && w.exit_date && (new Date(w.exit_date) - now) / 86400000 <= 60 && (new Date(w.exit_date) - now) / 86400000 > 0).length, color: "#f87171" },
+                            { label: "< 180 days",  count: wanted.filter(w => !w.isLastChance && w.exit_date && (new Date(w.exit_date) - now) / 86400000 <= 180 && (new Date(w.exit_date) - now) / 86400000 > 60).length, color: "#f59e0b" },
+                            { label: "< 1 year",    count: wanted.filter(w => !w.isLastChance && w.exit_date && (new Date(w.exit_date) - now) / 86400000 <= 365 && (new Date(w.exit_date) - now) / 86400000 > 180).length, color: "#c9a84c" },
+                            { label: "No date",     count: wanted.filter(w => !w.exit_date && !w.retiringSoon).length, color: "#5d6f80" },
+                          ].filter(b => b.count > 0);
+                          if (buckets.length === 0) return <div style={{ color: "#5d6f80", fontSize: 13 }}>No retirement data yet.</div>;
+                          const ct = chartTypes["urgency-chart"] || "donut";
+                          if (ct === "bar") return (
+                            <ResponsiveContainer width="100%" height={160}>
+                              <BarChart data={buckets} layout="vertical" margin={{ left: 10, right: 30, top: 4, bottom: 4 }}>
+                                <XAxis type="number" tick={{ fill: "#5d6f80", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                                <YAxis type="category" dataKey="label" tick={{ fill: "#8a9bb0", fontSize: 12 }} width={80} axisLine={false} tickLine={false} />
+                                <Tooltip formatter={v => [v, "Sets"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
+                                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                                  {buckets.map((b, i) => <Cell key={i} fill={b.color} />)}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          );
+                          return (
+                            <>
+                              <ResponsiveContainer width="100%" height={160}>
+                                <PieChart>
+                                  <Pie data={buckets} cx="50%" cy="50%" innerRadius={ct === "donut" ? 48 : 0} outerRadius={72} dataKey="count" paddingAngle={ct === "donut" ? 2 : 1}>
+                                    {buckets.map((b, i) => <Cell key={i} fill={b.color} />)}
+                                  </Pie>
+                                  <Tooltip formatter={v => [v, "Sets"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
+                                </PieChart>
+                              </ResponsiveContainer>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: 4 }}>
+                                {buckets.map(b => (
+                                  <span key={b.label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8a9bb0" }}>
+                                    <span style={{ width: 10, height: 10, borderRadius: 2, background: b.color, display: "inline-block", flexShrink: 0 }} />
+                                    {b.label} <strong style={{ color: b.color }}>{b.count}</strong>
+                                  </span>
+                                ))}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    ) : item.key === "msrp-vs-target" ? (
+                      <div style={{ ...panel, marginTop: 0 }}>
+                        <h4 style={{ margin: "0 0 6px" }}>MSRP vs Target Price</h4>
+                        <div style={{ fontSize: 12, color: "#5d6f80", marginBottom: 14 }}>Top sets — amber = MSRP, green overlay = target</div>
+                        {wlMsrpVsTargetData.length === 0 ? (
+                          <div style={{ color: "#5d6f80", fontSize: 13 }}>Add MSRP and target prices to see this chart.</div>
+                        ) : (
+                          <div style={{ display: "grid", gap: 8 }}>
+                            {wlMsrpVsTargetData.map(({ name, msrp, target }) => {
+                              const maxMsrp = wlMsrpVsTargetData[0].msrp;
+                              const savings = msrp - target;
+                              const savingsPct = msrp > 0 ? (savings / msrp * 100).toFixed(0) : 0;
+                              return (
+                                <div key={name} style={{ display: "grid", gridTemplateColumns: "1fr 56px", gap: 10, alignItems: "center" }}>
+                                  <div>
+                                    <div style={{ fontSize: 12, color: "#8a9bb0", marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+                                    <div style={{ position: "relative", height: 8, background: "#0b1520", borderRadius: 999, overflow: "hidden" }}>
+                                      <div style={{ position: "absolute", height: "100%", width: `${(msrp / maxMsrp) * 100}%`, background: "#c9a84c44", borderRadius: 999 }} />
+                                      <div style={{ position: "absolute", height: "100%", width: `${(target / maxMsrp) * 100}%`, background: "#5aa832", borderRadius: 999 }} />
+                                    </div>
+                                  </div>
+                                  <div style={{ textAlign: "right" }}>
+                                    <div style={{ fontSize: 12, color: "#e8e2d5", fontWeight: 700 }}>{money(target)}</div>
+                                    {savings > 0 && <div style={{ fontSize: 11, color: "#5aa832" }}>−{savingsPct}%</div>}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            <div style={{ marginTop: 6, display: "flex", gap: 16 }}>
+                              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8a9bb0" }}>
+                                <span style={{ width: 10, height: 10, borderRadius: 2, background: "#c9a84c44", border: "1px solid #c9a84c", display: "inline-block" }} /> MSRP
+                              </span>
+                              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8a9bb0" }}>
+                                <span style={{ width: 10, height: 10, borderRadius: 2, background: "#5aa832", display: "inline-block" }} /> Target
+                              </span>
+                              <span style={{ fontSize: 12, color: "#5aa832", fontWeight: 700 }}>Total savings: {money(wlTargetSavings)}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : item.key === "theme-breakdown" ? (
+                      <div style={{ ...panel, marginTop: 0 }}>
+                        <h4 style={{ margin: "0 0 14px" }}>Wanted Sets by Theme</h4>
+                        {wlThemeData.length === 0 ? (
+                          <div style={{ color: "#5d6f80", fontSize: 13 }}>No theme data yet.</div>
+                        ) : (() => {
+                          const ct = chartTypes["theme-breakdown"] || "bar";
+                          if (ct === "donut" || ct === "pie") return (
+                            <>
+                              <ResponsiveContainer width="100%" height={180}>
+                                <PieChart>
+                                  <Pie data={wlThemeData.slice(0, 8)} cx="50%" cy="50%" innerRadius={ct === "donut" ? 48 : 0} outerRadius={76} dataKey="value" paddingAngle={ct === "donut" ? 2 : 1}>
+                                    {wlThemeData.slice(0, 8).map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                                  </Pie>
+                                  <Tooltip formatter={v => [v, "Sets"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
+                                </PieChart>
+                              </ResponsiveContainer>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px" }}>
+                                {wlThemeData.slice(0, 8).map((d, i) => (
+                                  <span key={d.name} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#8a9bb0" }}>
+                                    <span style={{ width: 10, height: 10, borderRadius: 2, background: PIE_COLORS[i % PIE_COLORS.length], display: "inline-block" }} />
+                                    {d.name} <strong style={{ color: "#e8e2d5" }}>{d.value}</strong>
+                                  </span>
+                                ))}
+                              </div>
+                            </>
+                          );
+                          const maxCount = wlThemeData[0].value;
+                          return (
+                            <div style={{ display: "grid", gap: 8 }}>
+                              {wlThemeData.slice(0, 8).map(({ name, value }, i) => (
+                                <div key={name} style={{ display: "grid", gridTemplateColumns: "110px 1fr 36px", alignItems: "center", gap: 10 }}>
+                                  <span style={{ color: "#8a9bb0", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                                  <div style={{ height: 8, background: "#0b1520", borderRadius: 999, overflow: "hidden" }}>
+                                    <div style={{ height: "100%", width: `${(value / maxCount) * 100}%`, background: PIE_COLORS[i % PIE_COLORS.length], borderRadius: 999 }} />
+                                  </div>
+                                  <span style={{ color: "#e8e2d5", fontWeight: 700, fontSize: 13, textAlign: "right" }}>{value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </div>
                     ) : null}
                 </div>
