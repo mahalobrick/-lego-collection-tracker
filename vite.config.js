@@ -40,6 +40,7 @@ const API_ROUTES = {
   '/api/bricklink-priceguide':      require('./api/bricklink-priceguide'),
   '/api/lego-last-chance':          require('./api/lego-last-chance'),
   '/api/brickfanatics-retiring':    require('./api/brickfanatics-retiring'),
+  '/api/cloud-backup':              require('./api/cloud-backup'),
 }
 
 export default defineConfig({

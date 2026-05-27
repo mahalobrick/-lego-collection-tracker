@@ -154,7 +154,11 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
     if (!saved) return DEFAULT_PURCHASE_COLUMNS;
     const parsed = JSON.parse(saved);
     const labelMap = Object.fromEntries(DEFAULT_PURCHASE_COLUMNS.map(c => [c.key, c.label]));
-    const merged = parsed.map(c => ({ ...c, label: labelMap[c.key] ?? c.label }));
+    // Deduplicate by key (keep first occurrence), then update labels
+    const seen = new Set();
+    const merged = parsed
+      .filter(c => { if (seen.has(c.key)) return false; seen.add(c.key); return true; })
+      .map(c => ({ ...c, label: labelMap[c.key] ?? c.label }));
     const savedKeys = new Set(merged.map(c => c.key));
     const missing = DEFAULT_PURCHASE_COLUMNS.filter(c => !savedKeys.has(c.key));
     return missing.length ? [...merged, ...missing] : merged;
@@ -2165,126 +2169,82 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
 
             {selectedPurchaseIndex !== null && purchases[selectedPurchaseIndex] && (
               <div style={{ ...editPanel, position: "sticky", top: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <h3 style={{ margin: 0 }}>Edit Purchase</h3>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#e8e2d5" }}>Edit Purchase</h3>
                   <button onClick={() => setSelectedPurchaseIndex(null)} style={circleButton}>×</button>
                 </div>
 
-                <div style={editGrid}>
-                  <label>
-                    Set Number
-                    <input
-                      value={purchases[selectedPurchaseIndex].setNumber || ""}
-                      onChange={e => updatePurchase(selectedPurchaseIndex, "setNumber", e.target.value)}
-                    />
-                  </label>
-
-                  <label>
-                    Set Name
-                    <input
-                      value={purchases[selectedPurchaseIndex].name || ""}
-                      onChange={e => updatePurchase(selectedPurchaseIndex, "name", e.target.value)}
-                    />
-                  </label>
-
-                  <label>
-                    Theme
-                    <select
-                      value={purchases[selectedPurchaseIndex].theme || ""}
-                      onChange={e => updatePurchase(selectedPurchaseIndex, "theme", e.target.value)}
-                    >
-                      <option value="">— select —</option>
-                      {(legoThemes.length
-                        ? Array.from(new Set([...legoThemes, ...purchases.map(p => p.theme).filter(Boolean)])).sort()
-                        : Array.from(new Set(purchases.map(p => p.theme).filter(Boolean))).sort()
-                      ).map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </label>
-
-                  <label>
-                    Qty
-                    <input
-                      type="number"
-                      min="1"
-                      value={purchases[selectedPurchaseIndex].qty || 1}
-                      onChange={e => updatePurchase(selectedPurchaseIndex, "qty", e.target.value)}
-                    />
-                  </label>
-
-                  <label>
-                    Price
-                    <input type="number" step="0.01"
-                      value={purchases[selectedPurchaseIndex].faceValue ?? purchases[selectedPurchaseIndex].amount ?? ""}
-                      onChange={e => updatePurchase(selectedPurchaseIndex, "faceValue", e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Tax / Fee
-                    <input type="number" step="0.01" placeholder="0.00"
-                      value={purchases[selectedPurchaseIndex].tax ?? ""}
-                      onChange={e => updatePurchase(selectedPurchaseIndex, "tax", e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Shipping
-                    <input type="number" step="0.01" placeholder="0.00"
-                      value={purchases[selectedPurchaseIndex].shipping ?? ""}
-                      onChange={e => updatePurchase(selectedPurchaseIndex, "shipping", e.target.value)}
-                    />
-                  </label>
-                  <label style={{ color: "#4caf7d" }}>
-                    GC / Rewards
-                    <input type="number" step="0.01" placeholder="0.00"
-                      value={purchases[selectedPurchaseIndex].gcApplied ?? ""}
-                      onChange={e => updatePurchase(selectedPurchaseIndex, "gcApplied", e.target.value)}
-                      style={{ border: purchases[selectedPurchaseIndex].gcApplied ? "1px solid rgba(76,175,61,0.4)" : undefined }}
-                    />
-                  </label>
-
-                  <label>
-                    Store
-                    <select
-                      value={purchases[selectedPurchaseIndex].store || ""}
-                      onChange={e => updatePurchase(selectedPurchaseIndex, "store", e.target.value)}
-                    >
-                      {stores.map(s => <option key={s}>{s}</option>)}
-                    </select>
-                  </label>
-
-                  <label>
-                    Date
-                    <input
-                      type="date"
-                      value={purchases[selectedPurchaseIndex].date || ""}
-                      onChange={e => updatePurchase(selectedPurchaseIndex, "date", e.target.value)}
-                    />
-                  </label>
-
-                  <label>
-                    Notes
-                    <input
-                      value={purchases[selectedPurchaseIndex].notes || ""}
-                      onChange={e => updatePurchase(selectedPurchaseIndex, "notes", e.target.value)}
-                    />
-                  </label>
-
-                  {purchases[selectedPurchaseIndex].orderLabel && (
-                    <label style={{ gridColumn: "1 / -1" }}>
-                      <span style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>Order #</span>
-                      <div style={{ fontFamily: "monospace", color: "#c9a84c", fontWeight: 700, fontSize: 13, letterSpacing: 0.5, padding: "6px 0 2px" }}>
-                        {purchases[selectedPurchaseIndex].orderLabel}
+                {(() => {
+                  const p = purchases[selectedPurchaseIndex];
+                  const lbl = { fontSize: 10, fontWeight: 700, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 5, display: "block" };
+                  const inp = { width: "100%", background: "#0d1a2a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5", fontSize: 13, padding: "7px 10px", outline: "none", boxSizing: "border-box" };
+                  const row = { display: "grid", gap: 10, marginBottom: 10 };
+                  const purchaseThemes = legoThemes.length
+                    ? Array.from(new Set([...legoThemes, ...purchases.map(q => q.theme).filter(Boolean)])).sort()
+                    : Array.from(new Set(purchases.map(q => q.theme).filter(Boolean))).sort();
+                  return (
+                    <div>
+                      {/* Row 1: Set # + Set Name */}
+                      <div style={{ ...row, gridTemplateColumns: "110px 1fr" }}>
+                        <label><span style={lbl}>Set #</span><input style={inp} value={p.setNumber || ""} onChange={e => updatePurchase(selectedPurchaseIndex, "setNumber", e.target.value)} /></label>
+                        <label><span style={lbl}>Set Name</span><input style={inp} value={p.name || ""} onChange={e => updatePurchase(selectedPurchaseIndex, "name", e.target.value)} /></label>
                       </div>
-                    </label>
-                  )}
-                  {purchases[selectedPurchaseIndex].orderNotes && (
-                    <label style={{ gridColumn: "1 / -1" }}>
-                      <span style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>Order Notes</span>
-                      <div style={{ color: "#8a9bb0", fontSize: 12, padding: "6px 0 2px", lineHeight: 1.4 }}>
-                        {purchases[selectedPurchaseIndex].orderNotes}
+
+                      {/* Row 2: Theme + Store */}
+                      <div style={{ ...row, gridTemplateColumns: "1fr 1fr" }}>
+                        <label>
+                          <span style={lbl}>Theme</span>
+                          <select style={inp} value={p.theme || ""} onChange={e => updatePurchase(selectedPurchaseIndex, "theme", e.target.value)}>
+                            <option value="">— select —</option>
+                            {purchaseThemes.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </label>
+                        <label>
+                          <span style={lbl}>Store</span>
+                          <select style={inp} value={p.store || ""} onChange={e => updatePurchase(selectedPurchaseIndex, "store", e.target.value)}>
+                            {stores.map(s => <option key={s}>{s}</option>)}
+                          </select>
+                        </label>
                       </div>
-                    </label>
-                  )}
-                </div>
+
+                      {/* Row 3: Date + Qty + Price */}
+                      <div style={{ ...row, gridTemplateColumns: "1fr 70px 1fr" }}>
+                        <label><span style={lbl}>Date</span><input style={inp} type="date" value={p.date || ""} onChange={e => updatePurchase(selectedPurchaseIndex, "date", e.target.value)} /></label>
+                        <label><span style={lbl}>Qty</span><input style={inp} type="number" min="1" value={p.qty || 1} onChange={e => updatePurchase(selectedPurchaseIndex, "qty", e.target.value)} /></label>
+                        <label><span style={lbl}>Price</span><input style={inp} type="number" step="0.01" value={p.faceValue ?? p.amount ?? ""} onChange={e => updatePurchase(selectedPurchaseIndex, "faceValue", e.target.value)} /></label>
+                      </div>
+
+                      {/* Row 4: Tax + Shipping + GC/Rewards */}
+                      <div style={{ ...row, gridTemplateColumns: "1fr 1fr 1fr" }}>
+                        <label><span style={lbl}>Tax / Fee</span><input style={inp} type="number" step="0.01" placeholder="0.00" value={p.tax ?? ""} onChange={e => updatePurchase(selectedPurchaseIndex, "tax", e.target.value)} /></label>
+                        <label><span style={lbl}>Shipping</span><input style={inp} type="number" step="0.01" placeholder="0.00" value={p.shipping ?? ""} onChange={e => updatePurchase(selectedPurchaseIndex, "shipping", e.target.value)} /></label>
+                        <label>
+                          <span style={{ ...lbl, color: "#4caf7d" }}>GC / Rewards</span>
+                          <input style={{ ...inp, border: p.gcApplied ? "1px solid rgba(76,175,61,0.4)" : inp.border }} type="number" step="0.01" placeholder="0.00" value={p.gcApplied ?? ""} onChange={e => updatePurchase(selectedPurchaseIndex, "gcApplied", e.target.value)} />
+                        </label>
+                      </div>
+
+                      {/* Row 5: Notes */}
+                      <div style={{ ...row, gridTemplateColumns: "1fr" }}>
+                        <label><span style={lbl}>Notes</span><input style={inp} value={p.notes || ""} onChange={e => updatePurchase(selectedPurchaseIndex, "notes", e.target.value)} /></label>
+                      </div>
+
+                      {/* Order info (read-only) */}
+                      {p.orderLabel && (
+                        <div style={{ marginTop: 4 }}>
+                          <span style={lbl}>Order #</span>
+                          <div style={{ fontFamily: "monospace", color: "#c9a84c", fontWeight: 700, fontSize: 13, letterSpacing: 0.5 }}>{p.orderLabel}</div>
+                        </div>
+                      )}
+                      {p.orderNotes && (
+                        <div style={{ marginTop: 8 }}>
+                          <span style={lbl}>Order Notes</span>
+                          <div style={{ color: "#8a9bb0", fontSize: 12, lineHeight: 1.4 }}>{p.orderNotes}</div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
                   <button onClick={() => setSelectedPurchaseIndex(null)}>Done</button>
