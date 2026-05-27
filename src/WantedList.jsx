@@ -1536,6 +1536,8 @@ export default function WantedList({ onBuyNow }) {
                                         key={i}
                                         className="tl-chip"
                                         onClick={() => { setDetailItem(w); setDetailItemIndex(wanted.indexOf(w)); }}
+                                        onMouseEnter={() => setHoveredWanted(w)}
+                                        onMouseLeave={() => setHoveredWanted(null)}
                                         style={{ background: chipBg, border: `1px solid ${chipBorder}`, borderRadius: 10, padding: "8px 12px", minWidth: 140 }}
                                       >
                                         <div style={{ fontSize: 11, color: "#8a9bb0", marginBottom: 3 }}>#{w.setNumber}</div>
