@@ -108,7 +108,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     // Migration: remove retired keys, carry forward their visibility into replacement
     const legacyVisible = new Set(parsed.filter(c => c.visible).map(c => c.key));
     const REMOVED_KEYS = new Set(["newSets", "usedSets", "retiringSoon"]);
-    const filtered = parsed.filter(c => !REMOVED_KEYS.has(c.key));
+    const knownKeys = new Set(DEFAULT_COLLECTION_ITEMS.map(c => c.key));
+    const filtered = parsed.filter(c => !REMOVED_KEYS.has(c.key) && knownKeys.has(c.key));
     const typeMap = Object.fromEntries(DEFAULT_COLLECTION_ITEMS.map(c => [c.key, c.type]));
     const labelMap = Object.fromEntries(DEFAULT_COLLECTION_ITEMS.map(c => [c.key, c.label]));
     const merged = filtered.map(c => ({ ...c, type: typeMap[c.key] ?? c.type, label: labelMap[c.key] ?? c.label }));
@@ -1056,23 +1057,26 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             </div>
 
             {collGearOpen && (
-              <div style={{ position: "absolute", top: 46, right: 10, zIndex: 30, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "12px 16px", minWidth: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
-                <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Stats</div>
-                {collectionItems.filter(i => i.type === "card").map(item => (
-                  <label key={item.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", color: item.visible ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
-                    <input type="checkbox" checked={item.visible} onChange={() => setCollectionItems(prev => prev.map(x => x.key === item.key ? { ...x, visible: !x.visible } : x))} style={{ accentColor: "#c9a84c" }} />
-                    {item.label}
-                  </label>
-                ))}
-                <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", margin: "10px 0 8px" }} />
-                <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Panels</div>
-                {collectionItems.filter(i => i.type === "panel").map(item => (
-                  <label key={item.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", color: item.visible ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
-                    <input type="checkbox" checked={item.visible} onChange={() => setCollectionItems(prev => prev.map(x => x.key === item.key ? { ...x, visible: !x.visible } : x))} style={{ accentColor: "#c9a84c" }} />
-                    {item.label}
-                  </label>
-                ))}
-              </div>
+              <>
+                <div onClick={() => setCollGearOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
+                <div style={{ position: "absolute", top: 46, right: 10, zIndex: 30, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "12px 16px", minWidth: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
+                  <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Stats</div>
+                  {collectionItems.filter(i => i.type === "card").sort((a, b) => a.label.localeCompare(b.label)).map(item => (
+                    <label key={item.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", color: item.visible ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
+                      <input type="checkbox" checked={item.visible} onChange={() => setCollectionItems(prev => prev.map(x => x.key === item.key ? { ...x, visible: !x.visible } : x))} style={{ accentColor: "#c9a84c" }} />
+                      {item.label}
+                    </label>
+                  ))}
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", margin: "10px 0 8px" }} />
+                  <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Panels</div>
+                  {collectionItems.filter(i => i.type === "panel").sort((a, b) => a.label.localeCompare(b.label)).map(item => (
+                    <label key={item.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", color: item.visible ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
+                      <input type="checkbox" checked={item.visible} onChange={() => setCollectionItems(prev => prev.map(x => x.key === item.key ? { ...x, visible: !x.visible } : x))} style={{ accentColor: "#c9a84c" }} />
+                      {item.label}
+                    </label>
+                  ))}
+                </div>
+              </>
             )}
 
             {!collPillsCollapsed && (

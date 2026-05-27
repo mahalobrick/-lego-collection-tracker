@@ -1450,23 +1450,26 @@ export default function WantedList({ onBuyNow }) {
             </div>
 
             {wlGearOpen && (
-              <div style={{ position: "absolute", top: 46, right: 10, zIndex: 30, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "12px 16px", minWidth: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
-                <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Stats</div>
-                {wlItems.filter(i => i.type === "card").map(item => (
-                  <label key={item.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", color: item.visible ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
-                    <input type="checkbox" checked={item.visible} onChange={() => setWlItems(prev => prev.map(x => x.key === item.key ? { ...x, visible: !x.visible } : x))} style={{ accentColor: "#c9a84c" }} />
-                    {item.label}
-                  </label>
-                ))}
-                <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", margin: "10px 0 8px" }} />
-                <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Panels</div>
-                {wlItems.filter(i => i.type === "panel").map(item => (
-                  <label key={item.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", color: item.visible ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
-                    <input type="checkbox" checked={item.visible} onChange={() => setWlItems(prev => prev.map(x => x.key === item.key ? { ...x, visible: !x.visible } : x))} style={{ accentColor: "#c9a84c" }} />
-                    {item.label}
-                  </label>
-                ))}
-              </div>
+              <>
+                <div onClick={() => setWlGearOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
+                <div style={{ position: "absolute", top: 46, right: 10, zIndex: 30, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "12px 16px", minWidth: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
+                  <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Stats</div>
+                  {wlItems.filter(i => i.type === "card").sort((a, b) => a.label.localeCompare(b.label)).map(item => (
+                    <label key={item.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", color: item.visible ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
+                      <input type="checkbox" checked={item.visible} onChange={() => setWlItems(prev => prev.map(x => x.key === item.key ? { ...x, visible: !x.visible } : x))} style={{ accentColor: "#c9a84c" }} />
+                      {item.label}
+                    </label>
+                  ))}
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", margin: "10px 0 8px" }} />
+                  <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Panels</div>
+                  {wlItems.filter(i => i.type === "panel").sort((a, b) => a.label.localeCompare(b.label)).map(item => (
+                    <label key={item.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", color: item.visible ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
+                      <input type="checkbox" checked={item.visible} onChange={() => setWlItems(prev => prev.map(x => x.key === item.key ? { ...x, visible: !x.visible } : x))} style={{ accentColor: "#c9a84c" }} />
+                      {item.label}
+                    </label>
+                  ))}
+                </div>
+              </>
             )}
 
             {!wlPillsCollapsed && (
@@ -2525,6 +2528,8 @@ export default function WantedList({ onBuyNow }) {
               </svg>
             </button>
             {colGearOpen && (
+              <>
+                <div onClick={() => setColGearOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 199 }} />
               <div
                 onClick={e => e.stopPropagation()}
                 style={{
@@ -2608,6 +2613,7 @@ export default function WantedList({ onBuyNow }) {
                   </div>
                 </div>
               </div>
+              </>
             )}
           </div>
 
