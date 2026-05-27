@@ -197,12 +197,7 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
               const sc = priorityScore(item);
               const rec = recommendation(sc);
               const recColor = rec === "Buy Now" ? "#ef4444" : rec === "Watch Closely" ? "#f59e0b" : "#5aa832";
-              return (
-                <>
-                  <StatBox label="Score" value={sc} color="#e8e2d5" />
-                  <StatBox label="Recommendation" value={rec} color={recColor} />
-                </>
-              );
+              return <StatBox label="Recommendation" value={rec} color={recColor} />;
             })()}
             {item.exit_date
               ? (() => {
@@ -220,7 +215,6 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
                 ? <StatBox label="Retirement Year" value={item.retirementYear} color={item.retiringSoon ? "#ff8b8b" : "#e8e2d5"} />
                 : null
             }
-            {item.retirementConfidence && <StatBox label="Confidence" value={item.retirementConfidence} />}
             {item.retirementSource && <StatBox label="Data Source" value={item.retirementSource} />}
           </div>
         </div>
