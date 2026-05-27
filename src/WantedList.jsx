@@ -2368,11 +2368,11 @@ export default function WantedList({ onBuyNow }) {
                 }}
               >
                 {[
-                  { id: "intelligence", label: "🧠 Intelligence" },
-                  { id: "core",         label: "📋 Core" },
-                  { id: "retirement",   label: "🔥 Retirement" },
-                  { id: "pricing",      label: "💰 Pricing" },
-                  { id: "details",      label: "📦 Details" },
+                  { id: "intelligence", label: "Intelligence" },
+                  { id: "core",         label: "Core" },
+                  { id: "retirement",   label: "Retirement" },
+                  { id: "pricing",      label: "Pricing" },
+                  { id: "details",      label: "Details" },
                 ].map(grp => (
                   <div key={grp.id}>
                     <div style={{ color: "#8a9bb0", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
@@ -2402,7 +2402,7 @@ export default function WantedList({ onBuyNow }) {
                 {/* Custom fields section inside column gear */}
                 <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12, marginTop: 4 }}>
                   <div style={{ color: "#8a9bb0", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
-                    ✦ Custom Fields
+                    Custom Fields
                   </div>
                   {customFieldsSchema.map(cf => (
                     <div key={cf.id} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
