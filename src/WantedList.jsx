@@ -2202,6 +2202,8 @@ export default function WantedList({ onBuyNow }) {
                 {lcSets.map(w => (
                   <span key={w.setNumber}
                     onClick={() => { setDetailItem(w); setDetailItemIndex(wanted.indexOf(w)); }}
+                    onMouseEnter={() => setHoveredWanted(w)}
+                    onMouseLeave={() => setHoveredWanted(null)}
                     style={{ background: "#4a0a0a", border: "1px solid #991b1b", borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#fca5a5", cursor: "pointer", fontWeight: 700 }}
                   >
                     #{w.setNumber} {w.name ? `— ${w.name}` : ""}
@@ -2236,6 +2238,8 @@ export default function WantedList({ onBuyNow }) {
                   return (
                     <span key={w.setNumber}
                       onClick={() => { setDetailItem(w); setDetailItemIndex(wanted.indexOf(w)); }}
+                      onMouseEnter={() => setHoveredWanted(w)}
+                      onMouseLeave={() => setHoveredWanted(null)}
                       style={{ background: "#0a2e1a", border: "1px solid #166534", borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#86efac", cursor: "pointer", fontWeight: 700 }}
                     >
                       #{w.setNumber} {w.name ? `— ${w.name}` : ""} {pct > 0 ? `(${pct}% off target)` : "(at target)"}
