@@ -192,7 +192,8 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
           gc: "",
           store: firstStore,
           date: new Date().toISOString().slice(0, 10),
-          notes: ""
+          notes: "",
+          _suggestedMsrp: asNumber(pendingPurchase.msrp) || null,
         }],
         orderTax: "", orderShipping: "", orderGC: "", orderLabel: "", orderNotes: "", _orderLabelAuto: true,
         _fromWantedId: pendingPurchase.id ?? null,
@@ -206,7 +207,17 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
 
   const [purchases, setPurchases] = useState(() => {
     const saved = localStorage.getItem("blPurchases");
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    const list = JSON.parse(saved);
+    // Migration: backfill stable id for records that predate this field
+    let dirty = false;
+    const migrated = list.map(p => {
+      if (p.id) return p;
+      dirty = true;
+      return { ...p, id: `pur_${Date.now()}${Math.random().toString(36).slice(2, 9)}` };
+    });
+    if (dirty) localStorage.setItem("blPurchases", JSON.stringify(migrated));
+    return migrated;
   });
 
   useEffect(() => {
@@ -419,12 +430,14 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
   function applyImportedPurchases(imported) {
     const cleaned = (imported || []).map(p => ({
       ...p,
+      id:       p.id || `pur_${Date.now()}${Math.random().toString(36).slice(2, 9)}`,
       setNumber: p.setNumber || p.item || "",
       name: p.name || "",
       theme: p.theme || "",
       qty: asNumber(p.qty) || 1,
       amount: asNumber(p.amount),
       faceValue: p.faceValue != null ? asNumber(p.faceValue) : (p.amount != null ? asNumber(p.amount) : null),
+      msrp:     p.msrp != null ? asNumber(p.msrp) : null,
       tax:      p.tax      != null ? asNumber(p.tax)      : null,
       shipping: p.shipping != null ? asNumber(p.shipping) : null,
       total:    p.total    != null ? asNumber(p.total)    : null,
@@ -458,10 +471,12 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
       const data = await importBudgetExcel(file);
       const cleaned = (data.purchases || []).map(p => ({
         ...p,
+        id:        p.id || `pur_${Date.now()}${Math.random().toString(36).slice(2, 9)}`,
         setNumber: p.setNumber || p.item || "",
         name: p.name || "",
         theme: p.theme || "",
-        qty: asNumber(p.qty) || 1
+        qty: asNumber(p.qty) || 1,
+        msrp: p.msrp != null ? asNumber(p.msrp) : null,
       }));
 
       applyImportedPurchases(cleaned);
@@ -1010,7 +1025,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
 
     const newPurchases = valid.map(line => {
       // Strip UI-only form fields before persisting
-      const { gc: _gc, _suggestedMsrp: _msrp, ...lineRest } = line;
+      const { gc: _gc, _suggestedMsrp, ...lineRest } = line;
       const faceValue  = asNumber(line.faceValue);
       const tax        = asNumber(line.tax)        || 0;
       const shipping   = asNumber(line.shipping)   || 0;
@@ -1020,8 +1035,10 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
       const cashPaid   = Math.max(0, Math.round((total - gcApplied) * 100) / 100);
       return {
         ...lineRest,
+        id:         `pur_${Date.now()}${Math.random().toString(36).slice(2, 9)}`,
         qty,
         faceValue,
+        msrp:       asNumber(_suggestedMsrp) || null,
         tax:        tax        || null,
         shipping:   shipping   || null,
         gcApplied:  gcApplied  || null,
