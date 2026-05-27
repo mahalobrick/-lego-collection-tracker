@@ -1509,6 +1509,7 @@ export default function WantedList({ onBuyNow }) {
                       </div>
                     ) : item.key === "retirement-timeline" && retirementWaves.length > 0 ? (
                       <div style={{ ...panel, marginTop: 0 }}>
+                        <style>{`.tl-chip { transition: filter 0.12s, transform 0.12s; } .tl-chip:hover { filter: brightness(1.35) !important; transform: translateY(-2px) !important; cursor: pointer; }`}</style>
                         <h4 style={{ margin: "0 0 16px" }}>Retirement Wave Timeline</h4>
                         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                           {retirementWaves.map(({ label, sets }) => {
@@ -1533,15 +1534,9 @@ export default function WantedList({ onBuyNow }) {
                                     return (
                                       <div
                                         key={i}
+                                        className="tl-chip"
                                         onClick={() => { setDetailItem(w); setDetailItemIndex(wanted.indexOf(w)); }}
-                                        onMouseEnter={() => setHoveredTimelineChip(`${label}-${i}`)}
-                                        onMouseLeave={() => setHoveredTimelineChip(null)}
-                                        style={{
-                                          background: chipBg, border: `1px solid ${chipBorder}`, borderRadius: 10, padding: "8px 12px", cursor: "pointer", minWidth: 140,
-                                          transition: "filter 0.12s, transform 0.12s",
-                                          filter: hoveredTimelineChip === `${label}-${i}` ? "brightness(1.3)" : "none",
-                                          transform: hoveredTimelineChip === `${label}-${i}` ? "translateY(-2px)" : "none",
-                                        }}
+                                        style={{ background: chipBg, border: `1px solid ${chipBorder}`, borderRadius: 10, padding: "8px 12px", minWidth: 140 }}
                                       >
                                         <div style={{ fontSize: 11, color: "#8a9bb0", marginBottom: 3 }}>#{w.setNumber}</div>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: chipColor, marginBottom: 4, lineHeight: 1.3 }}>
