@@ -558,7 +558,7 @@ export default function AppSettings() {
     try {
       const result = await pushToCloud();
       if (result === null) {
-        toast.error("Cloud backup not configured — add KV_REST_API_URL and KV_REST_API_TOKEN to your environment.");
+        toast.error("Cloud backup not configured — connect a Redis database in Vercel Storage.");
       } else {
         const ts = result.savedAt || new Date().toISOString();
         setLastCloudPush(ts);
@@ -1248,8 +1248,7 @@ export default function AppSettings() {
         <h3 style={{ margin: "0 0 4px" }}>Cloud Backup</h3>
         <p style={{ ...mutedSmall, margin: "0 0 14px" }}>
           Sync your data to the cloud so it survives a browser wipe or device switch.
-          Requires Upstash Redis connected via Vercel — add <code style={{ color: "#c9a84c", fontSize: 12 }}>KV_REST_API_URL</code> and{" "}
-          <code style={{ color: "#c9a84c", fontSize: 12 }}>KV_REST_API_TOKEN</code> to your environment.
+          Requires a Redis database connected via Vercel Storage (<code style={{ color: "#c9a84c", fontSize: 12 }}>REDIS_URL</code>) or Upstash KV (<code style={{ color: "#c9a84c", fontSize: 12 }}>KV_REST_API_URL</code> + <code style={{ color: "#c9a84c", fontSize: 12 }}>KV_REST_API_TOKEN</code>).
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <button onClick={handlePushToCloud} disabled={cloudBusy} style={{ ...smallButton, opacity: cloudBusy ? 0.6 : 1 }}>

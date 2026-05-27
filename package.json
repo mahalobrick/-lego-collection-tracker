@@ -9,6 +9,7 @@
   "dependencies": {
     "exceljs": "^4.4.0",
     "fuse.js": "^7.3.0",
+    "ioredis": "^5.11.0",
     "papaparse": "^5.5.3",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",

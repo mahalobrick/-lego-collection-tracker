@@ -72,10 +72,21 @@ export default defineConfig({
           const query = Object.fromEntries(
             new NodeURL(req.url, 'http://localhost').searchParams
           )
-          // Attach query onto the native IncomingMessage so POST handlers
-          // can also stream the request body via req.on("data", ...)
           req.query = query
-          handler(req, makeRes(res))
+
+          // Parse JSON body for POST/PUT so handlers can read req.body
+          // (mirrors what Vercel does automatically in production)
+          if ((req.method === 'POST' || req.method === 'PUT') &&
+              (req.headers['content-type'] || '').includes('application/json')) {
+            let raw = ''
+            req.on('data', chunk => { raw += chunk })
+            req.on('end', () => {
+              try { req.body = JSON.parse(raw) } catch { req.body = {} }
+              handler(req, makeRes(res))
+            })
+          } else {
+            handler(req, makeRes(res))
+          }
         })
       }
     }
