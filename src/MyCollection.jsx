@@ -32,7 +32,6 @@ const DEFAULT_COLLECTION_ITEMS = [
   { key: "newValue",     type: "card",  label: "New Sets Value",   visible: false, width: "auto",  collapsed: false },
   { key: "usedValue",    type: "card",  label: "Used Sets Value",  visible: false, width: "auto",  collapsed: false },
   { key: "watchList",    type: "card",  label: "Wanted List",      visible: false, width: "auto",  collapsed: false },
-  { key: "retiringSoon", type: "card",  label: "Retiring Soon",    visible: false, width: "auto",  collapsed: false },
   { key: "theme-chart",   type: "panel", label: "Value by Theme",     visible: true,  width: "half",  collapsed: false },
   { key: "roi-leaders",   type: "panel", label: "ROI Leaders",        visible: true,  width: "half",  collapsed: false },
   { key: "most-valuable", type: "panel", label: "Most Valuable Sets", visible: true,  width: "half",  collapsed: false },
@@ -108,7 +107,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     const parsed = JSON.parse(saved);
     // Migration: remove retired keys, carry forward their visibility into replacement
     const legacyVisible = new Set(parsed.filter(c => c.visible).map(c => c.key));
-    const REMOVED_KEYS = new Set(["newSets", "usedSets"]);
+    const REMOVED_KEYS = new Set(["newSets", "usedSets", "retiringSoon"]);
     const filtered = parsed.filter(c => !REMOVED_KEYS.has(c.key));
     const typeMap = Object.fromEntries(DEFAULT_COLLECTION_ITEMS.map(c => [c.key, c.type]));
     const labelMap = Object.fromEntries(DEFAULT_COLLECTION_ITEMS.map(c => [c.key, c.label]));
@@ -1112,8 +1111,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                      item.key === "retailValue"  ? <Card title="Retail Value"     value={money(stats.retailValue || beSyncInfo.retailValue)} /> :
                      item.key === "newValue"     ? <Card title="New Sets Value"   value={money(stats.newSetsValue)} sub={`${stats.newEntries} sets`} /> :
                      item.key === "usedValue"    ? <Card title="Used Sets Value"  value={money(stats.usedSetsValue)} sub={`${stats.usedEntries} sets`} /> :
-                     item.key === "watchList"    ? <Card title="Wanted List"      value={watchListHighlights.total} /> :
-                     item.key === "retiringSoon" ? <Card title="Retiring Soon"    value={watchListHighlights.retiringSoon} /> : null}
+                     item.key === "watchList"    ? <Card title="Wanted List"      value={watchListHighlights.total} /> : null}
                   </div>
                 ))}
               </div>
