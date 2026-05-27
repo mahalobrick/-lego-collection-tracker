@@ -2755,10 +2755,9 @@ export default function WantedList({ onBuyNow }) {
                     </div>
 
                     {/* Row 6: Flags */}
-                    <div style={{ ...row, gridTemplateColumns: "1fr 1fr", marginBottom: 10 }}>
+                    <div style={{ ...row, gridTemplateColumns: "1fr", marginBottom: 10 }}>
                       {[
-                        { field: "isLastChance", label: "🚨 Last Chance", activeColor: "#ef4444" },
-                        { field: "retiringSoon",  label: "⚠️ Retiring Soon", activeColor: "#f59e0b" },
+                        { field: "retiringSoon", label: "⚠️ Retiring Soon", activeColor: "#f59e0b" },
                       ].map(({ field, label, activeColor }) => {
                         const on = !!w[field];
                         return (

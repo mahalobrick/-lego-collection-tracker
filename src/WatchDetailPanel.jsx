@@ -82,7 +82,7 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
             {onBuyNow && (
               <button onClick={onBuyNow} style={{ background: "#0a2e1a", border: "1px solid #166534", color: "#5aa832", borderRadius: 8, padding: "0 12px", height: 32, cursor: "pointer", fontWeight: 700, fontSize: 13, whiteSpace: "nowrap" }}>
-                Bought →
+                Purchase
               </button>
             )}
             {onEdit && (
