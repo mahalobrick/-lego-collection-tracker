@@ -385,7 +385,7 @@ export default function WantedList({ onBuyNow }) {
             updates.exit_date            = bsData.exit_date;
             updates.retirementYear       = String(exitYear);
             updates.retiringSoon         = exitYear <= currentYear + 1;
-            updates.retirementSource     = "Brickset";
+            updates.retirementSource     = "Auto";
             updates.lastRetirementUpdate = new Date().toISOString().slice(0, 10);
           }
           if (bsData.retail_price_us && !w.msrp) {
@@ -467,8 +467,8 @@ export default function WantedList({ onBuyNow }) {
       let updated = 0;
       setWanted(prev => {
         const next = prev.map(w => {
-          // Brickset exit_date is more authoritative — don't overwrite it
-          if (w.retirementSource === "Brickset" && w.exit_date) return w;
+          // LEGO Last Chance is always authoritative — never overwrite it
+          if (w.retirementSource === "LEGO Last Chance") return w;
           const cleanNum = String(w.setNumber || "").replace(/-1$/, "").trim();
           const bfMatch  = bfMap.get(cleanNum);
           if (!bfMatch) return w;
@@ -1280,7 +1280,7 @@ export default function WantedList({ onBuyNow }) {
           setBfRetirement(bfData);
           if (bfData.retiring && bfData.retirementDate) {
             setForm(prev => {
-              if (prev.retirementSource === "Brickset") return prev; // Brickset is authoritative
+              if (prev.retirementSource === "LEGO Last Chance") return prev; // LC is authoritative
               const yrMatch = bfData.retirementDate.match(/\b(20\d{2})\b/);
               const yr = yrMatch ? Number(yrMatch[1]) : null;
               return {
@@ -2322,7 +2322,7 @@ export default function WantedList({ onBuyNow }) {
                     pieces:     row.pieces || "",
                     msrp: "", targetPrice: "", targetDiscount: "", storePrice: "",
                     retiringSoon: false, retirementYear: "", bfRetirementDate: "",
-                    retirementSource: "Brickset", lastRetirementUpdate: new Date().toISOString().slice(0, 10),
+                    retirementSource: "", lastRetirementUpdate: "",
                     exit_date: "", isLastChance: false, forecast2yr: "", forecast5yr: "",
                     currentValue: "", notes: "", subtheme: "", minifigs: "",
                     weight: "", rating: "", packagingType: "", ageMin: "",
