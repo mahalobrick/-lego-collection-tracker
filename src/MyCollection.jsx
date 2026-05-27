@@ -1805,24 +1805,60 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       )}
 
       {tab === "collection" && retirementAlertsForOwned.length > 0 && (
-        <div style={{ background: "#3b1200", border: "1px solid #92400e", borderRadius: 12, padding: "12px 16px", marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-          <div>
-            <div style={{ fontWeight: 800, color: "#f59e0b", marginBottom: 4 }}>
-              ⚠️ {retirementAlertsForOwned.length} owned {retirementAlertsForOwned.length === 1 ? "set" : "sets"} retiring soon — consider selling
+        <div style={{ background: "#1a0a00", border: "1px solid #92400e", borderRadius: 12, padding: "14px 16px", marginTop: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ fontWeight: 800, color: "#f59e0b", fontSize: 14 }}>
+              ⚠ {retirementAlertsForOwned.length} owned {retirementAlertsForOwned.length === 1 ? "set" : "sets"} retiring soon — sell window open
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {retirementAlertsForOwned.slice(0, 5).map(s => (
-                <span key={s.setNumber} style={{ background: "#451a03", border: "1px solid #92400e", borderRadius: 999, padding: "2px 10px", fontSize: 12, color: "#fdba74" }}>
-                  {s.name || s.setNumber}{s.alertType === "lastchance" ? " 🚨" : ` (${s.days}d)`}
-                </span>
-              ))}
-              {retirementAlertsForOwned.length > 5 && <span style={{ fontSize: 12, color: "#8a9bb0" }}>+{retirementAlertsForOwned.length - 5} more</span>}
-            </div>
+            <button
+              onClick={() => { const codes = retirementAlertsForOwned.map(s => String(s.setNumber || "").replace(/-1$/, "")); setRetireDismissed(prev => [...new Set([...prev, ...codes])]); }}
+              style={{ background: "none", border: "none", color: "#8a9bb0", cursor: "pointer", fontSize: 18, fontWeight: 900, flexShrink: 0, padding: "0 4px" }}
+            >×</button>
           </div>
-          <button
-            onClick={() => { const codes = retirementAlertsForOwned.map(s => String(s.setNumber || "").replace(/-1$/, "")); setRetireDismissed(prev => [...new Set([...prev, ...codes])]); }}
-            style={{ background: "none", border: "none", color: "#8a9bb0", cursor: "pointer", fontSize: 18, fontWeight: 900, flexShrink: 0, padding: "0 4px" }}
-          >×</button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {retirementAlertsForOwned.slice(0, 5).map(s => {
+              const qty   = asNumber(s.qty) || 1;
+              const paid  = asNumber(s.totalPaid)  || asNumber(s.paidPrice)    * qty;
+              const value = asNumber(s.totalValue) || asNumber(s.currentValue) * qty;
+              const gain  = paid > 0 && value > 0 ? value - paid : null;
+              const roi   = gain !== null && paid > 0 ? (gain / paid) * 100 : null;
+              const clean = String(s.setNumber || "").replace(/-1$/, "");
+              const blUrl = `https://www.bricklink.com/v2/catalog/catalogitem.page?S=${clean}-1#T=S&O={"ss":"US"}`;
+              return (
+                <div key={s.setNumber} style={{ background: "#2a0d00", border: "1px solid #78350f", borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: "#e8e2d5", fontSize: 13, marginBottom: 5 }}>
+                      {s.name || s.setNumber}
+                      <span style={{ marginLeft: 8, fontSize: 11, color: "#8a9bb0", fontWeight: 400 }}>#{clean}</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+                      {paid  > 0 && <span style={{ fontSize: 12, color: "#8a9bb0" }}>Paid <strong style={{ color: "#e8e2d5" }}>{money(paid)}</strong></span>}
+                      {value > 0 && <span style={{ fontSize: 12, color: "#8a9bb0" }}>Market <strong style={{ color: "#c9a84c" }}>{money(value)}</strong></span>}
+                      {gain !== null && roi !== null && (
+                        <span style={{ fontSize: 12, fontWeight: 700, color: gain >= 0 ? "#5aa832" : "#ff8b8b" }}>
+                          {gain >= 0 ? "+" : ""}{money(gain)} ({roi >= 0 ? "+" : ""}{roi.toFixed(1)}%)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: s.alertType === "lastchance" ? "#ef4444" : "#f59e0b" }}>
+                      {s.alertType === "lastchance" ? "🚨 Last Chance" : `${s.days}d left`}
+                    </span>
+                    <a href={blUrl} target="_blank" rel="noopener noreferrer"
+                      style={{ fontSize: 12, color: "#3b82f6", textDecoration: "none", fontWeight: 700 }}>
+                      Sell on BrickLink ↗
+                    </a>
+                  </div>
+                </div>
+              );
+            })}
+            {retirementAlertsForOwned.length > 5 && (
+              <div style={{ fontSize: 12, color: "#8a9bb0", padding: "4px 2px" }}>
+                +{retirementAlertsForOwned.length - 5} more sets retiring soon
+              </div>
+            )}
+          </div>
         </div>
       )}
 
