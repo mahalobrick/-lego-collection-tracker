@@ -10,8 +10,8 @@ const require = createRequire(import.meta.url)
 try {
   const lines = readFileSync('.env.local', 'utf8').split('\n')
   for (const line of lines) {
-    const m = line.match(/^([A-Z_][A-Z0-9_]*)="?([^"]*)"?\s*$/)
-    if (m) process.env[m[1]] = m[2]
+    const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.+?)\s*$/)
+    if (m) process.env[m[1]] = m[2].replace(/^["']+|["']+$/g, '')
   }
 } catch { /* no .env.local — env vars must come from the shell */ }
 
@@ -35,6 +35,7 @@ const API_ROUTES = {
   '/api/brickeconomy-set':          require('./api/brickeconomy-set'),
   '/api/brickset-set':              require('./api/brickset-set'),
   '/api/brickset-search':           require('./api/brickset-search'),
+  '/api/brickset-themes':           require('./api/brickset-themes'),
   '/api/bricklink-auth':            require('./api/bricklink-auth'),
   '/api/bricklink-priceguide':      require('./api/bricklink-priceguide'),
   '/api/lego-last-chance':          require('./api/lego-last-chance'),

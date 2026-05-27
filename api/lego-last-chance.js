@@ -76,12 +76,10 @@ async function fetchPage(pageNum) {
   }
 }
 
-module.exports = async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+const { setCors, internalError } = require("./_cors");
 
-  if (req.method === "OPTIONS") return res.status(200).end();
+module.exports = async function handler(req, res) {
+  if (setCors(req, res, "GET, OPTIONS")) return res.status(200).end();
 
   try {
     // Page 1 first — gives us total so we know how many more to fetch
@@ -143,6 +141,6 @@ module.exports = async function handler(req, res) {
       fetchedAt: new Date().toISOString(),
     });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return internalError(res, err, "lego-last-chance");
   }
 };

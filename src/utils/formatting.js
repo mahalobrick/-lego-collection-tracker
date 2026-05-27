@@ -121,16 +121,12 @@ export function priorityScore(item) {
     else if (String(item.retirementYear) === String(currentYear + 1))   score += 10;
   }
 
-  // Retirement confidence bonus
-  if      (item.retirementConfidence === "High")   score += 15;
-  else if (item.retirementConfidence === "Medium") score += 8;
-
-  // Discount bonus — use live store price if available, otherwise target price
+  // Discount bonus — use target price (storePrice kept as legacy fallback for old data)
   const msrp = asNumber(item.msrp);
   if (msrp > 0) {
-    const storePrice  = asNumber(item.storePrice);
     const targetPrice = asNumber(item.targetPrice);
-    const refPrice = storePrice > 0 ? storePrice : targetPrice;
+    const storePrice  = asNumber(item.storePrice); // legacy; may be 0 for new items
+    const refPrice = targetPrice > 0 ? targetPrice : storePrice;
     if (refPrice > 0) {
       const discount = ((msrp - refPrice) / msrp) * 100;
       if      (discount >= 30) score += 25;

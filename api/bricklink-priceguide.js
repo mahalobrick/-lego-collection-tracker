@@ -1,9 +1,7 @@
-module.exports = async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-bl-session-token");
+const { setCors, internalError } = require("./_cors");
 
-  if (req.method === "OPTIONS") return res.status(200).end();
+module.exports = async function handler(req, res) {
+  if (setCors(req, res, "GET, OPTIONS")) return res.status(200).end();
 
   let number = String(req.query.number || "").trim();
 
@@ -126,7 +124,7 @@ module.exports = async function handler(req, res) {
     // Return raw HTML/text for client-side parsing
     return res.status(200).json({ raw: text, format: "html" });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return internalError(res, err, "bricklink-priceguide");
   }
 };
 

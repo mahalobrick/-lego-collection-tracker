@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { searchInput, filterSelect, clearFilterButton, filterBar } from "./uiStyles";
 import { DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, AreaChart, Area, CartesianGrid } from "recharts";
 import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
 import { asNumber, money, setImageUrl, CONDITION_LABELS, conditionColor, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
-import { searchBricksetCatalog } from "./utils/brickset";
+import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./utils/brickset";
+import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
+import { beValueForCondition } from "./utils/beSyncValues";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
 const CONDITION_CYCLE = ["new", "used_as_new", "used_good", "used_acceptable"];
@@ -90,6 +93,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [hoveredSet, setHoveredSet] = useState(null);
   const [hoveredWatchItem, setHoveredWatchItem] = useState(null);
+  const [inlineEdit, setInlineEdit] = useState(null); // { index, key, value }
   const [tipPos, setTipPos] = useState({ x: 0, y: 0 });
   const [chartTypes, setChartTypes] = useState(() => {
     try { return JSON.parse(localStorage.getItem("blCollChartTypes") || "{}"); } catch { return {}; }
@@ -188,13 +192,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
     if (beItems.length === 0) return manualItems;
 
-    // Merge: append manual items whose set number isn't already in BE data
-    const beSetNumbers = new Set(beItems.map(s => String(s.setNumber || "").replace(/-1$/, "")));
-    const extraManual = manualItems.filter(m => {
-      const num = String(m.setNumber || "").replace(/-1$/, "");
-      return !beSetNumbers.has(num);
-    });
-    return [...beItems, ...extraManual];
+    // Merge: always include all manual items as separate entries.
+    // Manual sets can coexist with BE sets of the same number (e.g. user bought another copy).
+    return [...beItems, ...manualItems];
   });
 
   // ── BE sync info (for pieces, minifigs and aggregate stats) ─────────────
@@ -227,13 +227,24 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     condition: "new",
     qty: 1,
     paidPrice: "",
+    msrp: "",
     currentValue: "",
     notes: ""
   });
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupMessage, setLookupMessage] = useState("");
   const [addDupeWarning, setAddDupeWarning] = useState(null); // "collection" | "watchlist" | null
+  const [setNumSuggestions, setSetNumSuggestions]   = useState([]);
+  const [setNumSuggestLoading, setSetNumSuggestLoading] = useState(false);
   const [addCatalogMode, setAddCatalogMode]       = useState(false);
+
+  // ── Extra metadata from Brickset lookup (not shown in form UI, merged on save) ──
+  const [lookupData, setLookupData] = useState({});
+
+  // ── Purchase log modal (shown after Add to Collection when paidPrice > 0) ──
+  const [purchaseModal, setPurchaseModal] = useState(null); // null | { setNumber, name, theme, qty, price }
+  const [pmForm, setPmForm] = useState({ store: "", date: "", tax: "", shipping: "", gc: "", orderLabel: "" });
+  const [savedStores]       = useState(() => { try { return JSON.parse(localStorage.getItem("blStores") || "[]"); } catch { return []; } });
   const [addCatalogQuery, setAddCatalogQuery]     = useState("");
   const [addCatalogResults, setAddCatalogResults] = useState([]);
   const [addCatalogLoading, setAddCatalogLoading] = useState(false);
@@ -273,6 +284,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     localStorage.setItem("blOwnedSort", sortColumn);
     localStorage.setItem("blOwnedSortDir", sortDirection);
   }, [sortColumn, sortDirection]);
+
+  // ── Rebrickable — load local catalog in background on mount ─────────────
+  useEffect(() => { loadRebrickable(); }, []);
 
   // ── Portfolio snapshot — record once per day ──────────────────────────────
   useEffect(() => {
@@ -324,7 +338,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
     // Stats sourced from normalized BE data (entries carry the raw fields)
     const pieces      = sets.reduce((sum, s) => sum + (s.pieces || 0) * (asNumber(s.qty) || 1), 0);
-    const retailValue = sets.reduce((sum, s) => sum + (asNumber(s.totalRetailPrice) || asNumber(s.retailPrice) * (asNumber(s.qty) || 1)), 0);
+    const retailValue = sets.reduce((sum, s) => sum + (asNumber(s.totalRetailPrice) || (asNumber(s.retailPrice) || asNumber(s.msrp)) * (asNumber(s.qty) || 1)), 0);
     const minifigs    = sets.reduce((sum, s) => sum + (asNumber(s.minifigs) || 0) * (asNumber(s.qty) || 1), 0);
 
     // Entry-level counts — each copy counted individually, matching BE's method.
@@ -455,6 +469,19 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     } catch { setAddDupeWarning(null); }
   }, [form.setNumber, sets]);
 
+  // ── Set number autocomplete (By Set Number mode) ──────────────────────────
+  useEffect(() => {
+    const q = form.setNumber.trim();
+    if (addCatalogMode || q.length < 3) { setSetNumSuggestions([]); return; }
+    const t = setTimeout(async () => {
+      setSetNumSuggestLoading(true);
+      const result = await searchBricksetCatalog(q);
+      setSetNumSuggestLoading(false);
+      setSetNumSuggestions(result.sets?.slice(0, 6) || []);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [form.setNumber, addCatalogMode]);
+
   // ── Catalog search debounce (Add Set) ─────────────────────────────────────
   useEffect(() => {
     if (!addCatalogMode || addCatalogQuery.trim().length < 2) { setAddCatalogResults([]); return; }
@@ -474,52 +501,231 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     return s && !s.includes("-") ? `${s}-1` : s;
   }
 
-  async function lookupBE() {
-    const key = normalizeSetNum(form.setNumber);
-    if (!key) return;
+  // Brickset = metadata authority · BE = value only
+  async function lookupSet() {
+    const bsKey = String(form.setNumber || "").replace(/-1$/, "").trim();
+    const beKey = normalizeSetNum(form.setNumber); // "75192-1" for BE cache
+    if (!bsKey) return;
+
     setLookupLoading(true);
     setLookupMessage("");
-    try {
-      const cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
-      let d = cache[key]?.data;
-      if (!d) {
-        const res = await fetch(`/api/brickeconomy-set?number=${encodeURIComponent(key)}&currency=USD`);
-        const json = await res.json();
-        if (!res.ok || json.error) { setLookupMessage(json.message || json.error || "Lookup failed."); return; }
-        d = json.data || json;
-        cache[key] = { fetchedAt: new Date().toISOString(), data: d };
-        localStorage.setItem("brickEconomySetCache", JSON.stringify(cache));
-      }
+
+    // ── 1. Rebrickable — instant local pre-fill (no network) ───────────────
+    const rb = rbLookupSet(beKey);
+    if (rb) {
       setForm(prev => ({
         ...prev,
-        setNumber: d.set_number || key,
-        name: d.name || prev.name,
-        theme: d.theme || prev.theme,
-        currentValue: d.current_value_new || d.retail_price_us || prev.currentValue,
+        name:  prev.name  || rb.name,
+        theme: prev.theme || rb.theme,
       }));
-      setLookupMessage(`Found: ${d.name || key}`);
+      setLookupData(prev => ({
+        ...prev,
+        pieces:  rb.numParts || prev.pieces,
+        year:    rb.year     || prev.year,
+      }));
+    }
+
+    try {
+      // ── 2. Brickset — canonical metadata + MSRP + retirement (primary) ───
+      const bsData = await fetchBricksetSet(bsKey);
+
+      if (!bsData && !rb) {
+        setLookupMessage("Set not found — check the number.");
+        setLookupLoading(false);
+        return;
+      }
+
+      if (bsData) {
+        const retired = bsData.exit_date ? new Date(bsData.exit_date) < new Date() : false;
+        setLookupData({
+          pieces:       bsData.pieces      ?? rb?.numParts ?? null,
+          minifigs:     bsData.minifigs    ?? null,
+          subtheme:     bsData.subtheme    ?? null,
+          year:         bsData.year        ?? rb?.year     ?? null,
+          exit_date:    bsData.exit_date   ?? null,
+          releasedDate: bsData.launch_date ?? null,
+          retiredDate:  bsData.exit_date   ?? null,
+          retired,
+          retiringSoon: bsData.exit_date
+            ? (new Date(bsData.exit_date) - new Date()) < 180 * 86400000 && !retired
+            : false,
+          thumbnail:    bsData.thumbnail_url ?? null,
+        });
+
+        setForm(prev => ({
+          ...prev,
+          setNumber:    bsData.set_number?.replace(/-1$/, "") || bsKey,
+          name:         bsData.name          || prev.name,
+          theme:        bsData.theme         || prev.theme,
+          msrp:         bsData.retail_price_us ? String(bsData.retail_price_us) : prev.msrp,
+          currentValue: bsData.retail_price_us ? String(bsData.retail_price_us) : prev.currentValue,
+        }));
+
+        const metaParts = [
+          bsData.pieces   ? `${Number(bsData.pieces).toLocaleString()} pcs` : rb?.numParts ? `${rb.numParts.toLocaleString()} pcs` : null,
+          bsData.minifigs ? `${bsData.minifigs} figs` : null,
+          bsData.year     ? String(bsData.year) : null,
+          retired         ? "Retired" : null,
+        ].filter(Boolean);
+        setLookupMessage(`Found: ${bsData.name || bsKey}${metaParts.length ? " · " + metaParts.join(" · ") : ""}`);
+      }
+
+      // ── 3. BrickEconomy — value only (non-blocking, cache-first) ──────────
+      ;(async () => {
+        try {
+          const cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
+          let beData = cache[beKey]?.data;
+          if (!beData) {
+            const res  = await fetch(`/api/brickeconomy-set?number=${encodeURIComponent(beKey)}&currency=USD`);
+            const json = await res.json();
+            if (res.ok && !json.error) {
+              beData = json.data || json;
+              cache[beKey] = { fetchedAt: new Date().toISOString(), data: beData };
+              localStorage.setItem("brickEconomySetCache", JSON.stringify(cache));
+            }
+          }
+          const beVal = beValueForCondition(beData, form.condition);
+          if (beVal) {
+            setForm(prev => ({ ...prev, currentValue: String(beVal) }));
+          } else if (!bsData?.retail_price_us && beData?.retail_price_us) {
+            // BE MSRP only if Brickset had none
+            setForm(prev => ({ ...prev, msrp: String(beData.retail_price_us), currentValue: String(beData.retail_price_us) }));
+          }
+        } catch { /* non-critical */ }
+      })();
+
     } catch {
-      setLookupMessage("Could not reach BrickEconomy.");
+      setLookupMessage("Lookup failed — check your connection.");
     } finally {
       setLookupLoading(false);
     }
   }
 
+  // ── Rebrickable bulk enrichment ───────────────────────────────────────────
+  // Fills missing pieces / theme / year on every set from local Rebrickable data.
+  // Pure local lookup — zero API calls. Skips sets that already have the field.
+  const [rbEnriching, setRbEnriching] = useState(false);
+  const [rbEnrichResult, setRbEnrichResult] = useState(null);
+
+  function enrichFromRebrickable() {
+    if (!rbReady()) {
+      toast("Rebrickable catalog still loading — try again in a moment.");
+      return;
+    }
+    setRbEnriching(true);
+    let enriched = 0;
+    setSets(prev => {
+      const next = prev.map(s => {
+        const rb = rbLookupSet(s.setNumber);
+        if (!rb) return s;
+        const updates = {};
+        if (!s.pieces   && rb.numParts) updates.pieces   = rb.numParts;
+        if (!s.theme    && rb.theme)    updates.theme    = rb.theme;
+        if (!s.year     && rb.year)     updates.year     = rb.year;
+        if (!s.name     && rb.name)     updates.name     = rb.name;
+        if (Object.keys(updates).length) { enriched++; return { ...s, ...updates }; }
+        return s;
+      });
+      localStorage.setItem("blOwnedSets", JSON.stringify(next.filter(s => s.source !== "BrickEconomy")));
+      return next;
+    });
+    // Also enrich Wanted List from same local data
+    try {
+      const wl = JSON.parse(localStorage.getItem("blWantedList") || "[]");
+      let wlEnriched = 0;
+      const wlNext = wl.map(w => {
+        const rb = rbLookupSet(w.setNumber);
+        if (!rb) return w;
+        const updates = {};
+        if (!w.pieces   && rb.numParts) updates.pieces   = rb.numParts;
+        if (!w.theme    && rb.theme)    updates.theme    = rb.theme;
+        if (!w.name     && rb.name)     updates.name     = rb.name;
+        if (Object.keys(updates).length) { wlEnriched++; return { ...w, ...updates }; }
+        return w;
+      });
+      if (wlEnriched > 0) localStorage.setItem("blWantedList", JSON.stringify(wlNext));
+      enriched += wlEnriched;
+    } catch {}
+
+    setRbEnrichResult(enriched);
+    setRbEnriching(false);
+    if (enriched > 0) toast.success(`Rebrickable: filled ${enriched} missing fields`);
+    else toast("Rebrickable: nothing new to fill in");
+  }
+
   function addSet() {
     if (!form.setNumber && !form.name) return;
+
+    const qty       = asNumber(form.qty) || 1;
+    const paidPrice = asNumber(form.paidPrice);
+    const msrp      = asNumber(form.msrp);
 
     setSets(prev => [
       ...prev,
       {
+        ...lookupData,  // Brickset metadata (pieces, minifigs, dates, retired, etc.)
         ...form,
-        qty: asNumber(form.qty) || 1,
-        paidPrice: asNumber(form.paidPrice),
-        currentValue: asNumber(form.currentValue)
+        qty,
+        paidPrice,
+        msrp,
+        retailPrice: msrp,
+        currentValue: asNumber(form.currentValue),
+        addedAt: new Date().toISOString()
       }
     ]);
 
-    setForm({ setNumber: "", name: "", theme: "", condition: "new", qty: 1, paidPrice: "", currentValue: "", notes: "" });
+    setLookupData({});
+    setForm({ setNumber: "", name: "", theme: "", condition: "new", qty: 1, paidPrice: "", msrp: "", currentValue: "", notes: "" });
     setLookupMessage("");
+    setSetNumSuggestions([]);
+
+    // Auto-remove from Wanted List if it's being tracked there
+    try {
+      const wl = JSON.parse(localStorage.getItem("blWantedList") || "[]");
+      const cleanNum = String(form.setNumber || "").replace(/-1$/, "").trim();
+      const filtered = wl.filter(w => String(w.setNumber || "").replace(/-1$/, "").trim() !== cleanNum);
+      if (filtered.length < wl.length) {
+        localStorage.setItem("blWantedList", JSON.stringify(filtered));
+        toast.success(`Removed from Wanted List — now in collection`);
+      }
+    } catch { /* non-critical */ }
+
+    // If a price was entered, offer to log a purchase record
+    if (paidPrice > 0) {
+      const today = new Date().toISOString().slice(0, 10);
+      const firstStore = savedStores[0] || "";
+      setPurchaseModal({ setNumber: form.setNumber, name: form.name, theme: form.theme, qty, price: paidPrice });
+      setPmForm({ store: firstStore, date: today, tax: "", shipping: "", gc: "", orderLabel: "" });
+    }
+  }
+
+  function commitPurchaseLog() {
+    if (!purchaseModal) return;
+    try {
+      const { setNumber, name, theme, qty, price } = purchaseModal;
+      const faceValue  = price;
+      const tax        = asNumber(pmForm.tax)      || 0;
+      const shipping   = asNumber(pmForm.shipping) || 0;
+      const gcApplied  = asNumber(pmForm.gc)       || 0;
+      const total      = Math.round((faceValue * qty + tax + shipping) * 100) / 100;
+      const cashPaid   = Math.max(0, Math.round((total - gcApplied) * 100) / 100);
+      const date       = pmForm.date || new Date().toISOString().slice(0, 10);
+      const d          = new Date(date + "T00:00:00");
+      const month      = d.toLocaleString("en-US", { month: "long" }) + " " + d.getFullYear();
+      const purchase   = {
+        setNumber, name, theme, qty,
+        faceValue, tax: tax || null, shipping: shipping || null, gcApplied: gcApplied || null,
+        total, cashPaid, amount: faceValue,
+        store:      pmForm.store || "",
+        date, month, year: d.getFullYear(),
+        orderLabel: pmForm.orderLabel || null,
+        orderNotes: null,
+        _fromCollection: true,
+      };
+      const existing = JSON.parse(localStorage.getItem("blPurchases") || "[]");
+      localStorage.setItem("blPurchases", JSON.stringify([...existing, purchase]));
+    } catch {}
+    setPurchaseModal(null);
   }
 
   function dropCollItem(targetKey) {
@@ -659,7 +865,13 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     return ["qty", "paid", "value", "gain", "roi"].includes(key);
   }
 
-  const themes = Array.from(new Set(sets.map(s => s.theme).filter(Boolean))).sort();
+  const localThemes = Array.from(new Set(sets.map(s => s.theme).filter(Boolean))).sort();
+  const [legoThemes, setLegoThemes] = useState([]);
+  useEffect(() => { fetchLegoThemes().then(t => { if (t.length) setLegoThemes(t); }); }, []);
+  // Merge: Brickset master list + anything the user typed locally that isn't in it
+  const themes = legoThemes.length
+    ? Array.from(new Set([...legoThemes, ...localThemes])).sort()
+    : localThemes;
   const conditions = Array.from(new Set(sets.map(s => s.condition).filter(Boolean))).sort();
 
   function sortHeader(column) {
@@ -713,6 +925,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         const bVal = asNumber(b.totalValue) || asNumber(b.currentValue) * (asNumber(b.qty) || 1);
         const bPaid = asNumber(b.totalPaid) || asNumber(b.paidPrice) * (asNumber(b.qty) || 1);
         result = (aVal - aPaid) - (bVal - bPaid);
+      } else if (sortColumn === "addedAt") {
+        result = String(a.addedAt || "").localeCompare(String(b.addedAt || ""));
       } else {
         result = String(a[sortColumn] || "").localeCompare(String(b[sortColumn] || ""));
       }
@@ -1020,7 +1234,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                             {topRoiSets.slice(0, showAllRoi ? 15 : 5).map((s, i) => {
                               const realIndex = sets.findIndex(orig => orig.setNumber === s.setNumber);
                               return (
-                                <div key={s.setNumber || i}
+                                <div key={`${s.setNumber}-${i}`}
                                   onClick={() => { setDetailSet(openSetDetail(s.setNumber) || s); setDetailSetIndex(realIndex); }}
                                   onMouseEnter={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.18)"; setHoveredSet(s); }}
                                   onMouseLeave={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.06)"; setHoveredSet(null); }}
@@ -1056,7 +1270,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                             {topValueSets.slice(0, showAllValuable ? 15 : 5).map((s, i) => {
                               const val = asNumber(s.totalValue) || asNumber(s.currentValue) * (asNumber(s.qty) || 1);
                               return (
-                                <div key={s.setNumber || i}
+                                <div key={`${s.setNumber}-${i}`}
                                   onClick={() => { setDetailSet(openSetDetail(s.setNumber) || s); setDetailSetIndex(sets.indexOf(s)); }}
                                   onMouseEnter={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.18)"; setHoveredSet(s); }}
                                   onMouseLeave={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.06)"; setHoveredSet(null); }}
@@ -1097,7 +1311,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                                 const rec = recommendation(wlItem._score);
                                 const recColor = rec === "Buy Now" ? "#ef4444" : rec === "Watch Closely" ? "#f59e0b" : "#5aa832";
                                 return (
-                                  <div key={wlItem.setNumber || i}
+                                  <div key={`${wlItem.setNumber}-${i}`}
                                     onClick={() => setDetailWatchItem(wlItem)}
                                     onMouseEnter={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.18)"; setHoveredWatchItem(wlItem); }}
                                     onMouseLeave={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.06)"; setHoveredWatchItem(null); }}
@@ -1332,11 +1546,13 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
       {tab === "add" && (
       <section style={panel}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <h3 style={{ margin: 0 }}>Add Owned Set</h3>
+
+        {/* ── Header ── */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, letterSpacing: 0.3 }}>Add Owned Set</h3>
           {(form.setNumber || form.name || form.theme || form.paidPrice || form.currentValue || form.notes) && (
             <button
-              onClick={() => { setForm({ setNumber: "", name: "", theme: "", condition: "new", qty: 1, paidPrice: "", currentValue: "", notes: "" }); setLookupMessage(""); }}
+              onClick={() => { setLookupData({}); setForm({ setNumber: "", name: "", theme: "", condition: "new", qty: 1, paidPrice: "", msrp: "", currentValue: "", notes: "" }); setLookupMessage(""); setSetNumSuggestions([]); }}
               style={{ background: "transparent", color: "#5d6f80", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "5px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
             >
               Reset
@@ -1344,65 +1560,115 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           )}
         </div>
 
-        {/* ── Mode toggle ── */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-          <button onClick={() => { setAddCatalogMode(false); setAddCatalogResults([]); setAddCatalogQuery(""); }}
-            style={{ background: !addCatalogMode ? "#c9a84c" : "rgba(255,255,255,0.04)", color: !addCatalogMode ? "#0d1623" : "#8a9bb0", border: `1px solid ${!addCatalogMode ? "#c9a84c" : "rgba(255,255,255,0.1)"}`, borderRadius: 8, padding: "6px 14px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
-            By Set Number
-          </button>
-          <button onClick={() => setAddCatalogMode(true)}
-            style={{ background: addCatalogMode ? "#c9a84c" : "rgba(255,255,255,0.04)", color: addCatalogMode ? "#0d1623" : "#8a9bb0", border: `1px solid ${addCatalogMode ? "#c9a84c" : "rgba(255,255,255,0.1)"}`, borderRadius: 8, padding: "6px 14px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
-            Search Catalog
-          </button>
+        {/* ── Mode toggle pill ── */}
+        <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.04)", borderRadius: 999, padding: 3, border: "1px solid rgba(255,255,255,0.07)", marginBottom: 16 }}>
+          {[
+            { label: "By Set Number", catalog: false },
+            { label: "Search Catalog", catalog: true },
+          ].map(m => (
+            <button key={m.label}
+              onClick={() => { setAddCatalogMode(m.catalog); if (!m.catalog) { setAddCatalogResults([]); setAddCatalogQuery(""); } }}
+              style={{ background: addCatalogMode === m.catalog ? "#c9a84c" : "transparent", color: addCatalogMode === m.catalog ? "#0d1623" : "#8a9bb0", border: "none", borderRadius: 999, padding: "7px 16px", fontWeight: 700, cursor: "pointer", fontSize: 13, transition: "all 0.15s" }}
+            >
+              {m.label}
+            </button>
+          ))}
         </div>
 
+        {/* ── Set number lookup ── */}
         {!addCatalogMode && (
-          <>
-            <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-              <input
-                placeholder="Set Number (e.g. 75192)"
-                value={form.setNumber}
-                onChange={e => setForm({ ...form, setNumber: e.target.value })}
-                onKeyDown={e => e.key === "Enter" && lookupBE()}
-                style={{ minWidth: 180 }}
-              />
-              <button onClick={lookupBE} disabled={lookupLoading} style={ghostBtn}>
-                {lookupLoading ? "Searching..." : "Look Up"}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>Set Number or Name</div>
+            <div style={{ display: "flex", gap: 8, position: "relative" }}>
+              <div style={{ flex: 1, position: "relative" }}>
+                <input
+                  placeholder="e.g. 75192 or Millennium Falcon"
+                  value={form.setNumber}
+                  onChange={e => { setForm({ ...form, setNumber: e.target.value }); setLookupMessage(""); setSetNumSuggestions([]); }}
+                  onKeyDown={e => { if (e.key === "Enter") { setSetNumSuggestions([]); lookupSet(); } if (e.key === "Escape") setSetNumSuggestions([]); }}
+                  style={{ width: "100%", background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)" }}
+                  autoComplete="off"
+                />
+                {/* Autocomplete dropdown */}
+                {(setNumSuggestions.length > 0 || setNumSuggestLoading) && (
+                  <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#0d1a2a", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, overflow: "hidden", zIndex: 200, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
+                    {setNumSuggestLoading && (
+                      <div style={{ padding: "10px 14px", fontSize: 13, color: "#5d6f80" }}>Searching…</div>
+                    )}
+                    {setNumSuggestions.map(s => {
+                      const clean = String(s.setNumber || "").replace(/-1$/, "");
+                      const inColl = sets.some(x => String(x.setNumber || "").replace(/-1$/, "") === clean);
+                      return (
+                        <div key={s.setNumber}
+                          onMouseDown={e => {
+                            e.preventDefault(); // keep focus on input
+                            setForm(prev => ({ ...prev, setNumber: clean, name: s.name || prev.name, theme: s.theme || prev.theme, msrp: s.msrp ? String(s.msrp) : prev.msrp, currentValue: s.msrp ? String(s.msrp) : prev.currentValue }));
+                            setSetNumSuggestions([]);
+                            setTimeout(() => lookupSet(), 50);
+                          }}
+                          style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", cursor: "pointer", borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+                          onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                        >
+                          <img src={s.thumbnail || `https://images.brickset.com/sets/small/${clean}-1.jpg`} alt=""
+                            onError={e => { e.currentTarget.style.display = "none"; }}
+                            style={{ width: 44, height: 36, objectFit: "contain", borderRadius: 4, background: "#0b1520", flexShrink: 0 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: "#e8e2d5", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
+                            <div style={{ fontSize: 11, color: "#5d6f80" }}>#{clean} · {s.theme} · {s.year}{s.pieces ? ` · ${s.pieces.toLocaleString()} pcs` : ""}{s.msrp ? ` · ${money(s.msrp)}` : ""}</div>
+                          </div>
+                          {inColl && <span style={{ fontSize: 10, color: "#c9a84c", fontWeight: 700, flexShrink: 0 }}>OWNED</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <button onClick={() => { setSetNumSuggestions([]); lookupSet(); }} disabled={lookupLoading}
+                style={{ background: "transparent", color: lookupLoading ? "#5d6f80" : "#8a9bb0", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "0 16px", fontWeight: 700, cursor: lookupLoading ? "default" : "pointer", fontSize: 13, whiteSpace: "nowrap" }}>
+                {lookupLoading ? "Searching…" : "Look Up"}
               </button>
             </div>
-            {lookupMessage && <div style={{ fontSize: 13, color: lookupMessage.startsWith("Found") ? "#5aa832" : "#ff8b8b", marginBottom: 8 }}>{lookupMessage}</div>}
+            {lookupMessage && (
+              <div style={{ marginTop: 8, fontSize: 13, color: lookupMessage.startsWith("Found") ? "#5aa832" : "#ff8b8b", display: "flex", alignItems: "center", gap: 6 }}>
+                {lookupMessage.startsWith("Found") ? "✓" : "✗"} {lookupMessage}
+              </div>
+            )}
             {addDupeWarning === "collection" && (
-              <div style={{ background: "#3b2500", border: "1px solid #92400e", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "#fbbf24", marginBottom: 8 }}>
-                ⚠ This set is already in your collection
+              <div style={{ marginTop: 8, background: "rgba(30,64,175,0.12)", border: "1px solid rgba(30,64,175,0.35)", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "#93c5fd" }}>
+                ℹ Already in your collection — adding as a new entry
               </div>
             )}
             {addDupeWarning === "watchlist" && (
-              <div style={{ background: "#0f2035", border: "1px solid #1e40af", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "#93c5fd", marginBottom: 8 }}>
-                ℹ This set is on your Wanted List — adding it to your collection won't remove it from the list
+              <div style={{ marginTop: 8, background: "rgba(30,64,175,0.15)", border: "1px solid rgba(30,64,175,0.4)", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "#93c5fd" }}>
+                ℹ On your Wanted List — adding won't remove it from the list
               </div>
             )}
-          </>
+          </div>
         )}
 
+        {/* ── Catalog search ── */}
         {addCatalogMode && (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
-              <input placeholder="Search by set name or theme..." value={addCatalogQuery}
-                onChange={e => setAddCatalogQuery(e.target.value)} style={{ flex: 1 }} autoFocus />
-              {addCatalogLoading && <span style={{ color: "#8a9bb0", fontSize: 13 }}>Searching…</span>}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>Search</div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input placeholder="Set name or theme…" value={addCatalogQuery}
+                onChange={e => setAddCatalogQuery(e.target.value)}
+                style={{ flex: 1, background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)" }} autoFocus />
+              {addCatalogLoading && <span style={{ color: "#8a9bb0", fontSize: 13, whiteSpace: "nowrap" }}>Searching…</span>}
             </div>
-            {addCatalogError && <div style={{ color: "#ff8b8b", fontSize: 13, marginBottom: 8 }}>{addCatalogError}</div>}
+            {addCatalogError && <div style={{ color: "#ff8b8b", fontSize: 13, marginTop: 8 }}>{addCatalogError}</div>}
             {addCatalogResults.length > 0 && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10, maxHeight: 380, overflowY: "auto" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10, maxHeight: 380, overflowY: "auto", marginTop: 10 }}>
                 {addCatalogResults.map(s => {
                   const clean = String(s.setNumber || "").replace(/-1$/, "");
                   const inColl = sets.some(x => String(x.setNumber || "").replace(/-1$/, "") === clean);
                   return (
                     <div key={s.setNumber}
                       onClick={() => {
-                        setForm(prev => ({ ...prev, setNumber: clean, name: s.name || prev.name, theme: s.theme || prev.theme, currentValue: s.msrp ? String(s.msrp) : prev.currentValue }));
+                        setForm(prev => ({ ...prev, setNumber: clean, name: s.name || prev.name, theme: s.theme || prev.theme, msrp: s.msrp ? String(s.msrp) : prev.msrp, currentValue: s.msrp ? String(s.msrp) : prev.currentValue }));
                         setAddCatalogMode(false); setAddCatalogResults([]); setAddCatalogQuery("");
-                        setTimeout(() => lookupBE(), 50);
+                        setTimeout(() => lookupSet(), 50);
                       }}
                       style={{ background: "#0f1a28", border: `1px solid ${inColl ? "rgba(234,179,8,0.4)" : "rgba(255,255,255,0.07)"}`, borderRadius: 10, padding: 10, cursor: "pointer" }}
                       onMouseEnter={e => { e.currentTarget.style.border = "1px solid rgba(201,168,76,0.5)"; }}
@@ -1428,18 +1694,25 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           </div>
         )}
 
-        <div style={formGrid}>
-          <label>
-            Set Name
-            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+        {/* ── Divider ── */}
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", margin: "4px 0 18px" }} />
+
+        {/* ── Detail fields ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 16px", marginBottom: 20 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Set Name</span>
+            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Millennium Falcon" style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%" }} />
           </label>
-          <label>
-            Theme
-            <input value={form.theme} onChange={e => setForm({ ...form, theme: e.target.value })} />
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Theme</span>
+            <select value={form.theme} onChange={e => setForm({ ...form, theme: e.target.value })} style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%", color: "#e8e2d5", borderRadius: 8, padding: "7px 10px", fontSize: 13 }}>
+              <option value="">— select —</option>
+              {themes.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
           </label>
-          <label>
-            Condition
-            <select value={form.condition} onChange={e => setForm({ ...form, condition: e.target.value })}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Condition</span>
+            <select value={form.condition} onChange={e => setForm({ ...form, condition: e.target.value })} style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%" }}>
               <option value="new">New</option>
               <option value="sealed">Sealed</option>
               <option value="used_as_new">Used — Like New</option>
@@ -1447,25 +1720,31 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               <option value="used_acceptable">Used — Acceptable</option>
             </select>
           </label>
-          <label>
-            Qty
-            <input type="number" min="1" step="1" value={form.qty} onChange={e => setForm({ ...form, qty: e.target.value })} />
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Qty</span>
+            <input type="number" min="1" step="1" value={form.qty} onChange={e => setForm({ ...form, qty: e.target.value })} style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%" }} />
           </label>
-          <label>
-            Paid Price ($)
-            <input type="number" min="0" step="0.01" value={form.paidPrice} onChange={e => setForm({ ...form, paidPrice: e.target.value })} />
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Paid Price</span>
+            <input type="number" min="0" step="0.01" value={form.paidPrice} onChange={e => setForm({ ...form, paidPrice: e.target.value })} placeholder="0.00" style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%" }} />
           </label>
-          <label>
-            Current Value ($)
-            <input type="number" min="0" step="0.01" value={form.currentValue} onChange={e => setForm({ ...form, currentValue: e.target.value })} />
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>MSRP <span style={{ color: "#3d4f60", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— retail</span></span>
+            <input type="number" min="0" step="0.01" value={form.msrp} onChange={e => setForm({ ...form, msrp: e.target.value })} placeholder="0.00" style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%" }} />
           </label>
-          <label>
-            Notes
-            <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Current Value</span>
+            <input type="number" min="0" step="0.01" value={form.currentValue} onChange={e => setForm({ ...form, currentValue: e.target.value })} placeholder="0.00" style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%" }} />
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Notes <span style={{ color: "#3d4f60", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— optional</span></span>
+            <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Any notes about this set…" style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%" }} />
           </label>
         </div>
 
-        <button onClick={addSet} style={redBtn}>Add Set</button>
+        <button onClick={addSet} style={{ ...redBtn, width: "100%", padding: "13px", fontSize: 15, letterSpacing: 0.3 }}>
+          Add to Collection
+        </button>
       </section>
       )}
 
@@ -1499,7 +1778,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               </div>
             </div>
           </div>
-          <div style={{ marginTop: 8, fontSize: 11, color: "#5d6f80", borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 6 }}>click for details · double-click to edit</div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "#5d6f80", borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 6 }}>click for details</div>
         </div>
       )}
 
@@ -1581,6 +1860,38 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                 Clear
               </button>
             )}
+            <select
+              value={`${sortColumn}:${sortDirection}`}
+              onChange={e => {
+                const [col, dir] = e.target.value.split(":");
+                setSortColumn(col);
+                setSortDirection(dir);
+              }}
+              style={filterSelect}
+            >
+              <option value="addedAt:desc">Recently Added</option>
+              <option value="setNumber:asc">Set # (↑)</option>
+              <option value="name:asc">Name (A–Z)</option>
+              <option value="value:desc">Value (↓)</option>
+              <option value="gain:desc">Gain (↓)</option>
+              <option value="paid:desc">Paid (↓)</option>
+            </select>
+            <button
+              onClick={enrichFromRebrickable}
+              disabled={rbEnriching}
+              title={rbEnrichResult !== null
+                ? `Last run: ${rbEnrichResult} fields filled — click to re-run`
+                : "Fill missing pieces / theme / name from local Rebrickable catalog (no API call)"}
+              style={{
+                background: rbEnrichResult ? "rgba(90,168,50,0.08)" : "rgba(255,255,255,0.05)",
+                border: `1px solid ${rbEnrichResult ? "rgba(90,168,50,0.25)" : "rgba(255,255,255,0.1)"}`,
+                color: rbEnriching ? "#5d6f80" : rbEnrichResult ? "#5aa832" : "#8a9bb0",
+                borderRadius: 8, padding: "5px 10px", cursor: rbEnriching ? "not-allowed" : "pointer",
+                fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
+              }}
+            >
+              {rbEnriching ? "…" : rbEnrichResult !== null ? `✓ RB (${rbEnrichResult})` : "RB Fill"}
+            </button>
             <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.1)", alignSelf: "center", margin: "0 2px", flexShrink: 0 }} />
             <div style={{ position: "relative" }}>
               <button
@@ -1729,7 +2040,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                     <tr
                       key={`${set.setNumber}-${index}`}
                       onClick={() => { setDetailSet(openSetDetail(set.setNumber) || set); setDetailSetIndex(index); }}
-                      onDoubleClick={() => setSelectedSetIndex(index)}
                       onMouseEnter={e => {
                         if (selectedSetIndex !== index) e.currentTarget.style.background = "rgba(255,255,255,0.04)";
                         setHoveredSet(set);
@@ -1768,19 +2078,109 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                           );
                         }
 
-                        // Condition pill — click to cycle through conditions inline
+                        // Condition — double-click to edit (New / Used only)
                         if (col.key === "condition") {
+                          const isEditing = inlineEdit?.index === index && inlineEdit?.key === "condition";
                           const cond = set.condition || "new";
-                          const color = conditionColor(cond);
-                          const nextCond = CONDITION_CYCLE[(CONDITION_CYCLE.indexOf(cond) + 1) % CONDITION_CYCLE.length];
+                          const isUsed = String(cond).startsWith("used");
+                          const displayVal = isUsed ? "used" : "new";
+                          const color = isUsed ? "#f59e0b" : "#5aa832";
+                          if (isEditing) {
+                            return (
+                              <td key="condition" style={td} onClick={e => e.stopPropagation()}>
+                                <select
+                                  autoFocus
+                                  value={displayVal}
+                                  onChange={e => { updateSet(index, "condition", e.target.value); setInlineEdit(null); }}
+                                  onBlur={() => setInlineEdit(null)}
+                                  onKeyDown={e => { if (e.key === "Escape") setInlineEdit(null); }}
+                                  style={{ background: `${color}18`, color, border: `1px solid ${color}50`, borderRadius: 10, padding: "2px 6px", fontSize: 11, fontWeight: 700, cursor: "pointer", outline: "none" }}
+                                >
+                                  <option value="new">New</option>
+                                  <option value="used">Used</option>
+                                </select>
+                              </td>
+                            );
+                          }
                           return (
-                            <td key="condition" style={td} onClick={e => { e.stopPropagation(); updateSet(index, "condition", nextCond); }} title={`Click to cycle → ${CONDITION_LABELS[nextCond]}`}>
-                              <span style={{ color, fontWeight: 700, fontSize: 11, padding: "2px 7px", borderRadius: 10, border: `1px solid ${color}50`, background: `${color}18`, cursor: "pointer", whiteSpace: "nowrap", userSelect: "none" }}>
-                                {CONDITION_LABELS[cond] || cond}
+                            <td key="condition" style={{ ...td, cursor: "default" }}
+                              onClick={e => e.stopPropagation()}
+                              onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ index, key: "condition", value: displayVal }); }}
+                            >
+                              <span style={{ background: `${color}18`, color, border: `1px solid ${color}50`, borderRadius: 10, padding: "2px 9px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+                                {isUsed ? "Used" : "New"}
                               </span>
                             </td>
                           );
                         }
+
+                        // Qty — double-click to edit inline
+                        if (col.key === "qty") {
+                          const isEditing = inlineEdit?.index === index && inlineEdit?.key === "qty";
+                          const qty = asNumber(set.qty) || 1;
+                          if (isEditing) {
+                            return (
+                              <td key="qty" style={tdRight} onClick={e => e.stopPropagation()}>
+                                <input
+                                  autoFocus
+                                  type="number"
+                                  min="1"
+                                  value={inlineEdit.value}
+                                  onChange={e => setInlineEdit(v => ({ ...v, value: e.target.value }))}
+                                  onBlur={() => { updateSet(index, "qty", inlineEdit.value); setInlineEdit(null); }}
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter")  { updateSet(index, "qty", inlineEdit.value); setInlineEdit(null); }
+                                    if (e.key === "Escape") setInlineEdit(null);
+                                  }}
+                                  style={{ width: 50, background: "#0d1a2a", border: "1px solid rgba(201,168,76,0.5)", borderRadius: 6, color: "#e8e2d5", fontSize: 13, padding: "2px 6px", outline: "none", textAlign: "right" }}
+                                />
+                              </td>
+                            );
+                          }
+                          return (
+                            <td key="qty" style={{ ...tdRight, cursor: "default" }}
+                              onClick={e => e.stopPropagation()}
+                              onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ index, key: "qty", value: String(qty) }); }}
+                            >
+                              {qty}
+                            </td>
+                          );
+                        }
+
+                        // Paid — double-click to edit inline
+                        if (col.key === "paid") {
+                          const isEditing = inlineEdit?.index === index && inlineEdit?.key === "paid";
+                          const paid = asNumber(set.paidPrice);
+                          if (isEditing) {
+                            return (
+                              <td key="paid" style={tdRight} onClick={e => e.stopPropagation()}>
+                                <input
+                                  autoFocus
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={inlineEdit.value}
+                                  onChange={e => setInlineEdit(v => ({ ...v, value: e.target.value }))}
+                                  onBlur={() => { updateSet(index, "paidPrice", inlineEdit.value); setInlineEdit(null); }}
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter")  { updateSet(index, "paidPrice", inlineEdit.value); setInlineEdit(null); }
+                                    if (e.key === "Escape") setInlineEdit(null);
+                                  }}
+                                  style={{ width: 70, background: "#0d1a2a", border: "1px solid rgba(201,168,76,0.5)", borderRadius: 6, color: "#e8e2d5", fontSize: 13, padding: "2px 6px", outline: "none", textAlign: "right" }}
+                                />
+                              </td>
+                            );
+                          }
+                          return (
+                            <td key="paid" style={{ ...tdRight, cursor: "default" }}
+                              onClick={e => e.stopPropagation()}
+                              onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ index, key: "paid", value: paid ? String(paid) : "" }); }}
+                            >
+                              {paid ? money(paid * (asNumber(set.qty) || 1)) : "—"}
+                            </td>
+                          );
+                        }
+
                         return (
                           <td
                             key={col.key}
@@ -1810,58 +2210,62 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
             {selectedSetIndex !== null && sets[selectedSetIndex] && (
               <div style={{ ...editPanel, position: "sticky", top: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <h3 style={{ margin: 0 }}>Edit Owned Set</h3>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#e8e2d5" }}>Edit Set</h3>
                   <button onClick={() => setSelectedSetIndex(null)} style={circleButton}>×</button>
                 </div>
 
-                <div style={formGrid}>
-                  <label>
-                    Set Number
-                    <input value={sets[selectedSetIndex].setNumber || ""} onChange={e => updateSet(selectedSetIndex, "setNumber", e.target.value)} />
-                  </label>
+                {(() => {
+                  const s = sets[selectedSetIndex];
+                  const lbl = { fontSize: 10, fontWeight: 700, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 5, display: "block" };
+                  const inp = { width: "100%", background: "#0d1a2a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5", fontSize: 13, padding: "7px 10px", outline: "none", boxSizing: "border-box" };
+                  const row = { display: "grid", gap: 10, marginBottom: 10 };
+                  const isUsed = String(s.condition || "new").startsWith("used");
+                  return (
+                    <div>
+                      {/* Row 1: Set # + Set Name */}
+                      <div style={{ ...row, gridTemplateColumns: "110px 1fr" }}>
+                        <label><span style={lbl}>Set #</span><input style={inp} value={s.setNumber || ""} onChange={e => updateSet(selectedSetIndex, "setNumber", e.target.value)} /></label>
+                        <label><span style={lbl}>Set Name</span><input style={inp} value={s.name || ""} onChange={e => updateSet(selectedSetIndex, "name", e.target.value)} /></label>
+                      </div>
 
-                  <label>
-                    Set Name
-                    <input value={sets[selectedSetIndex].name || ""} onChange={e => updateSet(selectedSetIndex, "name", e.target.value)} />
-                  </label>
+                      {/* Row 2: Theme + Condition toggle */}
+                      <div style={{ ...row, gridTemplateColumns: "1fr auto" }}>
+                        <label>
+                          <span style={lbl}>Theme</span>
+                          <select style={inp} value={s.theme || ""} onChange={e => updateSet(selectedSetIndex, "theme", e.target.value)}>
+                            <option value="">— select —</option>
+                            {themes.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </label>
+                        <label>
+                          <span style={lbl}>Condition</span>
+                          <div style={{ display: "flex", gap: 4, marginTop: 1 }}>
+                            {[["new","New","#5aa832"],["used","Used","#f59e0b"]].map(([val, label, color]) => (
+                              <button key={val}
+                                onClick={() => updateSet(selectedSetIndex, "condition", val)}
+                                style={{ border: `1px solid ${(!isUsed && val==="new") || (isUsed && val==="used") ? color : "rgba(255,255,255,0.1)"}`, borderRadius: 8, padding: "7px 14px", fontWeight: 700, fontSize: 12, cursor: "pointer", background: (!isUsed && val==="new") || (isUsed && val==="used") ? `${color}22` : "transparent", color: (!isUsed && val==="new") || (isUsed && val==="used") ? color : "#5d6f80", transition: "all 0.12s" }}
+                              >{label}</button>
+                            ))}
+                          </div>
+                        </label>
+                      </div>
 
-                  <label>
-                    Theme
-                    <input value={sets[selectedSetIndex].theme || ""} onChange={e => updateSet(selectedSetIndex, "theme", e.target.value)} />
-                  </label>
+                      {/* Row 3: Qty + Paid + Current Value */}
+                      <div style={{ ...row, gridTemplateColumns: "1fr 1fr 1fr" }}>
+                        <label><span style={lbl}>Qty</span><input style={inp} type="number" min="1" value={s.qty || 1} onChange={e => updateSet(selectedSetIndex, "qty", e.target.value)} /></label>
+                        <label><span style={lbl}>Paid</span><input style={inp} type="number" step="0.01" value={s.paidPrice || ""} onChange={e => updateSet(selectedSetIndex, "paidPrice", e.target.value)} /></label>
+                        <label><span style={lbl}>Value</span><input style={inp} type="number" step="0.01" value={s.currentValue || ""} onChange={e => updateSet(selectedSetIndex, "currentValue", e.target.value)} /></label>
+                      </div>
 
-                  <label>
-                    Condition
-                    <select value={sets[selectedSetIndex].condition || "new"} onChange={e => updateSet(selectedSetIndex, "condition", e.target.value)}>
-                      <option value="new">New</option>
-                      <option value="sealed">Sealed</option>
-                      <option value="used_as_new">Used — Like New</option>
-                      <option value="used_good">Used — Good</option>
-                      <option value="used_acceptable">Used — Acceptable</option>
-                    </select>
-                  </label>
-
-                  <label>
-                    Qty
-                    <input type="number" min="1" value={sets[selectedSetIndex].qty || 1} onChange={e => updateSet(selectedSetIndex, "qty", e.target.value)} />
-                  </label>
-
-                  <label>
-                    Paid Price
-                    <input type="number" step="0.01" value={sets[selectedSetIndex].paidPrice || ""} onChange={e => updateSet(selectedSetIndex, "paidPrice", e.target.value)} />
-                  </label>
-
-                  <label>
-                    Current Value
-                    <input type="number" step="0.01" value={sets[selectedSetIndex].currentValue || ""} onChange={e => updateSet(selectedSetIndex, "currentValue", e.target.value)} />
-                  </label>
-
-                  <label>
-                    Notes
-                    <input value={sets[selectedSetIndex].notes || ""} onChange={e => updateSet(selectedSetIndex, "notes", e.target.value)} />
-                  </label>
-                </div>
+                      {/* Row 4: Acquired Date + Notes */}
+                      <div style={{ ...row, gridTemplateColumns: "1fr 1fr" }}>
+                        <label><span style={lbl}>Acquired</span><input style={inp} type="date" value={s.acquiredDate || ""} onChange={e => updateSet(selectedSetIndex, "acquiredDate", e.target.value)} /></label>
+                        <label><span style={lbl}>Notes</span><input style={inp} value={s.notes || ""} onChange={e => updateSet(selectedSetIndex, "notes", e.target.value)} /></label>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
                   <button onClick={() => setSelectedSetIndex(null)}>Done</button>
@@ -1901,6 +2305,83 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           </div>
         )}
       </section>
+      )}
+
+      {/* ── Purchase Log Modal ──────────────────────────────────────────────── */}
+      {purchaseModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget) setPurchaseModal(null); }}>
+          <div style={{ background: "#0d1a2a", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, padding: 24, width: "100%", maxWidth: 440, boxShadow: "0 16px 48px rgba(0,0,0,0.7)" }}>
+            {/* Header */}
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 }}>Log Purchase</div>
+              <div style={{ fontWeight: 800, fontSize: 16, color: "#e8e2d5" }}>{purchaseModal.name || purchaseModal.setNumber}</div>
+              <div style={{ fontSize: 12, color: "#5d6f80", marginTop: 2 }}>
+                #{purchaseModal.setNumber} · Qty {purchaseModal.qty} · {money(purchaseModal.price)} ea
+              </div>
+            </div>
+
+            {/* Fields */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 18 }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 5, gridColumn: "1 / -1" }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Store</span>
+                <select value={pmForm.store} onChange={e => setPmForm(p => ({ ...p, store: e.target.value }))}
+                  style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "#e8e2d5", padding: "8px 10px", fontSize: 14, width: "100%" }}>
+                  <option value="">— select store —</option>
+                  {savedStores.map(s => <option key={s}>{s}</option>)}
+                </select>
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Date</span>
+                <input type="date" value={pmForm.date} onChange={e => setPmForm(p => ({ ...p, date: e.target.value }))}
+                  style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "#e8e2d5", padding: "8px 10px", fontSize: 14, width: "100%" }} />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Order #</span>
+                <input placeholder="optional" value={pmForm.orderLabel} onChange={e => setPmForm(p => ({ ...p, orderLabel: e.target.value }))}
+                  style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "#e8e2d5", padding: "8px 10px", fontSize: 14, width: "100%" }} />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Tax / Fee</span>
+                <input type="number" min="0" step="0.01" placeholder="0.00" value={pmForm.tax} onChange={e => setPmForm(p => ({ ...p, tax: e.target.value }))}
+                  style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "#e8e2d5", padding: "8px 10px", fontSize: 14, width: "100%" }} />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Shipping</span>
+                <input type="number" min="0" step="0.01" placeholder="0.00" value={pmForm.shipping} onChange={e => setPmForm(p => ({ ...p, shipping: e.target.value }))}
+                  style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "#e8e2d5", padding: "8px 10px", fontSize: 14, width: "100%" }} />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>GC / Rewards</span>
+                <input type="number" min="0" step="0.01" placeholder="0.00" value={pmForm.gc} onChange={e => setPmForm(p => ({ ...p, gc: e.target.value }))}
+                  style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "#e8e2d5", padding: "8px 10px", fontSize: 14, width: "100%" }} />
+              </label>
+            </div>
+
+            {/* Total preview */}
+            {(() => {
+              const total    = Math.round((purchaseModal.price * purchaseModal.qty + (asNumber(pmForm.tax) || 0) + (asNumber(pmForm.shipping) || 0)) * 100) / 100;
+              const cashPaid = Math.max(0, Math.round((total - (asNumber(pmForm.gc) || 0)) * 100) / 100);
+              return (
+                <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 14px", marginBottom: 18, display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <span style={{ color: "#5d6f80" }}>Total</span><span style={{ color: "#e8e2d5", fontWeight: 700 }}>{money(total)}</span>
+                  <span style={{ color: "#5d6f80", marginLeft: 16 }}>Cash Paid</span><span style={{ color: "#c9a84c", fontWeight: 700 }}>{money(cashPaid)}</span>
+                </div>
+              );
+            })()}
+
+            {/* Actions */}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={commitPurchaseLog} style={{ ...redBtn, flex: 1, padding: "11px", fontSize: 14, fontWeight: 700 }}>
+                Log Purchase
+              </button>
+              <button onClick={() => setPurchaseModal(null)}
+                style={{ flex: 1, padding: "11px", fontSize: 14, fontWeight: 700, background: "transparent", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, color: "#8a9bb0", cursor: "pointer" }}>
+                Skip
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

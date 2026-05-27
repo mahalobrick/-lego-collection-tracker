@@ -38,11 +38,17 @@ function getKv() {
   };
 }
 
+const { setCors, internalError } = require("./_cors");
+
 module.exports = async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.status(200).end();
+  if (setCors(req, res, "GET, POST, OPTIONS")) return res.status(200).end();
+
+  // Require a shared secret so only the app owner can read/write backups.
+  // Set BACKUP_SECRET in .env.local and Vercel env vars (any long random string).
+  const secret = process.env.BACKUP_SECRET || "";
+  if (secret && req.headers["x-backup-secret"] !== secret) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 
   const kv = getKv();
   if (!kv) {
@@ -59,7 +65,7 @@ module.exports = async function handler(req, res) {
       if (!backup) return res.status(404).json({ error: "no_backup" });
       return res.status(200).json(backup);
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return internalError(res, err, "cloud-backup GET");
     }
   }
 
@@ -73,7 +79,7 @@ module.exports = async function handler(req, res) {
       await kv.set(BACKUP_KEY, backup, ONE_YEAR);
       return res.status(200).json({ ok: true, savedAt: new Date().toISOString() });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return internalError(res, err, "cloud-backup POST");
     }
   }
 

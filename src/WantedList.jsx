@@ -11,89 +11,23 @@ import { searchInput, filterSelect, clearFilterButton } from "./uiStyles";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from "recharts";
 import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, retirementWaveLabel, lineCashPaid } from "./utils/formatting";
 
-// Source → default confidence level
-const SOURCE_CONFIDENCE = {
-  "LEGO Last Chance": "High",
-  "Brickset":         "High",
-  "BrickEconomy":     "High",
-  "Brick Fanatics":   "Medium",
-  "StoneWars":        "Medium",
-  "Manual":           "Low",
-};
-import { fetchBricksetSet, searchBricksetCatalog } from "./utils/brickset";
+import { fetchBricksetSet, searchBricksetCatalog, fetchLegoThemes } from "./utils/brickset";
 import { getLastChanceCodes, isLastChanceSet, getCachedLastChanceCodes } from "./utils/legoLastChance";
 import WatchDetailPanel from "./WatchDetailPanel";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
 
-const THEME_RETIREMENT_LIFESPAN = {
-  "Star Wars": 2.5,
-  "Icons": 3.5,
-  "Ideas": 3,
-  "Marvel": 2,
-  "Harry Potter": 2.5,
-  "Ninjago": 2,
-  "Technic": 3,
-  "Architecture": 2.5,
-  "Speed Champions": 2,
-  "City": 2
-};
-
 const DEFAULT_WL_ITEMS = [
   { key: "wantedCount",         type: "card",  label: "Wanted Sets",          visible: true,  width: "auto",  collapsed: false },
   { key: "retiringSoon",        type: "card",  label: "High Retirement Risk",  visible: true,  width: "auto",  collapsed: false },
-  { key: "critical",            type: "card",  label: "Critical / Buy Soon",   visible: true,  width: "auto",  collapsed: false },
-  { key: "avgScore",            type: "card",  label: "Buy Readiness",         visible: true,  width: "auto",  collapsed: false },
   { key: "totalMsrp",          type: "card",  label: "Total MSRP",            visible: false, width: "auto",  collapsed: false },
   { key: "avgMsrp",            type: "card",  label: "Avg MSRP",              visible: false, width: "auto",  collapsed: false },
   { key: "ownedCount",         type: "card",  label: "Already Owned",         visible: false, width: "auto",  collapsed: false },
   { key: "watchCount",         type: "card",  label: "Watch Status",          visible: false, width: "auto",  collapsed: false },
   { key: "buyTotal",           type: "card",  label: "Tracking Cost",          visible: true,  width: "auto",  collapsed: false },
   { key: "budgetAfterBuy",     type: "card",  label: "Budget After Buy",       visible: false, width: "auto",  collapsed: false },
-  { key: "urgency-chart",       type: "panel", label: "Queue Urgency",         visible: true,  width: "half",  collapsed: false },
-  { key: "top-priority",        type: "panel", label: "Top Priority Items",    visible: true,  width: "half",  collapsed: false },
   { key: "retirement-timeline", type: "panel", label: "Retirement Timeline",   visible: true,  width: "full",  collapsed: false },
 ];
-
-function estimateRetirementFromSet(setData) {
-  const currentYear = new Date().getFullYear();
-  const releaseYear =
-    Number(setData.year) ||
-    Number(String(setData.released_date || "").slice(0, 4));
-
-  if (!releaseYear) {
-    return {
-      retirementYear: "",
-      retirementConfidence: "Low",
-      retiringSoon: false,
-      retirementSource: "Unknown",
-      lastRetirementUpdate: new Date().toISOString().slice(0, 10)
-    };
-  }
-
-  const theme = setData.theme || "";
-  const lifespan = THEME_RETIREMENT_LIFESPAN[theme] || 2.5;
-  const projectedYear = Math.round(releaseYear + lifespan);
-
-  let confidence = "Medium";
-
-  if (setData.availability === "exclusive" || setData.pieces_count >= 2000) {
-    confidence = "High";
-  }
-
-  if (projectedYear < currentYear) {
-    confidence = "High";
-  }
-
-  return {
-    retirementYear: String(projectedYear),
-    retirementConfidence: confidence,
-    retiringSoon: projectedYear <= currentYear + 1,
-    retirementSource: "Brick Fanatics",
-    lastRetirementUpdate: new Date().toISOString().slice(0, 10)
-  };
-}
-
 
 export default function WantedList({ onBuyNow }) {
   const [wanted, setWanted] = useState(() => {
@@ -109,11 +43,9 @@ export default function WantedList({ onBuyNow }) {
     targetDiscount: "",
     targetPrice: "",
     storePrice: "",
-    priority: 3,
     retiringSoon: false,
-    status: "Watch",
     retirementYear: "",
-    retirementConfidence: "Medium",
+    bfRetirementDate: "",
     releaseYear: "",
     pieces: "",
     currentValue: "",
@@ -142,21 +74,20 @@ export default function WantedList({ onBuyNow }) {
     return () => mq.removeEventListener("change", handler);
   }, []);
   const [filterTheme, setFilterTheme] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+
   const [lookupMessage, setLookupMessage] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [lastChanceCodes, setLastChanceCodes] = useState(() => getCachedLastChanceCodes());
   const [selectedWantedIndex, setSelectedWantedIndex] = useState(null);
   const [checkedWanted, setCheckedWanted] = useState([]);
-  const [sortKey, setSortKey] = useState("score");
+  const [sortKey, setSortKey] = useState("retirementDate");
   const [sortDirection, setSortDirection] = useState("desc");
   const [draggedColumn, setDraggedColumn] = useState(null);
   const [brickHoundCopied, setBrickHoundCopied] = useState(false);
   const [subTab, setSubTab] = useState("overview");
   const [detailItem, setDetailItem] = useState(null);
   const [detailItemIndex, setDetailItemIndex] = useState(null);
-  const [showAllTopPriority, setShowAllTopPriority] = useState(false);
   const [hoveredWanted, setHoveredWanted] = useState(null);
   const [tipPos, setTipPos] = useState({ x: 0, y: 0 });
   const [chartTypes, setChartTypes] = useState(() => {
@@ -193,6 +124,100 @@ export default function WantedList({ onBuyNow }) {
     });
   }
 
+  // ── Buy Now purchase modal ───────────────────────────────────────────────
+  const [buyModal, setBuyModal] = useState(null); // null | wanted item
+  const [buyForm, setBuyForm] = useState({ store: "", date: "", price: "", qty: 1, tax: "", shipping: "", gc: "", orderLabel: "" });
+  const [buyAddToCollection, setBuyAddToCollection] = useState(true);
+  const [savedStores] = useState(() => { try { return JSON.parse(localStorage.getItem("blStores") || "[]"); } catch { return []; } });
+
+  function openBuyModal(item) {
+    const today = new Date().toISOString().slice(0, 10);
+    setBuyForm({
+      store: savedStores[0] || "",
+      date: today,
+      price: item.targetPrice || item.storePrice || item.msrp || "",
+      qty: 1,
+      tax: "",
+      shipping: "",
+      gc: "",
+      orderLabel: "",
+    });
+    setBuyAddToCollection(true);
+    setBuyModal(item);
+  }
+
+  function commitBuy() {
+    if (!buyModal) return;
+    const qty       = asNumber(buyForm.qty) || 1;
+    const faceValue = asNumber(buyForm.price) || 0;
+    const tax       = asNumber(buyForm.tax) || 0;
+    const shipping  = asNumber(buyForm.shipping) || 0;
+    const gcApplied = asNumber(buyForm.gc) || 0;
+    const total     = Math.round((faceValue * qty + tax + shipping) * 100) / 100;
+    const cashPaid  = Math.max(0, Math.round((total - gcApplied) * 100) / 100);
+    const date      = buyForm.date || new Date().toISOString().slice(0, 10);
+    const d         = new Date(date + "T00:00:00");
+    const month     = d.toLocaleString("en-US", { month: "long" }) + " " + d.getFullYear();
+
+    // Write purchase record
+    const purchase = {
+      setNumber:  buyModal.setNumber,
+      name:       buyModal.name,
+      theme:      buyModal.theme,
+      qty,
+      faceValue,
+      tax:        tax || null,
+      shipping:   shipping || null,
+      gcApplied:  gcApplied || null,
+      total,
+      cashPaid,
+      amount:     faceValue,
+      store:      buyForm.store || "",
+      date,
+      month,
+      year:       d.getFullYear(),
+      orderLabel: buyForm.orderLabel || null,
+      orderNotes: null,
+      _fromWanted: true,
+    };
+    const existing = JSON.parse(localStorage.getItem("blPurchases") || "[]");
+    localStorage.setItem("blPurchases", JSON.stringify([...existing, purchase]));
+
+    // Optionally add to My Collection
+    if (buyAddToCollection) {
+      const ownedSets = JSON.parse(localStorage.getItem("blOwnedSets") || "[]");
+      const newSet = {
+        setNumber:   buyModal.setNumber,
+        name:        buyModal.name,
+        theme:       buyModal.theme,
+        subtheme:    buyModal.subtheme || "",
+        pieces:      buyModal.pieces || "",
+        minifigs:    buyModal.minifigs || "",
+        condition:   "new",
+        qty,
+        paidPrice:   faceValue,
+        msrp:        asNumber(buyModal.msrp) || 0,
+        retailPrice: asNumber(buyModal.msrp) || 0,
+        currentValue: asNumber(buyModal.currentValue) || asNumber(buyModal.msrp) || 0,
+        releasedDate: buyModal.releasedDate || "",
+        retiredDate:  buyModal.retiredDate || "",
+        notes:        buyModal.notes || "",
+        addedAt:      new Date().toISOString(),
+      };
+      localStorage.setItem("blOwnedSets", JSON.stringify([...ownedSets, newSet]));
+    }
+
+    // Remove from Wanted List
+    setWanted(prev => {
+      const next = prev.filter(w => w !== buyModal);
+      localStorage.setItem("blWantedList", JSON.stringify(next));
+      return next;
+    });
+
+    setBuyModal(null);
+    toast.success(`Purchased: ${buyModal.name || buyModal.setNumber}${buyAddToCollection ? " · added to collection" : ""}`);
+  }
+
   // Custom fields schema: [{id, label, type}]
   const [customFieldsSchema, setCustomFieldsSchema] = useState(() => {
     try { return JSON.parse(localStorage.getItem("blCustomFieldsSchema") || "[]"); } catch { return []; }
@@ -200,6 +225,7 @@ export default function WantedList({ onBuyNow }) {
   const [customFieldsGearOpen, setCustomFieldsGearOpen] = useState(false);
   const [newCfLabel, setNewCfLabel] = useState("");
   const [newCfType, setNewCfType] = useState("text");
+  const [inlineEdit, setInlineEdit] = useState(null); // { index, key, value }
 
   useEffect(() => {
     localStorage.setItem("blCustomFieldsSchema", JSON.stringify(customFieldsSchema));
@@ -297,30 +323,25 @@ export default function WantedList({ onBuyNow }) {
   async function lookupCalcSet() {
     const raw = calcSetNum.trim();
     if (!raw) { setCalcMsg("Enter a set number first."); return; }
+    setCalcLoading(true);
+    setCalcMsg("");
     try {
-      const cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
-      const key = raw.includes("-") ? raw : `${raw}-1`;
-      const cached = (cache[key] || cache[raw])?.data;
-      if (cached?.retail_price_us) {
-        setCalcMsrp(String(cached.retail_price_us));
-        setCalcMsg(`MSRP loaded from cache — ${cached.name || raw}`);
+      const cleanNum = raw.replace(/-1$/, "").trim();
+      const bsData = await fetchBricksetSet(cleanNum);
+      if (bsData?.retail_price_us) {
+        setCalcMsrp(String(bsData.retail_price_us));
+        setCalcMsg(`${bsData.name || cleanNum} · MSRP from Brickset`);
         return;
       }
-      setCalcLoading(true);
-      setCalcMsg("");
-      const res  = await fetch(`/api/brickeconomy-set?number=${encodeURIComponent(key)}&currency=USD`);
-      const json = await res.json();
-      if (!res.ok || json.error) { setCalcMsg(json.message || json.error || "Lookup failed."); return; }
-      const data = json.data || json;
-      try {
-        cache[key] = { fetchedAt: new Date().toISOString(), data };
-        localStorage.setItem("brickEconomySetCache", JSON.stringify(cache));
-      } catch {}
-      if (data.retail_price_us) {
-        setCalcMsrp(String(data.retail_price_us));
-        setCalcMsg(`MSRP loaded — ${data.name || key}`);
+      // Fallback: BE cache only (no fresh BE fetch for just MSRP)
+      const key = raw.includes("-") ? raw : `${raw}-1`;
+      const beCache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
+      const beData  = (beCache[key] || beCache[raw])?.data;
+      if (beData?.retail_price_us) {
+        setCalcMsrp(String(beData.retail_price_us));
+        setCalcMsg(`${beData.name || raw} · MSRP from cache`);
       } else {
-        setCalcMsg("No retail price found for this set.");
+        setCalcMsg("No retail price found — check the set number.");
       }
     } catch (err) {
       setCalcMsg(err.message || "Lookup failed.");
@@ -358,7 +379,6 @@ export default function WantedList({ onBuyNow }) {
             const currentYear = new Date().getFullYear();
             updates.exit_date            = bsData.exit_date;
             updates.retirementYear       = String(exitYear);
-            updates.retirementConfidence = "High";
             updates.retiringSoon         = exitYear <= currentYear + 1;
             updates.retirementSource     = "Brickset";
             updates.lastRetirementUpdate = new Date().toISOString().slice(0, 10);
@@ -399,6 +419,98 @@ export default function WantedList({ onBuyNow }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally runs once on mount
 
+  // ── Brick Fanatics bulk retirement sync ──────────────────────────────────
+  // Fetches the full BF retiring-sets list (1 API call, CDN-cached 7 days in
+  // localStorage), then cross-references every tracked item and updates
+  // retiringSoon / retirementYear / retirementSource for any matches.
+  const [bfSyncing, setBfSyncing] = useState(false);
+  const [bfSyncResult, setBfSyncResult] = useState(null); // { updated, total, fetchedAt }
+
+  async function syncBFRetirement(force = false) {
+    setBfSyncing(true);
+    setBfSyncResult(null);
+    try {
+      // ── 1. Fetch (or use cache) ──────────────────────────────────────────
+      const CACHE_KEY = "blBFRetirementCache";
+      const STALE_MS  = 7 * 24 * 60 * 60 * 1000; // 7 days
+      let bfSets = null;
+      let fetchedAt = null;
+      if (!force) {
+        try {
+          const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+          if (cached?.sets && cached.fetchedAt && (Date.now() - new Date(cached.fetchedAt).getTime()) < STALE_MS) {
+            bfSets    = cached.sets;
+            fetchedAt = cached.fetchedAt;
+          }
+        } catch { /* ignore */ }
+      }
+      if (!bfSets) {
+        const res  = await fetch("/api/brickfanatics-retiring");
+        const json = await res.json();
+        if (!res.ok || json.error || !json.sets?.length) throw new Error(json.message || "BF fetch failed");
+        bfSets    = json.sets;
+        fetchedAt = json.fetchedAt || new Date().toISOString();
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ sets: bfSets, fetchedAt }));
+      }
+
+      // ── 2. Build lookup map: setNumber → { retirementDate, theme } ────────
+      const bfMap = new Map();
+      for (const s of bfSets) bfMap.set(String(s.setNumber).replace(/-1$/, ""), s);
+
+      // ── 3. Cross-reference wanted list ────────────────────────────────────
+      const currentYear = new Date().getFullYear();
+      let updated = 0;
+      setWanted(prev => {
+        const next = prev.map(w => {
+          // Brickset exit_date is more authoritative — don't overwrite it
+          if (w.retirementSource === "Brickset" && w.exit_date) return w;
+          const cleanNum = String(w.setNumber || "").replace(/-1$/, "").trim();
+          const bfMatch  = bfMap.get(cleanNum);
+          if (!bfMatch) return w;
+          const rawDate = bfMatch.retirementDate || "";
+          const yrMatch = rawDate.match(/\b(20\d{2})\b/);
+          const yr      = yrMatch ? Number(yrMatch[1]) : null;
+          // Only update if BF gives us new/better data
+          const newSource = "Brick Fanatics";
+          if (
+            w.retirementSource === newSource &&
+            w.bfRetirementDate === rawDate
+          ) return w; // already current
+          updated++;
+          return {
+            ...w,
+            retiringSoon:         yr ? yr <= currentYear + 1 : true,
+            retirementYear:       yr ? String(yr) : w.retirementYear || "",
+            bfRetirementDate:     rawDate,
+            retirementSource:     newSource,
+            lastRetirementUpdate: new Date().toISOString().slice(0, 10),
+          };
+        });
+        localStorage.setItem("blWantedList", JSON.stringify(next));
+        return next;
+      });
+
+      setBfSyncResult({ updated, total: bfSets.length, fetchedAt });
+    } catch (err) {
+      toast.error(`BF sync failed: ${err.message}`);
+    } finally {
+      setBfSyncing(false);
+    }
+  }
+
+  // Auto-run once on mount if cache is stale
+  useEffect(() => {
+    const CACHE_KEY = "blBFRetirementCache";
+    const STALE_MS  = 7 * 24 * 60 * 60 * 1000;
+    try {
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+      if (cached?.fetchedAt && (Date.now() - new Date(cached.fetchedAt).getTime()) < STALE_MS) return;
+    } catch { /* ignore */ }
+    syncBFRetirement(); // silent background refresh
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const KNOWN_COLUMN_KEYS = new Set(DEFAULT_WANTED_COLUMNS.map(c => c.key));
 
   const [columns, setColumns] = useState(() => {
     const saved = localStorage.getItem("blAcquisitionColumns");
@@ -406,7 +518,10 @@ export default function WantedList({ onBuyNow }) {
     const parsed = JSON.parse(saved);
     const labelMap = Object.fromEntries(DEFAULT_WANTED_COLUMNS.map(c => [c.key, c.label]));
     const groupMap = Object.fromEntries(DEFAULT_WANTED_COLUMNS.map(c => [c.key, c.group]));
-    const merged = parsed.map(c => ({ ...c, label: labelMap[c.key] ?? c.label, group: groupMap[c.key] ?? c.group }));
+    // Only keep columns that still exist in the current defaults — removes any deleted columns automatically
+    const merged = parsed
+      .filter(c => KNOWN_COLUMN_KEYS.has(c.key))
+      .map(c => ({ ...c, label: labelMap[c.key] ?? c.label, group: groupMap[c.key] ?? c.group }));
     const savedKeys = new Set(merged.map(c => c.key));
     const missing = DEFAULT_WANTED_COLUMNS.filter(c => !savedKeys.has(c.key));
     return missing.length ? [...merged, ...missing] : merged;
@@ -433,8 +548,8 @@ export default function WantedList({ onBuyNow }) {
   }
 
   const liveDiscount =
-    asNumber(form.msrp) && asNumber(form.storePrice)
-      ? ((asNumber(form.msrp) - asNumber(form.storePrice)) / asNumber(form.msrp)) * 100
+    asNumber(form.msrp) && asNumber(form.targetPrice)
+      ? ((asNumber(form.msrp) - asNumber(form.targetPrice)) / asNumber(form.msrp)) * 100
       : 0;
 
   const targetDiscountValue =
@@ -444,54 +559,75 @@ export default function WantedList({ onBuyNow }) {
     liveDiscount >= targetDiscountValue;
 
   const projectedSavings =
-    asNumber(form.msrp) - asNumber(form.storePrice);
+    asNumber(form.msrp) - asNumber(form.targetPrice);
 
-  const acquisitionThemes = Array.from(
+  const localAcquisitionThemes = Array.from(
     new Set(wanted.map(item => item.theme).filter(Boolean))
   ).sort();
-
-  const acquisitionStatuses = Array.from(
-    new Set(wanted.map(item => item.status).filter(Boolean))
-  ).sort();
+  const [legoThemes, setLegoThemes] = useState([]);
+  useEffect(() => { fetchLegoThemes().then(t => { if (t.length) setLegoThemes(t); }); }, []);
+  const acquisitionThemes = legoThemes.length
+    ? Array.from(new Set([...legoThemes, ...localAcquisitionThemes])).sort()
+    : localAcquisitionThemes;
 
   const fuseWanted = useMemo(() => new Fuse(wanted, {
-    keys: ["setNumber", "name", "theme", "status"],
+    keys: ["setNumber", "name", "theme"],
     threshold: 0.3,
     distance: 100,
   }), [wanted]);
 
+  // Convert a wanted item to a sortable retirement timestamp.
+  // Items with no retirement data sort to the bottom (Infinity).
+  function retirementSortKey(item) {
+    if (item.exit_date) return new Date(item.exit_date).getTime();
+    if (item.retirementYear) return new Date(`${item.retirementYear}-12-31`).getTime();
+    return Infinity;
+  }
+
   const visibleWanted = useMemo(() => {
     return (search.trim() ? fuseWanted.search(search).map(r => r.item) : wanted)
-      .filter(item => {
-        const matchesTheme = !filterTheme || item.theme === filterTheme;
-        const matchesStatus = !filterStatus || item.status === filterStatus;
-        return matchesTheme && matchesStatus;
-      })
+      .filter(item => !filterTheme || item.theme === filterTheme)
       .sort((a, b) => {
         const direction = sortDirection === "asc" ? 1 : -1;
 
-        const getValue = item => {
-          if (sortKey === "score") return priorityScore(item);
-          if (sortKey === "discount") {
-            const refPrice = asNumber(item.storePrice) || asNumber(item.targetPrice);
-            return asNumber(item.msrp) && refPrice
-              ? ((asNumber(item.msrp) - refPrice) / asNumber(item.msrp)) * 100
-              : 0;
-          }
-
-          return item[sortKey] ?? "";
-        };
-
-        const av = getValue(a);
-        const bv = getValue(b);
-
-        if (typeof av === "number" && typeof bv === "number") {
-          return (av - bv) * direction;
+        if (sortKey === "retirementDate") {
+          const aT = retirementSortKey(a);
+          const bT = retirementSortKey(b);
+          // Always push no-date items to the bottom regardless of sort direction
+          if (aT === Infinity && bT === Infinity) return 0;
+          if (aT === Infinity) return 1;
+          if (bT === Infinity) return -1;
+          return (aT - bT) * direction;
         }
 
+        if (sortKey === "daysLeft") {
+          const aT = retirementSortKey(a);
+          const bT = retirementSortKey(b);
+          if (aT === Infinity && bT === Infinity) return 0;
+          if (aT === Infinity) return 1;
+          if (bT === Infinity) return -1;
+          return (aT - bT) * direction;
+        }
+
+        if (sortKey === "discount") {
+          return asNumber(a.msrp) && asNumber(a.targetPrice)
+            ? (((asNumber(a.msrp) - asNumber(a.targetPrice)) / asNumber(a.msrp)) * 100 -
+               ((asNumber(b.msrp) - asNumber(b.targetPrice)) / asNumber(b.msrp)) * 100) * direction
+            : 0;
+        }
+
+        if (sortKey === "addedAt") {
+          const aV = a.addedAt || (Number(String(a.id || "").split("_")[1]) ? new Date(Number(String(a.id || "").split("_")[1])).toISOString() : "");
+          const bV = b.addedAt || (Number(String(b.id || "").split("_")[1]) ? new Date(Number(String(b.id || "").split("_")[1])).toISOString() : "");
+          return String(aV).localeCompare(String(bV)) * direction;
+        }
+
+        const av = a[sortKey] ?? "";
+        const bv = b[sortKey] ?? "";
+        if (typeof av === "number" && typeof bv === "number") return (av - bv) * direction;
         return String(av).localeCompare(String(bv)) * direction;
       });
-  }, [wanted, search, filterTheme, filterStatus, sortKey, sortDirection]);
+  }, [wanted, search, filterTheme, sortKey, sortDirection]);
 
   // ── Keyboard shortcuts (declared after visibleWanted to avoid TDZ) ────────
   useEffect(() => {
@@ -588,14 +724,10 @@ export default function WantedList({ onBuyNow }) {
   }, [form.setNumber, wanted]);
 
   function isNumericColumn(key) {
-    return ["score", "msrp", "storePrice", "targetPrice", "discount"].includes(key);
+    return ["msrp", "targetPrice", "discount", "daysLeft"].includes(key);
   }
 
   function renderCell(item, key, realIndex, discount) {
-    if (key === "score") {
-      return <span style={scoreChip(priorityScore(item))}>{priorityScore(item)}</span>;
-    }
-
     if (key === "recommendation") {
       return (
         <span style={recommendationChip(priorityScore(item))}>
@@ -604,28 +736,56 @@ export default function WantedList({ onBuyNow }) {
       );
     }
 
-    if (key === "status") {
-      return (
-        <select value={item.status} onChange={e => updateWanted(realIndex, "status", e.target.value)}>
-          <option>Watch</option>
-          <option>Buy Soon</option>
-          <option>Critical</option>
-          <option>Owned</option>
-        </select>
-      );
+    if (key === "retirementDate") {
+      if (item.exit_date) {
+        const d = new Date(item.exit_date);
+        return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      }
+      if (item.bfRetirementDate) return item.bfRetirementDate;
+      if (item.retirementYear) return item.retirementYear;
+      return "—";
+    }
+
+    if (key === "daysLeft") {
+      if (item.exit_date) {
+        const days = daysUntilRetirement(item.exit_date);
+        const color = days <= 0 ? "#ef4444" : days <= 60 ? "#ef4444" : days <= 180 ? "#f59e0b" : "#5aa832";
+        return <span style={{ color, fontWeight: 700 }}>{days <= 0 ? "Retired" : `${days}d`}</span>;
+      }
+      if (item.retirementYear) {
+        const approxDays = (Number(item.retirementYear) - new Date().getFullYear()) * 365;
+        const color = approxDays <= 0 ? "#ef4444" : approxDays <= 365 ? "#f59e0b" : "#5d6f80";
+        return <span style={{ color, fontStyle: "italic" }}>~{approxDays <= 0 ? "past" : `${Math.round(approxDays / 30)}mo`}</span>;
+      }
+      return "—";
     }
 
     if (key === "retiringSoon") {
+      const active = !!item.retiringSoon;
       return (
-        <input
-          type="checkbox"
-          checked={!!item.retiringSoon}
-          onChange={e => updateWanted(realIndex, "retiringSoon", e.target.checked)}
-        />
+        <span
+          onClick={e => { e.stopPropagation(); updateWanted(realIndex, "retiringSoon", !active); }}
+          title={active ? "Click to clear retirement flag" : "Click to flag as retiring soon"}
+          style={{
+            display: "inline-block",
+            background: active ? "rgba(245,158,11,0.15)" : "rgba(255,255,255,0.04)",
+            color: active ? "#f59e0b" : "#3d4f63",
+            border: `1px solid ${active ? "rgba(245,158,11,0.35)" : "rgba(255,255,255,0.07)"}`,
+            borderRadius: 999,
+            padding: "3px 9px",
+            fontSize: 11,
+            fontWeight: 700,
+            whiteSpace: "nowrap",
+            cursor: "pointer",
+            userSelect: "none",
+            transition: "all 0.12s ease",
+          }}
+        >
+          {active ? "⚠ Soon" : "—"}
+        </span>
       );
     }
 
-    if (key === "priority") return item.priority ?? "—";
     if (key === "setNumber") return item.setNumber || "—";
     if (key === "name") {
       const isOwned = ownedSetNumbers.has(String(item.setNumber || "").replace(/-1$/, ""));
@@ -650,27 +810,26 @@ export default function WantedList({ onBuyNow }) {
         </span>
       );
     }
-    if (key === "retirementYear") return item.retirementYear || "—";
-    if (key === "retirementConfidence") return item.retirementConfidence || "—";
+    if (key === "retirementYear") {
+      if (!item.retirementYear) return "—";
+      const yr = Number(item.retirementYear);
+      const thisYear = new Date().getFullYear();
+      const urgency = item.retiringSoon || yr <= thisYear
+        ? { dot: "🔴", title: "Retiring this year or already retired" }
+        : yr === thisYear + 1
+        ? { dot: "🟡", title: "Retiring next year" }
+        : null;
+      return (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+          {urgency && <span title={urgency.title} style={{ fontSize: 10, lineHeight: 1 }}>{urgency.dot}</span>}
+          {item.retirementYear}
+        </span>
+      );
+    }
     if (key === "retirementSource") return item.retirementSource || "—";
     if (key === "lastRetirementUpdate") return item.lastRetirementUpdate || "—";
     if (key === "msrp") return money(item.msrp);
-    if (key === "storePrice") {
-      return (
-        <input
-          type="number"
-          min="0"
-          step="0.01"
-          value={item.storePrice || ""}
-          onChange={e => updateWanted(realIndex, "storePrice", e.target.value)}
-          placeholder="—"
-          style={{
-            width: 72, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: 6, padding: "3px 6px", color: "#e8e2d5", fontSize: 12,
-          }}
-        />
-      );
-    }
+    // storePrice column removed — field still lives in data for deal-log / calculator writes
     if (key === "targetPrice") return money(item.targetPrice);
     if (key === "discount") return discount ? `${discount.toFixed(1)}%` : "—";
     if (key === "notes") return item.notes || "";
@@ -814,24 +973,6 @@ export default function WantedList({ onBuyNow }) {
     return clean.includes("-") ? clean : `${clean}-1`;
   }
 
-  const recBreakdown = useMemo(() => {
-    const counts = { "Buy Now": 0, "Watch Closely": 0, "Safe to Wait": 0 };
-    wanted.forEach(w => {
-      const r = recommendation(priorityScore(w));
-      counts[r] = (counts[r] || 0) + 1;
-    });
-    return [
-      { name: "Buy Now", value: counts["Buy Now"], color: "#d01012" },
-      { name: "Watch Closely", value: counts["Watch Closely"], color: "#f59e0b" },
-      { name: "Safe to Wait", value: counts["Safe to Wait"], color: "#5aa832" },
-    ].filter(d => d.value > 0);
-  }, [wanted]);
-
-  const recCounts = useMemo(() => {
-    const counts = { "Buy Now": 0, "Watch Closely": 0, "Safe to Wait": 0 };
-    wanted.forEach(w => { const r = recommendation(priorityScore(w)); counts[r] = (counts[r] || 0) + 1; });
-    return counts;
-  }, [wanted]);
 
   const retirementByYear = useMemo(() => {
     const cy = new Date().getFullYear();
@@ -899,17 +1040,17 @@ export default function WantedList({ onBuyNow }) {
       .map(([label, { sets }]) => ({ label, sets }));
   }, [wanted]);
 
-  const topPriorityItems = useMemo(() => {
+  // Soonest-retiring items for the "top" panel — sorted by retirement date
+  const topRetiringSoon = useMemo(() => {
     return [...wanted]
-      .map(w => ({ ...w, _score: priorityScore(w) }))
-      .sort((a, b) => b._score - a._score);
+      .filter(w => w.exit_date || w.retirementYear)
+      .sort((a, b) => retirementSortKey(a) - retirementSortKey(b));
   }, [wanted]);
 
   // Extra card metrics
   const wlTotalMsrp = wanted.reduce((s, w) => s + asNumber(w.msrp), 0);
   const wlAvgMsrp = wanted.length ? wlTotalMsrp / wanted.length : 0;
   const wlOwnedCount = wanted.filter(w => ownedSetNumbers.has(String(w.setNumber || "").replace(/-1$/, ""))).length;
-  const wlWatchCount = wanted.filter(w => w.status === "Watch").length;
   const wlBuyTotal = wanted.reduce((s, w) => {
     const tp = asNumber(w.targetPrice);
     return s + (tp > 0 ? tp : asNumber(w.msrp));
@@ -985,17 +1126,13 @@ export default function WantedList({ onBuyNow }) {
 
   async function lookupBrickEconomy(setNumOverride) {
     const lookupKey = normalizeSetNumber(setNumOverride ?? form.setNumber);
-
-    if (!lookupKey) {
-      setLookupMessage("Enter a set number first.");
-      return;
-    }
+    if (!lookupKey) { setLookupMessage("Enter a set number first."); return; }
 
     setLookupLoading(true);
     setLookupMessage("");
     setBfRetirement(null);
 
-    // Pre-fill metadata instantly from local Rebrickable catalog (no network needed)
+    // Pre-fill instantly from local Rebrickable catalog (no network needed)
     const rb = rbLookupSet(lookupKey);
     if (rb) {
       setForm(prev => ({
@@ -1008,108 +1145,92 @@ export default function WantedList({ onBuyNow }) {
     }
 
     try {
-      const cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
+      // ── 1. Brickset (primary — metadata + MSRP + retirement) ──────────────
+      const bsData = await fetchBricksetSet(lookupKey);
 
-      let setData = cache[lookupKey]?.data;
-      const wasCached = !!setData;
-
-      if (!setData) {
-        const res = await fetch(`/api/brickeconomy-set?number=${encodeURIComponent(lookupKey)}&currency=USD`);
-        const data = await res.json();
-
-        if (!res.ok || data.error) {
-          setLookupMessage(data.message || data.error || "BrickEconomy lookup failed.");
-          return;
-        }
-
-        setData = data.data || data;
-
-        cache[lookupKey] = {
-          fetchedAt: new Date().toISOString(),
-          data: setData
-        };
-
-        localStorage.setItem("brickEconomySetCache", JSON.stringify(cache));
+      if (!bsData && !rb) {
+        setLookupMessage("Set not found — check the number.");
+        return;
       }
 
-      const retirementEstimate = estimateRetirementFromSet(setData);
-
-      setForm(prev => ({
-        ...prev,
-        setNumber: setData.set_number || lookupKey,
-        name: setData.name || prev.name,
-        theme: setData.theme || prev.theme,
-        msrp: setData.retail_price_us || prev.msrp,
-        currentValue: setData.current_value_new || prev.currentValue,
-        releaseYear: setData.year || Number(String(setData.released_date || "").slice(0, 4)) || prev.releaseYear,
-        pieces: setData.pieces_count || prev.pieces,
-        availability: setData.availability || prev.availability,
-        retirementYear: prev.retirementYear,
-        retirementConfidence: prev.retirementConfidence || retirementEstimate.retirementConfidence,
-        retiringSoon: prev.retiringSoon,
-        retirementSource: prev.retirementSource || "Manual",
-        lastRetirementUpdate: prev.lastRetirementUpdate,
-        forecast2yr: setData.forecast_value_new_2_years || prev.forecast2yr,
-        forecast5yr: setData.forecast_value_new_5_years || prev.forecast5yr,
-        targetPrice: setData.retail_price_us
-          ? (Number(setData.retail_price_us) * (1 - Number(prev.targetDiscount || 0) / 100)).toFixed(2)
-          : prev.targetPrice
-      }));
-
-      setLookupMessage(`Loaded ${setData.set_number || lookupKey} from ${wasCached ? "cache" : "BrickEconomy"}.`);
-
-      // Also fetch Brickset data and merge additional fields
-      const bsData = await fetchBricksetSet(lookupKey);
       if (bsData) {
-        const bsExtras = [];
+        const currentYear = new Date().getFullYear();
         setForm(prev => {
           const updates = {
-            subtheme:      prev.subtheme      || bsData.subtheme      || "",
-            minifigs:      prev.minifigs      || bsData.minifigs      || "",
-            weight:        prev.weight        || bsData.weight        || "",
-            rating:        prev.rating        || bsData.rating        || "",
-            packagingType: prev.packagingType || bsData.packaging_type || "",
-            ageMin:        prev.ageMin        || bsData.age_min       || "",
+            setNumber:     String(lookupKey).replace(/-1$/, ""),
+            name:          bsData.name          || prev.name,
+            theme:         bsData.theme         || prev.theme,
+            subtheme:      bsData.subtheme      || prev.subtheme      || "",
+            pieces:        bsData.pieces        || prev.pieces        || "",
+            minifigs:      bsData.minifigs      || prev.minifigs      || "",
+            releaseYear:   bsData.year          || prev.releaseYear   || "",
+            availability:  bsData.availability  || prev.availability  || "",
+            weight:        bsData.weight        || prev.weight        || "",
+            rating:        bsData.rating        || prev.rating        || "",
+            packagingType: bsData.packaging_type || prev.packagingType || "",
+            ageMin:        bsData.age_min       || prev.ageMin        || "",
           };
-
-          // Official MSRP from Brickset overrides BrickEconomy (more reliable)
           if (bsData.retail_price_us) {
             updates.msrp = bsData.retail_price_us;
             if (asNumber(prev.targetDiscount) > 0) {
               updates.targetPrice = (bsData.retail_price_us * (1 - asNumber(prev.targetDiscount) / 100)).toFixed(2);
             }
-            bsExtras.push("MSRP");
           }
-
-          // Real retirement date from LEGO via Brickset — replaces estimate
           if (bsData.exit_date) {
-            const exitDate = new Date(bsData.exit_date);
-            const exitYear = exitDate.getFullYear();
-            const currentYear = new Date().getFullYear();
+            const exitYear = new Date(bsData.exit_date).getFullYear();
             updates.exit_date            = bsData.exit_date;
             updates.retirementYear       = String(exitYear);
-            updates.retirementConfidence = "High";
             updates.retiringSoon         = exitYear <= currentYear + 1;
             updates.retirementSource     = "Brickset";
             updates.lastRetirementUpdate = new Date().toISOString().slice(0, 10);
-            bsExtras.push("retirement date");
           }
-
           return { ...prev, ...updates };
         });
-
-        if (bsExtras.length > 0) {
-          setLookupMessage(m => m + ` · Brickset: ${bsExtras.join(", ")}.`);
-        }
       }
 
-      // ── Price history snapshot ────────────────────────────────────────────
-      recordPriceSnapshot(lookupKey, {
-        msrp:  bsData?.retail_price_us || setData.retail_price_us,
-        value: setData.current_value_new,
-      });
+      setLookupMessage(`Found: ${bsData?.name || lookupKey}`);
 
-      // ── BrickLink price guide (non-blocking, only if authenticated) ───────
+      // ── 2. BrickEconomy (value only — currentValue + forecasts) ───────────
+      ;(async () => {
+        try {
+          const cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
+          let beData = cache[lookupKey]?.data;
+          if (!beData) {
+            const res  = await fetch(`/api/brickeconomy-set?number=${encodeURIComponent(lookupKey)}&currency=USD`);
+            const json = await res.json();
+            if (res.ok && !json.error) {
+              beData = json.data || json;
+              cache[lookupKey] = { fetchedAt: new Date().toISOString(), data: beData };
+              localStorage.setItem("brickEconomySetCache", JSON.stringify(cache));
+            }
+          }
+          if (beData) {
+            setForm(prev => {
+              const updates = {};
+              if (beData.current_value_new)          updates.currentValue = beData.current_value_new;
+              if (beData.forecast_value_new_2_years) updates.forecast2yr  = beData.forecast_value_new_2_years;
+              if (beData.forecast_value_new_5_years) updates.forecast5yr  = beData.forecast_value_new_5_years;
+              // Only use BE MSRP if Brickset didn't provide one
+              if (!bsData?.retail_price_us && beData.retail_price_us) {
+                updates.msrp = beData.retail_price_us;
+                if (asNumber(prev.targetDiscount) > 0) {
+                  updates.targetPrice = (beData.retail_price_us * (1 - asNumber(prev.targetDiscount) / 100)).toFixed(2);
+                }
+              }
+              return Object.keys(updates).length ? { ...prev, ...updates } : prev;
+            });
+            recordPriceSnapshot(lookupKey, {
+              msrp:  bsData?.retail_price_us || beData.retail_price_us,
+              value: beData.current_value_new,
+            });
+            if (beData.current_value_new) {
+              setLookupMessage(m => m + ` · Value: $${Number(beData.current_value_new).toFixed(0)}`);
+            }
+          }
+        } catch { /* BE failures are non-critical */ }
+      })();
+
+      // ── 3. BrickLink price guide (non-blocking, only if authenticated) ────
       if (hasBrickLinkAuth()) {
         fetchBrickLinkPriceGuide(lookupKey).then(blData => {
           if (!blData) return;
@@ -1119,25 +1240,18 @@ export default function WantedList({ onBuyNow }) {
             blPriceUsed: blData.avg_price_used || prev.blPriceUsed,
           }));
           if (blData.avg_price_new || blData.avg_price_used) {
-            recordPriceSnapshot(lookupKey, {
-              msrp:       bsData?.retail_price_us || setData.retail_price_us,
-              value:      setData.current_value_new,
-              blPriceNew:  blData.avg_price_new,
-              blPriceUsed: blData.avg_price_used,
-            });
             setLookupMessage(m => m + " · BL prices loaded.");
           }
-        }).catch(() => {}); // BL failures are non-fatal
+        }).catch(() => {});
       }
 
-      // ── Brick Fanatics retirement data (non-blocking) ─────────────────────
+      // ── 4. Brick Fanatics retirement (non-blocking) ────────────────────────
       const bfNum = String(lookupKey).replace(/-1$/, "");
       fetch(`/api/brickfanatics-retiring?number=${encodeURIComponent(bfNum)}`)
         .then(r => r.json())
         .then(bfData => {
           if (!bfData || bfData.error) return;
           setBfRetirement(bfData);
-          // Only update form retirement fields if Brickset didn't already provide an exit date
           if (bfData.retiring && bfData.retirementDate) {
             setForm(prev => {
               if (prev.retirementSource === "Brickset") return prev; // Brickset is authoritative
@@ -1146,7 +1260,7 @@ export default function WantedList({ onBuyNow }) {
               return {
                 ...prev,
                 retirementYear:       yr ? String(yr) : prev.retirementYear,
-                retirementConfidence: "High",
+                bfRetirementDate:     bfData.retirementDate,
                 retirementSource:     "Brick Fanatics",
                 retiringSoon:         yr ? yr <= new Date().getFullYear() + 1 : prev.retiringSoon,
                 lastRetirementUpdate: new Date().toISOString().slice(0, 10),
@@ -1155,10 +1269,10 @@ export default function WantedList({ onBuyNow }) {
             setLookupMessage(m => m + ` · BF: ${bfData.retirementDate}.`);
           }
         })
-        .catch(() => {}); // BF failures are non-fatal
+        .catch(() => {});
 
     } catch (err) {
-      setLookupMessage(err.message || "Could not reach BrickEconomy.");
+      setLookupMessage(err.message || "Lookup failed — check your connection.");
     } finally {
       setLookupLoading(false);
     }
@@ -1201,6 +1315,7 @@ export default function WantedList({ onBuyNow }) {
       {
         ...form,
         id: `wl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        addedAt: new Date().toISOString(),
         msrp: asNumber(form.msrp),
         targetDiscount: asNumber(form.targetDiscount),
         targetPrice: asNumber(form.targetPrice) || (
@@ -1208,14 +1323,13 @@ export default function WantedList({ onBuyNow }) {
             ? asNumber(form.msrp) * (1 - asNumber(form.targetDiscount) / 100)
             : 0
         ),
-        priority: asNumber(form.priority) || 1
       }
     ]);
 
     setForm({
       setNumber: "", name: "", theme: "", msrp: "", targetDiscount: "", targetPrice: "",
-      priority: 3, retiringSoon: false, status: "Watch", retirementYear: "",
-      retirementConfidence: "Medium", notes: "", subtheme: "", minifigs: "",
+      retiringSoon: false, retirementYear: "", bfRetirementDate: "",
+      notes: "", subtheme: "", minifigs: "",
       weight: "", rating: "", packagingType: "", ageMin: "",
       exit_date: "", isLastChance: false, forecast2yr: "", forecast5yr: "",
     });
@@ -1227,7 +1341,7 @@ export default function WantedList({ onBuyNow }) {
       const next = [...prev];
       next[index] = {
         ...next[index],
-        [field]: ["msrp", "targetPrice", "storePrice", "priority"].includes(field)
+        [field]: ["msrp", "targetPrice"].includes(field)
           ? asNumber(value)
           : value
       };
@@ -1339,28 +1453,13 @@ export default function WantedList({ onBuyNow }) {
                     onDrop={() => dropWLItem(item.key)}
                     style={{ opacity: draggedWLItem === item.key ? 0.4 : 1, cursor: "grab" }}
                   >
-                    {item.key === "wantedCount"  ? <Metric title="Wanted Sets"          value={wanted.length} /> :
-                     item.key === "retiringSoon"  ? <Metric title="High Retirement Risk" value={wanted.filter(w => w.retiringSoon || (w.retirementYear && Number(w.retirementYear) <= new Date().getFullYear() + 1)).length} /> :
-                     item.key === "critical"      ? <Metric title="Critical / Buy Soon"  value={wanted.filter(w => ["Buy Soon", "Critical"].includes(w.status)).length} /> :
-                     item.key === "avgScore"      ? (
-                       <div style={{ ...panel, marginTop: 0, overflow: "hidden" }}>
-                         <div style={{ ...mutedSmall, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 8 }}>Buy Readiness</div>
-                         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                           {[{ label: "Buy Now", color: "#ef4444" }, { label: "Watch Closely", color: "#f59e0b" }, { label: "Safe to Wait", color: "#5aa832" }].map(({ label, color }) => (
-                             <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                               <span style={{ fontSize: 11, color, fontWeight: 700 }}>{label}</span>
-                               <span style={{ fontSize: 18, fontWeight: 900, color: "#e8e2d5" }}>{recCounts[label]}</span>
-                             </div>
-                           ))}
-                         </div>
-                       </div>
-                     ) :
-                     item.key === "totalMsrp"     ? <Metric title="Total MSRP"           value={money(wlTotalMsrp)} /> :
-                     item.key === "avgMsrp"       ? <Metric title="Avg MSRP"             value={money(wlAvgMsrp)} /> :
-                     item.key === "ownedCount"     ? <Metric title="Already Owned"    value={wlOwnedCount} /> :
-                     item.key === "watchCount"     ? <Metric title="Watch Status"      value={wlWatchCount} /> :
-                     item.key === "buyTotal"       ? <Metric title="Tracking Cost"     value={money(wlBuyTotal)} /> :
-                     item.key === "budgetAfterBuy" ? <Metric title="Budget After Buy"  value={wlBudgetAfterBuy !== null ? money(wlBudgetAfterBuy) : "No budget set"} good={wlBudgetAfterBuy !== null ? wlBudgetAfterBuy >= 0 : undefined} /> : null}
+                    {item.key === "wantedCount"   ? <Metric title="Wanted Sets"          value={wanted.length} /> :
+                     item.key === "retiringSoon"   ? <Metric title="Retiring This Year"   value={wanted.filter(w => w.retiringSoon || (w.retirementYear && Number(w.retirementYear) <= new Date().getFullYear() + 1)).length} /> :
+                     item.key === "totalMsrp"      ? <Metric title="Total MSRP"           value={money(wlTotalMsrp)} /> :
+                     item.key === "avgMsrp"        ? <Metric title="Avg MSRP"             value={money(wlAvgMsrp)} /> :
+                     item.key === "ownedCount"     ? <Metric title="Already Owned"        value={wlOwnedCount} /> :
+                     item.key === "buyTotal"       ? <Metric title="Tracking Cost"        value={money(wlBuyTotal)} /> :
+                     item.key === "budgetAfterBuy" ? <Metric title="Budget After Buy"     value={wlBudgetAfterBuy !== null ? money(wlBudgetAfterBuy) : "No budget set"} good={wlBudgetAfterBuy !== null ? wlBudgetAfterBuy >= 0 : undefined} /> : null}
                   </div>
                 ))}
               </div>
@@ -1407,97 +1506,6 @@ export default function WantedList({ onBuyNow }) {
                         <span style={{ fontWeight: 700, color: "#8a9bb0", fontSize: 14 }}>{item.label}</span>
                         <button onClick={() => toggleWLCollapse(item.key)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "4px 10px", color: "#8a9bb0", fontSize: 12, cursor: "pointer" }}>▼</button>
                       </div>
-                    ) : item.key === "urgency-chart" ? (
-                      <div style={{ ...panel, marginTop: 0 }}>
-                        <h4 style={{ margin: "0 0 14px" }}>Queue Urgency</h4>
-                        {recBreakdown.length > 0 ? (
-                          <>
-                            {(() => {
-                              const ct = chartTypes["urgency-chart"] || "donut";
-                              return ct === "bar" ? (
-                                <ResponsiveContainer width="100%" height={190}>
-                                  <BarChart data={recBreakdown} margin={{ left: 10, right: 10, top: 5, bottom: 24 }}>
-                                    <XAxis dataKey="name" tick={{ fill: "#8a9bb0", fontSize: 11 }} axisLine={false} tickLine={false} />
-                                    <YAxis tick={{ fill: "#8a9bb0", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                                    <Tooltip contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
-                                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                      {recBreakdown.map((d, i) => <Cell key={i} fill={d.color} />)}
-                                    </Bar>
-                                  </BarChart>
-                                </ResponsiveContainer>
-                              ) : (
-                                <ResponsiveContainer width="100%" height={190}>
-                                  <PieChart>
-                                    <Pie data={recBreakdown} cx="50%" cy="50%" innerRadius={ct === "donut" ? 52 : 0} outerRadius={82} dataKey="value" paddingAngle={ct === "donut" ? 2 : 1}>
-                                      {recBreakdown.map((d, i) => <Cell key={i} fill={d.color} />)}
-                                    </Pie>
-                                    <Tooltip contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
-                                  </PieChart>
-                                </ResponsiveContainer>
-                              );
-                            })()}
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 16px", marginTop: 6 }}>
-                              {recBreakdown.map(d => (
-                                <span key={d.name} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#8a9bb0" }}>
-                                  <span style={{ width: 10, height: 10, borderRadius: 2, background: d.color, display: "inline-block", flexShrink: 0 }} />
-                                  {d.name} <strong style={{ color: "#e8e2d5" }}>({d.value})</strong>
-                                </span>
-                              ))}
-                            </div>
-                          </>
-                        ) : (
-                          <div style={{ textAlign: "center", padding: "28px 20px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 10 }}>
-                            <div style={{ fontWeight: 700, color: "#8a9bb0", marginBottom: 4 }}>No urgency data yet</div>
-                            <div style={{ fontSize: 13, color: "#5d6f80" }}>Add sets and set statuses to see queue urgency.</div>
-                          </div>
-                        )}
-                      </div>
-                    ) : item.key === "top-priority" ? (
-                      <div style={{ ...panel, marginTop: 0 }}>
-                        <h4 style={{ margin: "0 0 14px" }}>Top Priority Items</h4>
-                        {topPriorityItems.length > 0 ? (
-                          <div style={{ display: "grid", gap: 8 }}>
-                            {topPriorityItems.slice(0, showAllTopPriority ? 15 : 5).map((wlItem, i) => {
-                              const rec = recommendation(wlItem._score);
-                              const recColor = rec === "Buy Now" ? "#ef4444" : rec === "Watch Closely" ? "#f59e0b" : "#5aa832";
-                              const realIndex = wanted.findIndex(w => w.setNumber === wlItem.setNumber && w.name === wlItem.name);
-                              const isOwned = ownedSetNumbers.has(String(wlItem.setNumber || "").replace(/-1$/, ""));
-                              return (
-                                <div key={wlItem.setNumber || i}
-                                  onClick={() => { setDetailItem(wlItem); setDetailItemIndex(realIndex); }}
-                                  onMouseEnter={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.18)"; setHoveredWanted(wlItem); }}
-                                  onMouseLeave={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.06)"; setHoveredWanted(null); }}
-                                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0f1a28", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
-                                  <div>
-                                    <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
-                                      {wlItem.name || wlItem.setNumber || "—"}
-                                      {isOwned && <span style={{ fontSize: 11, background: "#0a2e1a", border: "1px solid #166534", color: "#5aa832", borderRadius: 999, padding: "2px 7px", fontWeight: 700 }}>✓ Owned</span>}
-                                    </div>
-                                    <div style={{ color: "#5d6f80", fontSize: 12 }}>{wlItem.theme || "—"}</div>
-                                  </div>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                    <div style={{ textAlign: "right" }}>
-                                      <div style={{ fontWeight: 900, fontSize: 15 }}>{wlItem._score}</div>
-                                      <div style={{ color: recColor, fontSize: 11, fontWeight: 700 }}>{rec}</div>
-                                    </div>
-                                    <span style={{ color: "#5d6f80", fontSize: 16 }}>›</span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                            {topPriorityItems.length > 5 && (
-                              <button onClick={() => setShowAllTopPriority(prev => !prev)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 12px", color: "#8a9bb0", fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
-                                {showAllTopPriority ? "▲ Show less" : `▾ ${Math.min(topPriorityItems.length, 15) - 5} more`}
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <div style={{ textAlign: "center", padding: "28px 20px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 10 }}>
-                            <div style={{ fontWeight: 700, color: "#8a9bb0", marginBottom: 4 }}>Tracking list is empty</div>
-                            <div style={{ fontSize: 13, color: "#5d6f80" }}>Add a set using Research to start tracking prices and retirement dates.</div>
-                          </div>
-                        )}
-                      </div>
                     ) : item.key === "retirement-timeline" && retirementWaves.length > 0 ? (
                       <div style={{ ...panel, marginTop: 0 }}>
                         <h4 style={{ margin: "0 0 16px" }}>Retirement Wave Timeline</h4>
@@ -1515,16 +1523,12 @@ export default function WantedList({ onBuyNow }) {
                                 </div>
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                                   {sets.map((w, i) => {
-                                    const sc = priorityScore(w);
-                                    const chipBg = w.isLastChance ? "#3b0a0a"
-                                      : sc >= 70 ? "#1a0a00"
-                                      : "#0f1a28";
-                                    const chipBorder = w.isLastChance ? "#7f1d1d"
-                                      : sc >= 70 ? "rgba(245,158,11,0.35)"
-                                      : "rgba(255,255,255,0.07)";
-                                    const chipColor = w.isLastChance ? "#ef4444"
-                                      : sc >= 70 ? "#f59e0b"
-                                      : "#e8e2d5";
+                                    const days = w.exit_date ? daysUntilRetirement(w.exit_date) : null;
+                                    const urgent = w.isLastChance || (days !== null && days <= 60);
+                                    const soon   = days !== null && days <= 180;
+                                    const chipBg     = urgent ? "#3b0a0a" : soon ? "#1a0a00" : "#0f1a28";
+                                    const chipBorder = urgent ? "#7f1d1d" : soon ? "rgba(245,158,11,0.35)" : "rgba(255,255,255,0.07)";
+                                    const chipColor  = urgent ? "#ef4444" : soon ? "#f59e0b" : "#e8e2d5";
                                     return (
                                       <div
                                         key={i}
@@ -1535,13 +1539,11 @@ export default function WantedList({ onBuyNow }) {
                                         <div style={{ fontSize: 13, fontWeight: 700, color: chipColor, marginBottom: 4, lineHeight: 1.3 }}>
                                           {w.name || w.setNumber}
                                         </div>
-                                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                                          {w.exit_date && (() => {
-                                            const days = daysUntilRetirement(w.exit_date);
-                                            return <span style={{ fontSize: 11, color: days <= 60 ? "#ef4444" : days <= 180 ? "#f59e0b" : "#5aa832" }}>{days <= 0 ? "past date" : `${days}d`}</span>;
-                                          })()}
-                                          <span style={{ fontSize: 11, color: "#8a9bb0" }}>Score: {sc}</span>
-                                        </div>
+                                        {days !== null && (
+                                          <span style={{ fontSize: 11, color: chipColor }}>
+                                            {days <= 0 ? "past date" : `${days}d left`}
+                                          </span>
+                                        )}
                                       </div>
                                     );
                                   })}
@@ -1702,10 +1704,10 @@ export default function WantedList({ onBuyNow }) {
               style={{ marginLeft: 6, fontSize: 12, color: "#5d6f80", cursor: "default", fontWeight: 400, border: "1px solid #5d6f80", borderRadius: "50%", padding: "0 4px", lineHeight: "16px", display: "inline-block", verticalAlign: "middle" }}
             >?</span>
           </h3>
-          {(form.setNumber || form.name || form.theme || form.msrp || form.storePrice || form.notes) && (
+          {(form.setNumber || form.name || form.theme || form.msrp || form.targetPrice || form.notes) && (
             <button
               onClick={() => {
-                setForm({ setNumber: "", name: "", theme: "", msrp: "", targetDiscount: "", targetPrice: "", storePrice: "", priority: 3, retiringSoon: false, status: "Watch", retirementYear: "", retirementConfidence: "Medium", releaseYear: "", pieces: "", currentValue: "", availability: "", retirementSource: "Brick Fanatics", lastRetirementUpdate: "", notes: "", subtheme: "", minifigs: "", weight: "", rating: "", packagingType: "", ageMin: "", exit_date: "", isLastChance: false, forecast2yr: "", forecast5yr: "" });
+                setForm({ setNumber: "", name: "", theme: "", msrp: "", targetDiscount: "", targetPrice: "", retiringSoon: false, retirementYear: "", bfRetirementDate: "", releaseYear: "", pieces: "", currentValue: "", availability: "", retirementSource: "Brick Fanatics", lastRetirementUpdate: "", notes: "", subtheme: "", minifigs: "", weight: "", rating: "", packagingType: "", ageMin: "", exit_date: "", isLastChance: false, forecast2yr: "", forecast5yr: "" });
                 setLookupMessage("");
               }}
               style={{ background: "transparent", color: "#5d6f80", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "5px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
@@ -1897,16 +1899,16 @@ export default function WantedList({ onBuyNow }) {
                 );
               })()}
 
-              {form.storePrice && (
+              {form.msrp && form.targetPrice && (
                 <div style={analysisPanel}>
                   <div style={analysisGrid}>
                     <div style={analysisStat}>
-                      <div style={analysisLabel}>Store Price</div>
-                      <div style={analysisValue}>{money(form.storePrice)}</div>
+                      <div style={analysisLabel}>Target Price</div>
+                      <div style={analysisValue}>{money(form.targetPrice)}</div>
                     </div>
 
                     <div style={analysisStat}>
-                      <div style={analysisLabel}>Live Discount</div>
+                      <div style={analysisLabel}>Discount</div>
                       <div style={analysisValue}>
                         {liveDiscount.toFixed(1)}%
                       </div>
@@ -1920,23 +1922,18 @@ export default function WantedList({ onBuyNow }) {
                     </div>
 
                     <div style={analysisStat}>
-                      <div style={analysisLabel}>Target Goal</div>
+                      <div style={analysisLabel}>vs Target %</div>
                       <div style={{
                         ...analysisValue,
                         color: targetHit ? "#4ade80" : "#f87171"
                       }}>
-                        {targetHit ? "TARGET HIT" : "ABOVE TARGET"}
+                        {targetHit ? "✓ HIT" : "ABOVE"}
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-                <span style={recommendationChip(priorityScore(form))}>
-                  {recommendation(priorityScore(form))}
-                </span>
-              </div>
             </div>
           </div>
         )}
@@ -2049,7 +2046,10 @@ export default function WantedList({ onBuyNow }) {
             <div style={groupTitle}>Set Details</div>
 
             <input style={inputStyle} placeholder="Set Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-            <input style={inputStyle} placeholder="Theme" value={form.theme} onChange={e => setForm({ ...form, theme: e.target.value })} />
+            <select style={inputStyle} value={form.theme} onChange={e => setForm({ ...form, theme: e.target.value })}>
+              <option value="">— Theme —</option>
+              {acquisitionThemes.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
           </div>
 
           <div style={fieldGroup}>
@@ -2078,43 +2078,20 @@ export default function WantedList({ onBuyNow }) {
           </div>
 
           <div style={fieldGroup}>
-            <div style={groupTitle}>Buying Plan</div>
-
-            <select style={inputStyle} value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })}>
-              <option value="1">Priority 1</option>
-              <option value="2">Priority 2</option>
-              <option value="3">Priority 3</option>
-              <option value="4">Priority 4</option>
-              <option value="5">Priority 5</option>
-            </select>
-
-            <select style={inputStyle} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
-              <option>Watch</option>
-              <option>Buy Soon</option>
-              <option>Critical</option>
-              <option>Owned</option>
-            </select>
-
-            <label style={{ ...checkLabel, marginTop: 4 }}>
-              <input type="checkbox" checked={!!form.isLastChance}
-                onChange={e => setForm({ ...form, isLastChance: e.target.checked })} />
-              🚨 On LEGO Last Chance to Buy
-            </label>
-
             <input style={inputStyle} placeholder="Notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
           </div>
         </div>
 
-        {form.storePrice && (
+        {form.msrp && form.targetPrice && (
           <div style={analysisPanel}>
             <div style={analysisGrid}>
               <div style={analysisCard}>
-                <div style={analysisLabel}>Store Price</div>
-                <div style={analysisValue}>{money(form.storePrice)}</div>
+                <div style={analysisLabel}>Target Price</div>
+                <div style={analysisValue}>{money(form.targetPrice)}</div>
               </div>
 
               <div style={analysisCard}>
-                <div style={analysisLabel}>Live Discount</div>
+                <div style={analysisLabel}>Discount</div>
                 <div style={{ ...analysisValue, color: targetHit ? "#4ade80" : "#f87171" }}>
                   {liveDiscount.toFixed(1)}%
                 </div>
@@ -2126,9 +2103,9 @@ export default function WantedList({ onBuyNow }) {
               </div>
 
               <div style={analysisCard}>
-                <div style={analysisLabel}>Target Goal</div>
+                <div style={analysisLabel}>vs Target %</div>
                 <div style={{ ...analysisValue, color: targetHit ? "#4ade80" : "#f87171" }}>
-                  {targetHit ? "TARGET HIT" : "MISS"}
+                  {targetHit ? "✓ HIT" : "ABOVE"}
                 </div>
               </div>
             </div>
@@ -2174,14 +2151,14 @@ export default function WantedList({ onBuyNow }) {
                   existingNums.add(setNum);
                   newItems.push({
                     id: `wl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                    addedAt: new Date().toISOString(),
                     setNumber: setNum,
                     name:       row.name || row["set name"] || "",
                     theme:      row.theme || "",
                     releaseYear: row.year || "",
                     pieces:     row.pieces || "",
                     msrp: "", targetPrice: "", targetDiscount: "", storePrice: "",
-                    priority: 3, status: "Watch", retiringSoon: false,
-                    retirementYear: "", retirementConfidence: "Medium",
+                    retiringSoon: false, retirementYear: "", bfRetirementDate: "",
                     retirementSource: "Brickset", lastRetirementUpdate: new Date().toISOString().slice(0, 10),
                     exit_date: "", isLastChance: false, forecast2yr: "", forecast5yr: "",
                     currentValue: "", notes: "", subtheme: "", minifigs: "",
@@ -2293,25 +2270,30 @@ export default function WantedList({ onBuyNow }) {
             ))}
           </select>
 
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={filterSelect}>
-            <option value="">All Statuses</option>
-            {acquisitionStatuses.map(status => (
-              <option key={status} value={status}>{status}</option>
-            ))}
-          </select>
-
-          {(search || filterTheme || filterStatus) && (
+          {(search || filterTheme) && (
             <button
-              onClick={() => {
-                setSearch("");
-                setFilterTheme("");
-                setFilterStatus("");
-              }}
+              onClick={() => { setSearch(""); setFilterTheme(""); }}
               style={clearFilterButton}
             >
               Clear
             </button>
           )}
+
+          <select
+            value={`${sortKey}:${sortDirection}`}
+            onChange={e => {
+              const [key, dir] = e.target.value.split(":");
+              setSortKey(key);
+              setSortDirection(dir);
+            }}
+            style={filterSelect}
+          >
+            <option value="retirementDate:asc">Retires Soonest</option>
+            <option value="addedAt:desc">Recently Added</option>
+            <option value="name:asc">Name (A–Z)</option>
+            <option value="msrp:desc">MSRP (↓)</option>
+            <option value="discount:desc">Discount (↓)</option>
+          </select>
 
           {/* Bulk price refresh */}
           <button
@@ -2329,6 +2311,31 @@ export default function WantedList({ onBuyNow }) {
               <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>↻</span>
             ) : "↻"}{" "}
             {refreshing ? "Refreshing…" : "Refresh Prices"}
+          </button>
+
+          {/* BF retirement sync */}
+          <button
+            onClick={() => syncBFRetirement(true)}
+            disabled={bfSyncing}
+            title={
+              bfSyncResult
+                ? `Last sync: ${bfSyncResult.updated} updated · ${bfSyncResult.total} sets on BF list — click to re-sync`
+                : "Check all tracked sets against Brick Fanatics retiring list"
+            }
+            style={{
+              background: bfSyncResult ? "rgba(245,158,11,0.08)" : "rgba(255,255,255,0.05)",
+              border: `1px solid ${bfSyncResult ? "rgba(245,158,11,0.25)" : "rgba(255,255,255,0.12)"}`,
+              color: bfSyncing ? "#5d6f80" : bfSyncResult ? "#f59e0b" : "#8a9bb0",
+              borderRadius: 8, padding: "7px 11px",
+              cursor: bfSyncing ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 700,
+              display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
+            }}
+          >
+            {bfSyncing
+              ? <><span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>↻</span> Syncing…</>
+              : bfSyncResult
+              ? `✓ BF Sync (${bfSyncResult.updated} updated)`
+              : "⚠ BF Retirement"}
           </button>
 
           {/* Column visibility gear */}
@@ -2512,14 +2519,13 @@ export default function WantedList({ onBuyNow }) {
                     </div>
                   )}
                   <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
-                    <select value={item.status} onChange={e => { e.stopPropagation(); updateWanted(realIndex, "status", e.target.value); }}
-                      onClick={e => e.stopPropagation()}
-                      style={{ flex: 1, background: "#0b1520", border: "1px solid rgba(255,255,255,0.1)", color: "#e8e2d5", borderRadius: 7, padding: "5px 8px", fontSize: 12 }}>
-                      <option>Watch</option><option>Buy Soon</option><option>Critical</option><option>Owned</option>
-                    </select>
                     <button onClick={e => { e.stopPropagation(); setSelectedWantedIndex(realIndex); }}
                       style={{ background: "#1a2840", border: "1px solid rgba(255,255,255,0.08)", color: "#c9a84c", borderRadius: 7, padding: "5px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                       Edit
+                    </button>
+                    <button onClick={e => { e.stopPropagation(); openBuyModal(item); }}
+                      style={{ background: "#0a2e1a", border: "1px solid #166534", color: "#5aa832", borderRadius: 7, padding: "5px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      Purchase
                     </button>
                   </div>
                 </div>
@@ -2581,7 +2587,6 @@ export default function WantedList({ onBuyNow }) {
                   <tr
                     key={`${item.setNumber}-${realIndex}`}
                     onClick={() => { setDetailItem(item); setDetailItemIndex(realIndex); }}
-                    onDoubleClick={() => setSelectedWantedIndex(realIndex)}
                     onMouseEnter={e => {
                       if (selectedWantedIndex !== realIndex) e.currentTarget.style.background = "rgba(255,255,255,0.04)";
                       setHoveredWanted(item);
@@ -2604,15 +2609,75 @@ export default function WantedList({ onBuyNow }) {
                       />
                     </td>
 
-                    {columns.filter(col => col.visible).map(col => (
-                      <td
-                        key={col.key}
-                        style={isNumericColumn(col.key) ? tdRight : td}
-                        onClick={["status", "retiringSoon"].includes(col.key) ? e => e.stopPropagation() : undefined}
-                      >
-                        {renderCell(item, col.key, realIndex, discount)}
-                      </td>
-                    ))}
+                    {columns.filter(col => col.visible).map(col => {
+                      // MSRP — click-to-edit inline
+                      if (col.key === "msrp") {
+                        const isEditing = inlineEdit?.index === realIndex && inlineEdit?.key === "msrp";
+                        if (isEditing) {
+                          return (
+                            <td key="msrp" style={tdRight} onClick={e => e.stopPropagation()}>
+                              <input
+                                autoFocus
+                                type="number"
+                                step="0.01"
+                                value={inlineEdit.value}
+                                onChange={e => setInlineEdit(v => ({ ...v, value: e.target.value }))}
+                                onBlur={() => { updateWanted(realIndex, "msrp", inlineEdit.value); setInlineEdit(null); }}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter")  { updateWanted(realIndex, "msrp", inlineEdit.value); setInlineEdit(null); }
+                                  if (e.key === "Escape") setInlineEdit(null);
+                                }}
+                                style={{ width: 70, background: "#0d1a2a", border: "1px solid rgba(201,168,76,0.5)", borderRadius: 6, color: "#e8e2d5", fontSize: 13, padding: "2px 6px", outline: "none", textAlign: "right" }}
+                              />
+                            </td>
+                          );
+                        }
+                        return (
+                          <td key="msrp" style={{ ...tdRight, cursor: "text" }} onClick={e => { e.stopPropagation(); setInlineEdit({ index: realIndex, key: "msrp", value: item.msrp ? String(item.msrp) : "" }); }}>
+                            <span title="Click to edit">{money(item.msrp)}</span>
+                          </td>
+                        );
+                      }
+
+                      // Target Price — click-to-edit inline
+                      if (col.key === "targetPrice") {
+                        const isEditing = inlineEdit?.index === realIndex && inlineEdit?.key === "targetPrice";
+                        if (isEditing) {
+                          return (
+                            <td key="targetPrice" style={tdRight} onClick={e => e.stopPropagation()}>
+                              <input
+                                autoFocus
+                                type="number"
+                                step="0.01"
+                                value={inlineEdit.value}
+                                onChange={e => setInlineEdit(v => ({ ...v, value: e.target.value }))}
+                                onBlur={() => { updateWanted(realIndex, "targetPrice", inlineEdit.value); setInlineEdit(null); }}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter")  { updateWanted(realIndex, "targetPrice", inlineEdit.value); setInlineEdit(null); }
+                                  if (e.key === "Escape") setInlineEdit(null);
+                                }}
+                                style={{ width: 70, background: "#0d1a2a", border: "1px solid rgba(201,168,76,0.5)", borderRadius: 6, color: "#e8e2d5", fontSize: 13, padding: "2px 6px", outline: "none", textAlign: "right" }}
+                              />
+                            </td>
+                          );
+                        }
+                        return (
+                          <td key="targetPrice" style={{ ...tdRight, cursor: "text" }} onClick={e => { e.stopPropagation(); setInlineEdit({ index: realIndex, key: "targetPrice", value: item.targetPrice ? String(item.targetPrice) : "" }); }}>
+                            <span title="Click to edit">{money(item.targetPrice)}</span>
+                          </td>
+                        );
+                      }
+
+                      return (
+                        <td
+                          key={col.key}
+                          style={isNumericColumn(col.key) ? tdRight : td}
+                          onClick={col.key === "retiringSoon" ? e => e.stopPropagation() : undefined}
+                        >
+                          {renderCell(item, col.key, realIndex, discount)}
+                        </td>
+                      );
+                    })}
 
 
                   </tr>
@@ -2642,7 +2707,10 @@ export default function WantedList({ onBuyNow }) {
 
                 <label>
                   Theme
-                  <input value={wanted[selectedWantedIndex].theme || ""} onChange={e => updateWanted(selectedWantedIndex, "theme", e.target.value)} />
+                  <select value={wanted[selectedWantedIndex].theme || ""} onChange={e => updateWanted(selectedWantedIndex, "theme", e.target.value)}>
+                    <option value="">— select —</option>
+                    {acquisitionThemes.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
                 </label>
 
                 <label>
@@ -2653,27 +2721,6 @@ export default function WantedList({ onBuyNow }) {
                 <label>
                   Target Price
                   <input type="number" step="0.01" value={wanted[selectedWantedIndex].targetPrice || ""} onChange={e => updateWanted(selectedWantedIndex, "targetPrice", e.target.value)} />
-                </label>
-
-                <label>
-                  Priority
-                  <select value={wanted[selectedWantedIndex].priority || 3} onChange={e => updateWanted(selectedWantedIndex, "priority", e.target.value)}>
-                    <option value="1">Priority 1</option>
-                    <option value="2">Priority 2</option>
-                    <option value="3">Priority 3</option>
-                    <option value="4">Priority 4</option>
-                    <option value="5">Priority 5</option>
-                  </select>
-                </label>
-
-                <label>
-                  Status
-                  <select value={wanted[selectedWantedIndex].status || "Watch"} onChange={e => updateWanted(selectedWantedIndex, "status", e.target.value)}>
-                    <option>Watch</option>
-                    <option>Buy Soon</option>
-                    <option>Critical</option>
-                    <option>Owned</option>
-                  </select>
                 </label>
 
                 <label>
@@ -2691,29 +2738,14 @@ export default function WantedList({ onBuyNow }) {
                   Retirement Source
                   <select
                     value={wanted[selectedWantedIndex].retirementSource || "Brick Fanatics"}
-                    onChange={e => {
-                      const src = e.target.value;
-                      updateWanted(selectedWantedIndex, "retirementSource", src);
-                      if (SOURCE_CONFIDENCE[src]) {
-                        updateWanted(selectedWantedIndex, "retirementConfidence", SOURCE_CONFIDENCE[src]);
-                      }
-                    }}
+                    onChange={e => updateWanted(selectedWantedIndex, "retirementSource", e.target.value)}
                   >
-                    <option>LEGO Last Chance</option>
-                    <option>Brickset</option>
-                    <option>BrickEconomy</option>
                     <option>Brick Fanatics</option>
+                    <option>Brickset</option>
+                    <option>LEGO Last Chance</option>
                     <option>StoneWars</option>
+                    <option>BrickEconomy</option>
                     <option>Manual</option>
-                  </select>
-                </label>
-
-                <label>
-                  Confidence
-                  <select value={wanted[selectedWantedIndex].retirementConfidence || "Medium"} onChange={e => updateWanted(selectedWantedIndex, "retirementConfidence", e.target.value)}>
-                    <option>Low</option>
-                    <option>Medium</option>
-                    <option>High</option>
                   </select>
                 </label>
 
@@ -2782,8 +2814,124 @@ export default function WantedList({ onBuyNow }) {
         item={detailItem}
         onClose={() => { setDetailItem(null); setDetailItemIndex(null); }}
         onEdit={detailItemIndex !== null ? () => { setDetailItem(null); setDetailItemIndex(null); setSelectedWantedIndex(detailItemIndex); } : undefined}
-        onBuyNow={detailItem && onBuyNow ? () => { setDetailItem(null); setDetailItemIndex(null); onBuyNow(detailItem); } : undefined}
+        onBuyNow={detailItem ? () => { setDetailItem(null); setDetailItemIndex(null); openBuyModal(detailItem); } : undefined}
       />
+
+      {/* ── Buy Now purchase modal ─────────────────────────────────────── */}
+      {buyModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget) setBuyModal(null); }}>
+          <div style={{ background: "#0d1623", border: "1px solid rgba(201,168,76,0.3)", borderRadius: 16, padding: "28px 28px 24px", width: "100%", maxWidth: 440, boxShadow: "0 24px 64px rgba(0,0,0,0.7)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+              <div>
+                <div style={{ fontSize: 11, color: "#5d6f80", marginBottom: 4 }}>Log Purchase</div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: "#e8e2d5" }}>{buyModal.name || buyModal.setNumber}</div>
+                {buyModal.setNumber && <div style={{ fontSize: 12, color: "#8a9bb0", marginTop: 2 }}>#{buyModal.setNumber} · {buyModal.theme || ""}</div>}
+              </div>
+              <button onClick={() => setBuyModal(null)} style={{ background: "transparent", border: "none", color: "#5d6f80", fontSize: 20, cursor: "pointer", lineHeight: 1, padding: 0 }}>✕</button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ gridColumn: "1/-1" }}>
+                <label style={{ fontSize: 11, color: "#8a9bb0", display: "block", marginBottom: 4 }}>Store</label>
+                <input list="wl-buy-stores" value={buyForm.store} onChange={e => setBuyForm(p => ({ ...p, store: e.target.value }))}
+                  placeholder="e.g. LEGO Shop, Amazon…"
+                  style={{ width: "100%", background: "#111d2e", border: "1px solid rgba(255,255,255,0.1)", color: "#e8e2d5", borderRadius: 8, padding: "8px 12px", fontSize: 13 }} />
+                <datalist id="wl-buy-stores">{savedStores.map(s => <option key={s} value={s} />)}</datalist>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: "#8a9bb0", display: "block", marginBottom: 4 }}>Date</label>
+                <input type="date" value={buyForm.date} onChange={e => setBuyForm(p => ({ ...p, date: e.target.value }))}
+                  style={{ width: "100%", background: "#111d2e", border: "1px solid rgba(255,255,255,0.1)", color: "#e8e2d5", borderRadius: 8, padding: "8px 12px", fontSize: 13 }} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: "#8a9bb0", display: "block", marginBottom: 4 }}>Unit Price ($)</label>
+                <input type="number" min="0" step="0.01" value={buyForm.price} onChange={e => setBuyForm(p => ({ ...p, price: e.target.value }))}
+                  placeholder={buyModal.msrp ? String(buyModal.msrp) : "0.00"}
+                  style={{ width: "100%", background: "#111d2e", border: "1px solid rgba(255,255,255,0.1)", color: "#e8e2d5", borderRadius: 8, padding: "8px 12px", fontSize: 13 }} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: "#8a9bb0", display: "block", marginBottom: 4 }}>Qty</label>
+                <input type="number" min="1" value={buyForm.qty} onChange={e => setBuyForm(p => ({ ...p, qty: e.target.value }))}
+                  style={{ width: "100%", background: "#111d2e", border: "1px solid rgba(255,255,255,0.1)", color: "#e8e2d5", borderRadius: 8, padding: "8px 12px", fontSize: 13 }} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: "#8a9bb0", display: "block", marginBottom: 4 }}>Tax ($)</label>
+                <input type="number" min="0" step="0.01" value={buyForm.tax} onChange={e => setBuyForm(p => ({ ...p, tax: e.target.value }))}
+                  placeholder="0.00"
+                  style={{ width: "100%", background: "#111d2e", border: "1px solid rgba(255,255,255,0.1)", color: "#e8e2d5", borderRadius: 8, padding: "8px 12px", fontSize: 13 }} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: "#8a9bb0", display: "block", marginBottom: 4 }}>Shipping ($)</label>
+                <input type="number" min="0" step="0.01" value={buyForm.shipping} onChange={e => setBuyForm(p => ({ ...p, shipping: e.target.value }))}
+                  placeholder="0.00"
+                  style={{ width: "100%", background: "#111d2e", border: "1px solid rgba(255,255,255,0.1)", color: "#e8e2d5", borderRadius: 8, padding: "8px 12px", fontSize: 13 }} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: "#8a9bb0", display: "block", marginBottom: 4 }}>Gift Card / Discount ($)</label>
+                <input type="number" min="0" step="0.01" value={buyForm.gc} onChange={e => setBuyForm(p => ({ ...p, gc: e.target.value }))}
+                  placeholder="0.00"
+                  style={{ width: "100%", background: "#111d2e", border: "1px solid rgba(255,255,255,0.1)", color: "#e8e2d5", borderRadius: 8, padding: "8px 12px", fontSize: 13 }} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: "#8a9bb0", display: "block", marginBottom: 4 }}>Order # / Label</label>
+                <input type="text" value={buyForm.orderLabel} onChange={e => setBuyForm(p => ({ ...p, orderLabel: e.target.value }))}
+                  placeholder="Optional"
+                  style={{ width: "100%", background: "#111d2e", border: "1px solid rgba(255,255,255,0.1)", color: "#e8e2d5", borderRadius: 8, padding: "8px 12px", fontSize: 13 }} />
+              </div>
+            </div>
+
+            {/* Total preview */}
+            {(() => {
+              const qty      = asNumber(buyForm.qty) || 1;
+              const price    = asNumber(buyForm.price) || 0;
+              const tax      = asNumber(buyForm.tax) || 0;
+              const shipping = asNumber(buyForm.shipping) || 0;
+              const gc       = asNumber(buyForm.gc) || 0;
+              const total    = Math.round((price * qty + tax + shipping) * 100) / 100;
+              const cashPaid = Math.max(0, Math.round((total - gc) * 100) / 100);
+              return price > 0 ? (
+                <div style={{ marginTop: 14, background: "rgba(201,168,76,0.07)", border: "1px solid rgba(201,168,76,0.18)", borderRadius: 8, padding: "10px 14px", fontSize: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#8a9bb0", marginBottom: 2 }}>
+                    <span>{qty} × {money(price)}{tax ? ` + ${money(tax)} tax` : ""}{shipping ? ` + ${money(shipping)} ship` : ""}</span>
+                    <span style={{ color: "#e8e2d5" }}>= {money(total)}</span>
+                  </div>
+                  {gc > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "#5aa832" }}>
+                    <span>Gift card / discount</span><span>− {money(gc)}</span>
+                  </div>}
+                  <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, color: "#c9a84c", marginTop: gc > 0 ? 4 : 0 }}>
+                    <span>Cash paid</span><span>{money(cashPaid)}</span>
+                  </div>
+                </div>
+              ) : null;
+            })()}
+
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, cursor: "pointer", fontSize: 13, color: "#e8e2d5" }}>
+              <input type="checkbox" checked={buyAddToCollection} onChange={e => setBuyAddToCollection(e.target.checked)}
+                style={{ width: 15, height: 15, accentColor: "#c9a84c" }} />
+              Also add to My Collection
+            </label>
+
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <button onClick={() => setBuyModal(null)}
+                style={{ flex: 1, background: "transparent", border: "1px solid rgba(255,255,255,0.12)", color: "#8a9bb0", borderRadius: 8, padding: "10px 0", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>
+                Cancel
+              </button>
+              <button onClick={commitBuy}
+                style={{ flex: 2, background: "#5aa832", border: "none", color: "#fff", borderRadius: 8, padding: "10px 0", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
+                Log Purchase & Remove from List
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {hoveredWanted && (
         <div style={{ position: "fixed", left: tipPos.x > window.innerWidth - 280 ? tipPos.x - 256 : tipPos.x + 16, top: tipPos.y > window.innerHeight - 230 ? tipPos.y - 215 : tipPos.y - 8, zIndex: 9999, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "10px 14px", pointerEvents: "none", boxShadow: "0 8px 32px rgba(0,0,0,0.55)", minWidth: 240 }}>
@@ -2797,9 +2945,13 @@ export default function WantedList({ onBuyNow }) {
                 {hoveredWanted.theme && <><span style={{ color: "#5d6f80" }}>Theme</span><span style={{ color: "#e8e2d5" }}>{hoveredWanted.theme}</span></>}
                 {hoveredWanted.msrp && <><span style={{ color: "#5d6f80" }}>MSRP</span><span style={{ color: "#c9a84c", fontWeight: 700 }}>{money(hoveredWanted.msrp)}</span></>}
                 {hoveredWanted.targetPrice && <><span style={{ color: "#5d6f80" }}>Target</span><span style={{ color: "#e8e2d5" }}>{money(hoveredWanted.targetPrice)}</span></>}
-                {hoveredWanted.status && <><span style={{ color: "#5d6f80" }}>Status</span><span style={{ color: hoveredWanted.status === "Critical" ? "#ef4444" : hoveredWanted.status === "Buy Soon" ? "#f59e0b" : "#e8e2d5" }}>{hoveredWanted.status}</span></>}
-                <span style={{ color: "#5d6f80" }}>Priority</span><span style={{ color: "#e8e2d5", fontWeight: 700 }}>{priorityScore(hoveredWanted)}</span>
-                {hoveredWanted.retiringSoon && <><span style={{ color: "#5d6f80" }}>Retiring</span><span style={{ color: "#f59e0b" }}>⚠ Soon</span></>}
+                {(hoveredWanted.exit_date || hoveredWanted.bfRetirementDate || hoveredWanted.retirementYear) && (
+                  <><span style={{ color: "#5d6f80" }}>Retires</span><span style={{ color: hoveredWanted.retiringSoon ? "#f59e0b" : "#e8e2d5" }}>
+                    {hoveredWanted.exit_date
+                      ? new Date(hoveredWanted.exit_date).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+                      : hoveredWanted.bfRetirementDate || hoveredWanted.retirementYear}
+                  </span></>
+                )}
                 {hoveredWanted.notes && <><span style={{ color: "#5d6f80" }}>Notes</span><span style={{ color: "#8a9bb0", fontStyle: "italic" }}>{hoveredWanted.notes}</span></>}
               </div>
             </div>

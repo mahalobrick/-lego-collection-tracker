@@ -28,33 +28,29 @@ export const DEFAULT_OWNED_COLUMNS = [
  * Default column configuration for the Wanted List / Tracking table.
  */
 export const DEFAULT_WANTED_COLUMNS = [
-  // ── Intelligence ─────────────────────────────────────────────
-  { key: "score",                label: "Score",         visible: false, group: "intelligence" },
-  { key: "recommendation",       label: "Rec.",          visible: true,  group: "intelligence" },
   // ── Core ─────────────────────────────────────────────────────
-  { key: "priority",             label: "Priority",      visible: true,  group: "core" },
-  { key: "status",               label: "Status",        visible: true,  group: "core" },
   { key: "setNumber",            label: "Set #",         visible: true,  group: "core" },
-  { key: "name",                 label: "Name",          visible: true,  group: "core" },
+  { key: "name",                 label: "Set Name",      visible: true,  group: "core" },
+  { key: "recommendation",       label: "Action",        visible: true,  group: "core" },
   // ── Retirement ───────────────────────────────────────────────
-  { key: "retiringSoon",         label: "Retiring",      visible: true,  group: "retirement" },
-  { key: "retirementYear",       label: "Projected",     visible: true,  group: "retirement" },
-  { key: "retirementConfidence", label: "Confidence",    visible: true,  group: "retirement" },
-  { key: "retirementSource",     label: "Source",        visible: true,  group: "retirement" },
-  { key: "lastRetirementUpdate", label: "Updated",       visible: false, group: "retirement" },
+  { key: "retirementDate",       label: "Retires",       visible: true,  group: "retirement" },
+  { key: "daysLeft",             label: "Days Left",     visible: true,  group: "retirement" },
+  { key: "retiringSoon",         label: "Retiring Soon", visible: false, group: "retirement" },
+  { key: "retirementSource",     label: "Data Source",   visible: false, group: "retirement" },
+  { key: "lastRetirementUpdate", label: "Last Updated",  visible: false, group: "retirement" },
   // ── Pricing ──────────────────────────────────────────────────
   { key: "msrp",                 label: "MSRP",          visible: true,  group: "pricing" },
-  { key: "storePrice",           label: "Store Price",   visible: true,  group: "pricing" },
-  { key: "targetPrice",          label: "Target",        visible: true,  group: "pricing" },
-  { key: "discount",             label: "Discount",      visible: true,  group: "pricing" },
-  { key: "currentValue",         label: "Mkt Value",     visible: false, group: "pricing" },
+  // storePrice (Sale Price) removed — overlaps with Target Price; score falls back to targetPrice
+  { key: "targetPrice",          label: "Target Price",  visible: true,  group: "pricing" },
+  { key: "discount",             label: "Discount %",    visible: true,  group: "pricing" },
+  { key: "currentValue",         label: "Value",         visible: false, group: "pricing" },
   { key: "forecast2yr",          label: "2yr Forecast",  visible: false, group: "pricing" },
   { key: "forecast5yr",          label: "5yr Forecast",  visible: false, group: "pricing" },
   { key: "blPriceNew",           label: "BL Avg (New)",  visible: false, group: "pricing" },
   { key: "blPriceUsed",          label: "BL Avg (Used)", visible: false, group: "pricing" },
   // ── Details ──────────────────────────────────────────────────
   { key: "owned",                label: "Owned",         visible: false, group: "details" },
-  { key: "ageMonths",            label: "Age",           visible: false, group: "details" },
+  { key: "ageMonths",            label: "Set Age",       visible: false, group: "details" },
   { key: "theme",                label: "Theme",         visible: true,  group: "details" },
   { key: "pieces",               label: "Pieces",        visible: false, group: "details" },
   { key: "subtheme",             label: "Subtheme",      visible: false, group: "details" },

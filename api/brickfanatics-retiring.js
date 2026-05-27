@@ -147,11 +147,10 @@ function parseArticle(html) {
 
 // ── Handler ──────────────────────────────────────────────────────────────────
 
+const { setCors, internalError } = require("./_cors");
+
 module.exports = async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.status(200).end();
+  if (setCors(req, res, "GET, OPTIONS")) return res.status(200).end();
 
   const apiKey = process.env.SCRAPERAPI_KEY || "";
   if (!apiKey) {
@@ -185,8 +184,8 @@ module.exports = async function handler(req, res) {
 
     const html = await r.text();
 
-    // Debug mode — return raw HTML for parser tuning (never cached)
-    if (String(req.query?.debug || "") === "1") {
+    // Debug mode — only available when BF_DEBUG=1 is set server-side
+    if (process.env.BF_DEBUG === "1" && String(req.query?.debug || "") === "1") {
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       return res.status(200).end(html.slice(0, 50_000));
     }
@@ -229,6 +228,6 @@ module.exports = async function handler(req, res) {
       source: "Brick Fanatics",
     });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return internalError(res, err, "brickfanatics-retiring");
   }
 };

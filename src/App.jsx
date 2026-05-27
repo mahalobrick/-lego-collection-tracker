@@ -5,6 +5,7 @@ import WantedList from "./WantedList";
 import MyCollection from "./MyCollection";
 import AppSettings from "./AppSettings";
 import { exportFullBackup, pushToCloud, fetchFromCloud, applyBackupToLocalStorage } from "./utils/exportBackup";
+import { syncBEValues, runDailyBEBatch } from "./utils/beSyncValues";
 
 export default function App() {
   const [view, setView] = useState("collection");
@@ -48,6 +49,16 @@ export default function App() {
     fetchFromCloud().then(data => {
       if (data && data.app === "BrickLedger") setCloudRestoreData(data);
     }).catch(() => {}); // silent — cloud may not be configured
+  }, []);
+
+  // Rolling daily batch: silently syncs 50 oldest-cached sets per day.
+  // Cycle length auto-scales with collection size (600 sets = 12-day cycle).
+  // New sets get priority — no fetchedAt means they go first.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      runDailyBEBatch().catch(() => {}); // always silent — errors are non-critical
+    }, 15_000); // 15s delay so UI is interactive first
+    return () => clearTimeout(timer);
   }, []);
 
   // Cloud auto-push: push on mount (after 10s grace) and every 5 minutes.

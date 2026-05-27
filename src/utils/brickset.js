@@ -1,6 +1,36 @@
 const CACHE_KEY = "bricksetSetCache";
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+const THEMES_CACHE_KEY = "bricksetThemesCache";
+const THEMES_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+/**
+ * Fetch all LEGO themes from Brickset, cached in localStorage for 30 days.
+ * Returns a sorted string array, or [] if the API key isn't configured.
+ */
+export async function fetchLegoThemes() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(THEMES_CACHE_KEY) || "null");
+    if (cached?.themes && cached?.fetchedAt) {
+      const age = Date.now() - new Date(cached.fetchedAt).getTime();
+      if (age < THEMES_TTL_MS) return cached.themes;
+    }
+  } catch { /* ignore */ }
+
+  try {
+    const res = await fetch("/api/brickset-themes");
+    const json = await res.json();
+    if (json.error === "no_key" || !res.ok) return [];
+    const themes = json.themes || [];
+    try {
+      localStorage.setItem(THEMES_CACHE_KEY, JSON.stringify({ fetchedAt: new Date().toISOString(), themes }));
+    } catch { /* ignore */ }
+    return themes;
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Search Brickset catalog by name query or theme.
  * Returns { sets, total, noKey, error } — results are transient, not cached.

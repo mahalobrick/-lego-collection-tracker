@@ -6,6 +6,8 @@ import { asNumber } from "./utils/formatting";
 import { exportFullBackup as runExportBackup, pushToCloud, fetchFromCloud, applyBackupToLocalStorage } from "./utils/exportBackup";
 import { getBrickLinkAccessToken, hasBrickLinkAuth, getBrickLinkSession, bulkSyncPrices } from "./utils/bricklink-client";
 import { DEFAULT_WANTED_COLUMNS, DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
+import { syncBEValues } from "./utils/beSyncValues";
+import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import { notificationsSupported, notificationPermission, requestNotificationPermission } from "./utils/notifications";
 
 const DEFAULT_STORES = ["Amazon", "Best Buy", "Bricklink", "LEGO", "Target", "Walmart"];
@@ -207,6 +209,115 @@ export default function AppSettings() {
   const [blPriceSync, setBlPriceSync] = useState(null); // null | { done, total, status }
   const [blPriceSyncLast, setBlPriceSyncLast] = useState(() => localStorage.getItem("blPriceSyncLast") || null);
 
+  const [beValueSync, setBeValueSync] = useState(null); // null | { done, total }
+  const [beValueSyncLast, setBeValueSyncLast] = useState(() => localStorage.getItem("beValueSyncLast") || null);
+
+  // ── Brick Fanatics retirement sync ────────────────────────────
+  const [bfSyncing, setBfSyncing] = useState(false);
+  const [bfSyncLast, setBfSyncLast] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("blBFRetirementCache") || "null")?.fetchedAt || null; } catch { return null; }
+  });
+  const [bfSyncResult, setBfSyncResult] = useState(null); // { updated, total }
+
+  async function handleSyncBFRetirement(force = true) {
+    if (bfSyncing) return;
+    setBfSyncing(true);
+    setBfSyncResult(null);
+    try {
+      const CACHE_KEY = "blBFRetirementCache";
+      const STALE_MS  = 7 * 24 * 60 * 60 * 1000;
+      let bfSets = null, fetchedAt = null;
+      if (!force) {
+        try {
+          const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+          if (c?.sets && c.fetchedAt && Date.now() - new Date(c.fetchedAt).getTime() < STALE_MS) {
+            bfSets = c.sets; fetchedAt = c.fetchedAt;
+          }
+        } catch {}
+      }
+      if (!bfSets) {
+        const res  = await fetch("/api/brickfanatics-retiring");
+        const json = await res.json();
+        if (!res.ok || json.error || !json.sets?.length) throw new Error(json.message || "BF fetch failed");
+        bfSets = json.sets; fetchedAt = json.fetchedAt || new Date().toISOString();
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ sets: bfSets, fetchedAt }));
+      }
+      const bfMap = new Map(bfSets.map(s => [String(s.setNumber).replace(/-1$/, ""), s]));
+      const currentYear = new Date().getFullYear();
+      let updated = 0;
+      // Cross-reference Wanted List
+      const wl = JSON.parse(localStorage.getItem("blWantedList") || "[]");
+      const wlNext = wl.map(w => {
+        if (w.retirementSource === "Brickset" && w.exit_date) return w;
+        const match = bfMap.get(String(w.setNumber || "").replace(/-1$/, "").trim());
+        if (!match) return w;
+        const yrMatch = (match.retirementDate || "").match(/\b(20\d{2})\b/);
+        const yr = yrMatch ? Number(yrMatch[1]) : null;
+        if (w.retirementSource === "Brick Fanatics" && w.retirementYear === (yr ? String(yr) : w.retirementYear)) return w;
+        updated++;
+        return { ...w, retiringSoon: yr ? yr <= currentYear + 1 : true, retirementYear: yr ? String(yr) : w.retirementYear || "",
+          retirementConfidence: "High", retirementSource: "Brick Fanatics", lastRetirementUpdate: new Date().toISOString().slice(0, 10) };
+      });
+      localStorage.setItem("blWantedList", JSON.stringify(wlNext));
+      setBfSyncLast(fetchedAt);
+      setBfSyncResult({ updated, total: bfSets.length });
+      toast.success(`BF sync: ${updated} items updated · ${bfSets.length} sets on retiring list`);
+    } catch (err) {
+      toast.error("BF sync failed: " + err.message);
+    } finally {
+      setBfSyncing(false);
+    }
+  }
+
+  // ── Rebrickable local fill ─────────────────────────────────────
+  const [rbLoaded, setRbLoaded] = useState(() => rbReady());
+  const [rbFilling, setRbFilling] = useState(false);
+  const [rbFillResult, setRbFillResult] = useState(null); // number of fields filled
+
+  useEffect(() => {
+    loadRebrickable().then(() => setRbLoaded(rbReady())).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handleRbFill() {
+    if (!rbReady()) { toast("Rebrickable catalog still loading — try again in a moment."); return; }
+    setRbFilling(true);
+    let enriched = 0;
+    // Enrich My Collection
+    try {
+      const owned = JSON.parse(localStorage.getItem("blOwnedSets") || "[]");
+      const next  = owned.map(s => {
+        const rb = rbLookupSet(s.setNumber);
+        if (!rb) return s;
+        const up = {};
+        if (!s.pieces && rb.numParts) up.pieces = rb.numParts;
+        if (!s.theme  && rb.theme)    up.theme  = rb.theme;
+        if (!s.name   && rb.name)     up.name   = rb.name;
+        if (Object.keys(up).length)   { enriched++; return { ...s, ...up }; }
+        return s;
+      });
+      localStorage.setItem("blOwnedSets", JSON.stringify(next));
+    } catch {}
+    // Enrich Wanted List
+    try {
+      const wl   = JSON.parse(localStorage.getItem("blWantedList") || "[]");
+      const next = wl.map(w => {
+        const rb = rbLookupSet(w.setNumber);
+        if (!rb) return w;
+        const up = {};
+        if (!w.pieces && rb.numParts) up.pieces = rb.numParts;
+        if (!w.theme  && rb.theme)    up.theme  = rb.theme;
+        if (!w.name   && rb.name)     up.name   = rb.name;
+        if (Object.keys(up).length)   { enriched++; return { ...w, ...up }; }
+        return w;
+      });
+      localStorage.setItem("blWantedList", JSON.stringify(next));
+    } catch {}
+    setRbFillResult(enriched);
+    setRbFilling(false);
+    if (enriched > 0) toast.success(`Rebrickable: ${enriched} fields filled`);
+    else toast("Rebrickable: nothing new to fill in");
+  }
 
   const [newStore, setNewStore] = useState("");
   const [editingStore, setEditingStore] = useState(null);   // store name currently being renamed
@@ -983,6 +1094,30 @@ export default function AppSettings() {
     }
   }
 
+  // ── BE value sync ────────────────────────────────────────────
+  async function handleSyncBEValues() {
+    if (beValueSync) return;
+    const normalized = JSON.parse(localStorage.getItem("brickEconomyNormalizedCollection") || "[]");
+    const manual     = JSON.parse(localStorage.getItem("blOwnedSets") || "[]");
+    const total = [...new Set(
+      [...normalized, ...manual].map(s => String(s.setNumber || "").replace(/-1$/, "").trim()).filter(Boolean)
+    )].length;
+    if (total === 0) { toast.error("No sets in collection to sync."); return; }
+    setBeValueSync({ done: 0, total });
+    try {
+      const { updated, skipped, failed } = await syncBEValues(({ done, total: t }) => {
+        setBeValueSync({ done, total: t });
+      });
+      const now = new Date().toISOString();
+      setBeValueSyncLast(now);
+      setBeValueSync(null);
+      toast.success(`BE values updated — ${updated} sets refreshed, ${skipped} cached, ${failed} failed.`, { duration: 6000 });
+    } catch (err) {
+      setBeValueSync(null);
+      toast.error("BE value sync failed: " + (err.message || err));
+    }
+  }
+
   // ── Notification handlers ────────────────────────────────────
   async function enableNotifications() {
     const result = await requestNotificationPermission();
@@ -1135,6 +1270,133 @@ export default function AppSettings() {
 
       {settingsTab === "data" && (
       <section style={panel}>
+        <h3 style={{ margin: "0 0 4px" }}>Data Sources</h3>
+        <p style={{ ...muted, margin: "0 0 16px", fontSize: 13 }}>Each source has a specific role. Sync individually or let the app auto-refresh on a schedule.</p>
+
+        {/* ── Source rows ── */}
+        {[
+          // Brickset
+          {
+            name: "Brickset",
+            role: "Metadata authority — name, pieces, MSRP, minifigs, retirement dates",
+            dot: (() => { try { return Object.keys(JSON.parse(localStorage.getItem("bricksetSetCache") || "{}")).length > 0 ? "#22c55e" : "#4d5e70"; } catch { return "#4d5e70"; } })(),
+            status: (() => {
+              try {
+                const cache = JSON.parse(localStorage.getItem("bricksetSetCache") || "{}");
+                const count = Object.keys(cache).length;
+                return count ? `${count} sets cached` : "No cache yet";
+              } catch { return "No cache yet"; }
+            })(),
+            actions: (
+              <button onClick={() => { localStorage.removeItem("bricksetSetCache"); toast.success("Brickset cache cleared"); }} style={ghostBtn}>
+                Clear Cache
+              </button>
+            ),
+          },
+          // BrickEconomy
+          {
+            name: "BrickEconomy",
+            role: "Value only — current value, 2yr & 5yr forecasts",
+            dot: "#c9a84c",
+            status: beValueSyncLast ? `Values synced ${new Date(beValueSyncLast).toLocaleDateString()}` : collectionSyncInfo.lastSync ? `Collection synced ${new Date(collectionSyncInfo.lastSync).toLocaleDateString()}` : "Never synced",
+            actions: (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={handleSyncBEValues} disabled={!!beValueSync} style={redBtn}>
+                  {beValueSync ? `${beValueSync.done}/${beValueSync.total}` : "Sync Values"}
+                </button>
+                <button onClick={clearApiCache} style={ghostBtn}>Clear Cache</button>
+              </div>
+            ),
+            progress: beValueSync ? Math.round((beValueSync.done / beValueSync.total) * 100) : null,
+          },
+          // Brick Fanatics
+          {
+            name: "Brick Fanatics",
+            role: "Retirement data — cross-references every tracked set against their retiring list",
+            dot: bfSyncLast ? "#f59e0b" : "#4d5e70",
+            status: bfSyncLast
+              ? `Synced ${new Date(bfSyncLast).toLocaleDateString()}${bfSyncResult ? ` · ${bfSyncResult.updated} updated` : ""}`
+              : "Not synced — auto-runs weekly",
+            actions: (
+              <button onClick={() => handleSyncBFRetirement(true)} disabled={bfSyncing} style={redBtn}>
+                {bfSyncing ? "Syncing…" : "Sync Retirement"}
+              </button>
+            ),
+          },
+          // Rebrickable
+          {
+            name: "Rebrickable",
+            role: "Local catalog — fills missing pieces & theme data, no API key needed",
+            dot: rbLoaded ? "#22c55e" : "#f59e0b",
+            status: rbLoaded
+              ? `Catalog loaded${rbFillResult !== null ? ` · last fill: ${rbFillResult} fields` : ""}`
+              : "Loading catalog…",
+            actions: (
+              <button onClick={handleRbFill} disabled={rbFilling || !rbLoaded} style={ghostBtn}>
+                {rbFilling ? "Filling…" : rbFillResult !== null ? `Fill Missing (${rbFillResult} last)` : "Fill Missing"}
+              </button>
+            ),
+          },
+          // BrickLink
+          {
+            name: "BrickLink",
+            role: "6-month US sold prices — new & used. Requires free BrickLink account.",
+            dot: blConnected ? "#22c55e" : "#4d5e70",
+            status: blConnected
+              ? (blPriceSyncLast ? `Synced ${new Date(blPriceSyncLast).toLocaleDateString()}` : "Connected — not yet synced")
+              : "Not connected",
+            actions: blConnected ? (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={syncBrickLinkPrices} disabled={!!blPriceSync} style={redBtn}>
+                  {blPriceSync ? `${blPriceSync.done}/${blPriceSync.total}` : "Sync BL Prices"}
+                </button>
+                <button onClick={testBrickLinkConnection} disabled={blTesting} style={ghostBtn}>
+                  {blTesting ? "Testing…" : "Test"}
+                </button>
+                <button onClick={disconnectBrickLink} style={ghostBtn}>Disconnect</button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+                <input
+                  type="password"
+                  placeholder="Paste access token…"
+                  value={blAccessTokenInput}
+                  onChange={e => setBlAccessTokenInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && saveBrickLinkToken()}
+                  style={{ fontSize: 13, padding: "6px 10px", background: "#111d2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5", width: 230 }}
+                />
+                <button onClick={saveBrickLinkToken} disabled={!blAccessTokenInput.trim()} style={redBtn}>Connect</button>
+              </div>
+            ),
+            progress: blPriceSync ? Math.round((blPriceSync.done / blPriceSync.total) * 100) : null,
+            link: !blConnected ? { href: "https://bricklink.com/v3/brickstore-access-management.page", label: "Get token ↗" } : null,
+          },
+        ].map(src => (
+          <div key={src.name} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", padding: "14px 0", lastChild: { border: "none" } }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: src.dot, flexShrink: 0, marginTop: 5 }} />
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 2 }}>
+                  <span style={{ fontWeight: 700, fontSize: 14, color: "#e8e2d5" }}>{src.name}</span>
+                  <span style={{ fontSize: 11, color: "#5d6f80" }}>{src.status}</span>
+                  {src.link && <a href={src.link.href} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: "#c9a84c", textDecoration: "underline" }}>{src.link.label}</a>}
+                </div>
+                <div style={{ fontSize: 12, color: "#5d6f80", marginBottom: 10 }}>{src.role}</div>
+                {src.actions}
+                {src.progress != null && (
+                  <div style={{ marginTop: 8, height: 3, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                    <div style={{ height: "100%", borderRadius: 999, background: "#c9a84c", width: `${src.progress}%`, transition: "width 0.3s ease" }} />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </section>
+      )}
+
+      {settingsTab === "data" && (
+      <section style={panel}>
         <h3 style={{ margin: "0 0 4px" }}>Data Management</h3>
         <p style={{ ...muted, margin: "0 0 20px", fontSize: 13 }}>Export or import data by category, or use a full backup to move everything at once.</p>
 
@@ -1159,31 +1421,23 @@ export default function AppSettings() {
           <div style={dataBlockHeader}>
             <div>
               <div style={dataBlockTitle}>My Collection</div>
-              <div style={dataBlockDesc}>Manually added owned sets · BrickEconomy sync is in General</div>
+              <div style={dataBlockDesc}>Manually added owned sets · BrickEconomy sync is in Data Sources above</div>
             </div>
           </div>
           <div style={{ marginTop: 14 }}>
-            <div onDragOver={e => e.preventDefault()} onDrop={handleDropCollection} style={dropZoneStyle}>
-              <strong style={{ color: "#e8e2d5" }}>Drop file here</strong>
-              <div style={{ fontSize: 12, marginTop: 4 }}>Excel · CSV · JSON</div>
+            <div style={{ ...dataBlockDesc, marginBottom: 6, fontWeight: 700, color: "#c9a84c" }}>Import from services</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+              <label style={redBtn}>BrickEconomy CSV<input type="file" accept=".csv" onChange={importBrickEconomyExportCSV} style={{ display: "none" }} /></label>
+              <label style={ghostBtn}>Brickset My Sets CSV<input type="file" accept=".csv" onChange={importBricksetMySetCSV} style={{ display: "none" }} /></label>
             </div>
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ ...dataBlockDesc, marginBottom: 6, fontWeight: 700, color: "#c9a84c" }}>Import from services</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <label style={redBtn}>BrickEconomy CSV<input type="file" accept=".csv" onChange={importBrickEconomyExportCSV} style={{ display: "none" }} /></label>
-                <label style={ghostBtn}>Brickset My Sets CSV<input type="file" accept=".csv" onChange={importBricksetMySetCSV} style={{ display: "none" }} /></label>
-              </div>
-              <div style={{ ...dataBlockDesc, marginTop: 6 }}>BrickEconomy: go to your collection → Export → CSV. Brickset: My Sets → Export.</div>
-            </div>
-            <div style={{ ...dataBlockDesc, marginBottom: 6, fontWeight: 700, color: "#8a9bb0" }}>Manual import / export</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-              <label style={ghostBtn}>Import Excel<input type="file" accept=".xlsx,.xls" onChange={importCollectionExcel} style={{ display: "none" }} /></label>
+            <div style={{ ...dataBlockDesc, marginBottom: 14 }}>BrickEconomy: collection → Export → CSV &nbsp;·&nbsp; Brickset: My Sets → Export.</div>
+            <div style={{ ...dataBlockDesc, marginBottom: 6, fontWeight: 700, color: "#8a9bb0" }}>Template import / export</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={downloadCollectionTemplate} style={ghostBtn}>Download Template</button>
               <label style={ghostBtn}>Import CSV<input type="file" accept=".csv" onChange={importCollectionCSV} style={{ display: "none" }} /></label>
-              <label style={ghostBtn}>Import JSON<input type="file" accept=".json" onChange={importCollectionJSON} style={{ display: "none" }} /></label>
               <button onClick={exportCollectionCSV} style={ghostBtn}>Export CSV</button>
               <button onClick={exportCollectionJSON} style={ghostBtn}>Export JSON</button>
               <button onClick={exportEnrichedCSV} style={ghostBtn}>Export Enriched CSV</button>
-              <button onClick={downloadCollectionTemplate} style={ghostBtn}>Template</button>
             </div>
           </div>
         </div>
@@ -1199,16 +1453,11 @@ export default function AppSettings() {
             </div>
           </div>
           <div style={{ marginTop: 14 }}>
-            <div onDragOver={e => e.preventDefault()} onDrop={handleDropWatchList} style={dropZoneStyle}>
-              <strong style={{ color: "#e8e2d5" }}>Drop file here</strong>
-              <div style={{ fontSize: 12, marginTop: 4 }}>CSV · JSON</div>
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-              <label style={redBtn}>Import JSON<input type="file" accept=".json" onChange={importWantedListJSON} style={{ display: "none" }} /></label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={downloadWatchListTemplate} style={ghostBtn}>Download Template</button>
               <label style={ghostBtn}>Import CSV<input type="file" accept=".csv" onChange={importWantedListCSV} style={{ display: "none" }} /></label>
               <button onClick={exportWantedListJSON} style={ghostBtn}>Export JSON</button>
               <button onClick={exportWantedListCSV} style={ghostBtn}>Export CSV</button>
-              <button onClick={downloadWatchListTemplate} style={ghostBtn}>Download Template</button>
             </div>
           </div>
         </div>
@@ -1220,30 +1469,24 @@ export default function AppSettings() {
           <div style={dataBlockHeader}>
             <div>
               <div style={dataBlockTitle}>Budget & Purchases</div>
-              <div style={dataBlockDesc}>Purchase log only · Excel (.xlsx), CSV, or JSON</div>
+              <div style={dataBlockDesc}>Purchase log only · Excel (.xlsx) or CSV · use template to format your data</div>
             </div>
           </div>
           <div style={{ marginTop: 14 }}>
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ ...dataBlockDesc, marginBottom: 6 }}>Import mode</div>
-              <label style={{ marginRight: 16, color: "#e8e2d5", fontSize: 14 }}>
-                <input type="radio" checked={importMode === "add"} onChange={() => setImportMode("add")} /> Add new / skip duplicates
+            <div style={{ display: "flex", gap: 24, marginBottom: 12, flexWrap: "wrap" }}>
+              <label style={{ color: "#e8e2d5", fontSize: 14, cursor: "pointer" }}>
+                <input type="radio" checked={importMode === "add"} onChange={() => setImportMode("add")} style={{ marginRight: 6 }} />Add new / skip duplicates
               </label>
-              <label style={{ color: "#e8e2d5", fontSize: 14 }}>
-                <input type="radio" checked={importMode === "replace"} onChange={() => setImportMode("replace")} /> Replace all
+              <label style={{ color: "#e8e2d5", fontSize: 14, cursor: "pointer" }}>
+                <input type="radio" checked={importMode === "replace"} onChange={() => setImportMode("replace")} style={{ marginRight: 6 }} />Replace all
               </label>
             </div>
-            <div onDragOver={e => e.preventDefault()} onDrop={handleDrop} style={dropZoneStyle}>
-              <strong style={{ color: "#e8e2d5" }}>Drop file here</strong>
-              <div style={{ fontSize: 12, marginTop: 4 }}>Excel · CSV · JSON</div>
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={downloadCSVTemplate} style={ghostBtn}>Download Template</button>
               <label style={redBtn}>Import Excel<input type="file" accept=".xlsx,.xls" onChange={handleExcelImport} style={{ display: "none" }} /></label>
               <label style={ghostBtn}>Import CSV<input type="file" accept=".csv" onChange={importCSV} style={{ display: "none" }} /></label>
-              <label style={ghostBtn}>Import JSON<input type="file" accept=".json" onChange={importJSON} style={{ display: "none" }} /></label>
               <button onClick={exportCSV} style={ghostBtn}>Export CSV</button>
               <button onClick={exportJSON} style={ghostBtn}>Export JSON</button>
-              <button onClick={downloadCSVTemplate} style={ghostBtn}>Download Template</button>
             </div>
           </div>
         </div>
@@ -1266,128 +1509,34 @@ export default function AppSettings() {
       </section>
       )}
 
-      {settingsTab === "data" && (
+      {settingsTab === "data" && collectionSyncInfo.lastSync && (
       <section style={panel}>
-        <h3>API & Cache</h3>
-        <p style={mutedSmall}>
-          BrickEconomy lookups are cached locally to protect your daily API quota.
-        </p>
-
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
-          gap: 10,
-          marginTop: 12,
-          marginBottom: 12
-        }}>
-          {/* ── Sync timestamp ── */}
+        <h3 style={{ margin: "0 0 12px" }}>BrickEconomy Collection Stats</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 }}>
           <div style={{ ...miniStat, gridColumn: "1 / -1" }}>
-            <div style={mutedSmall}>Last Collection Sync</div>
-            <strong>
-              {collectionSyncInfo.lastSync
-                ? new Date(collectionSyncInfo.lastSync).toLocaleString()
-                : "Never"}
-            </strong>
+            <div style={mutedSmall}>Last Synced</div>
+            <strong>{new Date(collectionSyncInfo.lastSync).toLocaleString()}</strong>
           </div>
-
-          {/* ── Inventory counts ── */}
-          <div style={miniStat}>
-            <div style={mutedSmall}>Total Owned</div>
-            <strong>{(collectionSyncInfo.setsCount || 0).toLocaleString()}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Unique Sets</div>
-            <strong>{(collectionSyncInfo.uniqueSets || 0).toLocaleString()}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Multi-Copy Sets</div>
-            <strong>{(collectionSyncInfo.duplicateGroups || 0).toLocaleString()}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>New / Sealed</div>
-            <strong>{(collectionSyncInfo.newCount || 0).toLocaleString()}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Used</div>
-            <strong>{(collectionSyncInfo.usedCount || 0).toLocaleString()}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Retired Sets</div>
-            <strong>
-              {(collectionSyncInfo.retiredCount || 0).toLocaleString()}
-              {collectionSyncInfo.retiredPct ? <span style={{ fontWeight: 400, color: "#5d6f80", fontSize: 11, marginLeft: 4 }}>({Number(collectionSyncInfo.retiredPct).toFixed(1)}%)</span> : null}
-            </strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Total Pieces</div>
-            <strong>{(collectionSyncInfo.piecesCount || 0).toLocaleString()}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Minifigs</div>
-            <strong>{(collectionSyncInfo.minifsCount || 0).toLocaleString()}</strong>
-          </div>
-
-          {/* ── Values ── */}
-          <div style={miniStat}>
-            <div style={mutedSmall}>Portfolio Value</div>
-            <strong style={{ color: "#c9a84c" }}>
-              ${(collectionSyncInfo.portfolioValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Total Paid</div>
-            <strong>${(collectionSyncInfo.totalPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Unrealized Gain</div>
-            <strong style={{ color: (collectionSyncInfo.unrealizedGain || 0) >= 0 ? "#5aa832" : "#ff8b8b" }}>
-              {(collectionSyncInfo.unrealizedGain || 0) >= 0 ? "+" : ""}${(collectionSyncInfo.unrealizedGain || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>ROI</div>
-            <strong style={{ color: (collectionSyncInfo.unrealizedGain || 0) >= 0 ? "#5aa832" : "#ff8b8b" }}>
-              {collectionSyncInfo.totalPaid
-                ? `${((collectionSyncInfo.unrealizedGain / collectionSyncInfo.totalPaid) * 100).toFixed(1)}%`
-                : "—"}
-            </strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Retail Value</div>
-            <strong>${(collectionSyncInfo.retailValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>New Sets Value</div>
-            <strong>${(collectionSyncInfo.newValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Used Sets Value</div>
-            <strong>${(collectionSyncInfo.usedValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-          </div>
-
-          {/* ── Sources ── */}
-          <div style={miniStat}>
-            <div style={mutedSmall}>Inventory Source</div>
-            <strong style={{ fontSize: 11 }}>{collectionSyncInfo.inventorySource || "—"}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Value Source</div>
-            <strong style={{ fontSize: 11 }}>{collectionSyncInfo.valueSource || "—"}</strong>
-          </div>
-          <div style={miniStat}>
-            <div style={mutedSmall}>Cost Basis Source</div>
-            <strong style={{ fontSize: 11 }}>{collectionSyncInfo.costBasisSource || "—"}</strong>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button onClick={syncBrickEconomyCollection} style={redBtn} disabled={collectionSyncing}>
-            {collectionSyncing ? "Syncing..." : "Sync BrickEconomy Collection"}
-          </button>
-
-          <button onClick={clearApiCache} style={ghostBtn}>
-            Clear BrickEconomy Cache
-          </button>
+          {[
+            ["Total Owned",    (collectionSyncInfo.setsCount || 0).toLocaleString()],
+            ["Unique Sets",    (collectionSyncInfo.uniqueSets || 0).toLocaleString()],
+            ["New / Sealed",   (collectionSyncInfo.newCount || 0).toLocaleString()],
+            ["Used",           (collectionSyncInfo.usedCount || 0).toLocaleString()],
+            ["Retired",        `${(collectionSyncInfo.retiredCount || 0).toLocaleString()}${collectionSyncInfo.retiredPct ? ` (${Number(collectionSyncInfo.retiredPct).toFixed(1)}%)` : ""}`],
+            ["Total Pieces",   (collectionSyncInfo.piecesCount || 0).toLocaleString()],
+            ["Minifigs",       (collectionSyncInfo.minifsCount || 0).toLocaleString()],
+          ].map(([label, val]) => (
+            <div key={label} style={miniStat}><div style={mutedSmall}>{label}</div><strong>{val}</strong></div>
+          ))}
+          {[
+            ["Portfolio Value", `$${(collectionSyncInfo.portfolioValue || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`, "#c9a84c"],
+            ["Total Paid",      `$${(collectionSyncInfo.totalPaid || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`, null],
+            ["Unrealized Gain", `${(collectionSyncInfo.unrealizedGain||0)>=0?"+":""}$${(collectionSyncInfo.unrealizedGain||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`, (collectionSyncInfo.unrealizedGain||0)>=0?"#5aa832":"#ff8b8b"],
+            ["ROI",             collectionSyncInfo.totalPaid ? `${((collectionSyncInfo.unrealizedGain/collectionSyncInfo.totalPaid)*100).toFixed(1)}%` : "—", (collectionSyncInfo.unrealizedGain||0)>=0?"#5aa832":"#ff8b8b"],
+            ["Retail Value",    `$${(collectionSyncInfo.retailValue||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`, null],
+          ].map(([label, val, color]) => (
+            <div key={label} style={miniStat}><div style={mutedSmall}>{label}</div><strong style={color?{color}:{}}>{val}</strong></div>
+          ))}
         </div>
       </section>
       )}
@@ -1418,95 +1567,6 @@ export default function AppSettings() {
               <button onClick={disableNotifications} style={ghostBtn}>Disable</button>
             )}
           </div>
-        )}
-      </section>
-      )}
-
-      {settingsTab === "general" && (
-      <section style={panel}>
-        <h3 style={{ margin: "0 0 4px" }}>BrickLink</h3>
-        <p style={{ ...mutedSmall, margin: "0 0 14px" }}>
-          Connect your BrickLink account for real market pricing data.{" "}
-          <a
-            href="https://bricklink.com/v3/brickstore-access-management.page"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: "#c9a84c", textDecoration: "underline" }}
-          >
-            Get your access token
-          </a>{" "}
-          (free BrickLink buyer account — no seller account needed).
-        </p>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <div style={{
-            width: 8, height: 8, borderRadius: "50%",
-            background: blConnected ? "#22c55e" : "#4d5e70",
-            flexShrink: 0
-          }} />
-          <span style={{ fontSize: 14, color: blConnected ? "#22c55e" : "#8a9bb0", fontWeight: 700 }}>
-            {blConnected ? "Connected" : "Not connected"}
-          </span>
-        </div>
-
-        {!blConnected && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div>
-              <div style={{ fontSize: 12, color: "#5d6f80", marginBottom: 5 }}>Access token</div>
-              <input
-                type="password"
-                placeholder="Paste your BrickLink access token"
-                value={blAccessTokenInput}
-                onChange={e => setBlAccessTokenInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && saveBrickLinkToken()}
-                style={{ width: 280 }}
-              />
-            </div>
-            <button onClick={saveBrickLinkToken} style={redBtn} disabled={!blAccessTokenInput.trim()}>
-              Connect
-            </button>
-          </div>
-        )}
-
-        {blConnected && (
-          <>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-              <button onClick={testBrickLinkConnection} disabled={blTesting} style={ghostBtn}>
-                {blTesting ? "Testing…" : "Test Connection"}
-              </button>
-              <button
-                onClick={syncBrickLinkPrices}
-                disabled={!!blPriceSync}
-                style={redBtn}
-              >
-                {blPriceSync ? `Syncing… ${blPriceSync.done}/${blPriceSync.total}` : "Sync BL Prices"}
-              </button>
-              <button onClick={disconnectBrickLink} style={ghostBtn}>
-                Disconnect
-              </button>
-            </div>
-            {blPriceSync && (
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ height: 4, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-                  <div style={{
-                    height: "100%",
-                    borderRadius: 999,
-                    background: "#c9a84c",
-                    width: `${Math.round((blPriceSync.done / blPriceSync.total) * 100)}%`,
-                    transition: "width 0.3s ease"
-                  }} />
-                </div>
-              </div>
-            )}
-            {blPriceSyncLast && !blPriceSync && (
-              <div style={{ fontSize: 11, color: "#5d6f80" }}>
-                Last synced: {new Date(blPriceSyncLast).toLocaleString()}
-              </div>
-            )}
-            <div style={{ fontSize: 11, color: "#5d6f80", marginTop: 4 }}>
-              Fetches 6-month US sold prices (new &amp; used) for every set. Cached 12 hours.
-            </div>
-          </>
         )}
       </section>
       )}

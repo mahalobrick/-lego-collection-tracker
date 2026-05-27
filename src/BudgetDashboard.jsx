@@ -7,6 +7,7 @@ import { importBudgetExcel } from "./utils/importBudgetExcel";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { asNumber, money, setImageUrl, lineTotal, lineCashPaid } from "./utils/formatting";
 import PurchaseDetailPanel from "./PurchaseDetailPanel";
+import { fetchLegoThemes } from "./utils/brickset";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
 
@@ -23,11 +24,11 @@ const DEFAULT_PURCHASE_COLUMNS = [
   { key: "name",       label: "Set Name",     visible: true  },
   { key: "theme",      label: "Theme",        visible: true  },
   { key: "qty",        label: "Qty",          visible: true  },
-  { key: "faceValue",  label: "Price",        visible: true  },
+  { key: "faceValue",  label: "Unit Price",   visible: true  },
   { key: "tax",        label: "Tax / Fee",    visible: true  },
   { key: "shipping",   label: "Shipping",     visible: true  },
   { key: "gcApplied",  label: "GC / Rewards", visible: false },
-  { key: "total",      label: "Cash Paid",    visible: true  },
+  { key: "total",      label: "Paid",         visible: true  },
   { key: "notes",      label: "Notes",        visible: true  }
 ];
 
@@ -126,6 +127,9 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
   const [budgetPillsCollapsed, setBudgetPillsCollapsed] = useState(false);
   const [budgetGearOpen, setBudgetGearOpen] = useState(false);
   const [hoveredBudgetItem, setHoveredBudgetItem] = useState(null);
+  const [legoThemes, setLegoThemes] = useState([]);
+  useEffect(() => { fetchLegoThemes().then(t => { if (t.length) setLegoThemes(t); }); }, []);
+  const [inlineEdit, setInlineEdit] = useState(null); // { i, key, value }
   const [draggedBudgetItem, setDraggedBudgetItem] = useState(null);
   const [chartTypes, setChartTypes] = useState(() => {
     try { return JSON.parse(localStorage.getItem("blBudgetChartTypes") || "{}"); } catch { return {}; }
@@ -1803,7 +1807,13 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                 )}
               </div>
               <input placeholder="Set Name" value={line.name} onChange={e => updateLine(index, "name", e.target.value)} />
-              <input placeholder="Theme" value={line.theme} onChange={e => updateLine(index, "theme", e.target.value)} />
+              <select value={line.theme} onChange={e => updateLine(index, "theme", e.target.value)}>
+                <option value="">— Theme —</option>
+                {(legoThemes.length
+                  ? Array.from(new Set([...legoThemes, ...purchases.map(p => p.theme).filter(Boolean)])).sort()
+                  : Array.from(new Set(purchases.map(p => p.theme).filter(Boolean))).sort()
+                ).map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
               <input placeholder="Qty" type="number" step="1" min="1" value={line.qty} onChange={e => updateLine(index, "qty", e.target.value)} />
               <div style={{ position: "relative" }}>
                 <input
@@ -1916,6 +1926,22 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                 </button>
               )}
 
+              <select
+                value={`${sortColumn}:${sortDirection}`}
+                onChange={e => {
+                  const [col, dir] = e.target.value.split(":");
+                  setSortColumn(col);
+                  setSortDirection(dir);
+                }}
+                style={filterSelect}
+              >
+                <option value="date:desc">Recently Added</option>
+                <option value="date:asc">Oldest First</option>
+                <option value="total:desc">Total (↓)</option>
+                <option value="total:asc">Total (↑)</option>
+                <option value="store:asc">Store (A–Z)</option>
+              </select>
+
               <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.1)", alignSelf: "center", margin: "0 2px", flexShrink: 0 }} />
               <div style={{ position: "relative" }}>
                 <button
@@ -2011,7 +2037,6 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                     <tr
                       key={i}
                       onClick={() => setPurchaseDetailIdx(i)}
-                      onDoubleClick={() => { setPurchaseDetailIdx(null); setSelectedPurchaseIndex(i); }}
                       onMouseEnter={e => {
                         if (selectedPurchaseIndex !== i) e.currentTarget.style.background = grp ? "rgba(201,168,76,0.07)" : "rgba(255,255,255,0.04)";
                         setHoveredPurchase(p);
@@ -2030,14 +2055,88 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                       <td style={{ ...td, ...stickyCheckbox, width: 44, minWidth: 44, boxShadow: grp ? `inset 3px 0 0 ${accentColor}` : undefined }}>
                         <input type="checkbox" checked={checkedRows.includes(i)} onChange={() => toggleCheck(i)} />
                       </td>
-                      {purchaseColumns.filter(col => col.visible).map(col => (
-                        <td
-                          key={col.key}
-                          style={isNumericPurchaseColumn(col.key) ? tdRight : td}
-                        >
-                          {renderPurchaseCell(p, col)}
-                        </td>
-                      ))}
+                      {purchaseColumns.filter(col => col.visible).map(col => {
+                        const isEditing = inlineEdit?.i === i && inlineEdit?.key === col.key;
+                        const inpStyle = { background: "#0d1a2a", border: "1px solid rgba(201,168,76,0.5)", borderRadius: 6, color: "#e8e2d5", fontSize: 13, padding: "2px 6px", outline: "none" };
+
+                        // Date — double-click to edit
+                        if (col.key === "date") {
+                          if (isEditing) return (
+                            <td key="date" style={td} onClick={e => e.stopPropagation()}>
+                              <input autoFocus type="date" value={inlineEdit.value}
+                                onChange={e => setInlineEdit(v => ({ ...v, value: e.target.value }))}
+                                onBlur={() => { updatePurchase(i, "date", inlineEdit.value); setInlineEdit(null); }}
+                                onKeyDown={e => { if (e.key === "Enter") { updatePurchase(i, "date", inlineEdit.value); setInlineEdit(null); } if (e.key === "Escape") setInlineEdit(null); }}
+                                style={{ ...inpStyle, width: 130 }} />
+                            </td>
+                          );
+                          return <td key="date" style={{ ...td, cursor: "default" }} onClick={e => e.stopPropagation()} onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ i, key: "date", value: p.date || "" }); }}>{renderPurchaseCell(p, col)}</td>;
+                        }
+
+                        // Qty — double-click to edit
+                        if (col.key === "qty") {
+                          if (isEditing) return (
+                            <td key="qty" style={tdRight} onClick={e => e.stopPropagation()}>
+                              <input autoFocus type="number" min="1" value={inlineEdit.value}
+                                onChange={e => setInlineEdit(v => ({ ...v, value: e.target.value }))}
+                                onBlur={() => { updatePurchase(i, "qty", inlineEdit.value); setInlineEdit(null); }}
+                                onKeyDown={e => { if (e.key === "Enter") { updatePurchase(i, "qty", inlineEdit.value); setInlineEdit(null); } if (e.key === "Escape") setInlineEdit(null); }}
+                                style={{ ...inpStyle, width: 50, textAlign: "right" }} />
+                            </td>
+                          );
+                          return <td key="qty" style={{ ...tdRight, cursor: "default" }} onClick={e => e.stopPropagation()} onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ i, key: "qty", value: String(p.qty || 1) }); }}>{renderPurchaseCell(p, col)}</td>;
+                        }
+
+                        // Store — double-click → dropdown
+                        if (col.key === "store") {
+                          if (isEditing) return (
+                            <td key="store" style={td} onClick={e => e.stopPropagation()}>
+                              <select autoFocus value={inlineEdit.value}
+                                onChange={e => { updatePurchase(i, "store", e.target.value); setInlineEdit(null); }}
+                                onBlur={() => setInlineEdit(null)}
+                                onKeyDown={e => { if (e.key === "Escape") setInlineEdit(null); }}
+                                style={{ ...inpStyle, minWidth: 100 }}>
+                                {stores.map(s => <option key={s} value={s}>{s}</option>)}
+                              </select>
+                            </td>
+                          );
+                          return <td key="store" style={{ ...td, cursor: "default" }} onClick={e => e.stopPropagation()} onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ i, key: "store", value: p.store || stores[0] || "" }); }}>{renderPurchaseCell(p, col)}</td>;
+                        }
+
+                        // Unit Price — double-click to edit
+                        if (col.key === "faceValue") {
+                          if (isEditing) return (
+                            <td key="faceValue" style={tdRight} onClick={e => e.stopPropagation()}>
+                              <input autoFocus type="number" step="0.01" min="0" value={inlineEdit.value}
+                                onChange={e => setInlineEdit(v => ({ ...v, value: e.target.value }))}
+                                onBlur={() => { updatePurchase(i, "faceValue", inlineEdit.value); setInlineEdit(null); }}
+                                onKeyDown={e => { if (e.key === "Enter") { updatePurchase(i, "faceValue", inlineEdit.value); setInlineEdit(null); } if (e.key === "Escape") setInlineEdit(null); }}
+                                style={{ ...inpStyle, width: 70, textAlign: "right" }} />
+                            </td>
+                          );
+                          return <td key="faceValue" style={{ ...tdRight, cursor: "default" }} onClick={e => e.stopPropagation()} onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ i, key: "faceValue", value: String(p.faceValue ?? p.amount ?? "") }); }}>{renderPurchaseCell(p, col)}</td>;
+                        }
+
+                        // Notes — double-click to edit
+                        if (col.key === "notes") {
+                          if (isEditing) return (
+                            <td key="notes" style={td} onClick={e => e.stopPropagation()}>
+                              <input autoFocus value={inlineEdit.value}
+                                onChange={e => setInlineEdit(v => ({ ...v, value: e.target.value }))}
+                                onBlur={() => { updatePurchase(i, "notes", inlineEdit.value); setInlineEdit(null); }}
+                                onKeyDown={e => { if (e.key === "Enter") { updatePurchase(i, "notes", inlineEdit.value); setInlineEdit(null); } if (e.key === "Escape") setInlineEdit(null); }}
+                                style={{ ...inpStyle, width: "100%", minWidth: 120 }} />
+                            </td>
+                          );
+                          return <td key="notes" style={{ ...td, cursor: "default" }} onClick={e => e.stopPropagation()} onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ i, key: "notes", value: p.notes || "" }); }}>{renderPurchaseCell(p, col)}</td>;
+                        }
+
+                        return (
+                          <td key={col.key} style={isNumericPurchaseColumn(col.key) ? tdRight : td}>
+                            {renderPurchaseCell(p, col)}
+                          </td>
+                        );
+                      })}
                       <td style={td}>
                         <button
                           onClick={e => { e.stopPropagation(); addPurchaseToCollection(p, i); }}
@@ -2090,10 +2189,16 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
 
                   <label>
                     Theme
-                    <input
+                    <select
                       value={purchases[selectedPurchaseIndex].theme || ""}
                       onChange={e => updatePurchase(selectedPurchaseIndex, "theme", e.target.value)}
-                    />
+                    >
+                      <option value="">— select —</option>
+                      {(legoThemes.length
+                        ? Array.from(new Set([...legoThemes, ...purchases.map(p => p.theme).filter(Boolean)])).sort()
+                        : Array.from(new Set(purchases.map(p => p.theme).filter(Boolean))).sort()
+                      ).map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
                   </label>
 
                   <label>
@@ -2227,7 +2332,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                   <><span style={{ color: "#4caf7d" }}>GC / Rewards</span><span style={{ color: "#4caf7d" }}>−{money(hoveredPurchase.gcApplied)}</span></>
                 )}
                 {hoveredPurchase.gcApplied != null
-                  ? <><span style={{ color: "#5d6f80" }}>Cash Paid</span><span style={{ color: "#4caf7d", fontWeight: 700 }}>{money(lineCashPaid(hoveredPurchase))}</span></>
+                  ? <><span style={{ color: "#5d6f80" }}>Paid</span><span style={{ color: "#4caf7d", fontWeight: 700 }}>{money(lineCashPaid(hoveredPurchase))}</span></>
                   : <><span style={{ color: "#5d6f80" }}>Total</span><span style={{ color: "#c9a84c", fontWeight: 700 }}>{money(lineTotal(hoveredPurchase))}</span></>
                 }
                 {hoveredPurchase.notes && <><span style={{ color: "#5d6f80" }}>Notes</span><span style={{ color: "#8a9bb0", fontStyle: "italic" }}>{hoveredPurchase.notes}</span></>}

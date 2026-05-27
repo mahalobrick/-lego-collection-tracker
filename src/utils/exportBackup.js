@@ -11,6 +11,15 @@ const DEFAULT_ANNUAL_BUDGET = 10320;
 
 // ── Cloud backup helpers ──────────────────────────────────────────────────────
 
+function cloudHeaders(extra = {}) {
+  const secret = import.meta.env.VITE_BACKUP_SECRET || "";
+  return {
+    "Content-Type": "application/json",
+    ...(secret ? { "x-backup-secret": secret } : {}),
+    ...extra,
+  };
+}
+
 /** Push current localStorage state to cloud. Returns { ok, savedAt } or null if not configured. */
 export async function pushToCloud() {
   const backup = buildBackup(new Date());
@@ -19,7 +28,7 @@ export async function pushToCloud() {
 
   const res = await fetch("/api/cloud-backup", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: cloudHeaders(),
     body: JSON.stringify(backup),
   });
   if (res.status === 503) return null; // not configured — silent
@@ -31,7 +40,7 @@ export async function pushToCloud() {
 
 /** Fetch the stored cloud backup. Returns the backup object, null if none, or throws on error. */
 export async function fetchFromCloud() {
-  const res = await fetch("/api/cloud-backup");
+  const res = await fetch("/api/cloud-backup", { headers: cloudHeaders() });
   if (res.status === 404 || res.status === 503) return null;
   if (!res.ok) throw new Error(`Cloud fetch failed: HTTP ${res.status}`);
   return await res.json();
