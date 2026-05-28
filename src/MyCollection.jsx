@@ -151,12 +151,25 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     const brickEconomySaved = localStorage.getItem("brickEconomyNormalizedCollection");
     if (brickEconomySaved) {
       try {
+        // Cache lookups for minifigs/pieces fallback (entries never store these fields)
+        let bsCache = {}, beSetCache = {};
+        try { bsCache    = JSON.parse(localStorage.getItem("bricksetSetCache")      || "{}"); } catch {}
+        try { beSetCache = JSON.parse(localStorage.getItem("brickEconomySetCache")  || "{}"); } catch {}
+
         beItems = JSON.parse(brickEconomySaved).map(item => {
           const entries = item.entries || [];
           const entryConditions = [...new Set(entries.map(e => e.condition).filter(Boolean))];
           const condition = entryConditions.length === 1 ? entryConditions[0] : entryConditions.length > 1 ? "mixed" : null;
           // Pull per-entry fields — same across copies for set attributes; pick latest acquired
           const acquiredDates = entries.map(e => e.aquired_date || e.acquired_date).filter(Boolean).sort();
+
+          // minifigs / pieces: entries never store these; fall back to Brickset cache then BE cache
+          const clean   = String(item.setNumber || "").replace(/-1$/, "");
+          const bsData  = bsCache[`brickset_${clean}`]?.data || bsCache[clean]?.data || {};
+          const beData  = beSetCache[clean]?.data || beSetCache[item.setNumber]?.data || {};
+          const minifigs = entries[0]?.minifigs_count ?? bsData.minifigs ?? beData.minifigs_count ?? null;
+          const pieces   = entries[0]?.pieces_count   ?? bsData.pieces   ?? beData.pieces_count   ?? null;
+
           return {
             setNumber:    item.setNumber,
             name:         item.name,
@@ -171,8 +184,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             condition,
             entries,
             source:       "BrickEconomy",
-            // Fields from BE entry data
-            minifigs:     entries[0]?.minifigs_count ?? null,
+            minifigs,
+            pieces,
             acquiredDate: acquiredDates[acquiredDates.length - 1] || null, // most recent
             retiredDate:  entries[0]?.retired_date || null,
             releasedDate: entries[0]?.released_date || null,
