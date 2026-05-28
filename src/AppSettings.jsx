@@ -176,7 +176,6 @@ function isoToCSVDate(value) {
 }
 
 export default function AppSettings({ cloudPassphrase = "", onPassphraseChange = () => {} }) {
-  const [collectionSyncing, setCollectionSyncing] = useState(false);
   const [collectionSyncInfo, setCollectionSyncInfo] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("brickEconomyCollectionSyncInfo") || "{}");
@@ -912,91 +911,6 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
     setStores(prev => [...prev].sort());
   }
 
-  async function syncBrickEconomyCollection() {
-    setCollectionSyncing(true);
-
-    try {
-      const res = await fetch("/api/brickeconomy-collection");
-      const text = await res.text();
-
-      if (!text) {
-        toast.error(`API returned an empty response (HTTP ${res.status}). Make sure the app is running via: npm run dev`);
-        return;
-      }
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        toast.error(`API returned unexpected content (HTTP ${res.status}): ${text.slice(0, 120)}`);
-        return;
-      }
-
-      if (!res.ok || data.error) {
-        toast.error(data.message || data.error || "Collection sync failed.");
-        return;
-      }
-
-      const collection = data.data?.sets || data.sets || data.data || [];
-      const periods = data.data?.periods || data.periods || [];
-
-      const normalizedCollection = Array.isArray(collection)
-        ? normalizeBrickEconomyCollection(collection)
-        : [];
-
-      const totalPaid       = normalizedCollection.reduce((sum, item) => sum + item.totalPaid, 0);
-      const totalValue      = normalizedCollection.reduce((sum, item) => sum + item.totalValue, 0);
-      const retailValue     = normalizedCollection.reduce((sum, item) => sum + (item.totalRetailPrice || 0), 0);
-      const duplicateGroups = normalizedCollection.filter(item => item.quantity > 1).length;
-      const totalCopies     = Array.isArray(collection) ? collection.length : normalizedCollection.reduce((s, i) => s + (i.quantity || 1), 0);
-      const retiredCount    = normalizedCollection.filter(item => item.retired).length;
-      const retiredPct      = normalizedCollection.length ? Math.round(retiredCount / normalizedCollection.length * 10000) / 100 : 0;
-      const apiData         = data.data || data;
-      const newValue        = Array.isArray(collection) ? collection.filter(e => e.condition === "new").reduce((s, e) => s + (Number(e.current_value) || 0), 0) : 0;
-      const usedValue       = Array.isArray(collection) ? collection.filter(e => e.condition !== "new").reduce((s, e) => s + (Number(e.current_value) || 0), 0) : 0;
-
-      const syncInfo = {
-        lastSync: new Date().toISOString(),
-        setsCount:     apiData.sets_count        ?? (Array.isArray(collection) ? collection.length : 0),
-        uniqueSets:    apiData.sets_unique_count  ?? normalizedCollection.length,
-        newCount:      apiData.sets_new_count     ?? collection.filter(e => e.condition === "new").length,
-        usedCount:     apiData.sets_used_count    ?? collection.filter(e => e.condition !== "new").length,
-        piecesCount:   apiData.sets_pieces_count  ?? 0,
-        minifsCount:   apiData.sets_minifigs_count ?? 0,
-        duplicateGroups,
-        totalPaid,
-        portfolioValue:  apiData.current_value ?? periods?.[0]?.value ?? totalValue,
-        unrealizedGain:  (apiData.current_value ?? totalValue) - totalPaid,
-        retiredCount,
-        retiredPct,
-        retailValue:   Math.round(retailValue * 100) / 100,
-        newValue:      Math.round(newValue    * 100) / 100,
-        usedValue:     Math.round(usedValue   * 100) / 100,
-        valueSource:      "BrickEconomy current_value",
-        costBasisSource:  "BrickEconomy paid_price",
-        inventorySource:  "BrickEconomy collection sync",
-        currency: apiData.currency || "USD"
-      };
-
-      localStorage.setItem("brickEconomyCollectionCache", JSON.stringify({
-        fetchedAt: syncInfo.lastSync,
-        data
-      }));
-
-      localStorage.setItem("brickEconomyOwnedSets", JSON.stringify(collection));
-      localStorage.setItem("brickEconomyNormalizedCollection", JSON.stringify(normalizedCollection));
-      localStorage.setItem("brickEconomyCollectionSyncInfo", JSON.stringify(syncInfo));
-
-      recordPortfolioSnapshot(syncInfo.portfolioValue, syncInfo.totalPaid);
-      setCollectionSyncInfo(syncInfo);
-      toast.success(`BrickEconomy collection synced: ${syncInfo.setsCount} sets.`);
-    } catch (err) {
-      toast.error(err.message || "Could not sync BrickEconomy collection.");
-    } finally {
-      setCollectionSyncing(false);
-    }
-  }
-
   function clearApiCache() {
     localStorage.removeItem("brickEconomySetCache");
     localStorage.removeItem("brickEconomyCollectionCache");
@@ -1040,8 +954,11 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
   async function syncBrickLinkPrices() {
     if (blPriceSync) return; // already running
     try {
-      const raw = JSON.parse(localStorage.getItem("brickEconomyNormalizedCollection") || "[]");
-      const setNumbers = raw.map(s => s.setNumber).filter(Boolean);
+      const beNorm = JSON.parse(localStorage.getItem("brickEconomyNormalizedCollection") || "[]");
+      const manual = JSON.parse(localStorage.getItem("blOwnedSets") || "[]");
+      const setNumbers = [...new Set(
+        [...beNorm, ...manual].map(s => String(s.setNumber || "").replace(/-1$/, "").trim()).filter(Boolean)
+      )];
       if (setNumbers.length === 0) { toast.error("No sets in collection to sync."); return; }
       setBlPriceSync({ done: 0, total: setNumbers.length, status: "running" });
       const { synced, skipped, failed } = await bulkSyncPrices(setNumbers, ({ done, total }) => {
@@ -1298,34 +1215,17 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
       {settingsTab === "data" && (
       <section style={panel}>
         <h3 style={{ margin: "0 0 4px" }}>Data Sources</h3>
-        <p style={{ ...muted, margin: "0 0 16px", fontSize: 13 }}>Each source has a specific role. Sync individually or let the app auto-refresh on a schedule.</p>
+        <p style={{ ...muted, margin: "0 0 4px", fontSize: 13 }}>Each source has a specific role. Sync individually or let the app auto-refresh on a schedule.</p>
+        <p style={{ fontSize: 12, color: "#4d5e70", margin: "0 0 16px" }}>Metadata (name, pieces, MSRP, minifigs, retirement dates) is fetched on demand from Brickset and cached locally. <button onClick={() => { localStorage.removeItem("bricksetSetCache"); toast.success("Brickset cache cleared"); }} style={{ background: "none", border: "none", color: "#5d6f80", fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0 }}>Clear cache</button></p>
 
         {/* ── Source rows ── */}
         {[
-          // Brickset
-          {
-            name: "Brickset",
-            role: "Metadata authority — name, pieces, MSRP, minifigs, retirement dates",
-            dot: (() => { try { return Object.keys(JSON.parse(localStorage.getItem("bricksetSetCache") || "{}")).length > 0 ? "#22c55e" : "#4d5e70"; } catch { return "#4d5e70"; } })(),
-            status: (() => {
-              try {
-                const cache = JSON.parse(localStorage.getItem("bricksetSetCache") || "{}");
-                const count = Object.keys(cache).length;
-                return count ? `${count} sets cached` : "No cache yet";
-              } catch { return "No cache yet"; }
-            })(),
-            actions: (
-              <button onClick={() => { localStorage.removeItem("bricksetSetCache"); toast.success("Brickset cache cleared"); }} style={ghostBtn}>
-                Clear Cache
-              </button>
-            ),
-          },
           // BrickEconomy
           {
             name: "BrickEconomy",
-            role: "Value only — current value, 2yr & 5yr forecasts",
-            dot: "#c9a84c",
-            status: beValueSyncLast ? `Values synced ${new Date(beValueSyncLast).toLocaleDateString()}` : collectionSyncInfo.lastSync ? `Collection synced ${new Date(collectionSyncInfo.lastSync).toLocaleDateString()}` : "Never synced",
+            role: "Market values — current value, 2yr & 5yr forecasts",
+            dot: beValueSyncLast ? "#22c55e" : collectionSyncInfo.lastSync ? "#c9a84c" : "#4d5e70",
+            status: beValueSyncLast ? `Values synced ${new Date(beValueSyncLast).toLocaleDateString()}` : collectionSyncInfo.lastSync ? `CSV imported ${new Date(collectionSyncInfo.lastSync).toLocaleDateString()}` : "Never synced",
             actions: (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button onClick={handleSyncBEValues} disabled={!!beValueSync} style={redBtn}>
@@ -1343,7 +1243,7 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
             dot: bfSyncLast ? "#f59e0b" : "#4d5e70",
             status: bfSyncLast
               ? `Synced ${new Date(bfSyncLast).toLocaleDateString()}${bfSyncResult ? ` · ${bfSyncResult.updated} updated` : ""}`
-              : "Not synced — auto-runs weekly",
+              : "Never synced",
             actions: (
               <button onClick={() => handleSyncBFRetirement(true)} disabled={bfSyncing} style={redBtn}>
                 {bfSyncing ? "Syncing…" : "Sync Retirement"}
