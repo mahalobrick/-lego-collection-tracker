@@ -23,7 +23,8 @@ const DEFAULT_WL_ITEMS = [
   { key: "totalMsrp",          type: "card",  label: "Total MSRP",            visible: false, width: "auto",  collapsed: false },
   { key: "avgMsrp",            type: "card",  label: "Avg MSRP",              visible: false, width: "auto",  collapsed: false },
   { key: "ownedCount",         type: "card",  label: "Already Owned",         visible: false, width: "auto",  collapsed: false },
-  { key: "watchCount",         type: "card",  label: "Watch Status",          visible: false, width: "auto",  collapsed: false },
+  { key: "watchCount",         type: "card",  label: "Buy Now",               visible: false, width: "auto",  collapsed: false },
+  { key: "avgDiscount",        type: "card",  label: "Avg Discount",           visible: false, width: "auto",  collapsed: false },
   { key: "buyTotal",           type: "card",  label: "Tracking Cost",          visible: true,  width: "auto",  collapsed: false },
   { key: "budgetAfterBuy",     type: "card",  label: "Budget After Buy",       visible: false, width: "auto",  collapsed: false },
   { key: "targetSavings",      type: "card",  label: "Potential Savings",      visible: false, width: "auto",  collapsed: false },
@@ -31,6 +32,7 @@ const DEFAULT_WL_ITEMS = [
   { key: "urgency-chart",      type: "panel", label: "Urgency Breakdown",      visible: false, width: "half",  collapsed: false },
   { key: "msrp-vs-target",     type: "panel", label: "MSRP vs Target",         visible: false, width: "half",  collapsed: false },
   { key: "theme-breakdown",    type: "panel", label: "By Theme",               visible: false, width: "half",  collapsed: false },
+  { key: "action-breakdown",   type: "panel", label: "Action Breakdown",       visible: false, width: "half",  collapsed: false },
 ];
 
 export default function WantedList({ onBuyNow }) {
@@ -1090,6 +1092,16 @@ export default function WantedList({ onBuyNow }) {
       return annual - spent - wlBuyTotal;
     } catch { return null; }
   })();
+  // Buy Now count — items whose priority score qualifies as "Buy Now"
+  const wlBuyNowCount = wanted.filter(w => recommendation(priorityScore(w)) === "Buy Now").length;
+  const wlWatchCount  = wanted.filter(w => recommendation(priorityScore(w)) === "Watch Closely").length;
+  const wlWaitCount   = wanted.length - wlBuyNowCount - wlWatchCount;
+  // Average discount % at target price across items with both MSRP and target set
+  const wlAvgDiscount = (() => {
+    const items = wanted.filter(w => asNumber(w.msrp) > 0 && asNumber(w.targetPrice) > 0);
+    if (!items.length) return null;
+    return items.reduce((s, w) => s + ((asNumber(w.msrp) - asNumber(w.targetPrice)) / asNumber(w.msrp) * 100), 0) / items.length;
+  })();
 
   // ── Bulk price refresh ────────────────────────────────────────────────────
   // Re-fetches BrickEconomy data for every tracked set (rate-limited 1/500ms).
@@ -1487,6 +1499,8 @@ export default function WantedList({ onBuyNow }) {
                      item.key === "totalMsrp"       ? <Metric title="Total MSRP"           value={money(wlTotalMsrp)} /> :
                      item.key === "avgMsrp"         ? <Metric title="Avg MSRP"             value={money(wlAvgMsrp)} /> :
                      item.key === "ownedCount"      ? <Metric title="Already Owned"        value={wlOwnedCount} /> :
+                     item.key === "watchCount"      ? <Metric title="Buy Now"              value={wlBuyNowCount} sub={`${wlWatchCount} watching · ${wlWaitCount} waiting`} good={wlBuyNowCount > 0} /> :
+                     item.key === "avgDiscount"     ? <Metric title="Avg Discount"         value={wlAvgDiscount !== null ? `${wlAvgDiscount.toFixed(1)}%` : "—"} sub="at target vs MSRP" good={wlAvgDiscount !== null && wlAvgDiscount > 0} /> :
                      item.key === "buyTotal"        ? <Metric title="Tracking Cost"        value={money(wlBuyTotal)} /> :
                      item.key === "budgetAfterBuy"  ? <Metric title="Budget After Buy"     value={wlBudgetAfterBuy !== null ? money(wlBudgetAfterBuy) : "No budget set"} good={wlBudgetAfterBuy !== null ? wlBudgetAfterBuy >= 0 : undefined} /> :
                      item.key === "targetSavings"   ? <Metric title="Potential Savings"    value={money(wlTargetSavings)} sub="MSRP vs target price" good={wlTargetSavings > 0} /> : null}
@@ -1675,6 +1689,36 @@ export default function WantedList({ onBuyNow }) {
                             </div>
                           </div>
                         )}
+                      </div>
+                    ) : item.key === "action-breakdown" ? (
+                      <div style={{ ...panel, marginTop: 0 }}>
+                        <h4 style={{ margin: "0 0 14px" }}>Action Breakdown</h4>
+                        {wanted.length === 0 ? (
+                          <div style={{ color: "#5d6f80", fontSize: 13 }}>No sets tracked yet.</div>
+                        ) : (() => {
+                          const rows = [
+                            { label: "Buy Now",       count: wlBuyNowCount, color: "#ef4444" },
+                            { label: "Watch Closely", count: wlWatchCount,  color: "#f59e0b" },
+                            { label: "Wait",          count: wlWaitCount,   color: "#5aa832" },
+                          ];
+                          const max = Math.max(...rows.map(r => r.count), 1);
+                          return (
+                            <div style={{ display: "grid", gap: 12 }}>
+                              {rows.map(({ label, count, color }) => (
+                                <div key={label}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                                    <span style={{ fontSize: 13, color: "#8a9bb0" }}>{label}</span>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color }}>{count}</span>
+                                  </div>
+                                  <div style={{ height: 8, background: "#0b1520", borderRadius: 999, overflow: "hidden" }}>
+                                    <div style={{ height: "100%", width: `${(count / max) * 100}%`, background: color, borderRadius: 999, transition: "width 0.4s ease" }} />
+                                  </div>
+                                </div>
+                              ))}
+                              <div style={{ marginTop: 4, fontSize: 11, color: "#5d6f80" }}>{wanted.length} sets total</div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     ) : item.key === "theme-breakdown" ? (
                       <div style={{ ...panel, marginTop: 0 }}>

@@ -32,6 +32,7 @@ const DEFAULT_COLLECTION_ITEMS = [
   { key: "newValue",     type: "card",  label: "New Sets Value",   visible: false, width: "auto",  collapsed: false },
   { key: "usedValue",    type: "card",  label: "Used Sets Value",  visible: false, width: "auto",  collapsed: false },
   { key: "watchList",    type: "card",  label: "Wanted List",      visible: false, width: "auto",  collapsed: false },
+  { key: "condition-breakdown", type: "panel", label: "Condition Breakdown", visible: false, width: "half", collapsed: false },
   { key: "theme-chart",   type: "panel", label: "Value by Theme",     visible: true,  width: "half",  collapsed: false },
   { key: "roi-leaders",   type: "panel", label: "ROI Leaders",        visible: true,  width: "half",  collapsed: false },
   { key: "most-valuable", type: "panel", label: "Most Valuable Sets", visible: true,  width: "half",  collapsed: false },
@@ -1161,6 +1162,45 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                       <div style={{ ...panel, marginTop: 0, padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span style={{ fontWeight: 700, color: "#8a9bb0", fontSize: 14 }}>{item.label}</span>
                         <button onClick={() => toggleCollCollapse(item.key)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "4px 10px", color: "#8a9bb0", fontSize: 12, cursor: "pointer" }}>▼</button>
+                      </div>
+                    ) : item.key === "condition-breakdown" ? (
+                      <div style={{ ...panel, marginTop: 0 }}>
+                        <h4 style={{ margin: "0 0 14px" }}>Condition Breakdown</h4>
+                        {sets.length === 0 ? (
+                          <div style={{ color: "#5d6f80", fontSize: 13 }}>No sets yet.</div>
+                        ) : (() => {
+                          const counts = {};
+                          sets.forEach(s => {
+                            const entries = s.entries || [s];
+                            entries.forEach(e => {
+                              const cond = CONDITION_LABELS[e.condition || s.condition] || e.condition || s.condition || "Unknown";
+                              counts[cond] = (counts[cond] || 0) + (Number(e.quantity) || Number(s.qty) || 1);
+                            });
+                          });
+                          const data = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
+                          const total = data.reduce((s, d) => s + d.value, 0);
+                          return (
+                            <>
+                              <ResponsiveContainer width="100%" height={160}>
+                                <PieChart>
+                                  <Pie data={data} cx="50%" cy="50%" innerRadius={44} outerRadius={70} dataKey="value" paddingAngle={2}>
+                                    {data.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                                  </Pie>
+                                  <Tooltip formatter={v => [v, "Sets"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
+                                </PieChart>
+                              </ResponsiveContainer>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: 4 }}>
+                                {data.map((d, i) => (
+                                  <span key={d.name} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#8a9bb0" }}>
+                                    <span style={{ width: 10, height: 10, borderRadius: 2, background: PIE_COLORS[i % PIE_COLORS.length], display: "inline-block" }} />
+                                    {d.name} <strong style={{ color: "#e8e2d5" }}>{d.value}</strong>
+                                    <span style={{ color: "#5d6f80" }}>({((d.value / total) * 100).toFixed(0)}%)</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     ) : item.key === "theme-chart" ? (
                       <div style={{ ...panel, marginTop: 0 }}>

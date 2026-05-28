@@ -44,6 +44,7 @@ const DEFAULT_BUDGET_ITEMS = [
   { key: "gcSaved",          type: "card",  label: "GC / Rewards Saved",  visible: false, width: "auto",  collapsed: false },
   { key: "savedVsMsrp",      type: "card",  label: "Saved vs MSRP",       visible: false, width: "auto",  collapsed: false },
   { key: "savingsRate",      type: "card",  label: "Savings Rate",         visible: false, width: "auto",  collapsed: false },
+  { key: "avgPerSet",        type: "card",  label: "Avg per Set",          visible: false, width: "auto",  collapsed: false },
   { key: "store-breakdown",  type: "panel", label: "Spending by Store",   visible: true,  width: "full",  collapsed: false },
   { key: "monthly-chart",    type: "panel", label: "Monthly Spend",       visible: true,  width: "full",  collapsed: false },
   { key: "growth-chart",     type: "panel", label: "Investment Curve",    visible: true,  width: "full",  collapsed: false },
@@ -341,6 +342,8 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
   const savedVsMsrp  = totalMsrpExposure - totalPaidForMsrp;
   const savingsRate  = totalMsrpExposure > 0 ? (savedVsMsrp / totalMsrpExposure) * 100 : null;
   const gcTotal      = yearPurchases.reduce((s, p) => s + (asNumber(p.gcApplied) || 0), 0);
+  const totalQtyBought = yearPurchases.reduce((s, p) => s + (asNumber(p.qty) || 1), 0);
+  const avgPerSet    = totalQtyBought > 0 ? spent / totalQtyBought : null;
 
   // Per-store savings breakdown for savings panel
   const storeSavingsData = (() => {
@@ -1365,7 +1368,8 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                      item.key === "months"      ? <Metric title="Months tracked"          value={monthsTracked}                   sub="months with purchases" /> :
                      item.key === "gcSaved"     ? <Metric title="GC / rewards saved"      value={money(gcTotal)}                  sub={gcTotal > 0 ? `${yearLabel}` : "none applied"} good={gcTotal > 0} /> :
                      item.key === "savedVsMsrp" ? <Metric title="Saved vs MSRP"           value={savingsRate !== null ? money(savedVsMsrp) : "—"} sub={savingsRate !== null ? `${savingsRate.toFixed(1)}% avg discount` : "use set lookup to track"} good={savedVsMsrp > 0} /> :
-                     item.key === "savingsRate" ? <Metric title="Avg savings rate"        value={savingsRate !== null ? `${savingsRate.toFixed(1)}%` : "—"} sub={savingsRate !== null ? `vs MSRP · ${msrpPurchases.length} tracked` : "use set lookup to track"} good={savingsRate !== null && savingsRate > 0} /> : null}
+                     item.key === "savingsRate" ? <Metric title="Avg savings rate"        value={savingsRate !== null ? `${savingsRate.toFixed(1)}%` : "—"} sub={savingsRate !== null ? `vs MSRP · ${msrpPurchases.length} tracked` : "use set lookup to track"} good={savingsRate !== null && savingsRate > 0} /> :
+                     item.key === "avgPerSet"  ? <Metric title="Avg per Set"              value={avgPerSet !== null ? money(avgPerSet) : "—"} sub={`${totalQtyBought} sets · ${yearLabel}`} /> : null}
                   </div>
                 ))}
               </div>
