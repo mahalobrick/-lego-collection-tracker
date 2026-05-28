@@ -31,13 +31,16 @@ function upstashClient(url, token) {
       });
       const j = await r.json();
       if (j.result === null || j.result === undefined) return null;
-      return typeof j.result === "string" ? JSON.parse(j.result) : j.result;
+      let parsed = typeof j.result === "string" ? JSON.parse(j.result) : j.result;
+      // Existing data was accidentally double-stringified — parse a second time if still a string
+      if (typeof parsed === "string") parsed = JSON.parse(parsed);
+      return parsed;
     },
     async set(key, value, ex) {
       await fetch(`${url}/set/${encodeURIComponent(key)}?ex=${ex}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(JSON.stringify(value)),
+        body: JSON.stringify(value),
       });
     },
     close() {},
