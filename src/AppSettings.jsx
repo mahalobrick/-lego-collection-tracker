@@ -312,6 +312,8 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
     else toast("Rebrickable: nothing new to fill in");
   }
 
+  const [showCollectionImportHelp, setShowCollectionImportHelp] = useState(false);
+  const [showWantedImportHelp, setShowWantedImportHelp] = useState(false);
   const [newStore, setNewStore] = useState("");
   const [editingStore, setEditingStore] = useState(null);   // store name currently being renamed
   const [editingStoreName, setEditingStoreName] = useState(""); // live value in the rename input
@@ -397,44 +399,11 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
     toast.success(`Imported ${newRows.length} new purchases. Skipped ${cleaned.length - newRows.length} duplicate(s).`);
   }
 
-  async function importAnyFile(file) {
-    if (!file) return;
-
-    const name = file.name.toLowerCase();
-    const fakeEvent = { target: { files: [file] } };
-
-    if (name.endsWith(".xlsx") || name.endsWith(".xls")) return handleExcelImport(fakeEvent);
-    if (name.endsWith(".csv")) return importCSV(fakeEvent);
-    if (name.endsWith(".json")) return importJSON(fakeEvent);
-
-    toast.error("Unsupported file type. Use Excel, CSV, or JSON.");
-  }
-
-  async function handleDrop(e) {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    await importAnyFile(file);
-  }
-
   async function handleExcelImport(e) {
     const file = e.target.files[0];
     if (!file) return;
     const data = await importBudgetExcel(file);
     applyImportedPurchases(data.purchases || []);
-  }
-
-  async function importJSON(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    try {
-      const data = JSON.parse(await file.text());
-      if (Array.isArray(data.purchases)) applyImportedPurchases(data.purchases);
-      if (Array.isArray(data.stores)) setStores(data.stores);
-      toast.success("JSON backup imported.");
-    } catch {
-      toast.error("Invalid JSON backup.");
-    }
   }
 
   function importCSV(e) {
@@ -791,17 +760,6 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
     downloadFile("brickledger-collection-enriched.csv", csv, "text/csv");
   }
 
-  async function handleDropCollection(e) {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-    const name = file.name.toLowerCase();
-    if (name.endsWith(".xlsx") || name.endsWith(".xls")) return importCollectionExcel({ target: { files: [file] } });
-    if (name.endsWith(".csv")) return importCollectionCSV({ target: { files: [file] } });
-    if (name.endsWith(".json")) return importCollectionJSON({ target: { files: [file] } });
-    toast.error("Drop an Excel, CSV, or JSON file for My Collection.");
-  }
-
   // ── Watch List ───────────────────────────────────────────────
   const WATCH_CSV_HEADERS = ["setNumber", "name", "theme", "msrp", "targetPrice", "priority", "retirementYear", "retiringSoon", "notes"];
 
@@ -847,14 +805,206 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
     });
   }
 
-  async function handleDropWatchList(e) {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
+  // ── Rebrickable Sets CSV → My Collection ────────────────────────────────────
+  // Format: set_num, quantity  (two columns, downloaded from rebrickable.com/collections)
+  function importRebrickableCSV(e) {
+    const file = e?.target?.files?.[0];
     if (!file) return;
-    const name = file.name.toLowerCase();
-    if (name.endsWith(".csv")) return importWantedListCSV({ target: { files: [file] } });
-    if (name.endsWith(".json")) return importWantedListJSON({ target: { files: [file] } });
-    toast.error("Drop a CSV or JSON file for Wanted List.");
+    if (e?.target) e.target.value = "";
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: ({ data }) => {
+        if (!data.length) { toast.error("No data found."); return; }
+        const sets = data.map(r => ({
+          setNumber: String(r.set_num || r.Set || r.setNumber || r["Set Number"] || "").replace(/-1$/, "").trim(),
+          name:  r.name  || r.Name  || "",
+          theme: r.theme || r.Theme || "",
+          qty:   Number(r.quantity || r.Quantity || r.qty || 1) || 1,
+          paidPrice:    0,
+          currentValue: 0,
+          source: "Rebrickable",
+        })).filter(s => s.setNumber);
+        if (!sets.length) { toast.error("No valid sets found — use the Sets CSV from rebrickable.com/collections."); return; }
+        applyCollectionImport(sets);
+      },
+      error: () => toast.error("Invalid Rebrickable CSV."),
+    });
+  }
+
+  // ── Brickset Advanced Collection Manager CSV → My Collection ─────────────────
+  // Format: Number, Name, Theme, Price paid, Date acquired, Condition, Qty…
+  // Export from brickset.com/mysets → Advanced Collection Manager → Export
+  function importBricksetACMCSV(e) {
+    const file = e?.target?.files?.[0];
+    if (!file) return;
+    if (e?.target) e.target.value = "";
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: ({ data, meta }) => {
+        if (!data.length) { toast.error("No data found."); return; }
+        // Detect ACM vs basic My Sets by checking for ACM-only columns
+        const fields = meta.fields || [];
+        const isACM = fields.some(h => /price paid|date acquired|condition when/i.test(h));
+        if (!isACM) {
+          toast.error("This looks like a basic Brickset export — use the Brickset My Sets CSV import instead.");
+          return;
+        }
+        const sets = data
+          .filter(r => !/^y$/i.test(String(r.Deleted || r.deleted || "")))
+          .map(r => {
+            const setNumber = String(r.Number || r["Set number"] || r["Set Number"] || "")
+              .replace(/-1$/, "").trim();
+            if (!setNumber) return null;
+            const paidRaw = r["Price paid"] || r.Paid || r.price_paid || "";
+            const condRaw = r["Condition when acquired"] || r.Condition || r.condition || "";
+            return {
+              setNumber,
+              name:     r.Name     || r.name     || "",
+              theme:    r.Theme    || r.theme    || "",
+              subtheme: r.Subtheme || r.subtheme || "",
+              year:     Number(r.Year  || r.year  || 0) || 0,
+              pieces:   Number(r.Pieces|| r.pieces|| 0) || 0,
+              qty:      Number(r.Quantity || r.QtyOwned || r["Qty owned"] || 1) || 1,
+              paidPrice:    Number(String(paidRaw).replace(/[^0-9.]/g, "")) || 0,
+              currentValue: 0,
+              acquiredDate: csvDateToISO(r["Date acquired"] || r["Date"] || ""),
+              condition:    /used|incomplete/i.test(condRaw) ? "used" : "new",
+              notes:    r.Notes || r.notes || "",
+              source:   "Brickset",
+            };
+          })
+          .filter(Boolean);
+        if (!sets.length) { toast.error("No active sets found — make sure Deleted rows are excluded."); return; }
+        applyCollectionImport(sets);
+      },
+      error: () => toast.error("Invalid Brickset ACM CSV."),
+    });
+  }
+
+  // ── BrickEconomy CSV → Wanted List (Wanted column) ──────────────────────────
+  // Same CSV used for collection import — rows where Wanted > 0 go to Wanted List.
+  // Merges into existing list; skips sets already tracked.
+  async function importBEWantedCSV(e) {
+    const file = e?.target?.files?.[0];
+    if (!file) return;
+    if (e?.target) e.target.value = "";
+    try {
+      const text = await file.text();
+      const splitRow = row => {
+        const out = []; let cur = ""; let inQ = false;
+        for (const ch of row) {
+          if (ch === '"') { inQ = !inQ; }
+          else if (ch === ',' && !inQ) { out.push(cur.trim()); cur = ""; }
+          else { cur += ch; }
+        }
+        out.push(cur.trim());
+        return out;
+      };
+      const rows = text.split(/\r?\n/).filter(Boolean).map(splitRow);
+      const headers = rows.shift();
+      const col = pattern => headers.findIndex(h => new RegExp(pattern, "i").test(h));
+      const setNumIdx = col("number|set.?num");
+      const wantedIdx = col("^wanted$");
+      const nameIdx   = col("^name$");
+      const themeIdx  = col("^theme$");
+      const retailIdx = col("retail");
+      if (setNumIdx < 0) { toast.error("Unrecognised format — use the CSV export from brickeconomy.com/user/collection."); return; }
+      if (wantedIdx < 0) { toast.error("No 'Wanted' column found. Export your full BrickEconomy collection CSV."); return; }
+
+      const now = Date.now();
+      const wantedSets = rows
+        .filter(r => r.length > 1 && r[setNumIdx] && Number(r[wantedIdx] || 0) > 0)
+        .map((r, i) => ({
+          id:             `wl_${now + i}_${Math.random().toString(36).slice(2, 7)}`,
+          setNumber:      String(r[setNumIdx]).replace(/-1$/, "").trim(),
+          name:           nameIdx  >= 0 ? (r[nameIdx]  || "") : "",
+          theme:          themeIdx >= 0 ? (r[themeIdx] || "") : "",
+          msrp:           retailIdx >= 0 ? (Number(String(r[retailIdx] || "0").replace(/[^0-9.]/g, "")) || 0) : 0,
+          targetPrice:    0,
+          priority:       "Medium",
+          retirementYear: "",
+          retiringSoon:   false,
+          notes:          "",
+          source:         "BrickEconomy",
+        }))
+        .filter(s => s.setNumber);
+
+      if (!wantedSets.length) { toast.error("No wanted sets found — make sure some sets are marked Wanted in BrickEconomy."); return; }
+
+      const existing    = JSON.parse(localStorage.getItem("blWantedList") || "[]");
+      const existingSet = new Set(existing.map(w => String(w.setNumber || "").replace(/-1$/, "").trim()));
+      const newItems    = wantedSets.filter(s => !existingSet.has(s.setNumber));
+      const skipped     = wantedSets.length - newItems.length;
+
+      const ok = window.confirm(
+        `Import ${wantedSets.length} wanted set${wantedSets.length !== 1 ? "s" : ""} from BrickEconomy?` +
+        (skipped ? ` ${skipped} already in your list will be skipped.` : "")
+      );
+      if (!ok) return;
+      localStorage.setItem("blWantedList", JSON.stringify([...existing, ...newItems]));
+      toast.success(`Added ${newItems.length} wanted set${newItems.length !== 1 ? "s" : ""}${skipped ? ` · ${skipped} skipped` : ""}.`);
+    } catch (err) {
+      toast.error("Could not parse BrickEconomy CSV: " + (err.message || err));
+    }
+  }
+
+  // ── BrickLink Wanted List XML → Wanted List ──────────────────────────────────
+  // Export from bricklink.com → Wanted List → Download XML (sets only, ITEMTYPE=S).
+  // Imports targetPrice from MAXPRICE, notes from REMARKS. Merges; skips duplicates.
+  async function importBrickLinkWantedXML(e) {
+    const file = e?.target?.files?.[0];
+    if (!file) return;
+    if (e?.target) e.target.value = "";
+    try {
+      const text = await file.text();
+      const doc  = new DOMParser().parseFromString(text, "text/xml");
+      if (doc.querySelector("parsererror")) { toast.error("Invalid XML — re-download your BrickLink Wanted List."); return; }
+
+      const now = Date.now();
+      const items = [...doc.querySelectorAll("ITEM")]
+        .filter(n => n.querySelector("ITEMTYPE")?.textContent?.trim().toUpperCase() === "S")
+        .map((n, i) => {
+          const itemId    = n.querySelector("ITEMID")?.textContent?.trim() || "";
+          const maxPrice  = Number(n.querySelector("MAXPRICE")?.textContent?.trim() || 0) || 0;
+          const minQty    = Number(n.querySelector("MINQTY")?.textContent?.trim()   || 1) || 1;
+          const condition = n.querySelector("CONDITION")?.textContent?.trim() || "N";
+          const remarks   = n.querySelector("REMARKS")?.textContent?.trim()   || "";
+          return {
+            id:             `wl_${now + i}_${Math.random().toString(36).slice(2, 7)}`,
+            setNumber:      itemId.replace(/-1$/, "").trim(),
+            name:           "",
+            theme:          "",
+            msrp:           0,
+            targetPrice:    maxPrice,
+            priority:       "Medium",
+            retirementYear: "",
+            retiringSoon:   false,
+            qty:            minQty,
+            notes:          [remarks, condition === "U" ? "Used" : ""].filter(Boolean).join(" · "),
+            source:         "BrickLink",
+          };
+        })
+        .filter(s => s.setNumber);
+
+      if (!items.length) { toast.error("No sets found — make sure this is a BrickLink Wanted List XML (sets only)."); return; }
+
+      const existing    = JSON.parse(localStorage.getItem("blWantedList") || "[]");
+      const existingSet = new Set(existing.map(w => String(w.setNumber || "").replace(/-1$/, "").trim()));
+      const newItems    = items.filter(s => !existingSet.has(s.setNumber));
+      const skipped     = items.length - newItems.length;
+
+      const ok = window.confirm(
+        `Import ${items.length} set${items.length !== 1 ? "s" : ""} from BrickLink Wanted List?` +
+        (skipped ? ` ${skipped} already in your list will be skipped.` : "")
+      );
+      if (!ok) return;
+      localStorage.setItem("blWantedList", JSON.stringify([...existing, ...newItems]));
+      toast.success(`Added ${newItems.length} BrickLink wanted set${newItems.length !== 1 ? "s" : ""}${skipped ? ` · ${skipped} skipped` : ""}.`);
+    } catch (err) {
+      toast.error("Could not parse BrickLink XML: " + (err.message || err));
+    }
   }
 
   function downloadFile(filename, content, type) {
@@ -1203,7 +1353,7 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
           <div style={{ fontWeight: 700, fontSize: 13, color: "#8a9bb0", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Manual</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button onClick={exportFullBackup} style={redBtn}>Export Backup</button>
+              <button onClick={exportFullBackup} style={ghostBtn}>Export Backup</button>
               <label style={ghostBtn}>Restore Backup<input type="file" accept=".json" onChange={importFullBackup} style={{ display: "none" }} /></label>
             </div>
             <div style={{ fontSize: 11, color: "#4d5e70" }}>Chrome/Edge: prompts to choose location · Safari/Firefox: saves to Downloads</div>
@@ -1228,7 +1378,7 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
             status: beValueSyncLast ? `Values synced ${new Date(beValueSyncLast).toLocaleDateString()}` : collectionSyncInfo.lastSync ? `CSV imported ${new Date(collectionSyncInfo.lastSync).toLocaleDateString()}` : "Never synced",
             actions: (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button onClick={handleSyncBEValues} disabled={!!beValueSync} style={redBtn}>
+                <button onClick={handleSyncBEValues} disabled={!!beValueSync} style={ghostBtn}>
                   {beValueSync ? `${beValueSync.done}/${beValueSync.total}` : "Sync Values"}
                 </button>
                 <button onClick={clearApiCache} style={ghostBtn}>Clear Cache</button>
@@ -1245,7 +1395,7 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
               ? `Synced ${new Date(bfSyncLast).toLocaleDateString()}${bfSyncResult ? ` · ${bfSyncResult.updated} updated` : ""}`
               : "Never synced",
             actions: (
-              <button onClick={() => handleSyncBFRetirement(true)} disabled={bfSyncing} style={redBtn}>
+              <button onClick={() => handleSyncBFRetirement(true)} disabled={bfSyncing} style={ghostBtn}>
                 {bfSyncing ? "Syncing…" : "Sync Retirement"}
               </button>
             ),
@@ -1274,7 +1424,7 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
               : "Not connected",
             actions: blConnected ? (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button onClick={syncBrickLinkPrices} disabled={!!blPriceSync} style={redBtn}>
+                <button onClick={syncBrickLinkPrices} disabled={!!blPriceSync} style={ghostBtn}>
                   {blPriceSync ? `${blPriceSync.done}/${blPriceSync.total}` : "Sync BL Prices"}
                 </button>
                 <button onClick={testBrickLinkConnection} disabled={blTesting} style={ghostBtn}>
@@ -1292,7 +1442,7 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
                   onKeyDown={e => e.key === "Enter" && saveBrickLinkToken()}
                   style={{ fontSize: 13, padding: "6px 10px", background: "#111d2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5", width: 230 }}
                 />
-                <button onClick={saveBrickLinkToken} disabled={!blAccessTokenInput.trim()} style={redBtn}>Connect</button>
+                <button onClick={saveBrickLinkToken} disabled={!blAccessTokenInput.trim()} style={ghostBtn}>Connect</button>
               </div>
             ),
             progress: blPriceSync ? Math.round((blPriceSync.done / blPriceSync.total) * 100) : null,
@@ -1332,22 +1482,46 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
           <div style={dataBlockHeader}>
             <div>
               <div style={dataBlockTitle}>My Collection</div>
-              <div style={dataBlockDesc}>Manually added owned sets · BrickEconomy sync is in Data Sources above</div>
+              <div style={dataBlockDesc}>Manually added sets — import from services below or use the CSV template</div>
             </div>
           </div>
           <div style={{ marginTop: 14 }}>
-            <div style={{ ...dataBlockDesc, marginBottom: 6, fontWeight: 700, color: "#c9a84c" }}>Import from services</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
-              <label style={redBtn}>BrickEconomy CSV<input type="file" accept=".csv" onChange={importBrickEconomyExportCSV} style={{ display: "none" }} /></label>
-              <label style={ghostBtn}>Brickset My Sets CSV<input type="file" accept=".csv" onChange={importBricksetMySetCSV} style={{ display: "none" }} /></label>
+            <div style={{ fontSize: 12, color: "#4d5e70", marginBottom: 12 }}>⚠ Imports replace your existing manual entries. Take an <em>Export Backup</em> first if you want a safety net.</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ ...dataBlockDesc, fontWeight: 700, color: "#c9a84c" }}>Import from services</div>
+              <button
+                onClick={() => setShowCollectionImportHelp(v => !v)}
+                style={{ background: "none", border: "none", color: "#5d6f80", fontSize: 12, cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 4 }}
+              >
+                {showCollectionImportHelp ? "Hide" : "How to export ↗"}
+              </button>
             </div>
-            <div style={{ ...dataBlockDesc, marginBottom: 14 }}>BrickEconomy: collection → Export → CSV &nbsp;·&nbsp; Brickset: My Sets → Export.</div>
+            {showCollectionImportHelp && (
+              <div style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "12px 14px", marginBottom: 10 }}>
+                {[
+                  { name: "BrickEconomy", path: "brickeconomy.com/user/collection → Export → Download CSV" },
+                  { name: "Brickset My Sets", path: "brickset.com → My Sets → Export" },
+                  { name: "Brickset ACM", path: "brickset.com → My Sets → Advanced Collection Manager → Export CSV · includes paid price & dates" },
+                  { name: "Rebrickable", path: "rebrickable.com/collections → Export Sets" },
+                ].map(src => (
+                  <div key={src.name} style={{ display: "flex", gap: 12, padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "baseline" }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#8a9bb0", minWidth: 120, flexShrink: 0 }}>{src.name}</span>
+                    <span style={{ fontSize: 12, color: "#5d6f80", lineHeight: 1.5 }}>{src.path}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+              <label style={ghostBtn}>BrickEconomy CSV<input type="file" accept=".csv" onChange={importBrickEconomyExportCSV} style={{ display: "none" }} /></label>
+              <label style={ghostBtn}>Brickset My Sets<input type="file" accept=".csv" onChange={importBricksetMySetCSV} style={{ display: "none" }} /></label>
+              <label style={ghostBtn}>Brickset ACM<input type="file" accept=".csv" onChange={importBricksetACMCSV} style={{ display: "none" }} /></label>
+              <label style={ghostBtn}>Rebrickable CSV<input type="file" accept=".csv" onChange={importRebrickableCSV} style={{ display: "none" }} /></label>
+            </div>
             <div style={{ ...dataBlockDesc, marginBottom: 6, fontWeight: 700, color: "#8a9bb0" }}>Template import / export</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
               <button onClick={downloadCollectionTemplate} style={ghostBtn}>Download Template</button>
               <label style={ghostBtn}>Import CSV<input type="file" accept=".csv" onChange={importCollectionCSV} style={{ display: "none" }} /></label>
               <button onClick={exportCollectionCSV} style={ghostBtn}>Export CSV</button>
-              <button onClick={exportCollectionJSON} style={ghostBtn}>Export JSON</button>
               <button onClick={exportEnrichedCSV} style={ghostBtn}>Export Enriched CSV</button>
             </div>
           </div>
@@ -1364,12 +1538,41 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
             </div>
           </div>
           <div style={{ marginTop: 14 }}>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ ...dataBlockDesc, fontWeight: 700, color: "#c9a84c" }}>Import from services</div>
+              <button
+                onClick={() => setShowWantedImportHelp(v => !v)}
+                style={{ background: "none", border: "none", color: "#5d6f80", fontSize: 12, cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 4 }}
+              >
+                {showWantedImportHelp ? "Hide" : "How to export ↗"}
+              </button>
+            </div>
+            {showWantedImportHelp && (
+              <div style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "12px 14px", marginBottom: 10 }}>
+                {[
+                  { name: "BrickEconomy", path: "Same collection CSV — sets with Wanted qty > 0 are merged into your list" },
+                  { name: "BrickLink", path: "bricklink.com → Wanted List → Download XML" },
+                ].map(src => (
+                  <div key={src.name} style={{ display: "flex", gap: 12, padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "baseline" }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#8a9bb0", minWidth: 120, flexShrink: 0 }}>{src.name}</span>
+                    <span style={{ fontSize: 12, color: "#5d6f80", lineHeight: 1.5 }}>{src.path}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+              <label style={ghostBtn}>BrickEconomy CSV<input type="file" accept=".csv" onChange={importBEWantedCSV} style={{ display: "none" }} /></label>
+              <label style={ghostBtn}>BrickLink XML<input type="file" accept=".xml,.xml" onChange={importBrickLinkWantedXML} style={{ display: "none" }} /></label>
+            </div>
+            <div style={{ ...dataBlockDesc, marginBottom: 8, fontWeight: 700, color: "#8a9bb0" }}>Template import / export</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
               <button onClick={downloadWatchListTemplate} style={ghostBtn}>Download Template</button>
               <label style={ghostBtn}>Import CSV<input type="file" accept=".csv" onChange={importWantedListCSV} style={{ display: "none" }} /></label>
-              <button onClick={exportWantedListJSON} style={ghostBtn}>Export JSON</button>
+              <label style={ghostBtn}>Import JSON<input type="file" accept=".json" onChange={importWantedListJSON} style={{ display: "none" }} /></label>
               <button onClick={exportWantedListCSV} style={ghostBtn}>Export CSV</button>
+              <button onClick={exportWantedListJSON} style={ghostBtn}>Export JSON</button>
             </div>
+            <div style={{ fontSize: 12, color: "#4d5e70" }}>⚠ Template import replaces your entire wanted list. Service imports merge and skip duplicates.</div>
           </div>
         </div>
 
@@ -1392,13 +1595,14 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
                 <input type="radio" checked={importMode === "replace"} onChange={() => setImportMode("replace")} style={{ marginRight: 6 }} />Replace all
               </label>
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
               <button onClick={downloadCSVTemplate} style={ghostBtn}>Download Template</button>
-              <label style={redBtn}>Import Excel<input type="file" accept=".xlsx,.xls" onChange={handleExcelImport} style={{ display: "none" }} /></label>
+              <label style={ghostBtn}>Import Excel<input type="file" accept=".xlsx,.xls" onChange={handleExcelImport} style={{ display: "none" }} /></label>
               <label style={ghostBtn}>Import CSV<input type="file" accept=".csv" onChange={importCSV} style={{ display: "none" }} /></label>
               <button onClick={exportCSV} style={ghostBtn}>Export CSV</button>
               <button onClick={exportJSON} style={ghostBtn}>Export JSON</button>
             </div>
+            <div style={{ fontSize: 12, color: "#4d5e70" }}>Export JSON covers purchases, stores & annual budget only — not a full app backup.</div>
           </div>
         </div>
       </section>
@@ -1426,7 +1630,7 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
               <div style={{ fontSize: 12, color: "#5d6f80" }}>Open your browser settings and allow notifications for this site.</div>
             )}
             {notifPermission !== "denied" && !notifEnabled && (
-              <button onClick={enableNotifications} style={redBtn}>Enable Notifications</button>
+              <button onClick={enableNotifications} style={ghostBtn}>Enable Notifications</button>
             )}
             {notifEnabled && notifPermission === "granted" && (
               <button onClick={disableNotifications} style={ghostBtn}>Disable</button>
@@ -1487,7 +1691,7 @@ const page = { background: "transparent", color: "#e8e2d5", minHeight: "100vh", 
 const panel = { background: "rgba(20,31,48,0.82)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginTop: 18, boxShadow: "0 4px 24px rgba(0,0,0,0.35)" };
 const muted = { color: "#8a9bb0", marginTop: 6 };
 const mutedSmall = { color: "#8a9bb0", fontSize: 14 };
-const redBtn = { display: "inline-block", background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" };
+
 const ghostBtn = { background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" };
 const smallButton = { ...ghostBtn, padding: "6px 10px" };
 
@@ -1506,4 +1710,3 @@ const dataBlockHeader = { display: "flex", justifyContent: "space-between", alig
 const dataBlockTitle = { fontWeight: 800, fontSize: 15, color: "#e8e2d5", marginBottom: 3 };
 const dataBlockDesc = { fontSize: 13, color: "#8a9bb0" };
 const dataDivider = { height: 1, background: "rgba(255,255,255,0.06)", margin: "18px 0" };
-const dropZoneStyle = { border: "2px dashed rgba(255,255,255,0.12)", borderRadius: 10, padding: "16px 20px", textAlign: "center", color: "#8a9bb0", background: "rgba(255,255,255,0.02)", fontSize: 13 };
