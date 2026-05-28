@@ -170,7 +170,8 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
   });
 
   const [annualBudget, setAnnualBudget] = useState(() => {
-    return Number(localStorage.getItem("blAnnualBudget")) || DEFAULT_annualBudget;
+    const stored = localStorage.getItem("blAnnualBudget");
+    return stored !== null ? Number(stored) : DEFAULT_annualBudget;
   });
 
   const [importMode, setImportMode] = useState("add");

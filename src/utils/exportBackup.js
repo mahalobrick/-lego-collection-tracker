@@ -159,7 +159,7 @@ export function applyBackupToLocalStorage(data) {
   if (Array.isArray(data.budgetPurchases))         localStorage.setItem("blPurchases",        JSON.stringify(data.budgetPurchases));
   if (Array.isArray(data.stores))                  localStorage.setItem("blStores",           JSON.stringify(data.stores));
   if (data.storeBudgets && typeof data.storeBudgets === "object") localStorage.setItem("blStoreBudgets", JSON.stringify(data.storeBudgets));
-  if (data.annualBudget)                           localStorage.setItem("blAnnualBudget",     data.annualBudget);
+  if (data.annualBudget != null)                   localStorage.setItem("blAnnualBudget",     data.annualBudget);
   if (data.settings) {
     if (data.settings.currency)            localStorage.setItem("blDisplayCurrency",         data.settings.currency);
     if (data.settings.ownedColumns)        localStorage.setItem("blOwnedColumns",            JSON.stringify(data.settings.ownedColumns));
@@ -168,7 +168,8 @@ export function applyBackupToLocalStorage(data) {
     if (data.settings.dashboardWidgets)    localStorage.setItem("blDashboardWidgetSettings", JSON.stringify(data.settings.dashboardWidgets));
     if (data.settings.collectionItems)     localStorage.setItem("blCollectionItems",         JSON.stringify(data.settings.collectionItems));
     if (data.settings.ownedColWidths)      localStorage.setItem("blOwnedColWidths",          JSON.stringify(data.settings.ownedColWidths));
-    if (data.settings.autoExportDays != null) localStorage.setItem("blAutoExportDays",       String(data.settings.autoExportDays));
+    // autoExportDays intentionally NOT restored — it's a device-local preference
+    // (which browser should auto-download); cloud/backup restore should not override it.
   }
 }
 
@@ -190,7 +191,7 @@ function buildBackup(now) {
     budgetPurchases: JSON.parse(localStorage.getItem("blPurchases")    || "[]"),
     stores:          JSON.parse(localStorage.getItem("blStores")        || "[]"),
     storeBudgets:    JSON.parse(localStorage.getItem("blStoreBudgets")  || "{}"),
-    annualBudget:    Number(localStorage.getItem("blAnnualBudget"))     || DEFAULT_ANNUAL_BUDGET,
+    annualBudget:    (() => { const s = localStorage.getItem("blAnnualBudget"); return s !== null ? Number(s) : DEFAULT_ANNUAL_BUDGET; })(),
     // ── Settings & preferences ───────────────────────────────────
     settings: {
       currency:          localStorage.getItem("blDisplayCurrency") || "USD",

@@ -355,7 +355,8 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
   );
 
   const [annualBudget, setAnnualBudget] = useState(() => {
-    return Number(localStorage.getItem("blAnnualBudget")) || DEFAULT_ANNUAL_BUDGET;
+    const stored = localStorage.getItem("blAnnualBudget");
+    return stored !== null ? Number(stored) : DEFAULT_ANNUAL_BUDGET;
   });
 
   const [stores, setStores] = useState(() => {
