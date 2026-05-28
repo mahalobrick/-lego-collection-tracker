@@ -263,13 +263,26 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Check whether the cloud has an encrypted backup, a legacy unencrypted one, or nothing
+  // Check whether the cloud has an encrypted backup, a legacy unencrypted one, or nothing.
+  // If legacy AND a passphrase is already active this session, auto-upgrade silently.
   useEffect(() => {
-    fetchFromCloud().then(payload => {
-      if (!payload)              setCloudStatus("empty");
+    fetchFromCloud().then(async payload => {
+      if (!payload)                setCloudStatus("empty");
       else if (payload.ciphertext) setCloudStatus("encrypted");
-      else                         setCloudStatus("legacy");
+      else {
+        setCloudStatus("legacy");
+        if (cloudPassphrase) {
+          // Force past the dirty-flag by clearing the last push hash so the push runs
+          localStorage.removeItem("blLastPushHash");
+          const result = await pushToCloud(cloudPassphrase).catch(() => null);
+          if (result?.ok) {
+            setCloudStatus("encrypted");
+            toast.success("Cloud backup upgraded to encrypted format ✓");
+          }
+        }
+      }
     }).catch(() => setCloudStatus("empty"));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleRbFill() {
@@ -1247,7 +1260,7 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
         {/* ── Cloud status ── */}
         {cloudStatus === "legacy" && (
           <div style={{ background: "#1a1500", border: "1px solid #78350f", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#fbbf24" }}>
-            ⚠️ Your cloud backup is in the old unencrypted format. Set a passphrase below and hit <strong>Push to Cloud</strong> to upgrade it — then other browsers will prompt for the passphrase.
+            ⚠️ Old unencrypted backup detected. Set a passphrase below and hit <strong>Push to Cloud</strong> to upgrade — this warning won't appear again.
           </div>
         )}
         {cloudStatus === "empty" && (
@@ -1692,8 +1705,8 @@ const panel = { background: "rgba(20,31,48,0.82)", backdropFilter: "blur(10px)",
 const muted = { color: "#8a9bb0", marginTop: 6 };
 const mutedSmall = { color: "#8a9bb0", fontSize: 14 };
 
-const ghostBtn = { background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" };
-const smallButton = { ...ghostBtn, padding: "6px 10px" };
+const ghostBtn = { background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "7px 13px", fontWeight: 600, fontSize: 13, cursor: "pointer" };
+const smallButton = { ...ghostBtn, padding: "5px 10px", fontSize: 12 };
 
 
 const stTabHeader = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 4 };
