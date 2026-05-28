@@ -896,7 +896,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     const gain = value - paid;
     const roi = paid > 0 ? ((gain / paid) * 100) : null;
 
-    if (column.key === "setNumber") return set.setNumber || "—";
+    if (column.key === "setNumber") return <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{set.setNumber || "—"}</span>;
     if (column.key === "name") return set.name || "—";
     if (column.key === "theme") return set.theme || "—";
     if (column.key === "condition") return set.condition ? (CONDITION_LABELS[set.condition] || set.condition) : "—";
@@ -2126,8 +2126,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               // This hides the 3px browser-rounding artifact from table-layout:fixed + width:100%.
               const needsHScroll = currentTotalW > defaultTotalW + 10;
               return (
-            <div style={{ overflowX: needsHScroll ? "auto" : "clip" }}>
-            <div style={{ overflowY: "auto", maxHeight: 560 }}>
+            <div className="owned-table-scroll" style={{ overflowX: needsHScroll ? "auto" : "clip" }}>
+            <div className="owned-table-scroll" style={{ overflowY: "auto", maxHeight: 560 }}>
               <table style={{
                 borderCollapse: "collapse", tableLayout: "fixed", width: "100%",
                 minWidth: currentTotalW
@@ -2200,7 +2200,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         transition: "background 0.12s ease"
                       }}
                     >
-                      <td style={{ ...td, ...stickyCheckbox }} onClick={e => e.stopPropagation()}>
+                      <td style={{ ...td, ...stickyCheckbox, borderLeft: hoveredSet === set ? "2px solid #c9a84c" : "2px solid transparent", transition: "border-color 0.12s ease" }} onClick={e => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={checkedSets.includes(index)}
@@ -2253,7 +2253,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                               onClick={e => e.stopPropagation()}
                               onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ index, key: "condition", value: displayVal }); }}
                             >
-                              <span style={{ background: `${color}18`, color, border: `1px solid ${color}50`, borderRadius: 10, padding: "2px 9px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+                              <span style={{ background: `${color}18`, color, border: `1px solid ${color}50`, borderRadius: 10, padding: "2px 9px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                                {!isUsed && <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0, animation: "pulse-dot 2s ease-in-out infinite" }} />}
                                 {isUsed ? "Used" : "New"}
                               </span>
                             </td>
@@ -2327,6 +2328,19 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                           );
                         }
 
+                        // ROI — tinted badge
+                        if (col.key === "roi") {
+                          const label = renderOwnedCell(set, col);
+                          const roiColor = String(label).startsWith("-") ? "#ff8b8b" : String(label).startsWith("+") ? "#5aa832" : "#8a9bb0";
+                          return (
+                            <td key="roi" style={tdRight}>
+                              {label !== "—"
+                                ? <span style={{ background: `${roiColor}1a`, color: roiColor, borderRadius: 6, padding: "2px 7px", fontSize: 12, fontWeight: 700 }}>{label}</span>
+                                : <span style={{ color: "#5d6f80" }}>—</span>}
+                            </td>
+                          );
+                        }
+
                         return (
                           <td
                             key={col.key}
@@ -2340,7 +2354,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                                 : td
                             }
                           >
-                            {renderOwnedCell(set, col)}
+                            {col.key === "name"
+                              ? <span style={{ color: hoveredSet === set ? "#c9a84c" : undefined, transition: "color 0.15s" }}>{renderOwnedCell(set, col)}</span>
+                              : renderOwnedCell(set, col)}
                           </td>
                         );
                       })}
@@ -2535,12 +2551,14 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
 function Card({ title, value, good, sub }) {
   const [tip, setTip] = useState(false);
+  const accentColor = good === undefined ? "#c9a84c" : good ? "#5aa832" : "#ff8b8b";
   return (
     <div style={{
       ...panel, marginTop: 0, overflow: "hidden",
       minHeight: 88,
       display: "flex", flexDirection: "column", justifyContent: "space-between",
       padding: "14px 16px",
+      borderLeft: `3px solid ${accentColor}`,
     }}>
       <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
       <div style={{ position: "relative" }} onMouseEnter={() => setTip(true)} onMouseLeave={() => setTip(false)}>
@@ -2610,7 +2628,7 @@ const td = {
   borderTop: "1px solid rgba(255,255,255,0.05)",
   whiteSpace: "nowrap"
 };
-const tdRight = { ...td, textAlign: "right", fontWeight: 800 };
+const tdRight = { ...td, textAlign: "right", fontWeight: 800, fontFamily: "'JetBrains Mono', monospace" };
 
 const stickyCheckbox = {
   position: "sticky",

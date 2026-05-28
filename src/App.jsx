@@ -91,13 +91,17 @@ export default function App() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
         * { box-sizing: border-box; }
         @media (max-width: 700px) {
           .app-shell { padding: 12px !important; }
           .app-title { font-size: 26px !important; letter-spacing: 3px !important; }
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+        .owned-table-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .owned-table-scroll::-webkit-scrollbar-track { background: transparent; }
+        .owned-table-scroll::-webkit-scrollbar-thumb { background: #2f3446; border-radius: 10px; }
         @media (max-width: 600px) {
           .app-header { padding: 18px 16px !important; }
           .nav-wrap { padding: 10px 12px !important; }
