@@ -1945,6 +1945,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                 </svg>
               </button>
               {ownedColumnsOpen && (
+              <>
+                <div onClick={() => setOwnedColumnsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 39 }} />
                 <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 40, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "12px 16px", minWidth: 190, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                     <span style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Columns</span>
@@ -1963,6 +1965,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                     </div>
                   ))}
                 </div>
+              </>
               )}
             </div>
           </div>

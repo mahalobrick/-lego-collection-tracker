@@ -213,12 +213,14 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
     const saved = localStorage.getItem("blPurchases");
     if (!saved) return [];
     const list = JSON.parse(saved);
-    // Migration: backfill stable id for records that predate this field
+    // Migration: backfill id, month, year for records that predate these fields
     let dirty = false;
     const migrated = list.map(p => {
-      if (p.id) return p;
-      dirty = true;
-      return { ...p, id: `pur_${Date.now()}${Math.random().toString(36).slice(2, 9)}` };
+      let updated = { ...p };
+      if (!p.id) { updated.id = `pur_${Date.now()}${Math.random().toString(36).slice(2, 9)}`; dirty = true; }
+      if (!p.month && p.date) { updated.month = getMonthLabel(p.date); dirty = true; }
+      if (!p.year && p.date) { updated.year = Number(String(p.date).slice(0, 4)) || new Date().getFullYear(); dirty = true; }
+      return updated;
     });
     if (dirty) localStorage.setItem("blPurchases", JSON.stringify(migrated));
     return migrated;
@@ -2063,6 +2065,8 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                   </svg>
                 </button>
                 {purchaseColumnsOpen && (
+                <>
+                  <div onClick={() => setPurchaseColumnsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
                   <div style={{ position: "absolute", top: 34, right: 0, zIndex: 30, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "12px 16px", minWidth: 180, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
                     <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Columns</div>
                     {purchaseColumns.map(col => (
@@ -2077,6 +2081,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                       </label>
                     ))}
                   </div>
+                </>
                 )}
               </div>
             </div>
