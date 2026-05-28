@@ -1241,39 +1241,57 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
 
       {settingsTab === "data" && (
       <section style={panel}>
-        <h3 style={{ margin: "0 0 4px" }}>Auto-Export</h3>
-        <p style={{ ...mutedSmall, margin: "0 0 14px" }}>
-          Automatically download a full backup when the app opens, if it's been longer than the chosen interval since the last export.
+        <h3 style={{ margin: "0 0 4px" }}>Local Backup</h3>
+        <p style={{ ...mutedSmall, margin: "0 0 20px" }}>
+          Schedule automatic downloads or save a full backup on demand. Backs up everything — collection, wanted list, budget, and settings.
         </p>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-          {[
-            { label: "Off", value: 0 },
-            { label: "Daily", value: 1 },
-            { label: "Weekly", value: 7 },
-            { label: "Monthly", value: 30 },
-          ].map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => setAutoExportDays(opt.value)}
-              style={autoExportDays === opt.value ? stActiveTab : stTabBtn}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        {autoExportDays > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 13, color: "#5d6f80" }}>
-              Last export:{" "}
-              <span style={{ color: "#8a9bb0" }}>
-                {lastExportAt
-                  ? new Date(lastExportAt).toLocaleString()
-                  : "Never — will run next app open"}
-              </span>
-            </div>
-            <button onClick={exportFullBackup} style={smallButton}>Export Now</button>
+
+        {/* ── Auto-Export ── */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "#8a9bb0", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Automatic</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+            {[
+              { label: "Off", value: 0 },
+              { label: "Daily", value: 1 },
+              { label: "Weekly", value: 7 },
+              { label: "Monthly", value: 30 },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setAutoExportDays(opt.value)}
+                style={autoExportDays === opt.value ? stActiveTab : stTabBtn}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
-        )}
+          {autoExportDays > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+              <div style={{ fontSize: 13, color: "#5d6f80" }}>
+                Last export:{" "}
+                <span style={{ color: "#8a9bb0" }}>
+                  {lastExportAt
+                    ? new Date(lastExportAt).toLocaleString()
+                    : "Never — will run next app open"}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={dataDivider} />
+
+        {/* ── Manual ── */}
+        <div style={{ marginTop: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "#8a9bb0", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Manual</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={exportFullBackup} style={redBtn}>Export Backup</button>
+              <label style={ghostBtn}>Restore Backup<input type="file" accept=".json" onChange={importFullBackup} style={{ display: "none" }} /></label>
+            </div>
+            <div style={{ fontSize: 11, color: "#4d5e70" }}>Chrome/Edge: prompts to choose location · Safari/Firefox: saves to Downloads</div>
+          </div>
+        </div>
       </section>
       )}
 
@@ -1407,26 +1425,7 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
       {settingsTab === "data" && (
       <section style={panel}>
         <h3 style={{ margin: "0 0 4px" }}>Data Management</h3>
-        <p style={{ ...muted, margin: "0 0 20px", fontSize: 13 }}>Export or import data by category, or use a full backup to move everything at once.</p>
-
-        {/* ── Full App Backup ── */}
-        <div style={dataBlock}>
-          <div style={dataBlockHeader}>
-            <div>
-              <div style={dataBlockTitle}>Full App Backup</div>
-              <div style={dataBlockDesc}>Collection · Wanted List · Budget · Settings — everything in one file</div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button onClick={exportFullBackup} style={redBtn}>Export Backup</button>
-                <label style={ghostBtn}>Restore Backup<input type="file" accept=".json" onChange={importFullBackup} style={{ display: "none" }} /></label>
-              </div>
-              <div style={{ fontSize: 11, color: "#4d5e70" }}>Chrome/Edge: prompts to choose location · Safari/Firefox: saves to Downloads</div>
-            </div>
-          </div>
-        </div>
-
-        <div style={dataDivider} />
+        <p style={{ ...muted, margin: "0 0 20px", fontSize: 13 }}>Export or import data by category.</p>
 
         {/* ── My Collection ── */}
         <div style={dataBlock}>
