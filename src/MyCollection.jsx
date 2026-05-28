@@ -1094,17 +1094,12 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           <div style={{ fontSize: 48, marginBottom: 16 }}>📦</div>
           <div style={{ fontWeight: 900, fontSize: 20, color: "#e8e2d5", marginBottom: 8 }}>Your collection is empty</div>
           <div style={{ color: "#8a9bb0", fontSize: 14, marginBottom: 24, maxWidth: 400, margin: "0 auto 24px", lineHeight: 1.6 }}>
-            Add sets manually using the Collection tab, or sync your BrickEconomy collection in Settings to import everything at once.
+            Add sets manually, or restore your collection from a cloud backup.
           </div>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
             <button onClick={() => setTab("collection")} style={{ background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 10, padding: "12px 24px", fontWeight: 900, fontSize: 14, cursor: "pointer" }}>
               Add a Set →
             </button>
-            {onSwitchTab && (
-              <button onClick={() => onSwitchTab("settings")} style={{ background: "transparent", border: "1px solid rgba(201,168,76,0.3)", color: "#c9a84c", borderRadius: 10, padding: "12px 24px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-                Sync BrickEconomy
-              </button>
-            )}
           </div>
         </div>
       )}

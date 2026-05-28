@@ -5,7 +5,7 @@ import WantedList from "./WantedList";
 import MyCollection from "./MyCollection";
 import AppSettings from "./AppSettings";
 import { exportFullBackup, pushToCloud, fetchFromCloud, decryptCloudBackup, applyBackupToLocalStorage } from "./utils/exportBackup";
-import { syncBEValues, runDailyBEBatch } from "./utils/beSyncValues";
+import { runDailyBEBatch } from "./utils/beSyncValues";
 
 export default function App() {
   const [view, setView] = useState(() => localStorage.getItem("blLastTab") || "collection");
