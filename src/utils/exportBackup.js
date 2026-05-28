@@ -10,26 +10,103 @@
 const DEFAULT_ANNUAL_BUDGET = 10320;
 
 // ── Cloud backup helpers ──────────────────────────────────────────────────────
+// Encryption: AES-256-GCM with a PBKDF2-derived key.
+// The passphrase never leaves the browser — the server stores only ciphertext.
+// Salt and IV are random per-push and stored alongside the ciphertext (non-secret).
 
-function cloudHeaders(extra = {}) {
-  const secret = import.meta.env.VITE_BACKUP_SECRET || "";
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
+// Safely base64-encode an ArrayBuffer without hitting the spread-operator stack limit
+function toBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+function fromBase64(b64) {
+  return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+}
+
+async function deriveKey(passphrase, salt) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw", enc.encode(passphrase), "PBKDF2", false, ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: 100_000, hash: "SHA-256" },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+/** Encrypt a backup object. Returns { version, exportedAt, salt, iv, ciphertext } — all JSON-safe. */
+async function encryptPayload(backupObj, passphrase) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv   = crypto.getRandomValues(new Uint8Array(12));
+  const key  = await deriveKey(passphrase, salt);
+  const enc  = new TextEncoder();
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    enc.encode(JSON.stringify(backupObj))
+  );
   return {
-    "Content-Type": "application/json",
-    ...(secret ? { "x-backup-secret": secret } : {}),
-    ...extra,
+    version:    2,
+    exportedAt: backupObj.exportedAt, // kept unencrypted so the sync banner can show the timestamp
+    salt:       toBase64(salt),
+    iv:         toBase64(iv),
+    ciphertext: toBase64(ciphertext),
   };
 }
 
-/** Push current localStorage state to cloud. Returns { ok, savedAt } or null if not configured. */
-export async function pushToCloud() {
+/**
+ * Decrypt a payload returned by fetchFromCloud().
+ * Throws "Wrong passphrase or corrupted backup" if the passphrase is incorrect
+ * (AES-GCM's auth tag verification fails on a bad key — no oracle needed).
+ */
+export async function decryptCloudBackup(payload, passphrase) {
+  const salt       = fromBase64(payload.salt);
+  const iv         = fromBase64(payload.iv);
+  const ciphertext = fromBase64(payload.ciphertext);
+  const key        = await deriveKey(passphrase, salt);
+  const dec        = new TextDecoder();
+  try {
+    const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+    return JSON.parse(dec.decode(plaintext));
+  } catch {
+    throw new Error("Wrong passphrase or corrupted backup");
+  }
+}
+
+/**
+ * Push current localStorage state to cloud.
+ * Requires a passphrase — skips silently if none is provided or there is no data.
+ * Returns { ok, savedAt } on success, null if skipped/not-configured, throws on error.
+ */
+export async function pushToCloud(passphrase) {
+  if (!passphrase) return null; // passphrase not set this session — skip
+
+  // Don't push if this browser has nothing — would overwrite a real backup with empty data
+  const ownedSets  = localStorage.getItem("blOwnedSets");
+  const beNorm     = localStorage.getItem("brickEconomyNormalizedCollection");
+  const wantedList = localStorage.getItem("blWantedList");
+  const hasAnyData = (ownedSets && ownedSets !== "[]")
+                  || (beNorm && beNorm !== "[]")
+                  || (wantedList && wantedList !== "[]");
+  if (!hasAnyData) return { skipped: "no_data" };
+
   const backup = buildBackup(new Date());
-  // Exclude the set-lookup cache — it's large and fully regeneratable
-  delete backup.brickEconomySetCache;
+  delete backup.brickEconomySetCache; // large and fully regeneratable
+
+  const encrypted = await encryptPayload(backup, passphrase);
 
   const res = await fetch("/api/cloud-backup", {
     method: "POST",
-    headers: cloudHeaders(),
-    body: JSON.stringify(backup),
+    headers: JSON_HEADERS,
+    body: JSON.stringify(encrypted),
   });
   if (res.status === 503) return null; // not configured — silent
   if (!res.ok) throw new Error(`Cloud backup failed: HTTP ${res.status}`);
@@ -38,9 +115,12 @@ export async function pushToCloud() {
   return json;
 }
 
-/** Fetch the stored cloud backup. Returns the backup object, null if none, or throws on error. */
+/**
+ * Fetch the stored cloud payload (encrypted). Does NOT decrypt — call decryptCloudBackup() next.
+ * Returns the raw payload object, null if nothing stored or not configured, throws on error.
+ */
 export async function fetchFromCloud() {
-  const res = await fetch("/api/cloud-backup", { headers: cloudHeaders() });
+  const res = await fetch("/api/cloud-backup", { headers: JSON_HEADERS });
   if (res.status === 404 || res.status === 503) return null;
   if (!res.ok) throw new Error(`Cloud fetch failed: HTTP ${res.status}`);
   return await res.json();

@@ -1,8 +1,12 @@
 /**
  * /api/cloud-backup
  *
- * GET  → fetch the stored backup (returns 404 if none exists)
- * POST → store a new backup (overwrites previous)
+ * GET  → fetch the stored encrypted payload (returns 404 if none exists)
+ * POST → store a new encrypted payload (overwrites previous)
+ *
+ * The server stores only AES-GCM ciphertext — it never sees plaintext data.
+ * Auth is the passphrase itself: wrong passphrase = garbage on decryption.
+ * No BACKUP_SECRET or client-side secret needed.
  *
  * Supports two Redis backends (whichever env vars are present):
  *
@@ -82,11 +86,6 @@ const { setCors, internalError } = require("./_cors");
 module.exports = async function handler(req, res) {
   if (setCors(req, res, "GET, POST, OPTIONS")) return res.status(200).end();
 
-  const secret = process.env.BACKUP_SECRET || "";
-  if (secret && req.headers["x-backup-secret"] !== secret) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
   const kv = getKv();
   if (!kv) {
     return res.status(503).json({
@@ -97,7 +96,7 @@ module.exports = async function handler(req, res) {
 
   const { client } = kv;
 
-  // ── GET: fetch backup ─────────────────────────────────────────────────────
+  // ── GET: fetch backup (open — LEGO data isn't sensitive enough to gate reads) ──
   if (req.method === "GET") {
     try {
       const backup = await client.get(BACKUP_KEY);
@@ -110,11 +109,14 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  // ── POST: save backup ─────────────────────────────────────────────────────
+  // ── POST: save backup ────────────────────────────────────────────────────
+  // Auth is handled by encryption: without the passphrase the ciphertext is
+  // worthless, so there is no shared secret to embed in the client bundle.
   if (req.method === "POST") {
     try {
       const backup = req.body;
-      if (!backup || backup.app !== "BrickLedger") {
+      // Expect the encrypted envelope shape { version, exportedAt, salt, iv, ciphertext }
+if (!backup || !backup.ciphertext || !backup.salt || !backup.iv) {
         client.close();
         return res.status(400).json({ error: "invalid_payload" });
       }

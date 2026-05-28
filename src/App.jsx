@@ -4,7 +4,7 @@ import BudgetDashboard from "./BudgetDashboard";
 import WantedList from "./WantedList";
 import MyCollection from "./MyCollection";
 import AppSettings from "./AppSettings";
-import { exportFullBackup, pushToCloud, fetchFromCloud, applyBackupToLocalStorage } from "./utils/exportBackup";
+import { exportFullBackup, pushToCloud, fetchFromCloud, decryptCloudBackup, applyBackupToLocalStorage } from "./utils/exportBackup";
 import { syncBEValues, runDailyBEBatch } from "./utils/beSyncValues";
 
 export default function App() {
@@ -12,6 +12,10 @@ export default function App() {
   const [pendingPurchase, setPendingPurchase] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [cloudRestoreData, setCloudRestoreData] = useState(null); // non-null = show restore banner
+  const [cloudPassphrase, setCloudPassphrase] = useState(""); // session-only, never persisted
+  const [bannerPassphrase, setBannerPassphrase] = useState("");
+  const [bannerError, setBannerError] = useState("");
+  const [bannerBusy, setBannerBusy] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(window.scrollY > 220);
@@ -41,16 +45,21 @@ export default function App() {
     }
   }, []);
 
-  // Cloud restore banner: on first load, if localStorage looks fresh (no sets),
-  // check for a cloud backup and offer to restore it.
+  // Cloud sync banner: fetch the encrypted payload and compare timestamps.
+  // If the cloud copy is meaningfully newer than this browser's last push,
+  // show the banner prompting for the passphrase to decrypt and restore.
   useEffect(() => {
-    const localSets = localStorage.getItem("blOwnedSets");
-    const beNormalized = localStorage.getItem("brickEconomyNormalizedCollection");
-    const hasLocalData = (localSets && localSets !== "[]") || (beNormalized && beNormalized !== "[]");
-    if (hasLocalData) return; // existing data — no need to prompt
-    fetchFromCloud().then(data => {
-      if (data && data.app === "BrickLedger") setCloudRestoreData(data);
-    }).catch(() => {}); // silent — cloud may not be configured
+    fetchFromCloud().then(payload => {
+      if (!payload || !payload.ciphertext) return; // nothing stored, or old unencrypted format
+      const cloudTime     = payload.exportedAt ? new Date(payload.exportedAt).getTime() : 0;
+      const localPushRaw  = localStorage.getItem("blLastCloudPush");
+      const localPushTime = localPushRaw ? new Date(localPushRaw).getTime() : 0;
+      if (cloudTime > localPushTime + 60_000) {
+        setCloudRestoreData(payload); // payload = encrypted envelope, decrypted on Sync Now
+      }
+    }).catch(err => {
+      console.warn("[BrickLedger] Cloud sync check failed:", err.message);
+    });
   }, []);
 
   // Rolling daily batch: silently syncs 50 oldest-cached sets per day.
@@ -64,10 +73,11 @@ export default function App() {
   }, []);
 
   // Cloud auto-push: push on mount (after 10s grace) and every 5 minutes.
-  // Also push whenever the tab becomes visible again (user returns to the app).
+  // Requires cloudPassphrase — re-registers when the passphrase is set/changed.
+  // Also pushes when the tab becomes visible again (user returns to the app).
   useEffect(() => {
-    const doPush = () => pushToCloud().catch(() => {}); // always silent
-    const timer = setTimeout(doPush, 10_000); // 10s after mount
+    const doPush = () => pushToCloud(cloudPassphrase).catch(() => {}); // always silent
+    const timer = setTimeout(doPush, 10_000); // 10s after passphrase is set
     const interval = setInterval(doPush, 5 * 60_000); // every 5 min
     const onVisible = () => { if (document.visibilityState === "visible") doPush(); };
     document.addEventListener("visibilitychange", onVisible);
@@ -76,7 +86,7 @@ export default function App() {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [cloudPassphrase]);
 
   return (
     <>
@@ -176,12 +186,12 @@ export default function App() {
                 onNavigateToSettings={() => switchTab("settings")}
               />
             )}
-{view === "settings" && <AppSettings />}
+{view === "settings" && <AppSettings cloudPassphrase={cloudPassphrase} onPassphraseChange={setCloudPassphrase} />}
           </div>
         </div>
       </div>
 
-      {/* Cloud restore banner — shown when localStorage is fresh and cloud backup exists */}
+      {/* Cloud sync banner — encrypted backup is newer than this browser's last push */}
       {cloudRestoreData && (
         <div style={{
           position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 300,
@@ -189,31 +199,64 @@ export default function App() {
           borderTop: "1px solid rgba(201,168,76,0.4)",
           boxShadow: "0 -4px 32px rgba(0,0,0,0.6)",
           padding: "14px 20px",
-          display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
           fontFamily: "'Inter', sans-serif",
         }}>
-          <span style={{ fontSize: 20 }}>☁️</span>
-          <span style={{ flex: 1, color: "#e8e2d5", fontSize: 13 }}>
-            A cloud backup from{" "}
-            <strong>{cloudRestoreData.exportedAt ? new Date(cloudRestoreData.exportedAt).toLocaleString() : "a previous session"}</strong>{" "}
-            was found. Restore it to recover your collection?
+          <span style={{ fontSize: 20 }}>🔒</span>
+          <span style={{ color: "#e8e2d5", fontSize: 13 }}>
+            Encrypted cloud backup from{" "}
+            <strong>{cloudRestoreData.exportedAt ? new Date(cloudRestoreData.exportedAt).toLocaleString() : "a previous session"}</strong>
           </span>
-          <button
-            onClick={() => {
-              applyBackupToLocalStorage(cloudRestoreData);
-              setCloudRestoreData(null);
-              toast.success("Cloud backup restored — reloading…", { duration: 3000 });
-              setTimeout(() => window.location.reload(), 1500);
+          <input
+            type="password"
+            placeholder="Enter passphrase"
+            value={bannerPassphrase}
+            onChange={e => { setBannerPassphrase(e.target.value); setBannerError(""); }}
+            onKeyDown={e => { if (e.key === "Enter" && bannerPassphrase) e.currentTarget.nextSibling?.click(); }}
+            style={{
+              background: "#0b1520", border: `1px solid ${bannerError ? "#ef4444" : "rgba(255,255,255,0.12)"}`,
+              borderRadius: 8, padding: "7px 12px", color: "#e8e2d5", fontSize: 13,
+              outline: "none", width: 180,
             }}
-            style={{ background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 8, padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
-          >
-            Restore
-          </button>
+          />
           <button
-            onClick={() => setCloudRestoreData(null)}
+            disabled={!bannerPassphrase || bannerBusy}
+            onClick={async () => {
+              setBannerBusy(true);
+              setBannerError("");
+              try {
+                const backup = await decryptCloudBackup(cloudRestoreData, bannerPassphrase);
+                applyBackupToLocalStorage(backup);
+                if (cloudRestoreData.exportedAt) {
+                  localStorage.setItem("blLastCloudPush", cloudRestoreData.exportedAt);
+                }
+                // Promote the passphrase for this session so auto-push starts working
+                setCloudPassphrase(bannerPassphrase);
+                setCloudRestoreData(null);
+                toast.success("Cloud backup restored — reloading…", { duration: 3000 });
+                setTimeout(() => window.location.reload(), 1500);
+              } catch {
+                setBannerError("Wrong passphrase");
+              } finally {
+                setBannerBusy(false);
+              }
+            }}
+            style={{
+              background: bannerPassphrase && !bannerBusy ? "#c9a84c" : "#1a2840",
+              color: bannerPassphrase && !bannerBusy ? "#0d1623" : "#5d6f80",
+              border: "none", borderRadius: 8, padding: "8px 18px",
+              fontWeight: 700, fontSize: 13, cursor: bannerPassphrase ? "pointer" : "default",
+              transition: "all 0.15s",
+            }}
+          >
+            {bannerBusy ? "Decrypting…" : "Sync Now"}
+          </button>
+          {bannerError && <span style={{ color: "#ef4444", fontSize: 12 }}>{bannerError}</span>}
+          <button
+            onClick={() => { setCloudRestoreData(null); setBannerPassphrase(""); setBannerError(""); }}
             style={{ background: "transparent", color: "#5d6f80", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "8px 14px", fontSize: 13, cursor: "pointer" }}
           >
-            Dismiss
+            Not Now
           </button>
         </div>
       )}
