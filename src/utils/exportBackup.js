@@ -140,6 +140,62 @@ export async function fetchFromCloud() {
   return await res.json();
 }
 
+// ── Auth-based sync (Phase 3) ─────────────────────────────────────────────────
+// Used when the user is signed in via Clerk.  No passphrase — the Clerk JWT is
+// the security layer.  Data stored as plaintext JSON at /api/sync, keyed by userId.
+
+/**
+ * Push current data to /api/sync using a Clerk Bearer token.
+ * getToken — async fn from useAuth() that returns the current session JWT.
+ */
+export async function pushToCloudAuth(getToken) {
+  const ownedSets  = localStorage.getItem("blOwnedSets");
+  const beNorm     = localStorage.getItem("brickEconomyNormalizedCollection");
+  const wantedList = localStorage.getItem("blWantedList");
+  const hasAnyData = (ownedSets && ownedSets !== "[]")
+                  || (beNorm    && beNorm    !== "[]")
+                  || (wantedList && wantedList !== "[]");
+  if (!hasAnyData) return { skipped: "no_data" };
+
+  const backup = buildBackup(new Date());
+  delete backup.brickEconomySetCache; // large and fully regeneratable
+
+  // Skip if nothing changed since last push
+  const { exportedAt: _ts, ...backupWithoutTs } = backup;
+  const contentHash = quickHash(JSON.stringify(backupWithoutTs));
+  if (contentHash === localStorage.getItem("blLastPushHash")) return { skipped: "no_change" };
+
+  const token = await getToken();
+  if (!token) return null;
+
+  const res = await fetch("/api/sync", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(backup),
+  });
+  if (res.status === 503) return null;
+  if (!res.ok) throw new Error(`Sync failed: HTTP ${res.status}`);
+  const json = await res.json();
+  localStorage.setItem("blLastCloudPush", json.savedAt || new Date().toISOString());
+  localStorage.setItem("blLastPushHash", contentHash);
+  return json;
+}
+
+/**
+ * Fetch this user's backup from /api/sync.
+ * Returns the raw backup object (plaintext), or null if nothing stored.
+ */
+export async function fetchFromCloudAuth(getToken) {
+  const token = await getToken();
+  if (!token) return null;
+  const res = await fetch("/api/sync", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 404 || res.status === 503 || res.status === 401) return null;
+  if (!res.ok) throw new Error(`Sync fetch failed: HTTP ${res.status}`);
+  return await res.json();
+}
+
 const BACKUP_VERSION = 2; // increment here whenever the backup schema changes
 
 /** Apply a backup object to localStorage (same logic as the Settings restore). */

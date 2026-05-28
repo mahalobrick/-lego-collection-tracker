@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
-import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/react";
+import { Show, SignInButton, SignUpButton, UserButton, useAuth } from "@clerk/react";
 import BudgetDashboard from "./BudgetDashboard";
 import WantedList from "./WantedList";
 import MyCollection from "./MyCollection";
 import AppSettings from "./AppSettings";
-import { exportFullBackup, pushToCloud, fetchFromCloud, decryptCloudBackup, applyBackupToLocalStorage } from "./utils/exportBackup";
+import { exportFullBackup, pushToCloud, fetchFromCloud, decryptCloudBackup, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth } from "./utils/exportBackup";
 import { runDailyBEBatch } from "./utils/beSyncValues";
 
 export default function App() {
@@ -22,6 +22,7 @@ export default function App() {
   const [bannerError, setBannerError] = useState("");
   const [bannerBusy, setBannerBusy] = useState(false);
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | pending | syncing | saved
+  const { getToken, userId, isLoaded } = useAuth();
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(window.scrollY > 220);
@@ -51,22 +52,40 @@ export default function App() {
     }
   }, []);
 
-  // Cloud sync banner: fetch the encrypted payload and compare timestamps.
-  // If the cloud copy is meaningfully newer than this browser's last push,
-  // show the banner prompting for the passphrase to decrypt and restore.
+  // Cloud sync check on load — two paths depending on auth state.
+  // Auth user: fetch from /api/sync, auto-apply if cloud is newer (no passphrase needed).
+  // Passphrase user: existing encrypted-banner flow.
   useEffect(() => {
-    fetchFromCloud().then(payload => {
-      if (!payload || !payload.ciphertext) return; // nothing stored, or old unencrypted format
-      const cloudTime     = payload.exportedAt ? new Date(payload.exportedAt).getTime() : 0;
-      const localPushRaw  = localStorage.getItem("blLastCloudPush");
-      const localPushTime = localPushRaw ? new Date(localPushRaw).getTime() : 0;
-      if (cloudTime > localPushTime + 60_000) {
-        setCloudRestoreData(payload); // payload = encrypted envelope, decrypted on Sync Now
-      }
-    }).catch(err => {
-      console.warn("[BrickLedger] Cloud sync check failed:", err.message);
-    });
-  }, []);
+    if (!isLoaded) return;
+
+    if (userId) {
+      // Signed-in path: plaintext JSON, auto-apply
+      fetchFromCloudAuth(getToken).then(data => {
+        if (!data) return;
+        const cloudTime    = data.exportedAt ? new Date(data.exportedAt).getTime() : 0;
+        const localPushRaw = localStorage.getItem("blLastCloudPush");
+        const localTime    = localPushRaw ? new Date(localPushRaw).getTime() : 0;
+        if (cloudTime > localTime + 60_000) {
+          applyBackupToLocalStorage(data);
+          localStorage.setItem("blLastCloudPush", data.exportedAt);
+          toast.success("Synced from cloud ✓", { duration: 3000 });
+          setTimeout(() => window.location.reload(), 1500);
+        }
+      }).catch(err => console.warn("[BrickLedger] Auth sync check failed:", err.message));
+    } else {
+      // Passphrase path: encrypted envelope, show banner to decrypt
+      fetchFromCloud().then(payload => {
+        if (!payload || !payload.ciphertext) return;
+        const cloudTime     = payload.exportedAt ? new Date(payload.exportedAt).getTime() : 0;
+        const localPushRaw  = localStorage.getItem("blLastCloudPush");
+        const localPushTime = localPushRaw ? new Date(localPushRaw).getTime() : 0;
+        if (cloudTime > localPushTime + 60_000) {
+          setCloudRestoreData(payload);
+        }
+      }).catch(err => console.warn("[BrickLedger] Cloud sync check failed:", err.message));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, userId]);
 
   // Rolling daily batch: silently syncs 50 oldest-cached sets per day.
   // Cycle length auto-scales with collection size (600 sets = 12-day cycle).
@@ -78,27 +97,35 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Cloud auto-push: push on mount (after 10s grace) and every 5 minutes.
-  // Requires cloudPassphrase — re-registers when the passphrase is set/changed.
-  // Also pushes when the tab becomes visible again (user returns to the app).
-  useEffect(() => {
-    const doPush = () => pushToCloud(cloudPassphrase).catch(() => {}); // always silent
-    const timer = setTimeout(doPush, 10_000); // 10s after passphrase is set
-    const interval = setInterval(doPush, 5 * 60_000); // every 5 min
-    const onVisible = () => { if (document.visibilityState === "visible") doPush(); };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [cloudPassphrase]);
-
-  // Change-triggered auto-push: listen for any data write (emitted by the patched
-  // localStorage.setItem in main.jsx), debounce 15s, then push silently.
-  // Shows a small sync indicator in the nav while pending/syncing.
+  // Interval auto-push (passphrase path) — unchanged, kept for backward compat.
   useEffect(() => {
     if (!cloudPassphrase) return;
+    const doPush = () => pushToCloud(cloudPassphrase).catch(() => {});
+    const timer = setTimeout(doPush, 10_000);
+    const interval = setInterval(doPush, 5 * 60_000);
+    const onVisible = () => { if (document.visibilityState === "visible") doPush(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearTimeout(timer); clearInterval(interval); document.removeEventListener("visibilitychange", onVisible); };
+  }, [cloudPassphrase]);
+
+  // Interval auto-push (auth path) — runs when signed in, no passphrase needed.
+  useEffect(() => {
+    if (!isLoaded || !userId) return;
+    const doPush = () => pushToCloudAuth(getToken).catch(() => {});
+    const timer = setTimeout(doPush, 10_000);
+    const interval = setInterval(doPush, 5 * 60_000);
+    const onVisible = () => { if (document.visibilityState === "visible") doPush(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearTimeout(timer); clearInterval(interval); document.removeEventListener("visibilitychange", onVisible); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, userId]);
+
+  // Change-triggered auto-push: debounce 15s after any data write.
+  // Auth path takes priority; falls back to passphrase if not signed in.
+  // Shows a small nav indicator while pending/syncing.
+  useEffect(() => {
+    const hasAuth = isLoaded && !!userId;
+    if (!hasAuth && !cloudPassphrase) return;
     let timer = null;
     const onChange = () => {
       setSyncStatus("pending");
@@ -106,17 +133,19 @@ export default function App() {
       timer = setTimeout(async () => {
         setSyncStatus("syncing");
         try {
-          await pushToCloud(cloudPassphrase);
+          if (hasAuth) await pushToCloudAuth(getToken);
+          else          await pushToCloud(cloudPassphrase);
           setSyncStatus("saved");
           setTimeout(() => setSyncStatus("idle"), 3000);
         } catch {
-          setSyncStatus("idle"); // silent — interval will retry
+          setSyncStatus("idle");
         }
       }, 15_000);
     };
     window.addEventListener("brickledger:datachange", onChange);
     return () => { window.removeEventListener("brickledger:datachange", onChange); clearTimeout(timer); };
-  }, [cloudPassphrase]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, userId, cloudPassphrase]);
 
   return (
     <>
