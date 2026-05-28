@@ -20,6 +20,7 @@ export default function App() {
   const [bannerPassphrase, setBannerPassphrase] = useState("");
   const [bannerError, setBannerError] = useState("");
   const [bannerBusy, setBannerBusy] = useState(false);
+  const [syncStatus, setSyncStatus] = useState("idle"); // idle | pending | syncing | saved
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(window.scrollY > 220);
@@ -90,6 +91,30 @@ export default function App() {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
     };
+  }, [cloudPassphrase]);
+
+  // Change-triggered auto-push: listen for any data write (emitted by the patched
+  // localStorage.setItem in main.jsx), debounce 15s, then push silently.
+  // Shows a small sync indicator in the nav while pending/syncing.
+  useEffect(() => {
+    if (!cloudPassphrase) return;
+    let timer = null;
+    const onChange = () => {
+      setSyncStatus("pending");
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        setSyncStatus("syncing");
+        try {
+          await pushToCloud(cloudPassphrase);
+          setSyncStatus("saved");
+          setTimeout(() => setSyncStatus("idle"), 3000);
+        } catch {
+          setSyncStatus("idle"); // silent — interval will retry
+        }
+      }, 15_000);
+    };
+    window.addEventListener("brickledger:datachange", onChange);
+    return () => { window.removeEventListener("brickledger:datachange", onChange); clearTimeout(timer); };
   }, [cloudPassphrase]);
 
   return (
@@ -164,6 +189,20 @@ export default function App() {
                 </button>
               ))}
             </div>
+            {/* Cloud sync status — only visible when passphrase is active and something is happening */}
+            {cloudPassphrase && syncStatus !== "idle" && (
+              <div style={{
+                position: "absolute", right: 20, top: "50%", transform: "translateY(-50%)",
+                display: "flex", alignItems: "center", gap: 5,
+                fontSize: 11, fontWeight: 600, pointerEvents: "none",
+                color: syncStatus === "saved" ? "#22c55e" : "#c9a84c",
+              }}>
+                {syncStatus === "pending" && <span style={{ fontSize: 7, animation: "pulse-dot 1.5s ease-in-out infinite" }}>●</span>}
+                {syncStatus === "syncing" && <span style={{ display: "inline-block", animation: "spin 0.8s linear infinite" }}>↻</span>}
+                {syncStatus === "saved"   && <span>✓</span>}
+                <span>{syncStatus === "pending" ? "Unsaved" : syncStatus === "syncing" ? "Syncing…" : "Saved"}</span>
+              </div>
+            )}
           </div>
 
           <Toaster
