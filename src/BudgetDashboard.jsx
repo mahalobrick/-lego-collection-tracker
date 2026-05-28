@@ -2376,8 +2376,8 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
       {hoveredPurchase && (
         <div style={{ position: "fixed", left: tipPos.x > window.innerWidth - 280 ? tipPos.x - 256 : tipPos.x + 16, top: tipPos.y > window.innerHeight - 230 ? tipPos.y - 215 : tipPos.y - 8, zIndex: 9999, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "10px 14px", pointerEvents: "none", boxShadow: "0 8px 32px rgba(0,0,0,0.55)", minWidth: 240 }}>
           <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-            {(hoveredPurchase.setNumber || hoveredPurchase.item) && (
-              <img src={setImageUrl(hoveredPurchase.setNumber || hoveredPurchase.item)} alt="" onError={e => { e.currentTarget.style.display = "none"; }}
+            {hoveredPurchase.setNumber && (
+              <img key={hoveredPurchase.id || hoveredPurchase.setNumber} src={setImageUrl(hoveredPurchase.setNumber)} alt="" onError={e => { e.currentTarget.style.display = "none"; }}
                 style={{ width: 72, height: 72, objectFit: "contain", borderRadius: 8, background: "#111d2e", border: "1px solid rgba(255,255,255,0.07)", flexShrink: 0 }} />
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
