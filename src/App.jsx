@@ -224,8 +224,8 @@ export default function App() {
               position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)",
               display: "flex", alignItems: "center", gap: 8,
             }}>
-              {/* Cloud sync status */}
-              {cloudPassphrase && syncStatus !== "idle" && (
+              {/* Cloud sync status — show for auth users OR passphrase users */}
+              {(userId || cloudPassphrase) && syncStatus !== "idle" && (
                 <div style={{
                   display: "flex", alignItems: "center", gap: 5,
                   fontSize: 11, fontWeight: 600, pointerEvents: "none",
