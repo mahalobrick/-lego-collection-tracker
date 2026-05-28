@@ -29,6 +29,7 @@ export const DEFAULT_OWNED_COLUMNS = [
  */
 export const DEFAULT_WANTED_COLUMNS = [
   // ── Core ─────────────────────────────────────────────────────
+  { key: "thumb",                label: "Image",         visible: false, group: "core" },
   { key: "setNumber",            label: "Set #",         visible: true,  group: "core" },
   { key: "name",                 label: "Set Name",      visible: true,  group: "core" },
   { key: "recommendation",       label: "Action",        visible: true,  group: "core" },
@@ -47,7 +48,9 @@ export const DEFAULT_WANTED_COLUMNS = [
   { key: "forecast2yr",          label: "2yr Forecast",  visible: false, group: "pricing" },
   { key: "forecast5yr",          label: "5yr Forecast",  visible: false, group: "pricing" },
   { key: "blPriceNew",           label: "BL Avg (New)",  visible: false, group: "pricing" },
-  { key: "blPriceUsed",          label: "BL Avg (Used)", visible: false, group: "pricing" },
+  { key: "blPriceUsed",         label: "BL Avg (Used)", visible: false, group: "pricing" },
+  { key: "blPriceNewRange",      label: "BL New Range",  visible: false, group: "pricing" },
+  { key: "blPriceUsedRange",     label: "BL Used Range", visible: false, group: "pricing" },
   // ── Details ──────────────────────────────────────────────────
   { key: "owned",                label: "Owned",         visible: false, group: "details" },
   { key: "ageMonths",            label: "Set Age",       visible: false, group: "details" },
@@ -59,5 +62,7 @@ export const DEFAULT_WANTED_COLUMNS = [
   { key: "packagingType",        label: "Packaging",     visible: false, group: "details" },
   { key: "ageMin",               label: "Min Age",       visible: false, group: "details" },
   { key: "weight",               label: "Weight (kg)",   visible: false, group: "details" },
+  { key: "ownedByCount",         label: "Owned By",      visible: false, group: "details" },
+  { key: "wantedByCount",        label: "Wanted By",     visible: false, group: "details" },
   { key: "notes",                label: "Notes",         visible: true,  group: "details" },
 ];

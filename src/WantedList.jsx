@@ -5,10 +5,10 @@ import toast from "react-hot-toast";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import { DEFAULT_WANTED_COLUMNS } from "./utils/columnDefaults";
 import { fireOpenNotifications } from "./utils/notifications";
-import { recordPriceSnapshot, getPriceTrend } from "./utils/priceHistory";
+import { recordPriceSnapshot, getPriceTrend, getPriceHistory } from "./utils/priceHistory";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { searchInput, filterSelect, clearFilterButton } from "./uiStyles";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, LineChart, Line } from "recharts";
 import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, retirementWaveLabel, lineCashPaid } from "./utils/formatting";
 
 import { fetchBricksetSet, searchBricksetCatalog, fetchLegoThemes } from "./utils/brickset";
@@ -28,11 +28,17 @@ const DEFAULT_WL_ITEMS = [
   { key: "buyTotal",           type: "card",  label: "Tracking Cost",          visible: true,  width: "auto",  collapsed: false },
   { key: "budgetAfterBuy",     type: "card",  label: "Budget After Buy",       visible: false, width: "auto",  collapsed: false },
   { key: "targetSavings",      type: "card",  label: "Potential Savings",      visible: false, width: "auto",  collapsed: false },
+  { key: "lastChanceCount",   type: "card",  label: "Last Chance",            visible: false, width: "auto",  collapsed: false },
+  { key: "avgRoi",            type: "card",  label: "Avg Potential ROI",      visible: false, width: "auto",  collapsed: false },
+  { key: "dealLogCount",      type: "card",  label: "Deals Tracked",          visible: false, width: "auto",  collapsed: false },
+  { key: "dataCoverage",      type: "card",  label: "Data Coverage",          visible: false, width: "auto",  collapsed: false },
   { key: "retirement-timeline", type: "panel", label: "Retirement Timeline",   visible: true,  width: "full",  collapsed: false },
   { key: "urgency-chart",      type: "panel", label: "Urgency Breakdown",      visible: false, width: "half",  collapsed: false },
   { key: "msrp-vs-target",     type: "panel", label: "MSRP vs Target",         visible: false, width: "half",  collapsed: false },
   { key: "theme-breakdown",    type: "panel", label: "By Theme",               visible: false, width: "half",  collapsed: false },
   { key: "action-breakdown",   type: "panel", label: "Action Breakdown",       visible: false, width: "half",  collapsed: false },
+  { key: "score-distribution", type: "panel", label: "Score Distribution",     visible: false, width: "half",  collapsed: false },
+  { key: "price-trend",        type: "panel", label: "Avg BL Price Trend",     visible: false, width: "full",  collapsed: false },
 ];
 
 export default function WantedList({ onBuyNow }) {
@@ -398,6 +404,8 @@ export default function WantedList({ onBuyNow }) {
           if (bsData.age_min   && !w.ageMin)    updates.ageMin    = bsData.age_min;
           if (bsData.rating    && !w.rating)    updates.rating    = bsData.rating;
           if (bsData.packaging_type && !w.packagingType) updates.packagingType = bsData.packaging_type;
+          if (bsData.owned_by  != null) updates.ownedByCount  = bsData.owned_by;
+          if (bsData.wanted_by != null) updates.wantedByCount = bsData.wanted_by;
 
           return Object.keys(updates).length ? { ...w, ...updates } : w;
         }));
@@ -896,6 +904,23 @@ export default function WantedList({ onBuyNow }) {
       return y > 0 ? `${y}yr ${m}mo` : `${m}mo`;
     }
 
+    if (key === "thumb") {
+      const url = setImageUrl(item.setNumber);
+      return url
+        ? <img src={url} alt={item.setNumber} style={{ height: 36, width: "auto", borderRadius: 4, display: "block" }} onError={e => { e.target.style.display = "none"; }} />
+        : "—";
+    }
+    if (key === "ownedByCount")  return item.ownedByCount  != null ? Number(item.ownedByCount).toLocaleString()  : "—";
+    if (key === "wantedByCount") return item.wantedByCount != null ? Number(item.wantedByCount).toLocaleString() : "—";
+    if (key === "blPriceNewRange") {
+      const mn = asNumber(item.blPriceNewMin), mx = asNumber(item.blPriceNewMax);
+      return (mn && mx) ? `${money(mn)} – ${money(mx)}` : (item.blPriceNew ? money(item.blPriceNew) : "—");
+    }
+    if (key === "blPriceUsedRange") {
+      const mn = asNumber(item.blPriceUsedMin), mx = asNumber(item.blPriceUsedMax);
+      return (mn && mx) ? `${money(mn)} – ${money(mx)}` : (item.blPriceUsed ? money(item.blPriceUsed) : "—");
+    }
+
     // Custom fields
     const cf = customFieldsSchema.find(f => f.key === key || f.id === key);
     if (cf) {
@@ -1102,6 +1127,58 @@ export default function WantedList({ onBuyNow }) {
     if (!items.length) return null;
     return items.reduce((s, w) => s + ((asNumber(w.msrp) - asNumber(w.targetPrice)) / asNumber(w.msrp) * 100), 0) / items.length;
   })();
+  // Last Chance count — sets flagged by LEGO's own "Last Chance to Buy" page
+  const wlLastChanceCount = wanted.filter(w => w.isLastChance).length;
+  // Average potential ROI — (currentValue − targetOrMsrp) / targetOrMsrp for items with market data
+  const wlAvgRoi = (() => {
+    const items = wanted.filter(w => {
+      const basis = asNumber(w.targetPrice) > 0 ? asNumber(w.targetPrice) : asNumber(w.msrp);
+      return asNumber(w.currentValue) > 0 && basis > 0;
+    });
+    if (!items.length) return null;
+    return items.reduce((s, w) => {
+      const basis = asNumber(w.targetPrice) > 0 ? asNumber(w.targetPrice) : asNumber(w.msrp);
+      return s + ((asNumber(w.currentValue) - basis) / basis) * 100;
+    }, 0) / items.length;
+  })();
+  // Deals tracked — sets where a specific sale/target price below MSRP has been set
+  const wlDealLogCount = wanted.filter(w => asNumber(w.storePrice) > 0 || (asNumber(w.targetPrice) > 0 && asNumber(w.msrp) > 0 && asNumber(w.targetPrice) < asNumber(w.msrp))).length;
+  // Data coverage — sets with at least one market price (currentValue or BL price)
+  const wlCoveredCount = wanted.filter(w => asNumber(w.currentValue) > 0 || asNumber(w.blPriceNew) > 0).length;
+  const wlCoveragePct  = wanted.length ? Math.round((wlCoveredCount / wanted.length) * 100) : 0;
+  // Score distribution across 5 buckets (0-100 scale, 20pt bands)
+  const wlScoreBuckets = (() => {
+    const buckets = [
+      { label: "0–19",   color: "#5aa832", count: 0 },
+      { label: "20–39",  color: "#3b82f6", count: 0 },
+      { label: "40–59",  color: "#c9a84c", count: 0 },
+      { label: "60–79",  color: "#f59e0b", count: 0 },
+      { label: "80–100", color: "#ef4444", count: 0 },
+    ];
+    wanted.forEach(w => {
+      const s = priorityScore(w);
+      const idx = Math.min(Math.floor(s / 20), 4);
+      buckets[idx].count++;
+    });
+    return buckets;
+  })();
+  // Aggregate BL price trend — daily avg across all sets (only dates with ≥3 entries)
+  const wlPriceTrendData = (() => {
+    const byDate = {};
+    wanted.forEach(w => {
+      if (!w.setNumber) return;
+      getPriceHistory(w.setNumber).forEach(snap => {
+        const v = asNumber(snap.blPriceNew);
+        if (!v) return;
+        if (!byDate[snap.date]) byDate[snap.date] = [];
+        byDate[snap.date].push(v);
+      });
+    });
+    return Object.entries(byDate)
+      .filter(([, vals]) => vals.length >= 3)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, vals]) => ({ date, avgBlNew: Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 100) / 100 }));
+  })();
 
   // ── Bulk price refresh ────────────────────────────────────────────────────
   // Re-fetches BrickEconomy data for every tracked set (rate-limited 1/500ms).
@@ -1207,6 +1284,8 @@ export default function WantedList({ onBuyNow }) {
             rating:        bsData.rating        || prev.rating        || "",
             packagingType: bsData.packaging_type || prev.packagingType || "",
             ageMin:        bsData.age_min       || prev.ageMin        || "",
+            ownedByCount:  bsData.owned_by  != null ? bsData.owned_by  : (prev.ownedByCount  ?? ""),
+            wantedByCount: bsData.wanted_by != null ? bsData.wanted_by : (prev.wantedByCount ?? ""),
           };
           if (bsData.retail_price_us) {
             updates.msrp = bsData.retail_price_us;
@@ -1274,8 +1353,12 @@ export default function WantedList({ onBuyNow }) {
           if (!blData) return;
           setForm(prev => ({
             ...prev,
-            blPriceNew:  blData.avg_price_new  || prev.blPriceNew,
-            blPriceUsed: blData.avg_price_used || prev.blPriceUsed,
+            blPriceNew:     blData.avg_price_new  || prev.blPriceNew,
+            blPriceUsed:    blData.avg_price_used || prev.blPriceUsed,
+            blPriceNewMin:  blData.min_price_new  || prev.blPriceNewMin,
+            blPriceNewMax:  blData.max_price_new  || prev.blPriceNewMax,
+            blPriceUsedMin: blData.min_price_used || prev.blPriceUsedMin,
+            blPriceUsedMax: blData.max_price_used || prev.blPriceUsedMax,
           }));
           if (blData.avg_price_new || blData.avg_price_used) {
             setLookupMessage(m => m + " · BL prices loaded.");
@@ -1503,7 +1586,11 @@ export default function WantedList({ onBuyNow }) {
                      item.key === "avgDiscount"     ? <Metric title="Avg Discount"         value={wlAvgDiscount !== null ? `${wlAvgDiscount.toFixed(1)}%` : "—"} sub="at target vs MSRP" good={wlAvgDiscount !== null && wlAvgDiscount > 0} /> :
                      item.key === "buyTotal"        ? <Metric title="Tracking Cost"        value={money(wlBuyTotal)} /> :
                      item.key === "budgetAfterBuy"  ? <Metric title="Budget After Buy"     value={wlBudgetAfterBuy !== null ? money(wlBudgetAfterBuy) : "No budget set"} good={wlBudgetAfterBuy !== null ? wlBudgetAfterBuy >= 0 : undefined} /> :
-                     item.key === "targetSavings"   ? <Metric title="Potential Savings"    value={money(wlTargetSavings)} sub="MSRP vs target price" good={wlTargetSavings > 0} /> : null}
+                     item.key === "targetSavings"   ? <Metric title="Potential Savings"    value={money(wlTargetSavings)} sub="MSRP vs target price" good={wlTargetSavings > 0} /> :
+                     item.key === "lastChanceCount" ? <Metric title="Last Chance"          value={wlLastChanceCount} sub="on LEGO.com Last Chance" good={wlLastChanceCount > 0} /> :
+                     item.key === "avgRoi"          ? <Metric title="Avg Potential ROI"    value={wlAvgRoi !== null ? `${wlAvgRoi.toFixed(1)}%` : "—"} sub="at target vs current value" good={wlAvgRoi !== null && wlAvgRoi > 0} /> :
+                     item.key === "dealLogCount"    ? <Metric title="Deals Tracked"        value={wlDealLogCount} sub="sets with target below MSRP" good={wlDealLogCount > 0} /> :
+                     item.key === "dataCoverage"    ? <Metric title="Data Coverage"        value={`${wlCoveragePct}%`} sub={`${wlCoveredCount} of ${wanted.length} have market data`} good={wlCoveragePct >= 50} /> : null}
                   </div>
                 ))}
               </div>
@@ -1719,6 +1806,45 @@ export default function WantedList({ onBuyNow }) {
                             </div>
                           );
                         })()}
+                      </div>
+                    ) : item.key === "score-distribution" ? (
+                      <div style={{ ...panel, marginTop: 0 }}>
+                        <h4 style={{ margin: "0 0 4px" }}>Priority Score Distribution</h4>
+                        <div style={{ fontSize: 12, color: "#5d6f80", marginBottom: 14 }}>How urgent are your tracked sets?</div>
+                        {wanted.length === 0 ? (
+                          <div style={{ color: "#5d6f80", fontSize: 13 }}>No sets tracked yet.</div>
+                        ) : (
+                          <ResponsiveContainer width="100%" height={160}>
+                            <BarChart data={wlScoreBuckets} layout="vertical" margin={{ left: 10, right: 30, top: 4, bottom: 4 }}>
+                              <XAxis type="number" tick={{ fill: "#5d6f80", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                              <YAxis type="category" dataKey="label" tick={{ fill: "#8a9bb0", fontSize: 12 }} width={56} axisLine={false} tickLine={false} />
+                              <Tooltip formatter={v => [v, "Sets"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
+                              <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                                {wlScoreBuckets.map((b, i) => <Cell key={i} fill={b.color} />)}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        )}
+                      </div>
+                    ) : item.key === "price-trend" ? (
+                      <div style={{ ...panel, marginTop: 0 }}>
+                        <h4 style={{ margin: "0 0 4px" }}>Avg BL Price Trend</h4>
+                        <div style={{ fontSize: 12, color: "#5d6f80", marginBottom: 14 }}>Average BrickLink new price across all tracked sets</div>
+                        {wlPriceTrendData.length < 5 ? (
+                          <div style={{ color: "#5d6f80", fontSize: 13 }}>Not enough data yet — prices are recorded each time you look up a set. Come back after a few days of use.</div>
+                        ) : (
+                          <ResponsiveContainer width="100%" height={160}>
+                            <LineChart data={wlPriceTrendData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+                              <XAxis dataKey="date" tick={{ fill: "#5d6f80", fontSize: 10 }} axisLine={false} tickLine={false}
+                                tickFormatter={d => d.slice(5)} interval="preserveStartEnd" />
+                              <YAxis tick={{ fill: "#5d6f80", fontSize: 11 }} axisLine={false} tickLine={false}
+                                tickFormatter={v => `$${v}`} width={48} />
+                              <Tooltip formatter={v => [money(v), "Avg BL New"]} labelFormatter={l => `Date: ${l}`}
+                                contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
+                              <Line type="monotone" dataKey="avgBlNew" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        )}
                       </div>
                     ) : item.key === "theme-breakdown" ? (
                       <div style={{ ...panel, marginTop: 0 }}>

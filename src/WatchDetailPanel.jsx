@@ -136,8 +136,14 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
             {blPrice?.avg_price_new && (
               <StatBox label="BL Avg (New)" value={money(blPrice.avg_price_new)} color="#3b82f6" />
             )}
+            {blPrice?.min_price_new && blPrice?.max_price_new && (
+              <StatBox label="BL New Range" value={`${money(blPrice.min_price_new)} – ${money(blPrice.max_price_new)}`} color="#3b82f6" />
+            )}
             {blPrice?.avg_price_used && (
               <StatBox label="BL Avg (Used)" value={money(blPrice.avg_price_used)} />
+            )}
+            {blPrice?.min_price_used && blPrice?.max_price_used && (
+              <StatBox label="BL Used Range" value={`${money(blPrice.min_price_used)} – ${money(blPrice.max_price_used)}`} />
             )}
             {(item.forecast2yr || forecast2yr) && (
               <StatBox label="2yr Forecast" value={money(item.forecast2yr || forecast2yr)} color="#5aa832" />
