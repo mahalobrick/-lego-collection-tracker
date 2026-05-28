@@ -102,6 +102,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   const [collGearOpen, setCollGearOpen] = useState(false);
   const [hoveredCollItem, setHoveredCollItem] = useState(null);
   const [draggedCollItem, setDraggedCollItem] = useState(null);
+  const [metaRefreshing, setMetaRefreshing] = useState(false);
   const [collectionItems, setCollectionItems] = useState(() => {
     const saved = localStorage.getItem("blCollectionItems");
     if (!saved) return DEFAULT_COLLECTION_ITEMS;
@@ -301,6 +302,56 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
   // ── Rebrickable — load local catalog in background on mount ─────────────
   useEffect(() => { loadRebrickable(); }, []);
+
+  // ── Brickset metadata enrichment — pieces & minifigs via Brickset ────────
+  // Source-of-truth for structural set data (Brickset); BE is value-only.
+  // forceAll=false skips sets that already have both fields populated in state.
+  async function runBricksetEnrichment(currentSets, forceAll = false) {
+    if (metaRefreshing) return;
+    const toFetch = currentSets.filter(s => {
+      if (!s.setNumber) return false;
+      if (!forceAll && s.minifigs != null && s.pieces != null) return false;
+      return true;
+    });
+    if (!toFetch.length) {
+      if (forceAll) toast.success("Collection metadata is already complete.");
+      return;
+    }
+    setMetaRefreshing(true);
+    let updated = 0;
+    for (const item of toFetch) {
+      const clean = String(item.setNumber).replace(/-1$/, "");
+      try {
+        const bsData = await fetchBricksetSet(clean);
+        if (!bsData) { await new Promise(r => setTimeout(r, 400)); continue; }
+        // Persist to Brickset cache so future loads don't need to re-fetch
+        const cache = JSON.parse(localStorage.getItem("bricksetSetCache") || "{}");
+        cache[`brickset_${clean}`] = { fetchedAt: new Date().toISOString(), data: bsData };
+        localStorage.setItem("bricksetSetCache", JSON.stringify(cache));
+        // Patch sets state — minifigs + pieces only (BE owns value fields)
+        setSets(prev => prev.map(s => {
+          if (String(s.setNumber || "").replace(/-1$/, "") !== clean) return s;
+          const upd = {};
+          if (bsData.minifigs != null) upd.minifigs = bsData.minifigs;
+          if (bsData.pieces   != null) upd.pieces   = bsData.pieces;
+          return Object.keys(upd).length ? { ...s, ...upd } : s;
+        }));
+        updated++;
+      } catch {}
+      await new Promise(r => setTimeout(r, 400));
+    }
+    setMetaRefreshing(false);
+    if (forceAll) {
+      if (updated > 0) toast.success(`Brickset metadata synced for ${updated} set${updated !== 1 ? "s" : ""}.`);
+      else toast.error("Could not fetch metadata — check your connection.");
+    }
+  }
+
+  // Silent enrichment on mount — fills gaps for BE-synced sets missing pieces/minifigs
+  useEffect(() => {
+    runBricksetEnrichment(sets, false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally runs once on mount
 
   // ── Portfolio snapshot — record once per day ──────────────────────────────
   useEffect(() => {
@@ -1065,6 +1116,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: collPillsCollapsed ? 0 : 12 }}>
               <span style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Collection Stats</span>
               <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={() => runBricksetEnrichment(sets, true)} disabled={metaRefreshing} style={{ ...hoverCtrlBtn, color: metaRefreshing ? "#c9a84c" : "#8a9bb0" }} title="Sync pieces & minifig counts from Brickset">{metaRefreshing ? "⟳" : "⟳"}</button>
                 <button onClick={() => setCollGearOpen(prev => !prev)} style={{ ...hoverCtrlBtn, color: collGearOpen ? "#c9a84c" : "#8a9bb0" }} title="Show / hide stats">⚙</button>
                 <button onClick={() => setCollPillsCollapsed(prev => !prev)} style={hoverCtrlBtn} title={collPillsCollapsed ? "Expand" : "Collapse"}>{collPillsCollapsed ? "▼" : "▲"}</button>
               </div>
