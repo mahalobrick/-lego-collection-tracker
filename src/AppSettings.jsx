@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
+import { useAuth, UserButton } from "@clerk/react";
 import toast from "react-hot-toast";
 import Papa from "papaparse";
 import { importBudgetExcel, parseExcelFirstSheet } from "./utils/importBudgetExcel";
 import { asNumber } from "./utils/formatting";
-import { exportFullBackup as runExportBackup, pushToCloud, fetchFromCloud, decryptCloudBackup, applyBackupToLocalStorage } from "./utils/exportBackup";
+import { exportFullBackup as runExportBackup, pushToCloud, fetchFromCloud, decryptCloudBackup, applyBackupToLocalStorage, pushToCloudAuth } from "./utils/exportBackup";
 import { getBrickLinkAccessToken, hasBrickLinkAuth, getBrickLinkSession, bulkSyncPrices } from "./utils/bricklink-client";
 import { DEFAULT_WANTED_COLUMNS } from "./utils/columnDefaults";
 import { syncBEValues } from "./utils/beSyncValues";
@@ -185,6 +186,24 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
   });
 
   const [settingsTab, setSettingsTab] = useState("general");
+
+  // ── Clerk auth ───────────────────────────────────────────────
+  const { userId, getToken } = useAuth();
+  const [authSyncBusy, setAuthSyncBusy] = useState(false);
+
+  async function handleAuthSyncNow() {
+    setAuthSyncBusy(true);
+    try {
+      const result = await pushToCloudAuth(getToken);
+      if (result?.skipped === "no_change") toast.success("Already up to date ✓");
+      else if (result?.skipped === "no_data") toast("Nothing to sync yet — add some sets first.");
+      else toast.success("Synced to cloud ✓");
+    } catch (err) {
+      toast.error("Sync failed — check your connection.");
+    } finally {
+      setAuthSyncBusy(false);
+    }
+  }
 
   // ── BrickLink auth state ─────────────────────────────────────
   const [blAccessTokenInput, setBlAccessTokenInput] = useState("");
@@ -1251,72 +1270,92 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
 
       {settingsTab === "data" && (
       <section style={panel}>
-        <h3 style={{ margin: "0 0 4px" }}>Cloud Backup</h3>
-        <p style={{ ...mutedSmall, margin: "0 0 14px" }}>
-          End-to-end encrypted sync — your data is encrypted with your passphrase before leaving the browser.
-          The server only stores ciphertext; the passphrase is never saved or transmitted.
-          Requires Upstash KV (<code style={{ color: "#c9a84c", fontSize: 12 }}>KV_REST_API_URL</code> + <code style={{ color: "#c9a84c", fontSize: 12 }}>KV_REST_API_TOKEN</code>) or a Redis URL (<code style={{ color: "#c9a84c", fontSize: 12 }}>REDIS_URL</code>).
-        </p>
+        <h3 style={{ margin: "0 0 4px" }}>Cloud Sync</h3>
 
-        {/* ── Cloud status ── */}
-        {cloudStatus === "legacy" && (
-          <div style={{ background: "#1a1500", border: "1px solid #78350f", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#fbbf24" }}>
-            ⚠️ Old unencrypted backup detected. Set a passphrase below and hit <strong>Push to Cloud</strong> to upgrade — this warning won't appear again.
-          </div>
-        )}
-        {cloudStatus === "empty" && (
-          <div style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#8a9bb0" }}>
-            No cloud backup found yet. Set a passphrase and push to get started.
-          </div>
-        )}
-        {cloudStatus === "encrypted" && (
-          <div style={{ background: "#0a1f0a", border: "1px solid #166534", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#5aa832" }}>
-            🔒 Encrypted backup is in the cloud. Other browsers will prompt for your passphrase on load.
-          </div>
-        )}
-
-        {/* ── Passphrase row ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-          <input
-            type="password"
-            placeholder={cloudPassphrase ? "●●●●●●●● (active this session)" : "Cloud backup passphrase"}
-            value={cloudPassphrase ? "" : passphraseDraft}
-            onChange={e => { onPassphraseChange(""); setPassphraseDraft(e.target.value); }}
-            onKeyDown={e => { if (e.key === "Enter") handlePushToCloud(); }}
-            style={{
-              background: "#0b1520",
-              border: `1px solid ${cloudPassphrase ? "#166534" : "rgba(255,255,255,0.12)"}`,
-              borderRadius: 8, padding: "7px 12px", color: "#e8e2d5", fontSize: 13, outline: "none", width: 240,
-            }}
-          />
-          {cloudPassphrase && (
-            <button
-              onClick={() => { onPassphraseChange(""); setPassphraseDraft(""); }}
-              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "3px 10px", fontSize: 12, color: "#8a9bb0", cursor: "pointer" }}
-            >
-              Change
-            </button>
-          )}
-          <span style={{ fontSize: 12, color: cloudPassphrase ? "#5aa832" : "#5d6f80" }}>
-            {cloudPassphrase ? "🔒 Active this session" : "Never stored — re-enter each session"}
-          </span>
-        </div>
-
-        {/* ── Push / Pull row ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <button onClick={handlePushToCloud} disabled={cloudBusy || (!cloudPassphrase && !passphraseDraft)} style={{ ...smallButton, opacity: cloudBusy || (!cloudPassphrase && !passphraseDraft) ? 0.4 : 1 }}>
-            {cloudBusy ? "Working…" : "Push to Cloud"}
-          </button>
-          <button onClick={handlePullFromCloud} disabled={cloudBusy || (!cloudPassphrase && !passphraseDraft)} style={{ ...smallButton, opacity: cloudBusy || (!cloudPassphrase && !passphraseDraft) ? 0.4 : 1 }}>
-            Pull from Cloud
-          </button>
-          {lastCloudPush && (
-            <div style={{ fontSize: 13, color: "#5d6f80" }}>
-              Last push:{" "}
-              <span style={{ color: "#8a9bb0" }}>{new Date(lastCloudPush).toLocaleString()}</span>
+        {userId ? (
+          /* ── Signed-in: account sync ── */
+          <>
+            <p style={{ ...mutedSmall, margin: "0 0 16px" }}>
+              Your data syncs automatically to your account. Any change is pushed within 15 seconds — no passphrase needed.
+            </p>
+            <div style={{ background: "#0a1f0a", border: "1px solid #166534", borderRadius: 8, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+              <UserButton appearance={{ elements: { avatarBox: { width: 28, height: 28 } } }} />
+              <div>
+                <div style={{ fontSize: 13, color: "#5aa832", fontWeight: 600 }}>Synced via your account</div>
+                {lastCloudPush && (
+                  <div style={{ fontSize: 12, color: "#4d5e70", marginTop: 2 }}>
+                    Last sync: {new Date(lastCloudPush).toLocaleString()}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
+            <button onClick={handleAuthSyncNow} disabled={authSyncBusy} style={{ ...smallButton, opacity: authSyncBusy ? 0.5 : 1 }}>
+              {authSyncBusy ? "Syncing…" : "Sync Now"}
+            </button>
+          </>
+        ) : (
+          /* ── Signed-out: passphrase path ── */
+          <>
+            <p style={{ ...mutedSmall, margin: "0 0 14px" }}>
+              End-to-end encrypted sync — your data is encrypted with your passphrase before leaving the browser.
+              The server only stores ciphertext; the passphrase is never saved or transmitted.
+              Requires Upstash KV (<code style={{ color: "#c9a84c", fontSize: 12 }}>KV_REST_API_URL</code> + <code style={{ color: "#c9a84c", fontSize: 12 }}>KV_REST_API_TOKEN</code>) or a Redis URL (<code style={{ color: "#c9a84c", fontSize: 12 }}>REDIS_URL</code>).
+            </p>
+
+            {cloudStatus === "legacy" && (
+              <div style={{ background: "#1a1500", border: "1px solid #78350f", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#fbbf24" }}>
+                ⚠️ Old unencrypted backup detected. Set a passphrase below and hit <strong>Push to Cloud</strong> to upgrade — this warning won't appear again.
+              </div>
+            )}
+            {cloudStatus === "empty" && (
+              <div style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#8a9bb0" }}>
+                No cloud backup found yet. Set a passphrase and push to get started.
+              </div>
+            )}
+            {cloudStatus === "encrypted" && (
+              <div style={{ background: "#0a1f0a", border: "1px solid #166534", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#5aa832" }}>
+                🔒 Encrypted backup is in the cloud. Other browsers will prompt for your passphrase on load.
+              </div>
+            )}
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+              <input
+                type="password"
+                placeholder={cloudPassphrase ? "●●●●●●●● (active this session)" : "Cloud backup passphrase"}
+                value={cloudPassphrase ? "" : passphraseDraft}
+                onChange={e => { onPassphraseChange(""); setPassphraseDraft(e.target.value); }}
+                onKeyDown={e => { if (e.key === "Enter") handlePushToCloud(); }}
+                style={{
+                  background: "#0b1520",
+                  border: `1px solid ${cloudPassphrase ? "#166534" : "rgba(255,255,255,0.12)"}`,
+                  borderRadius: 8, padding: "7px 12px", color: "#e8e2d5", fontSize: 13, outline: "none", width: 240,
+                }}
+              />
+              {cloudPassphrase && (
+                <button onClick={() => { onPassphraseChange(""); setPassphraseDraft(""); }} style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "3px 10px", fontSize: 12, color: "#8a9bb0", cursor: "pointer" }}>
+                  Change
+                </button>
+              )}
+              <span style={{ fontSize: 12, color: cloudPassphrase ? "#5aa832" : "#5d6f80" }}>
+                {cloudPassphrase ? "🔒 Active this session" : "Never stored — re-enter each session"}
+              </span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <button onClick={handlePushToCloud} disabled={cloudBusy || (!cloudPassphrase && !passphraseDraft)} style={{ ...smallButton, opacity: cloudBusy || (!cloudPassphrase && !passphraseDraft) ? 0.4 : 1 }}>
+                {cloudBusy ? "Working…" : "Push to Cloud"}
+              </button>
+              <button onClick={handlePullFromCloud} disabled={cloudBusy || (!cloudPassphrase && !passphraseDraft)} style={{ ...smallButton, opacity: cloudBusy || (!cloudPassphrase && !passphraseDraft) ? 0.4 : 1 }}>
+                Pull from Cloud
+              </button>
+              {lastCloudPush && (
+                <div style={{ fontSize: 13, color: "#5d6f80" }}>
+                  Last push: <span style={{ color: "#8a9bb0" }}>{new Date(lastCloudPush).toLocaleString()}</span>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </section>
       )}
 
