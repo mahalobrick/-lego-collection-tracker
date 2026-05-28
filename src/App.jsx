@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
+import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/react";
 import BudgetDashboard from "./BudgetDashboard";
 import WantedList from "./WantedList";
 import MyCollection from "./MyCollection";
@@ -189,20 +190,41 @@ export default function App() {
                 </button>
               ))}
             </div>
-            {/* Cloud sync status — only visible when passphrase is active and something is happening */}
-            {cloudPassphrase && syncStatus !== "idle" && (
-              <div style={{
-                position: "absolute", right: 20, top: "50%", transform: "translateY(-50%)",
-                display: "flex", alignItems: "center", gap: 5,
-                fontSize: 11, fontWeight: 600, pointerEvents: "none",
-                color: syncStatus === "saved" ? "#22c55e" : "#c9a84c",
-              }}>
-                {syncStatus === "pending" && <span style={{ fontSize: 7, animation: "pulse-dot 1.5s ease-in-out infinite" }}>●</span>}
-                {syncStatus === "syncing" && <span style={{ display: "inline-block", animation: "spin 0.8s linear infinite" }}>↻</span>}
-                {syncStatus === "saved"   && <span>✓</span>}
-                <span>{syncStatus === "pending" ? "Unsaved" : syncStatus === "syncing" ? "Syncing…" : "Saved"}</span>
-              </div>
-            )}
+            {/* Right-side nav controls: sync indicator + auth */}
+            <div style={{
+              position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)",
+              display: "flex", alignItems: "center", gap: 8,
+            }}>
+              {/* Cloud sync status */}
+              {cloudPassphrase && syncStatus !== "idle" && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  fontSize: 11, fontWeight: 600, pointerEvents: "none",
+                  color: syncStatus === "saved" ? "#22c55e" : "#c9a84c",
+                }}>
+                  {syncStatus === "pending" && <span style={{ fontSize: 7, animation: "pulse-dot 1.5s ease-in-out infinite" }}>●</span>}
+                  {syncStatus === "syncing" && <span style={{ display: "inline-block", animation: "spin 0.8s linear infinite" }}>↻</span>}
+                  {syncStatus === "saved"   && <span>✓</span>}
+                  <span>{syncStatus === "pending" ? "Unsaved" : syncStatus === "syncing" ? "Syncing…" : "Saved"}</span>
+                </div>
+              )}
+              {/* Auth controls */}
+              <Show when="signed-out">
+                <SignInButton mode="modal">
+                  <button style={{ background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 999, padding: "6px 13px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                    Sign In
+                  </button>
+                </SignInButton>
+                <SignUpButton mode="modal">
+                  <button style={{ background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 999, padding: "6px 13px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                    Sign Up
+                  </button>
+                </SignUpButton>
+              </Show>
+              <Show when="signed-in">
+                <UserButton appearance={{ elements: { avatarBox: { width: 28, height: 28 } } }} />
+              </Show>
+            </div>
           </div>
 
           <Toaster

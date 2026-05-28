@@ -1,3 +1,4 @@
+import {ClerkProvider} from "@clerk/react";
 import "./index.css";
 import React from 'react'
 import ReactDOM from 'react-dom/client'
@@ -22,4 +23,6 @@ localStorage.setItem = function patchedSetItem(key, value) {
 };
 
 runMigrations();
-ReactDOM.createRoot(document.getElementById('root')).render(<App />)
+ReactDOM.createRoot(document.getElementById('root')).render(<ClerkProvider afterSignOutUrl="/">
+      <App />
+    </ClerkProvider>)
