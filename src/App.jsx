@@ -12,7 +12,11 @@ export default function App() {
   const [pendingPurchase, setPendingPurchase] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [cloudRestoreData, setCloudRestoreData] = useState(null); // non-null = show restore banner
-  const [cloudPassphrase, setCloudPassphrase] = useState(""); // session-only, never persisted
+  const [cloudPassphrase, setCloudPassphrase] = useState(() => {
+    const p = sessionStorage.getItem("blCloudPassphraseHandoff");
+    if (p) { sessionStorage.removeItem("blCloudPassphraseHandoff"); return p; }
+    return "";
+  }); // session-only, never persisted
   const [bannerPassphrase, setBannerPassphrase] = useState("");
   const [bannerError, setBannerError] = useState("");
   const [bannerBusy, setBannerBusy] = useState(false);
@@ -236,11 +240,12 @@ export default function App() {
                 }
                 // Promote the passphrase for this session so auto-push starts working
                 setCloudPassphrase(bannerPassphrase);
+                sessionStorage.setItem("blCloudPassphraseHandoff", bannerPassphrase);
                 setCloudRestoreData(null);
                 toast.success("Cloud backup restored — reloading…", { duration: 3000 });
                 setTimeout(() => window.location.reload(), 1500);
-              } catch {
-                setBannerError("Wrong passphrase");
+              } catch (err) {
+                setBannerError(err?.message?.startsWith("Backup version") ? err.message : "Wrong passphrase");
               } finally {
                 setBannerBusy(false);
               }
@@ -271,7 +276,7 @@ export default function App() {
           title="Back to top"
           aria-label="Scroll to top"
           style={{
-            position: "fixed", bottom: 24, right: 24, zIndex: 200,
+            position: "fixed", bottom: cloudRestoreData ? 96 : 24, right: 24, zIndex: 200,
             width: 38, height: 38, borderRadius: "50%",
             background: "rgba(20,31,48,0.92)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
             border: "1px solid rgba(255,255,255,0.14)",

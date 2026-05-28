@@ -631,35 +631,17 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
         "Restore full backup? This will replace ALL data — collection, wanted list, budget, and settings. Cannot be undone."
       );
       if (!ok) return;
-      // ── Collection ────────────────────────────────────────────
-      if (Array.isArray(data.ownedSets))             localStorage.setItem("blOwnedSets",                      JSON.stringify(data.ownedSets));
-      if (Array.isArray(data.brickEconomyNormalized))localStorage.setItem("brickEconomyNormalizedCollection", JSON.stringify(data.brickEconomyNormalized));
-      if (data.brickEconomySetCache  && typeof data.brickEconomySetCache  === "object") localStorage.setItem("brickEconomySetCache",           JSON.stringify(data.brickEconomySetCache));
-      if (data.brickEconomySyncInfo  && typeof data.brickEconomySyncInfo  === "object") localStorage.setItem("brickEconomyCollectionSyncInfo", JSON.stringify(data.brickEconomySyncInfo));
-      if (Array.isArray(data.soldSets))              localStorage.setItem("blSoldSets",        JSON.stringify(data.soldSets));
-      if (Array.isArray(data.portfolioHistory))      localStorage.setItem("blPortfolioHistory", JSON.stringify(data.portfolioHistory));
-      // ── Wanted List ───────────────────────────────────────────
-      if (Array.isArray(data.wantedList))            localStorage.setItem("blWantedList",       JSON.stringify(data.wantedList));
-      // ── Budget ────────────────────────────────────────────────
-      if (Array.isArray(data.budgetPurchases))       localStorage.setItem("blPurchases",        JSON.stringify(data.budgetPurchases));
-      if (Array.isArray(data.stores))                localStorage.setItem("blStores",           JSON.stringify(data.stores));
-      if (data.storeBudgets && typeof data.storeBudgets === "object") localStorage.setItem("blStoreBudgets", JSON.stringify(data.storeBudgets));
-      if (data.annualBudget)                         localStorage.setItem("blAnnualBudget",     data.annualBudget);
-      // ── Settings ──────────────────────────────────────────────
-      if (data.settings) {
-        if (data.settings.currency)           localStorage.setItem("blDisplayCurrency",        data.settings.currency);
-        if (data.settings.ownedColumns)       localStorage.setItem("blOwnedColumns",           JSON.stringify(data.settings.ownedColumns));
-        if (data.settings.acquisitionColumns) localStorage.setItem("blAcquisitionColumns",     JSON.stringify(data.settings.acquisitionColumns));
-        if (data.settings.purchaseColumns)    localStorage.setItem("blPurchaseColumns",        JSON.stringify(data.settings.purchaseColumns));
-        if (data.settings.dashboardWidgets)   localStorage.setItem("blDashboardWidgetSettings",JSON.stringify(data.settings.dashboardWidgets));
-        if (data.settings.collectionItems)    localStorage.setItem("blCollectionItems",        JSON.stringify(data.settings.collectionItems));
-        if (data.settings.ownedColWidths)     localStorage.setItem("blOwnedColWidths",         JSON.stringify(data.settings.ownedColWidths));
-        if (data.settings.autoExportDays != null) localStorage.setItem("blAutoExportDays",    String(data.settings.autoExportDays));
+      applyBackupToLocalStorage(data);
+      // Also restore the set cache — large but worthwhile for a manual full restore
+      if (data.brickEconomySetCache && typeof data.brickEconomySetCache === "object") {
+        localStorage.setItem("brickEconomySetCache", JSON.stringify(data.brickEconomySetCache));
       }
       toast.success("Backup restored. Reloading…");
       setTimeout(() => window.location.reload(), 1200);
-    } catch {
-      toast.error("Could not read backup file — make sure it's a valid BrickLedger JSON backup.");
+    } catch (err) {
+      toast.error(err?.message?.startsWith("Backup version")
+        ? err.message
+        : "Could not read backup file — make sure it's a valid BrickLedger JSON backup.");
     }
   }
 

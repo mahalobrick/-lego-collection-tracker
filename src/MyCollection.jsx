@@ -1092,13 +1092,17 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       {tab === "overview" && sets.length === 0 && (
         <div style={{ textAlign: "center", padding: "60px 24px" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>📦</div>
-          <div style={{ fontWeight: 900, fontSize: 20, color: "#e8e2d5", marginBottom: 8 }}>Your collection is empty</div>
-          <div style={{ color: "#8a9bb0", fontSize: 14, marginBottom: 24, maxWidth: 400, margin: "0 auto 24px", lineHeight: 1.6 }}>
-            Add sets manually, or restore your collection from a cloud backup.
+          <div style={{ fontWeight: 900, fontSize: 20, color: "#e8e2d5", marginBottom: 8 }}>Start your collection</div>
+          <div style={{ color: "#8a9bb0", fontSize: 14, maxWidth: 420, margin: "0 auto 24px", lineHeight: 1.6 }}>
+            Already tracking sets in BrickEconomy or Brickset? Import your CSV in one step.
+            Otherwise add sets manually or restore from a cloud backup.
           </div>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-            <button onClick={() => setTab("collection")} style={{ background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 10, padding: "12px 24px", fontWeight: 900, fontSize: 14, cursor: "pointer" }}>
-              Add a Set →
+            <button onClick={() => onSwitchTab("settings")} style={{ background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 10, padding: "12px 24px", fontWeight: 900, fontSize: 14, cursor: "pointer" }}>
+              Import Collection →
+            </button>
+            <button onClick={() => setTab("collection")} style={{ background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "12px 24px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+              Add a Set Manually
             </button>
           </div>
         </div>

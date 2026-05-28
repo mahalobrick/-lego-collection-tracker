@@ -16,6 +16,13 @@ const DEFAULT_ANNUAL_BUDGET = 10320;
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
+// Fast non-crypto fingerprint — good enough for dirty-check equality (not security).
+function quickHash(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = (h * 33 ^ str.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
 // Safely base64-encode an ArrayBuffer without hitting the spread-operator stack limit
 function toBase64(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -101,6 +108,12 @@ export async function pushToCloud(passphrase) {
   const backup = buildBackup(new Date());
   delete backup.brickEconomySetCache; // large and fully regeneratable
 
+  // Skip push if data hasn't changed since last push (saves bandwidth + Upstash writes).
+  // Compare a lightweight hash of the backup content (exportedAt excluded — it changes every call).
+  const { exportedAt: _ts, ...backupWithoutTs } = backup;
+  const contentHash = quickHash(JSON.stringify(backupWithoutTs));
+  if (contentHash === localStorage.getItem("blLastPushHash")) return { skipped: "no_change" };
+
   const encrypted = await encryptPayload(backup, passphrase);
 
   const res = await fetch("/api/cloud-backup", {
@@ -112,6 +125,7 @@ export async function pushToCloud(passphrase) {
   if (!res.ok) throw new Error(`Cloud backup failed: HTTP ${res.status}`);
   const json = await res.json();
   localStorage.setItem("blLastCloudPush", json.savedAt || new Date().toISOString());
+  localStorage.setItem("blLastPushHash", contentHash);
   return json;
 }
 
@@ -126,8 +140,16 @@ export async function fetchFromCloud() {
   return await res.json();
 }
 
+const BACKUP_VERSION = 2; // increment here whenever the backup schema changes
+
 /** Apply a backup object to localStorage (same logic as the Settings restore). */
 export function applyBackupToLocalStorage(data) {
+  if (data.version && data.version > BACKUP_VERSION) {
+    throw new Error(
+      `Backup version ${data.version} is newer than this app supports (v${BACKUP_VERSION}). ` +
+      `Update BrickLedger and try again.`
+    );
+  }
   if (Array.isArray(data.ownedSets))              localStorage.setItem("blOwnedSets",                      JSON.stringify(data.ownedSets));
   if (Array.isArray(data.brickEconomyNormalized)) localStorage.setItem("brickEconomyNormalizedCollection", JSON.stringify(data.brickEconomyNormalized));
   if (data.brickEconomySyncInfo  && typeof data.brickEconomySyncInfo  === "object") localStorage.setItem("brickEconomyCollectionSyncInfo", JSON.stringify(data.brickEconomySyncInfo));
