@@ -1416,9 +1416,12 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
               <div style={dataBlockTitle}>Full App Backup</div>
               <div style={dataBlockDesc}>Collection · Wanted List · Budget · Settings — everything in one file</div>
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button onClick={exportFullBackup} style={redBtn}>Export Backup</button>
-              <label style={ghostBtn}>Restore Backup<input type="file" accept=".json" onChange={importFullBackup} style={{ display: "none" }} /></label>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={exportFullBackup} style={redBtn}>Export Backup</button>
+                <label style={ghostBtn}>Restore Backup<input type="file" accept=".json" onChange={importFullBackup} style={{ display: "none" }} /></label>
+              </div>
+              <div style={{ fontSize: 11, color: "#4d5e70" }}>Chrome/Edge: prompts to choose location · Safari/Firefox: saves to Downloads</div>
             </div>
           </div>
         </div>
