@@ -1503,37 +1503,6 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
       )}
 
 
-      {settingsTab === "data" && collectionSyncInfo.lastSync && (
-      <section style={panel}>
-        <h3 style={{ margin: "0 0 12px" }}>BrickEconomy Collection Stats</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 }}>
-          <div style={{ ...miniStat, gridColumn: "1 / -1" }}>
-            <div style={mutedSmall}>Last Synced</div>
-            <strong>{new Date(collectionSyncInfo.lastSync).toLocaleString()}</strong>
-          </div>
-          {[
-            ["Total Owned",    (collectionSyncInfo.setsCount || 0).toLocaleString()],
-            ["Unique Sets",    (collectionSyncInfo.uniqueSets || 0).toLocaleString()],
-            ["New / Sealed",   (collectionSyncInfo.newCount || 0).toLocaleString()],
-            ["Used",           (collectionSyncInfo.usedCount || 0).toLocaleString()],
-            ["Retired",        `${(collectionSyncInfo.retiredCount || 0).toLocaleString()}${collectionSyncInfo.retiredPct ? ` (${Number(collectionSyncInfo.retiredPct).toFixed(1)}%)` : ""}`],
-            ["Total Pieces",   (collectionSyncInfo.piecesCount || 0).toLocaleString()],
-            ["Minifigs",       (collectionSyncInfo.minifsCount || 0).toLocaleString()],
-          ].map(([label, val]) => (
-            <div key={label} style={miniStat}><div style={mutedSmall}>{label}</div><strong>{val}</strong></div>
-          ))}
-          {[
-            ["Portfolio Value", `$${(collectionSyncInfo.portfolioValue || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`, "#c9a84c"],
-            ["Total Paid",      `$${(collectionSyncInfo.totalPaid || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`, null],
-            ["Unrealized Gain", `${(collectionSyncInfo.unrealizedGain||0)>=0?"+":""}$${(collectionSyncInfo.unrealizedGain||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`, (collectionSyncInfo.unrealizedGain||0)>=0?"#5aa832":"#ff8b8b"],
-            ["ROI",             collectionSyncInfo.totalPaid ? `${((collectionSyncInfo.unrealizedGain/collectionSyncInfo.totalPaid)*100).toFixed(1)}%` : "—", (collectionSyncInfo.unrealizedGain||0)>=0?"#5aa832":"#ff8b8b"],
-            ["Retail Value",    `$${(collectionSyncInfo.retailValue||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`, null],
-          ].map(([label, val, color]) => (
-            <div key={label} style={miniStat}><div style={mutedSmall}>{label}</div><strong style={color?{color}:{}}>{val}</strong></div>
-          ))}
-        </div>
-      </section>
-      )}
 
       {settingsTab === "general" && (
       <section style={panel}>
@@ -1620,12 +1589,6 @@ const redBtn = { display: "inline-block", background: "#c9a84c", color: "#0d1623
 const ghostBtn = { background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" };
 const smallButton = { ...ghostBtn, padding: "6px 10px" };
 
-const miniStat = {
-  background: "#0b1520",
-  border: "1px solid rgba(255,255,255,0.07)",
-  borderRadius: 10,
-  padding: 12
-};
 
 const stTabHeader = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 4 };
 const stTabBar = { display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" };
