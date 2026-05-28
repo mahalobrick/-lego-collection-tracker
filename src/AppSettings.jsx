@@ -5,27 +5,13 @@ import { importBudgetExcel, parseExcelFirstSheet } from "./utils/importBudgetExc
 import { asNumber } from "./utils/formatting";
 import { exportFullBackup as runExportBackup, pushToCloud, fetchFromCloud, decryptCloudBackup, applyBackupToLocalStorage } from "./utils/exportBackup";
 import { getBrickLinkAccessToken, hasBrickLinkAuth, getBrickLinkSession, bulkSyncPrices } from "./utils/bricklink-client";
-import { DEFAULT_WANTED_COLUMNS, DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
+import { DEFAULT_WANTED_COLUMNS } from "./utils/columnDefaults";
 import { syncBEValues } from "./utils/beSyncValues";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import { notificationsSupported, notificationPermission, requestNotificationPermission } from "./utils/notifications";
 
 const DEFAULT_STORES = ["Amazon", "Best Buy", "Bricklink", "LEGO", "Target", "Walmart"];
 const DEFAULT_ANNUAL_BUDGET = 10320;
-
-const DEFAULT_PURCHASE_COLUMNS = [
-  { key: "date", label: "Date", visible: true },
-  { key: "store", label: "Store", visible: true },
-  { key: "setNumber", label: "Set #", visible: true },
-  { key: "name", label: "Set Name", visible: true },
-  { key: "theme", label: "Theme", visible: true },
-  { key: "qty", label: "Qty", visible: true },
-  { key: "amount", label: "Unit Price", visible: true },
-  { key: "total", label: "Total", visible: true },
-  { key: "notes", label: "Notes", visible: false }
-];
-
-// DEFAULT_OWNED_COLUMNS imported from ./utils/columnDefaults
 
 
 
@@ -198,7 +184,6 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
       return {};
     }
   });
-  const [openColumnSections, setOpenColumnSections] = useState({});
 
   const [settingsTab, setSettingsTab] = useState("general");
 
@@ -364,27 +349,9 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
     return saved ? JSON.parse(saved) : DEFAULT_STORES;
   });
 
-  const [purchaseColumns, setPurchaseColumns] = useState(() => {
-    const saved = localStorage.getItem("blPurchaseColumns");
-    return saved ? JSON.parse(saved) : DEFAULT_PURCHASE_COLUMNS;
-  });
-
-  const [ownedColumns, setOwnedColumns] = useState(() => {
-    const saved = localStorage.getItem("blOwnedColumns");
-    return saved ? JSON.parse(saved) : DEFAULT_OWNED_COLUMNS;
-  });
-
-  const [acquisitionColumns, setAcquisitionColumns] = useState(() => {
-    const saved = localStorage.getItem("blAcquisitionColumns");
-    return saved ? JSON.parse(saved) : DEFAULT_WANTED_COLUMNS;
-  });
-
   useEffect(() => localStorage.setItem("blAutoExportDays", String(autoExportDays)), [autoExportDays]);
   useEffect(() => localStorage.setItem("blAnnualBudget", annualBudget), [annualBudget]);
   useEffect(() => localStorage.setItem("blStores", JSON.stringify(stores)), [stores]);
-  useEffect(() => localStorage.setItem("blPurchaseColumns", JSON.stringify(purchaseColumns)), [purchaseColumns]);
-  useEffect(() => localStorage.setItem("blOwnedColumns", JSON.stringify(ownedColumns)), [ownedColumns]);
-  useEffect(() => localStorage.setItem("blAcquisitionColumns", JSON.stringify(acquisitionColumns)), [acquisitionColumns]);
 
   function getPurchases() {
     return JSON.parse(localStorage.getItem("blPurchases") || "[]");
@@ -945,22 +912,6 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
     setStores(prev => [...prev].sort());
   }
 
-  function toggleColumn(type, key) {
-    const setter =
-      type === "purchase"
-        ? setPurchaseColumns
-        : type === "owned"
-          ? setOwnedColumns
-          : setAcquisitionColumns;
-    setter(prev => prev.map(col => col.key === key ? { ...col, visible: !col.visible } : col));
-  }
-
-  function resetColumns(type) {
-    if (type === "purchase") setPurchaseColumns(DEFAULT_PURCHASE_COLUMNS);
-    if (type === "owned") setOwnedColumns(DEFAULT_OWNED_COLUMNS);
-    if (type === "acquisition") setAcquisitionColumns(DEFAULT_WANTED_COLUMNS);
-  }
-
   async function syncBrickEconomyCollection() {
     setCollectionSyncing(true);
 
@@ -1157,13 +1108,12 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
       <div style={stTabHeader}>
         <div>
           <h2 style={{ margin: 0 }}>Settings</h2>
-          <p style={{ ...muted, margin: "4px 0 0" }}>App-wide configuration, data, and columns.</p>
+          <p style={{ ...muted, margin: "4px 0 0" }}>App-wide configuration and data management.</p>
         </div>
         <div style={stTabBar}>
           {[
             { key: "general", label: "General" },
             { key: "data", label: "Data" },
-            { key: "columns", label: "Columns" }
           ].map(t => (
             <button key={t.key} onClick={() => setSettingsTab(t.key)} style={settingsTab === t.key ? stNavActiveTab : stNavTabBtn}>
               {t.label}
@@ -1218,45 +1168,7 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
       </section>
       )}
 
-      {settingsTab === "general" && (
-      <section style={panel}>
-        <h3 style={{ margin: "0 0 4px" }}>Auto-Export</h3>
-        <p style={{ ...mutedSmall, margin: "0 0 14px" }}>
-          Automatically download a full backup when the app opens, if it's been longer than the chosen interval since the last export.
-        </p>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-          {[
-            { label: "Off", value: 0 },
-            { label: "Daily", value: 1 },
-            { label: "Weekly", value: 7 },
-            { label: "Monthly", value: 30 },
-          ].map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => setAutoExportDays(opt.value)}
-              style={autoExportDays === opt.value ? stActiveTab : stTabBtn}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        {autoExportDays > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 13, color: "#5d6f80" }}>
-              Last export:{" "}
-              <span style={{ color: "#8a9bb0" }}>
-                {lastExportAt
-                  ? new Date(lastExportAt).toLocaleString()
-                  : "Never — will run next app open"}
-              </span>
-            </div>
-            <button onClick={exportFullBackup} style={smallButton}>Export Now</button>
-          </div>
-        )}
-      </section>
-      )}
-
-      {settingsTab === "general" && (
+      {settingsTab === "data" && (
       <section style={panel}>
         <h3 style={{ margin: "0 0 4px" }}>Cloud Backup</h3>
         <p style={{ ...mutedSmall, margin: "0 0 14px" }}>
@@ -1324,6 +1236,44 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
             </div>
           )}
         </div>
+      </section>
+      )}
+
+      {settingsTab === "data" && (
+      <section style={panel}>
+        <h3 style={{ margin: "0 0 4px" }}>Auto-Export</h3>
+        <p style={{ ...mutedSmall, margin: "0 0 14px" }}>
+          Automatically download a full backup when the app opens, if it's been longer than the chosen interval since the last export.
+        </p>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+          {[
+            { label: "Off", value: 0 },
+            { label: "Daily", value: 1 },
+            { label: "Weekly", value: 7 },
+            { label: "Monthly", value: 30 },
+          ].map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setAutoExportDays(opt.value)}
+              style={autoExportDays === opt.value ? stActiveTab : stTabBtn}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {autoExportDays > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 13, color: "#5d6f80" }}>
+              Last export:{" "}
+              <span style={{ color: "#8a9bb0" }}>
+                {lastExportAt
+                  ? new Date(lastExportAt).toLocaleString()
+                  : "Never — will run next app open"}
+              </span>
+            </div>
+            <button onClick={exportFullBackup} style={smallButton}>Export Now</button>
+          </div>
+        )}
       </section>
       )}
 
@@ -1552,21 +1502,6 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
       </section>
       )}
 
-      {settingsTab === "columns" && (
-      <section style={panel}>
-        <h3>Columns</h3>
-        <p style={mutedSmall}>Drag columns directly in table headers to reorder. Use these controls to show or hide columns.</p>
-
-        <div style={{ background: "rgba(201,168,76,0.08)", border: "1px solid rgba(201,168,76,0.2)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#c9a84c" }}>
-          💡 <strong>Collection columns</strong> are managed inline — use the grid-columns icon button in the Browse tab of My Collection.
-        </div>
-
-        <div style={settingsGrid}>
-          <ColumnSettings title="Purchases Columns" columns={purchaseColumns} type="purchase" onToggle={toggleColumn} onReset={resetColumns} isOpen={!!openColumnSections.purchase} onToggleOpen={() => setOpenColumnSections(prev => ({ ...prev, purchase: !prev.purchase }))} />
-          <ColumnSettings title="Wanted List Columns" columns={acquisitionColumns} type="acquisition" onToggle={toggleColumn} onReset={resetColumns} isOpen={!!openColumnSections.acquisition} onToggleOpen={() => setOpenColumnSections(prev => ({ ...prev, acquisition: !prev.acquisition }))} />
-        </div>
-      </section>
-      )}
 
       {settingsTab === "data" && collectionSyncInfo.lastSync && (
       <section style={panel}>
@@ -1677,97 +1612,13 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
   );
 }
 
-function ColumnSettings({ title, columns, type, onToggle, onReset, isOpen, onToggleOpen }) {
-  const visibleCount = columns.filter(c => c.visible).length;
-  const hiddenCount = columns.length - visibleCount;
-
-  return (
-    <div style={subPanel}>
-      <div
-        onClick={onToggleOpen}
-        style={{
-          cursor: "pointer",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12
-        }}
-      >
-        <div>
-          <h4 style={{ margin: 0 }}>
-            {isOpen ? "▾" : "▸"} {title}
-          </h4>
-          <div style={mutedSmall}>{visibleCount} visible • {hiddenCount} hidden</div>
-        </div>
-
-        <button
-          onClick={e => {
-            e.stopPropagation();
-            onReset(type);
-          }}
-          style={smallButton}
-        >
-          Reset
-        </button>
-      </div>
-
-      {isOpen && (
-        <>
-          <ColumnGroup title="Visible Columns" columns={columns.filter(c => c.visible)} action="Hide" actionStyle={hideButton} type={type} onToggle={onToggle} />
-          <ColumnGroup title="Hidden Columns" columns={columns.filter(c => !c.visible)} action="Show" actionStyle={showButton} type={type} onToggle={onToggle} emptyText="No hidden columns." />
-        </>
-      )}
-    </div>
-  );
-}
-
-function ColumnGroup({ title, columns, action, actionStyle, type, onToggle, emptyText }) {
-  return (
-    <div style={{ marginTop: 16 }}>
-      <div style={{ color: "#8a9bb0", fontWeight: 800, marginBottom: 8 }}>{title}</div>
-      {columns.length === 0 ? (
-        <div style={emptyState}>{emptyText || "No columns."}</div>
-      ) : (
-        <div style={{ display: "grid", gap: 8 }}>
-          {columns.map(col => (
-            <div key={col.key} style={columnRow}>
-              <span>{col.label}</span>
-              <button onClick={() => onToggle(type, col.key)} style={actionStyle}>{action}</button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 const page = { background: "transparent", color: "#e8e2d5", minHeight: "100vh", padding: 22 };
 const panel = { background: "rgba(20,31,48,0.82)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginTop: 18, boxShadow: "0 4px 24px rgba(0,0,0,0.35)" };
-const subPanel = {
-  background: "rgba(15,26,40,0.9)",
-  border: "1px solid rgba(255,255,255,0.07)",
-  borderRadius: 12,
-  padding: 16,
-  alignSelf: "start"
-};
-const settingsGrid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
-  gap: 14,
-  alignItems: "start"
-};
-const row = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 };
-const columnRow = { display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0b1520", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 12px" };
 const muted = { color: "#8a9bb0", marginTop: 6 };
 const mutedSmall = { color: "#8a9bb0", fontSize: 14 };
-const emptyState = { color: "#4d5e70", background: "#0b1520", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 10, padding: "10px 12px" };
 const redBtn = { display: "inline-block", background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" };
 const ghostBtn = { background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" };
 const smallButton = { ...ghostBtn, padding: "6px 10px" };
-const hideButton = { background: "#3b0a0a", color: "#e8e2d5", border: "1px solid #7f1d1d", borderRadius: 8, padding: "6px 10px", cursor: "pointer" };
-const showButton = { background: "#0f3b17", color: "#e8e2d5", border: "1px solid #166534", borderRadius: 8, padding: "6px 10px", cursor: "pointer" };
-
-
 
 const miniStat = {
   background: "#0b1520",
@@ -1778,7 +1629,7 @@ const miniStat = {
 
 const stTabHeader = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 4 };
 const stTabBar = { display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" };
-// Underline style — used for General / Data / Columns nav tabs
+// Underline style — used for General / Data nav tabs
 const stNavTabBtn = { background: "none", border: "none", borderBottom: "2px solid transparent", color: "#5d6f80", padding: "8px 0 10px", fontWeight: 700, cursor: "pointer", fontSize: 14, lineHeight: 1 };
 const stNavActiveTab = { ...stNavTabBtn, color: "#e8e2d5", borderBottom: "2px solid #c9a84c" };
 // Pill style — used for option pickers (currency, auto-export interval)
