@@ -1,4 +1,5 @@
 import { asNumber } from "./formatting";
+import { apiFetch } from "./apiFetch";
 
 const CACHE_TTL_MS  = 24 * 60 * 60 * 1000; // 24 hours — used by manual sync
 const BATCH_DELAY_MS = 400;
@@ -65,7 +66,7 @@ function applyCache(normalized, manual, cache) {
 
 /** Fetch a single set from the BE API and update the cache in place. */
 async function fetchSet(key, cache) {
-  const res  = await fetch(`/api/brickeconomy-set?number=${encodeURIComponent(key)}&currency=USD`);
+  const res  = await apiFetch(`/api/brickeconomy-set?number=${encodeURIComponent(key)}&currency=USD`);
   const json = await res.json();
   if (res.ok && !json.error) {
     cache[key] = { fetchedAt: new Date().toISOString(), data: json.data || json };

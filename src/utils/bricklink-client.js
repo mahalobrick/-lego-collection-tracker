@@ -4,6 +4,8 @@
 // Session token is cached under "blSessionToken" as { token, cachedAt }.
 // Price guide cache is stored under "blPriceGuideCache" as { [setNumber]: { data, cachedAt } }.
 
+import { apiFetch } from "./apiFetch";
+
 const SESSION_TTL_MS = 50 * 60 * 1000;        // 50 minutes
 const PRICE_GUIDE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const BULK_CACHE_TTL_MS  = 12 * 60 * 60 * 1000; // 12 hours — skip re-fetch in bulk sync
@@ -44,7 +46,7 @@ export async function getBrickLinkSession() {
 
   // Exchange access token for session token
   try {
-    const res = await fetch("/api/bricklink-auth", {
+    const res = await apiFetch("/api/bricklink-auth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ accessToken })
@@ -99,7 +101,7 @@ export async function fetchBrickLinkPriceGuide(setNumber) {
   if (!sessionToken) return null;
 
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `/api/bricklink-priceguide?number=${encodeURIComponent(normalizedNumber)}`,
       {
         headers: { "x-bl-session-token": sessionToken }

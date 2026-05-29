@@ -14,6 +14,7 @@ import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilR
 import { fetchBricksetSet, searchBricksetCatalog, fetchLegoThemes } from "./utils/brickset";
 import { getLastChanceCodes, isLastChanceSet, getCachedLastChanceCodes } from "./utils/legoLastChance";
 import WatchDetailPanel from "./WatchDetailPanel";
+import { apiFetch } from "./utils/apiFetch";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
 
@@ -460,7 +461,7 @@ export default function WantedList({ onBuyNow }) {
         } catch { /* ignore */ }
       }
       if (!bfSets) {
-        const res  = await fetch("/api/brickfanatics-retiring");
+        const res  = await apiFetch("/api/brickfanatics-retiring");
         const json = await res.json();
         if (!res.ok || json.error || !json.sets?.length) throw new Error(json.message || "BF fetch failed");
         bfSets    = json.sets;
@@ -1194,7 +1195,7 @@ export default function WantedList({ onBuyNow }) {
     for (const item of items) {
       const key = normalizeSetNumber(item.setNumber);
       try {
-        const res  = await fetch(`/api/brickeconomy-set?number=${encodeURIComponent(key)}&currency=USD`);
+        const res  = await apiFetch(`/api/brickeconomy-set?number=${encodeURIComponent(key)}&currency=USD`);
         if (!res.ok) { await new Promise(r => setTimeout(r, 500)); continue; }
         const json = await res.json();
         if (json.error) { await new Promise(r => setTimeout(r, 500)); continue; }
@@ -1313,7 +1314,7 @@ export default function WantedList({ onBuyNow }) {
           const cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
           let beData = cache[lookupKey]?.data;
           if (!beData) {
-            const res  = await fetch(`/api/brickeconomy-set?number=${encodeURIComponent(lookupKey)}&currency=USD`);
+            const res  = await apiFetch(`/api/brickeconomy-set?number=${encodeURIComponent(lookupKey)}&currency=USD`);
             const json = await res.json();
             if (res.ok && !json.error) {
               beData = json.data || json;
@@ -1368,7 +1369,7 @@ export default function WantedList({ onBuyNow }) {
 
       // ── 4. Brick Fanatics retirement (non-blocking) ────────────────────────
       const bfNum = String(lookupKey).replace(/-1$/, "");
-      fetch(`/api/brickfanatics-retiring?number=${encodeURIComponent(bfNum)}`)
+      apiFetch(`/api/brickfanatics-retiring?number=${encodeURIComponent(bfNum)}`)
         .then(r => r.json())
         .then(bfData => {
           if (!bfData || bfData.error) return;

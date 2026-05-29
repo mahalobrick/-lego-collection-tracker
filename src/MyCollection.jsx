@@ -10,6 +10,7 @@ import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./util
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition } from "./utils/beSyncValues";
+import { apiFetch } from "./utils/apiFetch";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
 const CONDITION_CYCLE = ["new", "used_as_new", "used_good", "used_acceptable"];
@@ -641,7 +642,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           const cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
           let beData = cache[beKey]?.data;
           if (!beData) {
-            const res  = await fetch(`/api/brickeconomy-set?number=${encodeURIComponent(beKey)}&currency=USD`);
+            const res  = await apiFetch(`/api/brickeconomy-set?number=${encodeURIComponent(beKey)}&currency=USD`);
             const json = await res.json();
             if (res.ok && !json.error) {
               beData = json.data || json;

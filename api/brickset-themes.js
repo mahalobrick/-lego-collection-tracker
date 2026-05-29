@@ -1,4 +1,5 @@
 const { setCors, internalError } = require("./_cors");
+const { requireAuth } = require("./_auth");
 
 /**
  * Returns all LEGO themes from the Brickset API.
@@ -7,6 +8,9 @@ const { setCors, internalError } = require("./_cors");
  */
 module.exports = async function handler(req, res) {
   if (setCors(req, res, "GET, OPTIONS")) return res.status(200).end();
+
+  const userId = await requireAuth(req, res);
+  if (!userId) return;
 
   const apiKey = process.env.BRICKSET_API_KEY || "";
   if (!apiKey) {

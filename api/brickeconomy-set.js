@@ -1,7 +1,11 @@
 const { setCors, internalError } = require("./_cors");
+const { requireAuth } = require("./_auth");
 
 module.exports = async function handler(req, res) {
   if (setCors(req, res, "GET, OPTIONS")) return res.status(200).end();
+
+  const userId = await requireAuth(req, res);
+  if (!userId) return;
 
   let number = String(req.query.number || "").trim();
   const currency = String(req.query.currency || "USD").trim() || "USD";

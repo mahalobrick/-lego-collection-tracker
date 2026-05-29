@@ -10,6 +10,7 @@ import { DEFAULT_WANTED_COLUMNS } from "./utils/columnDefaults";
 import { syncBEValues } from "./utils/beSyncValues";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import { notificationsSupported, notificationPermission, requestNotificationPermission } from "./utils/notifications";
+import { apiFetch } from "./utils/apiFetch";
 
 const DEFAULT_STORES = ["Amazon", "Best Buy", "Bricklink", "LEGO", "Target", "Walmart"];
 const DEFAULT_ANNUAL_BUDGET = 10320;
@@ -239,7 +240,7 @@ export default function AppSettings() {
         } catch {}
       }
       if (!bfSets) {
-        const res  = await fetch("/api/brickfanatics-retiring");
+        const res  = await apiFetch("/api/brickfanatics-retiring");
         const json = await res.json();
         if (!res.ok || json.error || !json.sets?.length) throw new Error(json.message || "BF fetch failed");
         bfSets = json.sets; fetchedAt = json.fetchedAt || new Date().toISOString();

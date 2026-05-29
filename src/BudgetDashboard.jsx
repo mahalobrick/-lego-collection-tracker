@@ -8,6 +8,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, Bar
 import { asNumber, money, setImageUrl, lineTotal, lineCashPaid } from "./utils/formatting";
 import PurchaseDetailPanel from "./PurchaseDetailPanel";
 import { fetchLegoThemes } from "./utils/brickset";
+import { apiFetch } from "./utils/apiFetch";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
 
@@ -970,7 +971,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
       const cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
       let d = cache[key]?.data;
       if (!d) {
-        const res = await fetch(`/api/brickeconomy-set?number=${encodeURIComponent(key)}&currency=USD`);
+        const res = await apiFetch(`/api/brickeconomy-set?number=${encodeURIComponent(key)}&currency=USD`);
         const json = await res.json();
         if (!res.ok || json.error) return;
         d = json.data || json;
@@ -1011,7 +1012,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
         const url = isExact
           ? `/api/brickset-search?setNumber=${encodeURIComponent(val)}`
           : `/api/brickset-search?q=${encodeURIComponent(val)}`;
-        const res = await fetch(url);
+        const res = await apiFetch(url);
         const json = await res.json();
         const results = (json.sets || []).slice(0, 10);
         setLineSearch(prev => ({ ...prev, [index]: { results, loading: false, open: results.length > 0 } }));

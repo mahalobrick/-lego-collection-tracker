@@ -11,7 +11,7 @@
  * Redis key: brickledger:user:{userId}
  */
 
-const { verifyToken } = require("@clerk/backend");
+const { authenticate } = require("./_auth");
 const { setCors, internalError } = require("./_cors");
 
 const ONE_YEAR = 60 * 60 * 24 * 365;
@@ -63,21 +63,6 @@ function getKv() {
   const token = process.env.KV_REST_API_TOKEN;
   if (url && token) return upstashClient(url, token);
   return null;
-}
-
-// ── Validate Clerk Bearer token → return userId or null ──────────────────────
-async function authenticate(req) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const token = authHeader.slice(7);
-  try {
-    const payload = await verifyToken(token, {
-      secretKey: process.env.CLERK_SECRET_KEY,
-    });
-    return payload.sub; // Clerk user ID
-  } catch {
-    return null;
-  }
 }
 
 module.exports = async function handler(req, res) {

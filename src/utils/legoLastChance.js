@@ -9,6 +9,8 @@
  *   const isLC  = isLastChanceSet("75192", codes);
  */
 
+import { apiFetch } from "./apiFetch";
+
 const LS_KEY   = "legoLastChanceCache";
 const TTL_MS   = 23 * 60 * 60 * 1000; // 23 hours (just under CDN's 24hr)
 
@@ -30,7 +32,7 @@ export async function getLastChanceCodes() {
 
   // Fetch fresh
   try {
-    const res  = await fetch("/api/lego-last-chance");
+    const res  = await apiFetch("/api/lego-last-chance");
     const json = await res.json();
     if (!res.ok || json.error || !json.setCodes) return new Set();
 

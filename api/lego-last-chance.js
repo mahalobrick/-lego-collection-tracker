@@ -77,9 +77,13 @@ async function fetchPage(pageNum) {
 }
 
 const { setCors, internalError } = require("./_cors");
+const { requireAuth } = require("./_auth");
 
 module.exports = async function handler(req, res) {
   if (setCors(req, res, "GET, OPTIONS")) return res.status(200).end();
+
+  const userId = await requireAuth(req, res);
+  if (!userId) return;
 
   try {
     // Page 1 first — gives us total so we know how many more to fetch

@@ -1,3 +1,5 @@
+import { apiFetch } from "./apiFetch";
+
 const CACHE_KEY = "bricksetSetCache";
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -18,7 +20,7 @@ export async function fetchLegoThemes() {
   } catch { /* ignore */ }
 
   try {
-    const res = await fetch("/api/brickset-themes");
+    const res = await apiFetch("/api/brickset-themes");
     const json = await res.json();
     if (json.error === "no_key" || !res.ok) return [];
     const themes = json.themes || [];
@@ -40,7 +42,7 @@ export async function searchBricksetCatalog(query, theme = "") {
     const params = new URLSearchParams();
     if (query) params.set("q", query);
     if (theme) params.set("theme", theme);
-    const res = await fetch(`/api/brickset-search?${params}`);
+    const res = await apiFetch(`/api/brickset-search?${params}`);
     const json = await res.json();
     if (json.error === "no_key") return { sets: [], noKey: true };
     if (!res.ok || json.error) return { sets: [], error: json.message || json.error };
@@ -75,7 +77,7 @@ export async function fetchBricksetSet(setNumber) {
   }
 
   try {
-    const res = await fetch(`/api/brickset-set?number=${encodeURIComponent(setNumber)}`);
+    const res = await apiFetch(`/api/brickset-set?number=${encodeURIComponent(setNumber)}`);
     const json = await res.json();
 
     if (json.error === "no_key") {
