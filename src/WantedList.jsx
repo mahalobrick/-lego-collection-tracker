@@ -828,19 +828,7 @@ export default function WantedList({ onBuyNow }) {
     }
     if (key === "retirementYear") {
       if (!item.retirementYear) return "—";
-      const yr = Number(item.retirementYear);
-      const thisYear = new Date().getFullYear();
-      const urgency = item.retiringSoon || yr <= thisYear
-        ? { dot: "🔴", title: "Retiring this year or already retired" }
-        : yr === thisYear + 1
-        ? { dot: "🟡", title: "Retiring next year" }
-        : null;
-      return (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-          {urgency && <span title={urgency.title} style={{ fontSize: 10, lineHeight: 1 }}>{urgency.dot}</span>}
-          {item.retirementYear}
-        </span>
-      );
+      return item.retirementYear;
     }
     if (key === "retirementSource") return item.retirementSource || "—";
     if (key === "lastRetirementUpdate") return item.lastRetirementUpdate || "—";

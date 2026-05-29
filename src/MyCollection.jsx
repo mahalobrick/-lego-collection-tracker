@@ -256,6 +256,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
   // ── Extra metadata from Brickset lookup (not shown in form UI, merged on save) ──
   const [lookupData, setLookupData] = useState({});
+  // The cleaned set number the current lookup result belongs to — used to drop the
+  // stale result when the user edits/erases the number without re-looking-up.
+  const [lookedUpNum, setLookedUpNum] = useState("");
 
   // ── Purchase log modal (shown after Add to Collection when paidPrice > 0) ──
   const [purchaseModal, setPurchaseModal] = useState(null); // null | { setNumber, name, theme, qty, price }
@@ -601,6 +604,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         return;
       }
 
+      setLookedUpNum(bsKey); // this lookup result belongs to bsKey
+
       if (bsData) {
         const retired = bsData.exit_date ? new Date(bsData.exit_date) < new Date() : false;
         setLookupData({
@@ -741,6 +746,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     ]);
 
     setLookupData({});
+    setLookedUpNum("");
     setForm({ setNumber: "", name: "", theme: "", condition: "new", qty: 1, paidPrice: "", msrp: "", currentValue: "", notes: "" });
     setLookupMessage("");
     setSetNumSuggestions([]);
@@ -1659,7 +1665,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, letterSpacing: 0.3 }}>Add Owned Set</h3>
           {(form.setNumber || form.name || form.theme || form.paidPrice || form.currentValue || form.notes) && (
             <button
-              onClick={() => { setLookupData({}); setForm({ setNumber: "", name: "", theme: "", condition: "new", qty: 1, paidPrice: "", msrp: "", currentValue: "", notes: "" }); setLookupMessage(""); setSetNumSuggestions([]); }}
+              onClick={() => { setLookupData({}); setLookedUpNum(""); setForm({ setNumber: "", name: "", theme: "", condition: "new", qty: 1, paidPrice: "", msrp: "", currentValue: "", notes: "" }); setLookupMessage(""); setSetNumSuggestions([]); }}
               style={{ background: "transparent", color: "#5d6f80", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "5px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
             >
               Reset
@@ -1691,7 +1697,19 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                 <input
                   placeholder="e.g. 75192 or Millennium Falcon"
                   value={form.setNumber}
-                  onChange={e => { setForm({ ...form, setNumber: e.target.value }); setLookupMessage(""); setSetNumSuggestions([]); }}
+                  onChange={e => {
+                    const v = e.target.value;
+                    const cleaned = String(v).replace(/-1$/, "").trim();
+                    // If the number no longer matches the looked-up set, the prior
+                    // result is stale — drop its metadata + auto-filled fields.
+                    const stale = lookedUpNum && cleaned !== lookedUpNum;
+                    setForm(prev => stale
+                      ? { ...prev, setNumber: v, name: "", theme: "", msrp: "", currentValue: "" }
+                      : { ...prev, setNumber: v });
+                    setLookupMessage("");
+                    setSetNumSuggestions([]);
+                    if (stale) { setLookupData({}); setLookedUpNum(""); }
+                  }}
                   onKeyDown={e => { if (e.key === "Enter") { setSetNumSuggestions([]); lookupSet(); } if (e.key === "Escape") setSetNumSuggestions([]); }}
                   style={{ width: "100%", background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)" }}
                   autoComplete="off"
@@ -2211,7 +2229,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                       {ownedColumns.filter(col => col.visible).map(col => {
                         // Thumbnail image column
                         if (col.key === "thumb") {
-                          const imgUrl = setImageUrl(set.setNumber);
+                          const imgUrl = set.thumbnail || setImageUrl(set.setNumber);
                           return (
                             <td key="thumb" style={{ ...td, padding: "2px 6px", width: 52, minWidth: 52 }}>
                               <img
@@ -2626,7 +2644,9 @@ const circleButton = {
 const td = {
   padding: 10,
   borderTop: "1px solid rgba(255,255,255,0.05)",
-  whiteSpace: "nowrap"
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis"
 };
 const tdRight = { ...td, textAlign: "right", fontWeight: 800, fontFamily: "'JetBrains Mono', monospace" };
 
