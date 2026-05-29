@@ -6,6 +6,17 @@ Primary store: `localStorage` (`blOwnedSets`, `blPurchases`, `blWantedList`, etc
 Charts: recharts. External data: BrickEconomy API (key in `.env.local`).
 Dev server: `npm run dev` (port 5179). Build: `npm run build`.
 
+## Architecture at a glance
+- **Client**: React 19 + Vite 8 SPA — four large "god-module" tabs over a schema-less `localStorage` namespace (`bl*` / `brickEconomy*`); no data-access layer.
+- **Cloud**: per-user JSON blob in Upstash Redis via Clerk-authenticated Vercel functions in `/api` (`sync.js` + key-hiding proxies; shared `_auth` / `_ratelimit` / `_cors`).
+- **Sync**: `src/App.jsx → reconcileOnSignIn()` + `src/utils/exportBackup.js` (build / apply / push / dedup-hash). Highest-blast-radius code in the repo.
+- **Auth/secrets**: Clerk; server keys in env only; CSP enforced.
+
+## Reference docs (read before large changes)
+- **[`docs/architecture-audit.md`](docs/architecture-audit.md)** — full architecture audit + prioritized checklist.
+- **[`docs/security.md`](docs/security.md)** — security source of truth (audit + remediation). Don't duplicate it; cross-link.
+- ⚠️ **Open Critical `SYNC-CRIT-1`**: the sync "fresh device" check can silently overwrite unsynced sold-sets / portfolio / budget / settings. Touching sync? Read **Deep-Dive A** first.
+
 ## Coding principles
 
 ### 1. Think before coding
