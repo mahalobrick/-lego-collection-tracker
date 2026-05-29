@@ -15,9 +15,14 @@ const SYNC_SKIP_KEYS = new Set([
   "blSessionToken", "blBrickLinkAccessToken",
 ]);
 const _origSetItem = localStorage.setItem.bind(localStorage);
+const _origGetItem = localStorage.getItem.bind(localStorage);
 localStorage.setItem = function patchedSetItem(key, value) {
+  // Only treat a write as a data change if the stored value actually differs.
+  // Components re-write identical data in their save effects on mount (e.g. on tab
+  // switch); those no-op writes must NOT trigger the sync indicator/push.
+  const changed = _origGetItem(key) !== String(value);
   _origSetItem(key, value);
-  if (!SYNC_SKIP_KEYS.has(key) && (key.startsWith("bl") || key.startsWith("brickEconomy"))) {
+  if (changed && !SYNC_SKIP_KEYS.has(key) && (key.startsWith("bl") || key.startsWith("brickEconomy"))) {
     window.dispatchEvent(new CustomEvent("brickledger:datachange"));
   }
 };
