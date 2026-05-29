@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import { Show, SignInButton, SignUpButton, UserButton, useAuth } from "@clerk/react";
 import BudgetDashboard from "./BudgetDashboard";
 import WantedList from "./WantedList";
 import MyCollection from "./MyCollection";
 import AppSettings from "./AppSettings";
-import { exportFullBackup, pushToCloud, fetchFromCloud, decryptCloudBackup, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth } from "./utils/exportBackup";
+import { exportFullBackup, pushToCloud, fetchFromCloud, decryptCloudBackup, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup } from "./utils/exportBackup";
 import { runDailyBEBatch } from "./utils/beSyncValues";
 
 export default function App() {
@@ -22,7 +22,11 @@ export default function App() {
   const [bannerError, setBannerError] = useState("");
   const [bannerBusy, setBannerBusy] = useState(false);
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | pending | syncing | saved
+  const [syncConflict, setSyncConflict] = useState(null); // { cloud, local, cloudSummary } | null
   const { getToken, userId, isLoaded } = useAuth();
+  // Gate auth auto-push until first-sign-in reconciliation finishes (or a conflict is resolved),
+  // so we never push local data up before deciding whether it should win.
+  const syncReadyRef = useRef(false);
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(window.scrollY > 220);
@@ -59,19 +63,7 @@ export default function App() {
     if (!isLoaded) return;
 
     if (userId) {
-      // Signed-in path: plaintext JSON, auto-apply
-      fetchFromCloudAuth(getToken).then(data => {
-        if (!data) return;
-        const cloudTime    = data.exportedAt ? new Date(data.exportedAt).getTime() : 0;
-        const localPushRaw = localStorage.getItem("blLastCloudPush");
-        const localTime    = localPushRaw ? new Date(localPushRaw).getTime() : 0;
-        if (cloudTime > localTime + 60_000) {
-          applyBackupToLocalStorage(data);
-          localStorage.setItem("blLastCloudPush", data.exportedAt);
-          toast.success("Synced from cloud ✓", { duration: 3000 });
-          setTimeout(() => window.location.reload(), 1500);
-        }
-      }).catch(err => console.warn("[BrickLedger] Auth sync check failed:", err.message));
+      reconcileOnSignIn();
     } else {
       // Passphrase path: encrypted envelope, show banner to decrypt
       fetchFromCloud().then(payload => {
@@ -86,6 +78,92 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, userId]);
+
+  // First-sign-in reconciliation — decide between local and cloud data WITHOUT ever
+  // silently destroying unsynced work. Sets syncReadyRef when safe to auto-push.
+  async function reconcileOnSignIn() {
+    syncReadyRef.current = false;
+    let cloud = null;
+    try { cloud = await fetchFromCloudAuth(getToken); }
+    catch (err) { console.warn("[BrickLedger] Sync fetch failed:", err.message); syncReadyRef.current = true; return; }
+
+    const syncedUser = localStorage.getItem("blSyncedUserId");
+    // A different account synced on this browser → its dedup hash isn't ours. Drop it.
+    if (syncedUser && syncedUser !== userId) localStorage.removeItem("blLastPushHash");
+
+    const local    = summarizeLocal();
+    const hasLocal = local.sets > 0 || local.wanted > 0 || local.purchases > 0;
+
+    // ── Cloud empty ──────────────────────────────────────────────
+    if (!cloud) {
+      if (hasLocal) {
+        // Claim the account with this device's data — push up immediately.
+        try { await pushToCloudAuth(getToken); } catch { /* interval will retry */ }
+      }
+      localStorage.setItem("blSyncedUserId", userId);
+      syncReadyRef.current = true;
+      return;
+    }
+
+    // ── Fresh device (no local data) → pull silently ─────────────
+    if (!hasLocal) {
+      applyBackupToLocalStorage(cloud);
+      markSynced(cloud, userId);
+      toast.success("Synced from cloud ✓", { duration: 3000 });
+      setTimeout(() => window.location.reload(), 1500);
+      return;
+    }
+
+    // ── Both sides have data ─────────────────────────────────────
+    const cloudTime  = cloud.exportedAt ? new Date(cloud.exportedAt).getTime() : 0;
+    const lastPush   = localStorage.getItem("blLastCloudPush");
+    const localTime  = lastPush ? new Date(lastPush).getTime() : 0;
+    const cloudNewer = cloudTime > localTime + 60_000;
+    const localDirty = localContentHash() !== localStorage.getItem("blLastPushHash");
+    const sameUser   = syncedUser === userId;
+
+    // Safe to pull silently only if this device has no unsynced edits AND belongs to this user.
+    if (sameUser && cloudNewer && !localDirty) {
+      applyBackupToLocalStorage(cloud);
+      markSynced(cloud, userId);
+      toast.success("Synced from cloud ✓", { duration: 3000 });
+      setTimeout(() => window.location.reload(), 1500);
+      return;
+    }
+
+    // Same user, local is current or ahead → keep local, let auto-push send it up.
+    if (sameUser && !cloudNewer) {
+      localStorage.setItem("blSyncedUserId", userId);
+      syncReadyRef.current = true;
+      return;
+    }
+
+    // Anything else is a genuine conflict (cross-user device, or unsynced local edits vs newer cloud).
+    // Ask the user — never auto-destroy.
+    setSyncConflict({ cloud, local, cloudSummary: summarizeBackup(cloud) });
+  }
+
+  function resolveConflictUseCloud() {
+    const { cloud } = syncConflict;
+    applyBackupToLocalStorage(cloud);
+    markSynced(cloud, userId);
+    setSyncConflict(null);
+    toast.success("Loaded your cloud data — reloading…", { duration: 2500 });
+    setTimeout(() => window.location.reload(), 1200);
+  }
+
+  async function resolveConflictKeepLocal() {
+    setSyncConflict(null);
+    localStorage.removeItem("blLastPushHash"); // force the push through
+    try {
+      await pushToCloudAuth(getToken);
+      localStorage.setItem("blSyncedUserId", userId);
+      toast.success("This device's data is now your cloud copy ✓");
+    } catch {
+      toast.error("Couldn't upload — will retry automatically.");
+    }
+    syncReadyRef.current = true;
+  }
 
   // Rolling daily batch: silently syncs 50 oldest-cached sets per day.
   // Cycle length auto-scales with collection size (600 sets = 12-day cycle).
@@ -109,9 +187,10 @@ export default function App() {
   }, [cloudPassphrase]);
 
   // Interval auto-push (auth path) — runs when signed in, no passphrase needed.
+  // Gated on syncReadyRef so it never fires during pending reconciliation/conflict.
   useEffect(() => {
     if (!isLoaded || !userId) return;
-    const doPush = () => pushToCloudAuth(getToken).catch(() => {});
+    const doPush = () => { if (syncReadyRef.current) pushToCloudAuth(getToken).catch(() => {}); };
     const timer = setTimeout(doPush, 10_000);
     const interval = setInterval(doPush, 5 * 60_000);
     const onVisible = () => { if (document.visibilityState === "visible") doPush(); };
@@ -131,6 +210,8 @@ export default function App() {
       setSyncStatus("pending");
       clearTimeout(timer);
       timer = setTimeout(async () => {
+        // Don't push auth data while reconciliation/conflict is still pending.
+        if (hasAuth && !syncReadyRef.current) { setSyncStatus("idle"); return; }
         setSyncStatus("syncing");
         try {
           if (hasAuth) await pushToCloudAuth(getToken);
@@ -149,6 +230,49 @@ export default function App() {
 
   return (
     <>
+      {syncConflict && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 9999,
+          background: "rgba(6,10,18,0.82)", backdropFilter: "blur(4px)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+          fontFamily: "'Inter', sans-serif",
+        }}>
+          <div style={{
+            background: "#0d1623", border: "1px solid rgba(201,168,76,0.35)", borderRadius: 16,
+            maxWidth: 460, width: "100%", padding: 28, boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
+          }}>
+            <h2 style={{ margin: "0 0 6px", fontSize: 20, color: "#e8e2d5", fontWeight: 800 }}>Choose which data to keep</h2>
+            <p style={{ margin: "0 0 20px", fontSize: 13.5, lineHeight: 1.5, color: "#8a9bb0" }}>
+              This device has data that doesn't match your account. Pick which copy to keep —
+              the other will be replaced. This won't merge them.
+            </p>
+            <div style={{ display: "flex", gap: 12, marginBottom: 22 }}>
+              {[
+                { title: "This device", s: syncConflict.local },
+                { title: "Your account", s: syncConflict.cloudSummary },
+              ].map(({ title, s }) => (
+                <div key={title} style={{ flex: 1, background: "#0b1520", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#c9a84c", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>{title}</div>
+                  <div style={{ fontSize: 13, color: "#cdd6e2", lineHeight: 1.7 }}>
+                    {s.sets} sets<br />{s.wanted} wanted<br />{s.purchases} purchases
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button onClick={resolveConflictUseCloud} style={{ background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 9, padding: "11px 16px", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+                Use my account data
+              </button>
+              <button onClick={resolveConflictKeepLocal} style={{ background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 9, padding: "11px 16px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                Keep this device's data
+              </button>
+            </div>
+            <p style={{ margin: "16px 0 0", fontSize: 11.5, color: "#5d6f80", textAlign: "center" }}>
+              Tip: export a backup first (Settings → Data) if you're unsure.
+            </p>
+          </div>
+        </div>
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
         * { box-sizing: border-box; }

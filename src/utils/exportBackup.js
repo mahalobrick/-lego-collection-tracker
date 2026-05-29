@@ -161,8 +161,7 @@ export async function pushToCloudAuth(getToken) {
   delete backup.brickEconomySetCache; // large and fully regeneratable
 
   // Skip if nothing changed since last push
-  const { exportedAt: _ts, ...backupWithoutTs } = backup;
-  const contentHash = quickHash(JSON.stringify(backupWithoutTs));
+  const contentHash = dedupHash(backup);
   if (contentHash === localStorage.getItem("blLastPushHash")) return { skipped: "no_change" };
 
   const token = await getToken();
@@ -179,6 +178,55 @@ export async function pushToCloudAuth(getToken) {
   localStorage.setItem("blLastCloudPush", json.savedAt || new Date().toISOString());
   localStorage.setItem("blLastPushHash", contentHash);
   return json;
+}
+
+// ── Sync reconciliation helpers (Phase 4) ────────────────────────────────────
+
+// Canonical dedup fingerprint of a backup — excludes the timestamp (changes every
+// build) and the regeneratable set cache (stripped before push, absent in cloud copy)
+// so a freshly-built local backup and a pulled cloud backup hash identically when
+// their actual data matches.
+function dedupHash(backup) {
+  const { exportedAt: _ts, brickEconomySetCache: _c, ...rest } = backup;
+  return quickHash(JSON.stringify(rest));
+}
+
+/** Fingerprint of the CURRENT local data — compare against blLastPushHash to detect unsynced edits. */
+export function localContentHash() {
+  return dedupHash(buildBackup(new Date()));
+}
+
+/**
+ * Mark local state as in-sync with a given backup: records its hash + timestamp + owning user
+ * so the next auto-push correctly skips (no redundant re-push of just-pulled data).
+ */
+export function markSynced(backup, userId) {
+  localStorage.setItem("blLastPushHash", dedupHash(backup));
+  localStorage.setItem("blLastCloudPush", backup.exportedAt || new Date().toISOString());
+  if (userId) localStorage.setItem("blSyncedUserId", userId);
+}
+
+function countList(raw) {
+  try { const v = JSON.parse(raw || "[]"); return Array.isArray(v) ? v.length : 0; } catch { return 0; }
+}
+
+/** Rough item counts of the CURRENT local data — for the conflict dialog. */
+export function summarizeLocal() {
+  return {
+    sets:      countList(localStorage.getItem("blOwnedSets")) + countList(localStorage.getItem("brickEconomyNormalizedCollection")),
+    wanted:    countList(localStorage.getItem("blWantedList")),
+    purchases: countList(localStorage.getItem("blPurchases")),
+  };
+}
+
+/** Rough item counts of a backup object — for the conflict dialog. */
+export function summarizeBackup(d) {
+  const len = v => (Array.isArray(v) ? v.length : 0);
+  return {
+    sets:      len(d?.ownedSets) + len(d?.brickEconomyNormalized),
+    wanted:    len(d?.wantedList),
+    purchases: len(d?.budgetPurchases),
+  };
 }
 
 /**
