@@ -220,7 +220,7 @@ export function summarizeLocal() {
 }
 
 // Device-local preferences that should survive a sign-out (not user content).
-const SIGNOUT_KEEP_KEYS = new Set(["blAutoExportDays", "blAuthDevice"]);
+const SIGNOUT_KEEP_KEYS = new Set(["blAutoExportDays"]);
 
 /**
  * Wipe all BrickLedger user data + caches + sync metadata from this device.

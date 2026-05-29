@@ -5,22 +5,18 @@ import BudgetDashboard from "./BudgetDashboard";
 import WantedList from "./WantedList";
 import MyCollection from "./MyCollection";
 import AppSettings from "./AppSettings";
-import { exportFullBackup, pushToCloud, fetchFromCloud, decryptCloudBackup, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup, clearLocalUserData } from "./utils/exportBackup";
+import { exportFullBackup, pushToCloud, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup, clearLocalUserData } from "./utils/exportBackup";
 import { runDailyBEBatch } from "./utils/beSyncValues";
 
 export default function App() {
   const [view, setView] = useState(() => localStorage.getItem("blLastTab") || "collection");
   const [pendingPurchase, setPendingPurchase] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [cloudRestoreData, setCloudRestoreData] = useState(null); // non-null = show restore banner
   const [cloudPassphrase, setCloudPassphrase] = useState(() => {
     const p = sessionStorage.getItem("blCloudPassphraseHandoff");
     if (p) { sessionStorage.removeItem("blCloudPassphraseHandoff"); return p; }
     return "";
   }); // session-only, never persisted
-  const [bannerPassphrase, setBannerPassphrase] = useState("");
-  const [bannerError, setBannerError] = useState("");
-  const [bannerBusy, setBannerBusy] = useState(false);
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | pending | syncing | saved
   const [syncConflict, setSyncConflict] = useState(null); // { cloud, local, cloudSummary } | null
   const { getToken, userId, isLoaded } = useAuth();
@@ -72,31 +68,16 @@ export default function App() {
 
     if (userId) {
       reconcileOnSignIn();
-    } else {
+    } else if (localStorage.getItem("blSyncedUserId")) {
       // Signed out (or session ended) but an auth account's data is still on this
       // device → wipe it so a shared computer doesn't leak the previous user's data.
-      if (localStorage.getItem("blSyncedUserId")) {
-        clearLocalUserData();
-        sessionStorage.setItem("blSignedOutCleared", "1"); // toast after reload
-        window.location.reload();
-        return;
-      }
-      // Skip the legacy passphrase-restore banner on devices that have used account
-      // login — an auth user who just signed out shouldn't be nagged to decrypt an
-      // old pre-auth backup. (The passphrase path still works for never-authed devices.)
-      if (localStorage.getItem("blAuthDevice")) return;
-
-      // Passphrase path: encrypted envelope, show banner to decrypt
-      fetchFromCloud().then(payload => {
-        if (!payload || !payload.ciphertext) return;
-        const cloudTime     = payload.exportedAt ? new Date(payload.exportedAt).getTime() : 0;
-        const localPushRaw  = localStorage.getItem("blLastCloudPush");
-        const localPushTime = localPushRaw ? new Date(localPushRaw).getTime() : 0;
-        if (cloudTime > localPushTime + 60_000) {
-          setCloudRestoreData(payload);
-        }
-      }).catch(err => console.warn("[BrickLedger] Cloud sync check failed:", err.message));
+      clearLocalUserData();
+      sessionStorage.setItem("blSignedOutCleared", "1"); // toast after reload
+      window.location.reload();
     }
+    // Note: the legacy passphrase auto-restore banner was retired here — it assumed a
+    // single global backup, which is wrong now that data is per-account. Passphrase users
+    // can still pull manually from Settings → Cloud Sync.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, userId]);
 
@@ -104,7 +85,6 @@ export default function App() {
   // silently destroying unsynced work. Sets syncReadyRef when safe to auto-push.
   async function reconcileOnSignIn() {
     syncReadyRef.current = false;
-    localStorage.setItem("blAuthDevice", "1"); // mark device as auth-used (survives sign-out)
     let cloud = null;
     try { cloud = await fetchFromCloudAuth(getToken); }
     catch (err) { console.warn("[BrickLedger] Sync fetch failed:", err.message); syncReadyRef.current = true; return; }
@@ -435,84 +415,13 @@ export default function App() {
         </div>
       </div>
 
-      {/* Cloud sync banner — encrypted backup is newer than this browser's last push */}
-      {cloudRestoreData && (
-        <div style={{
-          position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 300,
-          background: "linear-gradient(90deg, #0d1e35, #0f2540)",
-          borderTop: "1px solid rgba(201,168,76,0.4)",
-          boxShadow: "0 -4px 32px rgba(0,0,0,0.6)",
-          padding: "14px 20px",
-          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-          fontFamily: "'Inter', sans-serif",
-        }}>
-          <span style={{ fontSize: 20 }}>🔒</span>
-          <span style={{ color: "#e8e2d5", fontSize: 13 }}>
-            Encrypted cloud backup from{" "}
-            <strong>{cloudRestoreData.exportedAt ? new Date(cloudRestoreData.exportedAt).toLocaleString() : "a previous session"}</strong>
-          </span>
-          <input
-            type="password"
-            placeholder="Enter passphrase"
-            value={bannerPassphrase}
-            onChange={e => { setBannerPassphrase(e.target.value); setBannerError(""); }}
-            onKeyDown={e => { if (e.key === "Enter" && bannerPassphrase) e.currentTarget.nextSibling?.click(); }}
-            style={{
-              background: "#0b1520", border: `1px solid ${bannerError ? "#ef4444" : "rgba(255,255,255,0.12)"}`,
-              borderRadius: 8, padding: "7px 12px", color: "#e8e2d5", fontSize: 13,
-              outline: "none", width: 180,
-            }}
-          />
-          <button
-            disabled={!bannerPassphrase || bannerBusy}
-            onClick={async () => {
-              setBannerBusy(true);
-              setBannerError("");
-              try {
-                const backup = await decryptCloudBackup(cloudRestoreData, bannerPassphrase);
-                applyBackupToLocalStorage(backup);
-                if (cloudRestoreData.exportedAt) {
-                  localStorage.setItem("blLastCloudPush", cloudRestoreData.exportedAt);
-                }
-                // Promote the passphrase for this session so auto-push starts working
-                setCloudPassphrase(bannerPassphrase);
-                sessionStorage.setItem("blCloudPassphraseHandoff", bannerPassphrase);
-                setCloudRestoreData(null);
-                toast.success("Cloud backup restored — reloading…", { duration: 3000 });
-                setTimeout(() => window.location.reload(), 1500);
-              } catch (err) {
-                setBannerError(err?.message?.startsWith("Backup version") ? err.message : "Wrong passphrase");
-              } finally {
-                setBannerBusy(false);
-              }
-            }}
-            style={{
-              background: bannerPassphrase && !bannerBusy ? "#c9a84c" : "#1a2840",
-              color: bannerPassphrase && !bannerBusy ? "#0d1623" : "#5d6f80",
-              border: "none", borderRadius: 8, padding: "8px 18px",
-              fontWeight: 700, fontSize: 13, cursor: bannerPassphrase ? "pointer" : "default",
-              transition: "all 0.15s",
-            }}
-          >
-            {bannerBusy ? "Decrypting…" : "Sync Now"}
-          </button>
-          {bannerError && <span style={{ color: "#ef4444", fontSize: 12 }}>{bannerError}</span>}
-          <button
-            onClick={() => { setCloudRestoreData(null); setBannerPassphrase(""); setBannerError(""); }}
-            style={{ background: "transparent", color: "#5d6f80", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "8px 14px", fontSize: 13, cursor: "pointer" }}
-          >
-            Not Now
-          </button>
-        </div>
-      )}
-
       {showScrollTop && (
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           title="Back to top"
           aria-label="Scroll to top"
           style={{
-            position: "fixed", bottom: cloudRestoreData ? 96 : 24, right: 24, zIndex: 200,
+            position: "fixed", bottom: 24, right: 24, zIndex: 200,
             width: 38, height: 38, borderRadius: "50%",
             background: "rgba(20,31,48,0.92)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
             border: "1px solid rgba(255,255,255,0.14)",
