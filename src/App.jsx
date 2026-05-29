@@ -291,6 +291,13 @@ export default function App() {
         .owned-table-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
         .owned-table-scroll::-webkit-scrollbar-track { background: transparent; }
         .owned-table-scroll::-webkit-scrollbar-thumb { background: #2f3446; border-radius: 10px; }
+        /* Below ~800px the centered pill grows wide enough to collide with the
+           absolutely-positioned auth controls (worst case: signed-out, two buttons).
+           Stack the controls below the tabs instead of overlapping them. */
+        @media (max-width: 800px) {
+          .nav-wrap { flex-direction: column !important; gap: 10px !important; }
+          .nav-right { position: static !important; transform: none !important; right: auto !important; top: auto !important; justify-content: center !important; }
+        }
         @media (max-width: 600px) {
           .app-header { padding: 18px 16px !important; }
           .nav-wrap { padding: 10px 12px !important; }
@@ -350,7 +357,7 @@ export default function App() {
               ))}
             </div>
             {/* Right-side nav controls: sync indicator + auth */}
-            <div style={{
+            <div className="nav-right" style={{
               position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)",
               display: "flex", alignItems: "center", gap: 8,
             }}>
