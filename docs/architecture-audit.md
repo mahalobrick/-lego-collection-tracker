@@ -2,6 +2,8 @@
 
 _Date: 2026-05-29 · Commit: `2a9fa3f` · Method: 26-agent workflow (parallel grounded finders → adversarial verification → 2-pass data-loss red-team). Raw file/git dumps stayed in subagents._
 
+> ▶️ **Execution order:** findings below are ranked by severity; for the *sequenced* work plan (grouped by root cause, stopgap → test → refactor) see [`docs/audit-action-plan.md`](./audit-action-plan.md).
+
 ## Executive Summary
 
 BrickLedger is a four-tab React 19 + Vite 8 single-page app whose source of truth is browser `localStorage`, mirrored to a per-user JSON blob in Upstash Redis through a small set of Clerk-authenticated Vercel functions. Post security-hardening the trust boundaries are sound (see `docs/security.md`), but the codebase carries the structural debt typical of fast iteration: four 1,000–3,600-line "god-module" tabs share a **schema-less `localStorage` namespace with no data-access layer**, the cloud backup round-trips a key set that is **defined ad hoc in several places** (so user-authored content silently falls out of it), money handling is **215 scattered `asNumber()` call sites** with no enforced money type, and there is **zero automated test coverage** — most acute precisely on the data-destruction branches and money math. The single highest-impact risk lives in the most-churned subsystem, **cloud-sync reconciliation**: the "is this device empty?" check is narrower than the set of keys a cloud-pull overwrites, producing a verified silent data-loss path (below). None of this is a security regression — it is reliability and maintainability debt — but the data-loss path should be treated as release-blocking.

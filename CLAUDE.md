@@ -14,6 +14,7 @@ Dev server: `npm run dev` (port 5179). Build: `npm run build`.
 
 ## Reference docs (read before large changes)
 - **[`docs/architecture-audit.md`](docs/architecture-audit.md)** — full architecture audit + prioritized checklist.
+- **[`docs/audit-action-plan.md`](docs/audit-action-plan.md)** — sequenced work plan (root-cause grouped: stopgap → test → refactor).
 - **[`docs/security.md`](docs/security.md)** — security source of truth (audit + remediation). Don't duplicate it; cross-link.
 - ⚠️ **Open Critical `SYNC-CRIT-1`**: the sync "fresh device" check can silently overwrite unsynced sold-sets / portfolio / budget / settings. Touching sync? Read **Deep-Dive A** first.
 
