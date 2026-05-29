@@ -36,8 +36,27 @@ function upstashClient(url, token) {
         body: JSON.stringify(value),
       });
     },
+    // Atomic increment; sets a TTL on first hit. Returns the new count.
+    async incrWithTtl(key, ttlSeconds) {
+      const r = await fetch(`${url}/incr/${encodeURIComponent(key)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const j = await r.json();
+      const count = Number(j.result) || 0;
+      if (count === 1) {
+        await fetch(`${url}/expire/${encodeURIComponent(key)}/${ttlSeconds}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+      return count;
+    },
   };
 }
+
+// Per-user rate limit: max requests per rolling window. Generous for normal use
+// (debounced + interval pushes are infrequent) but caps abuse / runaway loops.
+const RATE_LIMIT = 60;
+const RATE_WINDOW_SECONDS = 60;
 
 function getKv() {
   const url   = process.env.KV_REST_API_URL;
@@ -73,6 +92,15 @@ module.exports = async function handler(req, res) {
   if (!userId) {
     return res.status(401).json({ error: "unauthorized" });
   }
+
+  // Per-user rate limit (fail-open: if the counter errors, allow the request).
+  try {
+    const count = await kv.incrWithTtl(`brickledger:rl:${userId}`, RATE_WINDOW_SECONDS);
+    if (count > RATE_LIMIT) {
+      res.setHeader("Retry-After", String(RATE_WINDOW_SECONDS));
+      return res.status(429).json({ error: "rate_limited" });
+    }
+  } catch { /* ignore — don't block sync on a rate-limiter hiccup */ }
 
   const key = `brickledger:user:${userId}`;
 

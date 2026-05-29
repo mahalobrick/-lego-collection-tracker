@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import Papa from "papaparse";
 import { importBudgetExcel, parseExcelFirstSheet } from "./utils/importBudgetExcel";
 import { asNumber } from "./utils/formatting";
-import { exportFullBackup as runExportBackup, pushToCloud, fetchFromCloud, decryptCloudBackup, applyBackupToLocalStorage, pushToCloudAuth } from "./utils/exportBackup";
+import { exportFullBackup as runExportBackup, applyBackupToLocalStorage, pushToCloudAuth } from "./utils/exportBackup";
 import { getBrickLinkAccessToken, hasBrickLinkAuth, getBrickLinkSession, bulkSyncPrices } from "./utils/bricklink-client";
 import { DEFAULT_WANTED_COLUMNS } from "./utils/columnDefaults";
 import { syncBEValues } from "./utils/beSyncValues";
@@ -176,7 +176,7 @@ function isoToCSVDate(value) {
   return d.toLocaleDateString("en-US");
 }
 
-export default function AppSettings({ cloudPassphrase = "", onPassphraseChange = () => {} }) {
+export default function AppSettings() {
   const [collectionSyncInfo, setCollectionSyncInfo] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("brickEconomyCollectionSyncInfo") || "{}");
@@ -282,28 +282,6 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Check whether the cloud has an encrypted backup, a legacy unencrypted one, or nothing.
-  // If legacy AND a passphrase is already active this session, auto-upgrade silently.
-  useEffect(() => {
-    fetchFromCloud().then(async payload => {
-      if (!payload)                setCloudStatus("empty");
-      else if (payload.ciphertext) setCloudStatus("encrypted");
-      else {
-        setCloudStatus("legacy");
-        if (cloudPassphrase) {
-          // Force past the dirty-flag by clearing the last push hash so the push runs
-          localStorage.removeItem("blLastPushHash");
-          const result = await pushToCloud(cloudPassphrase).catch(() => null);
-          if (result?.ok) {
-            setCloudStatus("encrypted");
-            toast.success("Cloud backup upgraded to encrypted format ✓");
-          }
-        }
-      }
-    }).catch(() => setCloudStatus("empty"));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   function handleRbFill() {
     if (!rbReady()) { toast("Rebrickable catalog still loading — try again in a moment."); return; }
     setRbFilling(true);
@@ -360,12 +338,9 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
   const [lastExportAt, setLastExportAt] = useState(
     () => localStorage.getItem("blLastAutoExport") || ""
   );
-  const [lastCloudPush, setLastCloudPush] = useState(
+  const [lastCloudPush] = useState(
     () => localStorage.getItem("blLastCloudPush") || ""
   );
-  const [cloudBusy, setCloudBusy] = useState(false);
-  const [passphraseDraft, setPassphraseDraft] = useState(""); // typed but not yet committed
-  const [cloudStatus, setCloudStatus] = useState(null); // null | "encrypted" | "legacy" | "empty"
 
   const [importMode, setImportMode] = useState("add");
 
@@ -535,60 +510,6 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
   // Resolves the active passphrase: committed session value takes priority,
   // then falls back to whatever is currently typed in the draft field.
   // This lets users type → click Push/Pull in one step without a separate "Save" click.
-  function resolvePassphrase() {
-    const p = cloudPassphrase || passphraseDraft;
-    if (p && !cloudPassphrase) onPassphraseChange(p); // promote draft to session
-    return p;
-  }
-
-  async function handlePushToCloud() {
-    const p = resolvePassphrase();
-    if (!p) { toast.error("Enter a passphrase first."); return; }
-    setCloudBusy(true);
-    try {
-      const result = await pushToCloud(p);
-      if (result === null) {
-        toast.error("Cloud backup not configured — connect a Redis database in Vercel Storage.");
-      } else if (result?.skipped === "no_data") {
-        toast.error("Nothing to push — import your collection first, then push.");
-      } else {
-        const ts = result.savedAt || new Date().toISOString();
-        setLastCloudPush(ts);
-        setCloudStatus("encrypted");
-        toast.success("Encrypted backup saved to cloud ✓");
-      }
-    } catch (err) {
-      toast.error(`Cloud push failed: ${err.message}`);
-    } finally {
-      setCloudBusy(false);
-    }
-  }
-
-  async function handlePullFromCloud() {
-    const p = resolvePassphrase();
-    if (!p) { toast.error("Enter a passphrase first."); return; }
-    if (!window.confirm("Pull from cloud? This will overwrite your local data with the cloud backup.")) return;
-    setCloudBusy(true);
-    try {
-      const payload = await fetchFromCloud();
-      if (!payload) {
-        toast.error("No cloud backup found.");
-      } else if (!payload.ciphertext) {
-        toast.error("Cloud backup is in an old unencrypted format. Push a fresh backup from your main browser.");
-      } else {
-        const backup = await decryptCloudBackup(payload, p);
-        applyBackupToLocalStorage(backup);
-        if (payload.exportedAt) localStorage.setItem("blLastCloudPush", payload.exportedAt);
-        toast.success("Cloud backup restored — reloading…", { duration: 3000 });
-        setTimeout(() => window.location.reload(), 1500);
-      }
-    } catch (err) {
-      toast.error(err.message.includes("passphrase") ? "Wrong passphrase." : `Cloud pull failed: ${err.message}`);
-    } finally {
-      setCloudBusy(false);
-    }
-  }
-
   async function importFullBackup(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -1294,65 +1215,15 @@ export default function AppSettings({ cloudPassphrase = "", onPassphraseChange =
             </button>
           </>
         ) : (
-          /* ── Signed-out: passphrase path ── */
+          /* ── Signed-out: prompt to sign in ── */
           <>
             <p style={{ ...mutedSmall, margin: "0 0 14px" }}>
-              End-to-end encrypted sync — your data is encrypted with your passphrase before leaving the browser.
-              The server only stores ciphertext; the passphrase is never saved or transmitted.
-              Requires Upstash KV (<code style={{ color: "#c9a84c", fontSize: 12 }}>KV_REST_API_URL</code> + <code style={{ color: "#c9a84c", fontSize: 12 }}>KV_REST_API_TOKEN</code>) or a Redis URL (<code style={{ color: "#c9a84c", fontSize: 12 }}>REDIS_URL</code>).
+              Sign in to sync your collection across devices automatically. Your data is stored
+              privately under your account — open the app on any browser and it's there.
             </p>
-
-            {cloudStatus === "legacy" && (
-              <div style={{ background: "#1a1500", border: "1px solid #78350f", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#fbbf24" }}>
-                ⚠️ Old unencrypted backup detected. Set a passphrase below and hit <strong>Push to Cloud</strong> to upgrade — this warning won't appear again.
-              </div>
-            )}
-            {cloudStatus === "empty" && (
-              <div style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#8a9bb0" }}>
-                No cloud backup found yet. Set a passphrase and push to get started.
-              </div>
-            )}
-            {cloudStatus === "encrypted" && (
-              <div style={{ background: "#0a1f0a", border: "1px solid #166534", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#5aa832" }}>
-                🔒 Encrypted backup is in the cloud. Other browsers will prompt for your passphrase on load.
-              </div>
-            )}
-
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-              <input
-                type="password"
-                placeholder={cloudPassphrase ? "●●●●●●●● (active this session)" : "Cloud backup passphrase"}
-                value={cloudPassphrase ? "" : passphraseDraft}
-                onChange={e => { onPassphraseChange(""); setPassphraseDraft(e.target.value); }}
-                onKeyDown={e => { if (e.key === "Enter") handlePushToCloud(); }}
-                style={{
-                  background: "#0b1520",
-                  border: `1px solid ${cloudPassphrase ? "#166534" : "rgba(255,255,255,0.12)"}`,
-                  borderRadius: 8, padding: "7px 12px", color: "#e8e2d5", fontSize: 13, outline: "none", width: 240,
-                }}
-              />
-              {cloudPassphrase && (
-                <button onClick={() => { onPassphraseChange(""); setPassphraseDraft(""); }} style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "3px 10px", fontSize: 12, color: "#8a9bb0", cursor: "pointer" }}>
-                  Change
-                </button>
-              )}
-              <span style={{ fontSize: 12, color: cloudPassphrase ? "#5aa832" : "#5d6f80" }}>
-                {cloudPassphrase ? "🔒 Active this session" : "Never stored — re-enter each session"}
-              </span>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <button onClick={handlePushToCloud} disabled={cloudBusy || (!cloudPassphrase && !passphraseDraft)} style={{ ...smallButton, opacity: cloudBusy || (!cloudPassphrase && !passphraseDraft) ? 0.4 : 1 }}>
-                {cloudBusy ? "Working…" : "Push to Cloud"}
-              </button>
-              <button onClick={handlePullFromCloud} disabled={cloudBusy || (!cloudPassphrase && !passphraseDraft)} style={{ ...smallButton, opacity: cloudBusy || (!cloudPassphrase && !passphraseDraft) ? 0.4 : 1 }}>
-                Pull from Cloud
-              </button>
-              {lastCloudPush && (
-                <div style={{ fontSize: 13, color: "#5d6f80" }}>
-                  Last push: <span style={{ color: "#8a9bb0" }}>{new Date(lastCloudPush).toLocaleString()}</span>
-                </div>
-              )}
+            <div style={{ fontSize: 13, color: "#5d6f80" }}>
+              Use the <strong style={{ color: "#8a9bb0" }}>Sign In</strong> button in the top nav.
+              Prefer to stay local? Use <em>Local Backup</em> below to export and restore a file.
             </div>
           </>
         )}

@@ -5,18 +5,13 @@ import BudgetDashboard from "./BudgetDashboard";
 import WantedList from "./WantedList";
 import MyCollection from "./MyCollection";
 import AppSettings from "./AppSettings";
-import { exportFullBackup, pushToCloud, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup, clearLocalUserData } from "./utils/exportBackup";
+import { exportFullBackup, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup, clearLocalUserData } from "./utils/exportBackup";
 import { runDailyBEBatch } from "./utils/beSyncValues";
 
 export default function App() {
   const [view, setView] = useState(() => localStorage.getItem("blLastTab") || "collection");
   const [pendingPurchase, setPendingPurchase] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [cloudPassphrase, setCloudPassphrase] = useState(() => {
-    const p = sessionStorage.getItem("blCloudPassphraseHandoff");
-    if (p) { sessionStorage.removeItem("blCloudPassphraseHandoff"); return p; }
-    return "";
-  }); // session-only, never persisted
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | pending | syncing | saved
   const [syncConflict, setSyncConflict] = useState(null); // { cloud, local, cloudSummary } | null
   const { getToken, userId, isLoaded } = useAuth();
@@ -181,18 +176,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Interval auto-push (passphrase path) — unchanged, kept for backward compat.
-  useEffect(() => {
-    if (!cloudPassphrase) return;
-    const doPush = () => pushToCloud(cloudPassphrase).catch(() => {});
-    const timer = setTimeout(doPush, 10_000);
-    const interval = setInterval(doPush, 5 * 60_000);
-    const onVisible = () => { if (document.visibilityState === "visible") doPush(); };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => { clearTimeout(timer); clearInterval(interval); document.removeEventListener("visibilitychange", onVisible); };
-  }, [cloudPassphrase]);
-
-  // Interval auto-push (auth path) — runs when signed in, no passphrase needed.
+  // Interval auto-push — runs when signed in, no passphrase needed.
   // Gated on syncReadyRef so it never fires during pending reconciliation/conflict.
   useEffect(() => {
     if (!isLoaded || !userId) return;
@@ -205,23 +189,20 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, userId]);
 
-  // Change-triggered auto-push: debounce 15s after any data write.
-  // Auth path takes priority; falls back to passphrase if not signed in.
+  // Change-triggered auto-push: debounce 15s after any data write (signed-in only).
   // Shows a small nav indicator while pending/syncing.
   useEffect(() => {
-    const hasAuth = isLoaded && !!userId;
-    if (!hasAuth && !cloudPassphrase) return;
+    if (!isLoaded || !userId) return;
     let timer = null;
     const onChange = () => {
       setSyncStatus("pending");
       clearTimeout(timer);
       timer = setTimeout(async () => {
-        // Don't push auth data while reconciliation/conflict is still pending.
-        if (hasAuth && !syncReadyRef.current) { setSyncStatus("idle"); return; }
+        // Don't push while reconciliation/conflict is still pending.
+        if (!syncReadyRef.current) { setSyncStatus("idle"); return; }
         setSyncStatus("syncing");
         try {
-          if (hasAuth) await pushToCloudAuth(getToken);
-          else          await pushToCloud(cloudPassphrase);
+          await pushToCloudAuth(getToken);
           setSyncStatus("saved");
           setTimeout(() => setSyncStatus("idle"), 3000);
         } catch {
@@ -232,7 +213,7 @@ export default function App() {
     window.addEventListener("brickledger:datachange", onChange);
     return () => { window.removeEventListener("brickledger:datachange", onChange); clearTimeout(timer); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, userId, cloudPassphrase]);
+  }, [isLoaded, userId]);
 
   return (
     <>
@@ -361,8 +342,8 @@ export default function App() {
               position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)",
               display: "flex", alignItems: "center", gap: 8,
             }}>
-              {/* Cloud sync status — show for auth users OR passphrase users */}
-              {(userId || cloudPassphrase) && syncStatus !== "idle" && (
+              {/* Cloud sync status — shown for signed-in users */}
+              {userId && syncStatus !== "idle" && (
                 <div style={{
                   display: "flex", alignItems: "center", gap: 5,
                   fontSize: 11, fontWeight: 600, pointerEvents: "none",
@@ -421,7 +402,7 @@ export default function App() {
                 onNavigateToSettings={() => switchTab("settings")}
               />
             )}
-{view === "settings" && <AppSettings cloudPassphrase={cloudPassphrase} onPassphraseChange={setCloudPassphrase} />}
+{view === "settings" && <AppSettings />}
           </div>
         </div>
       </div>
