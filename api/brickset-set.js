@@ -61,10 +61,7 @@ module.exports = async function handler(req, res) {
     try {
       json = JSON.parse(text);
     } catch {
-      return res.status(502).json({
-        error: "Brickset returned invalid JSON",
-        preview: text.slice(0, 300)
-      });
+      return res.status(502).json({ error: "Brickset returned invalid JSON" });
     }
 
     if (json.status === "error") {

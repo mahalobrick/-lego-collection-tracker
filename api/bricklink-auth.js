@@ -65,10 +65,7 @@ module.exports = async function handler(req, res) {
     try {
       data = JSON.parse(text);
     } catch {
-      return res.status(502).json({
-        error: "BrickLink auth returned invalid JSON",
-        preview: text.slice(0, 300)
-      });
+      return res.status(502).json({ error: "BrickLink auth returned invalid JSON" });
     }
 
     if (!response.ok) {
@@ -80,10 +77,7 @@ module.exports = async function handler(req, res) {
 
     const sessionToken = data.sessionToken || data.session_token || data.token;
     if (!sessionToken) {
-      return res.status(502).json({
-        error: "No sessionToken in BrickLink response",
-        keys: Object.keys(data)
-      });
+      return res.status(502).json({ error: "No sessionToken in BrickLink response" });
     }
 
     return res.status(200).json({ sessionToken });

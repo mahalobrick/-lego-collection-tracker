@@ -49,10 +49,7 @@ module.exports = async function handler(req, res) {
     try {
       return res.status(response.status).json(JSON.parse(text));
     } catch {
-      return res.status(502).json({
-        error: "BrickEconomy returned unexpected response",
-        preview: text.slice(0, 300)
-      });
+      return res.status(502).json({ error: "BrickEconomy returned unexpected response" });
     }
   } catch (err) {
     return internalError(res, err, "brickeconomy-collection");

@@ -36,7 +36,7 @@ function setCors(req, res, methods = "GET, OPTIONS") {
   res.setHeader("Access-Control-Allow-Methods", methods);
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Content-Type, x-bl-session-token, x-backup-secret, Authorization"
+    "Content-Type, x-bl-session-token, Authorization"
   );
 
   return req.method === "OPTIONS";
