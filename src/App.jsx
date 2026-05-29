@@ -89,11 +89,18 @@ export default function App() {
     catch (err) { console.warn("[BrickLedger] Sync fetch failed:", err.message); syncReadyRef.current = true; return; }
 
     const syncedUser = localStorage.getItem("blSyncedUserId");
-    // A different account synced on this browser → its dedup hash isn't ours. Drop it.
-    if (syncedUser && syncedUser !== userId) localStorage.removeItem("blLastPushHash");
+    const foreign = !!syncedUser && syncedUser !== userId;
 
-    const local    = summarizeLocal();
-    const hasLocal = local.sets > 0 || local.wanted > 0 || local.purchases > 0;
+    let local    = summarizeLocal();
+    let hasLocal = local.sets > 0 || local.wanted > 0 || local.purchases > 0;
+
+    // Shared browser (BIZLOGIC-1): the local data belongs to a DIFFERENT account.
+    // Never let it flow into this user's cloud — wipe it and treat this as a fresh
+    // device for the signing-in user.
+    if (foreign) {
+      if (hasLocal) { clearLocalUserData(); local = summarizeLocal(); hasLocal = false; }
+      else localStorage.removeItem("blLastPushHash");
+    }
 
     // ── Cloud empty ──────────────────────────────────────────────
     if (!cloud) {

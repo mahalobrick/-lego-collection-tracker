@@ -6,11 +6,19 @@
  * curl/script with no Origin still reaches the handler — so the auth check is
  * the real boundary.
  *
- * NOTE (Phase 1 / AUTH-1): add `authorizedParties: [process.env.APP_ORIGIN, ...]`
- * to verifyToken to enforce the azp claim. Left out here to keep Phase 0 to a
- * pure auth-gate; this helper is the single place that change will land.
+ * AUTH-1: verifyToken enforces the `azp` (authorized party) claim via
+ * authorizedParties, so a token minted for a different origin on the same Clerk
+ * instance is rejected. APP_ORIGIN is the production origin; localhost covers dev.
  */
 const { verifyToken } = require("@clerk/backend");
+
+// Origins allowed as the token's authorized party (azp claim).
+const AUTHORIZED_PARTIES = [
+  process.env.APP_ORIGIN,
+  "http://localhost:5179",
+  "http://localhost:5173",
+  "http://localhost:3000",
+].filter(Boolean);
 
 /** Verify the Clerk Bearer token → return the userId (sub), or null if missing/invalid. */
 async function authenticate(req) {
@@ -18,7 +26,10 @@ async function authenticate(req) {
   if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
   const token = authHeader.slice(7);
   try {
-    const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY });
+    const payload = await verifyToken(token, {
+      secretKey: process.env.CLERK_SECRET_KEY,
+      authorizedParties: AUTHORIZED_PARTIES,
+    });
     return payload.sub;
   } catch {
     return null;
