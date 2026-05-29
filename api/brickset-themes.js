@@ -1,5 +1,6 @@
 const { setCors, internalError } = require("./_cors");
 const { requireAuth } = require("./_auth");
+const { rateLimitAllow } = require("./_ratelimit");
 
 /**
  * Returns all LEGO themes from the Brickset API.
@@ -11,6 +12,11 @@ module.exports = async function handler(req, res) {
 
   const userId = await requireAuth(req, res);
   if (!userId) return;
+
+  if (!(await rateLimitAllow(userId, { limit: 500, windowSeconds: 60, bucket: "proxy" }))) {
+    res.setHeader("Retry-After", "60");
+    return res.status(429).json({ error: "rate_limited" });
+  }
 
   const apiKey = process.env.BRICKSET_API_KEY || "";
   if (!apiKey) {

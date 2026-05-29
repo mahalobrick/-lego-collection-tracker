@@ -1,11 +1,17 @@
 const { setCors, internalError } = require("./_cors");
 const { requireAuth } = require("./_auth");
+const { rateLimitAllow } = require("./_ratelimit");
 
 module.exports = async function handler(req, res) {
   if (setCors(req, res, "POST, OPTIONS")) return res.status(200).end();
 
   const userId = await requireAuth(req, res);
   if (!userId) return;
+
+  if (!(await rateLimitAllow(userId, { limit: 500, windowSeconds: 60, bucket: "proxy" }))) {
+    res.setHeader("Retry-After", "60");
+    return res.status(429).json({ error: "rate_limited" });
+  }
 
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });

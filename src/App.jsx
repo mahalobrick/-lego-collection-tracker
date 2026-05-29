@@ -67,12 +67,18 @@ export default function App() {
 
     if (userId) {
       reconcileOnSignIn();
-    } else if (localStorage.getItem("blSyncedUserId")) {
-      // Signed out (or session ended) but an auth account's data is still on this
-      // device → wipe it so a shared computer doesn't leak the previous user's data.
-      clearLocalUserData();
-      sessionStorage.setItem("blSignedOutCleared", "1"); // toast after reload
-      window.location.reload();
+    } else {
+      // Signed out / session ended. Stop auto-push immediately (BIZLOGIC-2) — the push
+      // effects' cleanups also cancel any pending debounced/interval push when userId
+      // clears. If an auth account's data is still on this device, wipe it synchronously
+      // on this userId→null transition (not deferred to a later load) so a shared
+      // computer can't leak the previous user's data.
+      syncReadyRef.current = false;
+      if (localStorage.getItem("blSyncedUserId")) {
+        clearLocalUserData();
+        sessionStorage.setItem("blSignedOutCleared", "1"); // toast after reload
+        window.location.reload();
+      }
     }
     // Note: the legacy passphrase auto-restore banner was retired here — it assumed a
     // single global backup, which is wrong now that data is per-account. Passphrase users
