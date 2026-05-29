@@ -19,6 +19,10 @@ api/*.before-*.js
 # Personal data files
 collection.json
 *.csv
+# ...but the Rebrickable catalog shipped with the app MUST deploy (used by the
+# in-browser catalog loader at /sets.csv and /themes.csv):
+!public/sets.csv
+!public/themes.csv
 
 # Claude-specific config
 .claude/

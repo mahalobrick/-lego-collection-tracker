@@ -86,7 +86,7 @@ module.exports = async function handler(req, res) {
   const userId = await requireAuth(req, res);
   if (!userId) return;
 
-  if (!(await rateLimitAllow(userId, { limit: 500, windowSeconds: 60, bucket: "proxy" }))) {
+  if (!(await rateLimitAllow(userId, { limit: 1000, windowSeconds: 60, bucket: "proxy" }))) {
     res.setHeader("Retry-After", "60");
     return res.status(429).json({ error: "rate_limited" });
   }
