@@ -274,7 +274,21 @@ export default function App() {
         </div>
       )}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
+        /* Self-hosted variable fonts (TPR-1) — no external Google Fonts dependency. */
+        @font-face {
+          font-family: 'Inter';
+          font-style: normal;
+          font-weight: 100 900;
+          font-display: swap;
+          src: url('/fonts/inter-variable.woff2') format('woff2');
+        }
+        @font-face {
+          font-family: 'JetBrains Mono';
+          font-style: normal;
+          font-weight: 100 800;
+          font-display: swap;
+          src: url('/fonts/jetbrains-mono-variable.woff2') format('woff2');
+        }
         * { box-sizing: border-box; }
         @media (max-width: 700px) {
           .app-shell { padding: 12px !important; }
