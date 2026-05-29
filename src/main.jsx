@@ -10,7 +10,7 @@ import { runMigrations } from './utils/migrate'
 // excluded to prevent loops and noisy triggers.
 const SYNC_SKIP_KEYS = new Set([
   "blLastPushHash", "blLastCloudPush", "blLastAutoExport", "blLastTab",
-  "blLastNotifyDate", "blSyncedUserId", "bricksetSetCache", "brickEconomySetCache",
+  "blLastNotifyDate", "blSyncedUserId", "blAuthDevice", "bricksetSetCache", "brickEconomySetCache",
   "brickEconomyCollectionCache", "blPriceGuideCache",
   "blSessionToken", "blBrickLinkAccessToken",
 ]);

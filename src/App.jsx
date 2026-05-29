@@ -81,6 +81,11 @@ export default function App() {
         window.location.reload();
         return;
       }
+      // Skip the legacy passphrase-restore banner on devices that have used account
+      // login — an auth user who just signed out shouldn't be nagged to decrypt an
+      // old pre-auth backup. (The passphrase path still works for never-authed devices.)
+      if (localStorage.getItem("blAuthDevice")) return;
+
       // Passphrase path: encrypted envelope, show banner to decrypt
       fetchFromCloud().then(payload => {
         if (!payload || !payload.ciphertext) return;
@@ -99,6 +104,7 @@ export default function App() {
   // silently destroying unsynced work. Sets syncReadyRef when safe to auto-push.
   async function reconcileOnSignIn() {
     syncReadyRef.current = false;
+    localStorage.setItem("blAuthDevice", "1"); // mark device as auth-used (survives sign-out)
     let cloud = null;
     try { cloud = await fetchFromCloudAuth(getToken); }
     catch (err) { console.warn("[BrickLedger] Sync fetch failed:", err.message); syncReadyRef.current = true; return; }
