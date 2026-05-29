@@ -51,6 +51,10 @@ export default function App() {
   useEffect(() => {
     const days = Number(localStorage.getItem("blAutoExportDays") || "0");
     if (!days) return;
+    // Never auto-export empty data — e.g. right after a sign-out wipe, the schedule
+    // is still on but there's nothing to back up. (Firefox would silently download it.)
+    const s = summarizeLocal();
+    if (!s.sets && !s.wanted && !s.purchases) return;
     const last = localStorage.getItem("blLastAutoExport");
     const daysSince = last ? (Date.now() - new Date(last).getTime()) / 86400000 : Infinity;
     if (daysSince >= days) {
