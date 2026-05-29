@@ -5,7 +5,7 @@ import BudgetDashboard from "./BudgetDashboard";
 import WantedList from "./WantedList";
 import MyCollection from "./MyCollection";
 import AppSettings from "./AppSettings";
-import { exportFullBackup, pushToCloud, fetchFromCloud, decryptCloudBackup, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup } from "./utils/exportBackup";
+import { exportFullBackup, pushToCloud, fetchFromCloud, decryptCloudBackup, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup, clearLocalUserData } from "./utils/exportBackup";
 import { runDailyBEBatch } from "./utils/beSyncValues";
 
 export default function App() {
@@ -32,6 +32,14 @@ export default function App() {
     const onScroll = () => setShowScrollTop(window.scrollY > 220);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // One-shot toast after a sign-out wipe + reload.
+  useEffect(() => {
+    if (sessionStorage.getItem("blSignedOutCleared")) {
+      sessionStorage.removeItem("blSignedOutCleared");
+      toast.success("Signed out — your data was cleared from this device.", { duration: 4000 });
+    }
   }, []);
 
   function switchTab(tab) { setView(tab); localStorage.setItem("blLastTab", tab); }
@@ -65,6 +73,14 @@ export default function App() {
     if (userId) {
       reconcileOnSignIn();
     } else {
+      // Signed out (or session ended) but an auth account's data is still on this
+      // device → wipe it so a shared computer doesn't leak the previous user's data.
+      if (localStorage.getItem("blSyncedUserId")) {
+        clearLocalUserData();
+        sessionStorage.setItem("blSignedOutCleared", "1"); // toast after reload
+        window.location.reload();
+        return;
+      }
       // Passphrase path: encrypted envelope, show banner to decrypt
       fetchFromCloud().then(payload => {
         if (!payload || !payload.ciphertext) return;

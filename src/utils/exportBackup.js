@@ -219,6 +219,27 @@ export function summarizeLocal() {
   };
 }
 
+// Device-local preferences that should survive a sign-out (not user content).
+const SIGNOUT_KEEP_KEYS = new Set(["blAutoExportDays"]);
+
+/**
+ * Wipe all BrickLedger user data + caches + sync metadata from this device.
+ * Called on sign-out / session end so the next person can't see the prior user's
+ * collection. Leaves device-local prefs (SIGNOUT_KEEP_KEYS) and — critically —
+ * any non-bl/brickEconomy keys (e.g. Clerk's own session keys) untouched.
+ */
+export function clearLocalUserData() {
+  const toRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || SIGNOUT_KEEP_KEYS.has(k)) continue;
+    if (k.startsWith("bl") || k.startsWith("brickEconomy") || k.startsWith("brickset")) {
+      toRemove.push(k);
+    }
+  }
+  toRemove.forEach(k => localStorage.removeItem(k));
+}
+
 /** Rough item counts of a backup object — for the conflict dialog. */
 export function summarizeBackup(d) {
   const len = v => (Array.isArray(v) ? v.length : 0);
