@@ -44,20 +44,12 @@ The sequence below resolves it: stopgap → test → refactor.
 - This is the right place to start testing regardless — data-destruction paths first.
 
 ### 3. Structural fix — shared key registry + guarded write path
-**Closes by construction:** `SYNC-CRIT-1`, `A4`, `OBS-2`, `DATA-4`; **fix alongside:** `A2`
+**Closes by construction:** `SYNC-CRIT-1`, `A4`, `A11`, `OBS-2`, `DATA-4`; **fix alongside:** `A2`; **lands** the `🔒` hooks.
+
+Scope is the **11 censused data keys** + the sync state machine. It does **NOT** include the
+6 view-config keys' census completion — that's an explicit deferred future step (**Step 5**).
 - One canonical key list drives census + overwrite + push-guard + wipe (they can no
   longer drift).
-- **Bring the 6 mount-written view-config keys into the census** — deferred from Step 1
-  because they are default-written on mount and their defaults are component-inline (so
-  counting them safely needs centralized defaults, which is this step's job):
-  `blOwnedColumns`, `blAcquisitionColumns`, `blPurchaseColumns`, `blDashboardWidgetSettings`,
-  `blCollectionItems`, `blOwnedColWidths`
-  (`MyCollection.jsx:279/295/299`, `WantedList.jsx:547`, `BudgetDashboard.jsx:273`).
-  Step 1 already censuses the other **11** backup keys — including `blStores` (via the
-  exported `DEFAULT_STORES`, `src/utils/storeDefaults.js`), `blAnnualBudget` (default in
-  `exportBackup.js`), and `blDisplayCurrency`. The 6 above are **overwritten-but-uncounted**
-  until the registry centralizes their defaults — a known, tracked gap (low severity:
-  view config, not data; both red-team data-loss cases are covered by the 11), not silent.
 - All writes route through one guarded `setItem` wrapper (quota-safe, single choke point).
 - Fix `A2` in the same pass (fetch-fail flips `syncReadyRef=true` → stale push clobbers
   newer cloud) — third sync-state-machine correctness bug.
@@ -76,6 +68,16 @@ Not actively destroying data, so it waits. Same "characterize-then-consolidate" 
   budget) *before* consolidating.
 - **God-module decomposition:** start with `churn-wantedlist` (3,579 lines, top
   churn/fix hotspot) — highest blast radius, so highest payoff to break up.
+
+### 5. (Deferred — future) Complete the census for the 6 view-config keys
+**NOT part of Step 3.** The 6 default-on-mount view-config keys (`blOwnedColumns`,
+`blAcquisitionColumns`, `blPurchaseColumns`, `blDashboardWidgetSettings`,
+`blCollectionItems`, `blOwnedColWidths`) stay `census:false` until their component-inline
+defaults are centralized — export each from one module and import it back into
+`MyCollection`/`WantedList`/`BudgetDashboard` — so the census can compare against the
+default and flip them `census:true`. Touches the three god-modules, so it's sequenced
+**after** the god-module decomposition (Step 4). Low severity: view config, not data;
+both red-team data-loss cases are already covered by the 11 censused keys.
 
 ---
 
