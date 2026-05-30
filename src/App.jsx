@@ -7,6 +7,7 @@ import MyCollection from "./MyCollection";
 import AppSettings from "./AppSettings";
 import { exportFullBackup, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup, clearLocalUserData, hasAnyLocalData } from "./utils/exportBackup";
 import { runDailyBEBatch } from "./utils/beSyncValues";
+import { setItemSafe } from "./utils/safeStorage";
 
 export default function App() {
   const [view, setView] = useState(() => localStorage.getItem("blLastTab") || "collection");
@@ -33,7 +34,19 @@ export default function App() {
     }
   }, []);
 
-  function switchTab(tab) { setView(tab); localStorage.setItem("blLastTab", tab); }
+  // Surface a quota failure from the guarded write path (setItemSafe) so a full device
+  // never silently loses data (OBS-2). Deduped via a stable toast id so repeated failed
+  // writes (e.g. on tab switch) collapse into one banner instead of stacking.
+  useEffect(() => {
+    const onFull = () => toast.error(
+      "This device's storage is full — recent changes may not be saved. Free up space or export a backup.",
+      { id: "storagefull", duration: 6000 }
+    );
+    window.addEventListener("brickledger:storagefull", onFull);
+    return () => window.removeEventListener("brickledger:storagefull", onFull);
+  }, []);
+
+  function switchTab(tab) { setView(tab); setItemSafe("blLastTab", tab); }
 
   function handleBuyNow(item) {
     setPendingPurchase(item);
@@ -120,7 +133,7 @@ export default function App() {
         // Claim the account with this device's data — push up immediately.
         try { await pushToCloudAuth(getToken); } catch { /* interval will retry */ }
       }
-      localStorage.setItem("blSyncedUserId", userId);
+      setItemSafe("blSyncedUserId", userId);
       syncReadyRef.current = true;
       return;
     }
@@ -153,7 +166,7 @@ export default function App() {
 
     // Same user, local is current or ahead → keep local, let auto-push send it up.
     if (sameUser && !cloudNewer) {
-      localStorage.setItem("blSyncedUserId", userId);
+      setItemSafe("blSyncedUserId", userId);
       syncReadyRef.current = true;
       return;
     }
@@ -177,7 +190,7 @@ export default function App() {
     localStorage.removeItem("blLastPushHash"); // force the push through
     try {
       await pushToCloudAuth(getToken);
-      localStorage.setItem("blSyncedUserId", userId);
+      setItemSafe("blSyncedUserId", userId);
       toast.success("This device's data is now your cloud copy ✓");
     } catch {
       toast.error("Couldn't upload — will retry automatically.");
