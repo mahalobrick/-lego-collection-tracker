@@ -7,10 +7,11 @@
 
 > **Status (Phase E complete, 2026-05-29):** Steps 1–2 are **DONE**; Step 3's **registry half
 > (Phase D)** and its **guarded-write half (Phase E)** are **DONE**. `SYNC-CRIT-1`, `A4`, `A11`
-> are **CLOSED** by the registry; **`OBS-2` is CLOSED** by the guarded `setItem` choke point
-> (`setItemSafe` in `src/utils/safeStorage.js`) — every production write (96 sites) now routes
-> through it, a `QuotaExceeded` failure surfaces a user banner instead of silent loss, and the
-> former global `main.jsx` monkey-patch is gone. **`DATA-4`'s API half is DONE** (the proper
+> are **CLOSED** by the registry; **`OBS-2` is CLOSED (both halves)** by the guarded `setItem`
+> choke point (`setItemSafe` in `src/utils/safeStorage.js`) — every production write (96 sites)
+> now routes through it; a `QuotaExceeded` failure both **surfaces a user banner** (no silent
+> loss) and is **checked by the sync/restore writers** so a dropped write can't be marked synced
+> or clobber the cloud copy; the former global `main.jsx` monkey-patch is gone. **`DATA-4`'s API half is DONE** (the proper
 > guarded API replaces the runtime patch); its **enforcement** (no-bypass PreToolUse hook /
 > `.claude/rules`) is **deferred to Phase G**. **Still open in Step 3:** `A2`, and the `🔒` hooks
 > (Phase G). See *Phase E* and *Phase D — outcome* at the foot of this doc.
@@ -124,21 +125,36 @@ loss; sync churn + UX).
 
 ## Phase E — outcome & decisions (guarded write path)
 
-**What closed (full suite green + production build clean):** `OBS-2`, and the **API half of
-`DATA-4`**. The former global `main.jsx` `setItem` monkey-patch is replaced by an explicit
-single choke point — `setItemSafe` in **`src/utils/safeStorage.js`** — and **all 96 production
-`localStorage.setItem` sites** now route through it (the only remaining raw write is the one
-inside `setItemSafe` itself). Net: a new `safeStorage` unit suite (8 tests: success / datachange
-dispatch / quota / non-quota re-throw) plus an updated `buildBackup` read-set characterization;
-38 tests total.
+**What closed (full suite green + production build clean):** `OBS-2` (**fully** — both halves,
+see below), and the **API half of `DATA-4`**. The former global `main.jsx` `setItem` monkey-patch
+is replaced by an explicit single choke point — `setItemSafe` in **`src/utils/safeStorage.js`** —
+and **all 96 production `localStorage.setItem` sites** now route through it (the only remaining
+raw write is the one inside `setItemSafe` itself). Net: a new `safeStorage` unit suite (8 tests:
+success / datachange dispatch / quota / non-quota re-throw), a new `exportBackup.integrity` suite
+(5 tests: forced-quota apply-abort + no-false-mark-synced), and an updated `buildBackup` read-set
+characterization; **43 tests total**.
 
 ### Decision — quota-failure policy (the OBS-2 replacement for silent loss)
 On `QuotaExceededError` the guard **dispatches `brickledger:storagefull`** (App.jsx renders a
 **deduped** `react-hot-toast` banner via a stable id) and **returns `false`** — it does **not**
 throw (most of the 96 sites are fire-and-forget event handlers; throwing would crash them). Any
 **non-quota** error is **re-thrown** (real bug, not a full disk). One **uniform** guard for all
-keys — no critical/cosmetic fork inside the choke point; the few integrity-critical callers
-(backup/sync) may check the boolean return.
+keys — no critical/cosmetic fork inside the choke point; the integrity-critical callers
+(backup/sync) **check the boolean return** (see the integrity half below).
+
+`OBS-2` has **two halves**, both now closed:
+- **Surfaced half (E.2b):** the `storagefull` banner — the user is told a write didn't persist
+  ("recent changes weren't saved — export a backup now, or free up space").
+- **Integrity half (E.4):** the boolean return is consumed where a silently-dropped write would
+  corrupt state. `applyBackupToLocalStorage` returns `{ ok, applied, failedKey }` and **aborts at
+  the first failed write** rather than writing more of a partial restore; `markSynced` returns
+  whether the `blLastPushHash` mark actually stuck. App.jsx's single `applyCloudBackup()` helper
+  only marks synced when the restore fully landed — on a full-storage partial it **freezes
+  auto-push** (`syncReadyRef=false`) and surfaces an error, closing the hole where a partial local
+  pull would be read as clean, auto-pushed up, and **clobber the good cloud backup**. The manual
+  Settings restore likewise reports "restore incomplete" instead of success. `pushToCloudAuth`
+  never **falsely advances** `blLastPushHash` when the local mark write fails (a failed guarded
+  write simply doesn't advance it → a safe redundant re-push, never silent loss).
 
 ### Decision — the choke point also OWNS the auto-push trigger
 The removed monkey-patch did double duty: guard **and** the change-detected

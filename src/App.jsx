@@ -39,8 +39,8 @@ export default function App() {
   // writes (e.g. on tab switch) collapse into one banner instead of stacking.
   useEffect(() => {
     const onFull = () => toast.error(
-      "This device's storage is full — recent changes may not be saved. Free up space or export a backup.",
-      { id: "storagefull", duration: 6000 }
+      "This device's storage is full — recent changes weren't saved. Export a backup now, or free up space, to avoid losing data.",
+      { id: "storagefull", duration: 8000 }
     );
     window.addEventListener("brickledger:storagefull", onFull);
     return () => window.removeEventListener("brickledger:storagefull", onFull);
