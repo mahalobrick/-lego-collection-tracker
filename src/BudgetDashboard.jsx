@@ -16,6 +16,7 @@ const DEFAULT_annualBudget = 10320;
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 import { DEFAULT_STORES } from "./utils/storeDefaults";
+import { setItemSafe } from "./utils/safeStorage";
 
 const DEFAULT_PURCHASE_COLUMNS = [
   { key: "date",       label: "Date",         visible: true  },
@@ -225,12 +226,12 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
       if (!p.year && p.date) { updated.year = Number(String(p.date).slice(0, 4)) || new Date().getFullYear(); dirty = true; }
       return updated;
     });
-    if (dirty) localStorage.setItem("blPurchases", JSON.stringify(migrated));
+    if (dirty) setItemSafe("blPurchases", JSON.stringify(migrated));
     return migrated;
   });
 
   useEffect(() => {
-    localStorage.setItem("blPurchases", JSON.stringify(purchases));
+    setItemSafe("blPurchases", JSON.stringify(purchases));
   }, [purchases]);
 
   // Clear the pending purchase from App state after we've consumed it into the form
@@ -239,7 +240,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("blStores", JSON.stringify(stores));
+    setItemSafe("blStores", JSON.stringify(stores));
   }, [stores]);
 
   // Keep stores in sync when another tab updates localStorage
@@ -270,15 +271,15 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
   );
 
   useEffect(() => {
-    localStorage.setItem("blPurchaseColumns", JSON.stringify(purchaseColumns));
+    setItemSafe("blPurchaseColumns", JSON.stringify(purchaseColumns));
   }, [purchaseColumns]);
 
   useEffect(() => {
-    localStorage.setItem("blBudgetItems", JSON.stringify(budgetItems));
+    setItemSafe("blBudgetItems", JSON.stringify(budgetItems));
   }, [budgetItems]);
 
   useEffect(() => {
-    localStorage.setItem("blBudgetChartTypes", JSON.stringify(chartTypes));
+    setItemSafe("blBudgetChartTypes", JSON.stringify(chartTypes));
   }, [chartTypes]);
 
   function cycleChartType(key) {
@@ -976,7 +977,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
         if (!res.ok || json.error) return;
         d = json.data || json;
         cache[key] = { fetchedAt: new Date().toISOString(), data: d };
-        localStorage.setItem("brickEconomySetCache", JSON.stringify(cache));
+        setItemSafe("brickEconomySetCache", JSON.stringify(cache));
       }
       setForm(prev => {
         const lines = [...prev.lines];
@@ -1094,7 +1095,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
       try {
         const wl = JSON.parse(localStorage.getItem("blWantedList") || "[]");
         const removed = wl.find(w => w.id === form._fromWantedId);
-        localStorage.setItem("blWantedList", JSON.stringify(wl.filter(w => w.id !== form._fromWantedId)));
+        setItemSafe("blWantedList", JSON.stringify(wl.filter(w => w.id !== form._fromWantedId)));
         wantedRemoved = removed?.name || removed?.setNumber || true;
       } catch {}
     }
@@ -1215,7 +1216,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
       existing.push(makeCollectionEntry(purchase, qty, paidPerUnit));
     }
 
-    localStorage.setItem("blOwnedSets", JSON.stringify(existing));
+    setItemSafe("blOwnedSets", JSON.stringify(existing));
 
     // Persist inCollection flag on the purchase row
     if (purchaseIndex != null) {
@@ -1265,7 +1266,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
       updatedPurchases[idx] = { ...updatedPurchases[idx], inCollection: true };
     });
 
-    localStorage.setItem("blOwnedSets", JSON.stringify(existing));
+    setItemSafe("blOwnedSets", JSON.stringify(existing));
     setPurchases(updatedPurchases);
     setCheckedRows([]);
 
