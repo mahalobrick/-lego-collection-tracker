@@ -243,11 +243,14 @@ const BACKUP_VERSION = 2; // increment here whenever the backup schema changes
 /**
  * Apply a backup object to localStorage (same logic as the Settings restore).
  *
- * Returns { ok, applied, failedKey }. On a guarded-write failure (full storage) it ABORTS at
- * the first failed key rather than writing more of a partial restore, and reports ok:false with
- * the keys applied so far + the key that failed. Callers MUST check ok: a partial restore must
- * never be marked synced (the partial local state would otherwise auto-push up and clobber the
- * good cloud copy) and must never be reported as a full success.
+ * ATOMIC (all-or-nothing). Returns { ok, applied, failedKey }. On a guarded-write failure
+ * (full storage) it ROLLS BACK every key it already wrote to its pre-apply value and reports
+ * ok:false + the key that failed (applied is [] — nothing remains applied). A MIXED local
+ * state (some cloud, some old) therefore can never exist, which closes the partial-apply-then-
+ * reload clobber class (OBS-2 integrity half): after a failed apply the device is byte-for-byte
+ * its prior self, so localContentHash() still equals blLastPushHash — a reload reads it as
+ * CLEAN, the auto-push computes no_change, and the good cloud backup is never overwritten.
+ * Callers MUST still check ok: a failed restore must not be marked synced or reported as success.
  */
 export function applyBackupToLocalStorage(data) {
   if (data.version && data.version > BACKUP_VERSION) {
@@ -261,7 +264,22 @@ export function applyBackupToLocalStorage(data) {
   // nested settings.* → plain truthy (empty []/{} are truthy, so kept); scalar → !=null for the
   // budget (a legit 0 survives) / truthy for currency. Build-only keys (brickEconomySetCache,
   // autoExportDays) aren't in the registry, so they're never restored.
+  // Snapshot every key we may overwrite BEFORE writing, so a mid-way quota failure can be
+  // fully reverted to an all-or-nothing state (see the atomicity note above).
+  const snapshot = new Map();
+  for (const k of BACKUP_KEYS) snapshot.set(k.key, localStorage.getItem(k.key));
   const applied = [];
+  const rollback = () => {
+    // Revert in reverse so the disk only ever shrinks back toward a state that already fit
+    // (the prior values coexisted at snapshot time), so these restores can't re-overflow.
+    // Raw setItem/removeItem — NOT setItemSafe — so the revert emits no datachange/storagefull.
+    for (let i = applied.length - 1; i >= 0; i--) {
+      const key = applied[i];
+      const prev = snapshot.get(key);
+      try { if (prev === null) localStorage.removeItem(key); else localStorage.setItem(key, prev); }
+      catch { /* best-effort revert */ }
+    }
+  };
   for (const k of BACKUP_KEYS) {
     const src = k.settings ? data.settings : data;
     if (!src) continue; // backup has no `settings` object → skip the nested keys
@@ -276,7 +294,7 @@ export function applyBackupToLocalStorage(data) {
     } else {
       if (val && typeof val === "object") wrote = setItemSafe(k.key, JSON.stringify(val));
     }
-    if (wrote === false) return { ok: false, applied, failedKey: k.key };
+    if (wrote === false) { rollback(); return { ok: false, applied: [], failedKey: k.key }; }
     if (wrote === true) applied.push(k.key);
   }
   return { ok: true, applied };

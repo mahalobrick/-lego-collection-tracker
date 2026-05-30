@@ -145,13 +145,17 @@ keys — no critical/cosmetic fork inside the choke point; the integrity-critica
 `OBS-2` has **two halves**, both now closed:
 - **Surfaced half (E.2b):** the `storagefull` banner — the user is told a write didn't persist
   ("recent changes weren't saved — export a backup now, or free up space").
-- **Integrity half (E.4):** the boolean return is consumed where a silently-dropped write would
-  corrupt state. `applyBackupToLocalStorage` returns `{ ok, applied, failedKey }` and **aborts at
-  the first failed write** rather than writing more of a partial restore; `markSynced` returns
+- **Integrity half (E.4 / E.5):** the boolean return is consumed where a silently-dropped write
+  would corrupt state. `applyBackupToLocalStorage` returns `{ ok, applied, failedKey }` and is
+  **atomic (E.5)** — it snapshots every key and **rolls back on the first failed write**, so a
+  *mixed* local state (some cloud, some old) can never exist; `markSynced` returns
   whether the `blLastPushHash` mark actually stuck. App.jsx's single `applyCloudBackup()` helper
   only marks synced when the restore fully landed — on a full-storage partial it **freezes
   auto-push** (`syncReadyRef=false`) and surfaces an error, closing the hole where a partial local
-  pull would be read as clean, auto-pushed up, and **clobber the good cloud backup**. The manual
+  pull would be read as clean, auto-pushed up, and **clobber the good cloud backup** — including
+  the **partial-apply-then-reload** route (E.5): a failed apply leaves the device byte-for-byte its
+  prior self, so after a reload `localContentHash()` still equals `blLastPushHash`, the device reads
+  CLEAN, and the auto-push computes `no_change` instead of overwriting cloud. The manual
   Settings restore likewise reports "restore incomplete" instead of success. `pushToCloudAuth`
   never **falsely advances** `blLastPushHash` when the local mark write fails (a failed guarded
   write simply doesn't advance it → a safe redundant re-push, never silent loss).
