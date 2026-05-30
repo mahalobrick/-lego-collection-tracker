@@ -17,6 +17,8 @@ BrickLedger is a four-tab React 19 + Vite 8 single-page app whose source of trut
 > Both red-team attempts rated it High because the *primary* buckets (collection/wanted/purchases) **are** correctly protected by the dirty-check + conflict dialog on the both-have-data path. It is recorded here as **Critical** per the audit's standing rule — *any* path that can wipe unsynced local changes is Critical — because the loss is silent, unrecoverable, and reachable in normal use.
 >
 > **Fix direction:** derive the emptiness census and the overwrite/`hasAnyData` set from **one shared key list**, and gate the fresh-device pull behind the same `cloudNewer`/`localDirty` guard the both-have-data path already uses (`App.jsx:140`). See finding `A10`, `DATA-1`, `API-1`.
+>
+> **✅ CLOSED (Phase D, 2026-05-29):** the census (`hasAnyLocalData`), the overwrite (`applyBackupToLocalStorage`), the build (`buildBackup`), and `pushToCloudAuth`'s push-guard now **all derive from one shared registry** (`BACKUP_KEYS` in `src/utils/exportBackup.js`). The census counts every overwritten data key, so a sold-everything / budget-only / settings-only device is no longer misread as "fresh" — the fresh-device pull fires only when the device genuinely holds no unsynced data. Locked by characterization + red-team regression tests (`src/utils/exportBackup.census.test.js`, `exportBackup.roundtrip.test.js`). See [`docs/audit-action-plan.md`](./audit-action-plan.md) *Phase D*.
 
 **Security is tracked separately and is the source of truth in [`docs/security.md`](./security.md)** (completed audit + remediation — all High/Med/Low closed, CSP enforced). This document does **not** duplicate it: §6 *Security Touchpoints* reconciles the architecture against it and records the drift/gaps that surfaced (`SEC-DRIFT-1`, `SEC-GAP-1`, `SEC-GAP-2`).
 
@@ -28,14 +30,16 @@ Findings were produced by parallel subagents grounded in real files, then each C
 |---|---|---|---|
 | 1 | 4 | 24 | 22 |
 
+> **Post-Phase-D (2026-05-29):** `SYNC-CRIT-1` (Critical) and `A4` (High) are **CLOSED** (registry-driven — see status markers below); the Phase-B finding `A11` is also CLOSED (tracked in the action plan, not in the counts above). Remaining open: **0 Critical, 3 High**. The counts above are the original post-verification snapshot.
+
 ## Findings (ranked by verified severity)
 
 | Sev | ID | Finding | Area | Effort | Verified |
 |---|---|---|---|---|---|
-| Critical | `SYNC-CRIT-1` | "Fresh device" emptiness census is narrower than the cloud-pull overwrite scope → silent loss of unsynced sold-sets / portfolio / stores / budget / settings | [Deep-Dive A — Cloud-Sync Reconciliation](#area-deepA-sync) | moderate | CONFIRMED (red-team ×2) |
+| Critical | `SYNC-CRIT-1` | "Fresh device" emptiness census is narrower than the cloud-pull overwrite scope → silent loss of unsynced sold-sets / portfolio / stores / budget / settings | [Deep-Dive A — Cloud-Sync Reconciliation](#area-deepA-sync) | moderate | CONFIRMED (red-team ×2) · ✅ CLOSED (Phase D) |
 | High | `OBS-2` | 111 unguarded localStorage.setItem calls — QuotaExceededError causes silent data loss | [Error Handling, Observability & Testing](#area-errors-testing) | moderate | CONFIRMED → High |
 | High | `A2` | Cloud fetch failure sets syncReadyRef=true, letting a stale local push overwrite newer cloud | [Deep-Dive A — Cloud-Sync Reconciliation](#area-deepA-sync) | moderate | CONFIRMED |
-| High | `A4` | Sign-out wipe destroys local data that was never pushed (offline / failed-sync sign-out) | [Deep-Dive A — Cloud-Sync Reconciliation](#area-deepA-sync) | moderate | CONFIRMED |
+| High | `A4` | Sign-out wipe destroys local data that was never pushed (offline / failed-sync sign-out) | [Deep-Dive A — Cloud-Sync Reconciliation](#area-deepA-sync) | moderate | CONFIRMED · ✅ CLOSED (Phase D) |
 | High | `churn-wantedlist` | WantedList.jsx is the repo's top churn + fix hotspot and is uncovered by Deep-Dives A/B | [Deep-Dive C — Churn-Based Hotspot Discovery](#area-deepC-churn) | significant | CONFIRMED |
 | Medium | `A1` | Foreign-data wipe silently deletes local data with no prompt or backup | [Deep-Dive A — Cloud-Sync Reconciliation](#area-deepA-sync) | moderate | PLAUSIBLE → Medium |
 | Medium | `DATA-1` | User-authored content keys are excluded from the cloud backup and file export — silently lost on any restore/pull | [Data & State](#area-data-state) | moderate | CONFIRMED → Medium |
@@ -513,10 +517,10 @@ Every path that calls `applyBackupToLocalStorage` (overwrite) or `clearLocalUser
 | Fresh-device silent pull | App.jsx:123 | Edge: only when `hasLocal` is false, so nothing to lose. Safe. |
 | Same-user silent pull | App.jsx:140 | Guarded by `!localDirty` + `cloudNewer`. **Mostly safe, but the 60s skew + hash gives a narrow window (A3).** |
 | Conflict "Use cloud" | App.jsx:160 | Yes — but user-chosen, with summary shown. Acceptable. |
-| Sign-out wipe | App.jsx:77-81 | **Yes — HIGH (A4)**: wipes even local edits never pushed (offline sign-out). |
+| Sign-out wipe | App.jsx (sign-out path) | **✅ CLOSED (A4, Phase D)**: `clearLocalUserData()` now refuses to wipe unsynced/dirty data (`{skipped:"unsynced"}`) and the caller keeps it; force-wiped only on the foreign path. |
 | `fetch` throws → ready=true | App.jsx:95 | Indirect: opens door for a stale push to overwrite cloud (A2). |
 
-The two CRITICAL/near-critical destructive paths are **A1 (foreign wipe)** and **A4 (sign-out wipe)** because they delete without any user prompt and without an automatic local backup.
+The remaining unguarded destructive path is **A1 (foreign wipe)** — it still deletes without any user prompt or automatic local backup. (**A4 (sign-out wipe) is CLOSED in Phase D**: it no longer destroys unsynced data — see the table above. A1's recover-before-wipe fix is still open; both A1 and the A4 residual `SIGNOUT-RETAIN-1` want the same recover-before-destroy primitive.)
 
 ### 2. Idempotency & ordering
 
@@ -641,16 +645,16 @@ CLAUDE.md is guidance, not enforcement. These invariants should be enforced mech
 _Work top-down. `🔒` = candidate for hard enforcement (PreToolUse hook or path-scoped `.claude/rules/*.md`) rather than relying on prose._
 
 ### Critical
-- [ ] **SYNC-CRIT-1** — "Fresh device" emptiness census is narrower than the cloud-pull overwrite scope → silent loss of unsynced sold-sets / portfolio / stores / budget / settings — _moderate_ · `src/App.jsx:100-101,123-129; src/utils/exportBackup.js:90-96,147-175,31-34`
-      ↳ Derive the emptiness census, the overwrite set, and pushToCloudAuth's hasAnyData guard from ONE shared key list; gate the fresh-device pull behind the same cloudNewer/localDirty guard the both-have-data path already uses (App.jsx:140).
+- [x] **SYNC-CRIT-1** · ✅ CLOSED (Phase D) — "Fresh device" emptiness census is narrower than the cloud-pull overwrite scope → silent loss of unsynced sold-sets / portfolio / stores / budget / settings — _moderate_ · `src/App.jsx:100-101,123-129; src/utils/exportBackup.js`
+      ↳ DONE: census (`hasAnyLocalData`), overwrite (`applyBackupToLocalStorage`), build, and `pushToCloudAuth`'s push-guard now **all derive from the `BACKUP_KEYS` registry**. The census counts every overwritten data key, so `!hasLocal` (→ silent pull) is true only for a genuinely empty device. Locked by `exportBackup.census.test.js` + `exportBackup.roundtrip.test.js`.
 
 ### High
 - [ ] **OBS-2** `🔒` — 111 unguarded localStorage.setItem calls — QuotaExceededError causes silent data loss — _moderate_ · `src/main.jsx:21 (patched setItem); src/MyCollection.jsx:799 (purchase write inside empty catch); 111 setItem call sites total`
       ↳ Add a safeSetItem(key,value) wrapper that on QuotaExceededError surfaces a toast.error ('Storage full — export a backup and clear caches') and ideally evicts regeneratable caches (brickEconomySetCache, bricksetSetCache) before retrying. Route the highest-value writes (blPurchases, blOwnedSets, blWantedList) through it, and never wrap those writes in an empty catch.
 - [ ] **A2** — Cloud fetch failure sets syncReadyRef=true, letting a stale local push overwrite newer cloud — _moderate_ · `src/App.jsx:94-95`
       ↳ On fetch failure, leave syncReadyRef=false (block pushes) and retry the fetch with backoff, or only allow pushes after a successful reconcile. A failed pull must never enable a push that can overwrite unseen cloud state.
-- [ ] **A4** — Sign-out wipe destroys local data that was never pushed (offline / failed-sync sign-out) — _moderate_ · `src/App.jsx:76-82, src/utils/exportBackup.js:107-117`
-      ↳ Before clearLocalUserData on sign-out, compare localContentHash() vs blLastPushHash; if dirty, attempt a final synchronous push and/or warn the user / auto-export a backup before wiping. Do not wipe unsynced dirty state without recovery.
+- [x] **A4** · ✅ CLOSED (Phase D) — Sign-out wipe destroys local data that was never pushed (offline / failed-sync sign-out) — _moderate_ · `src/App.jsx (sign-out path), src/utils/exportBackup.js (clearLocalUserData)`
+      ↳ DONE: `clearLocalUserData()` compares `localContentHash()` vs `blLastPushHash` and **refuses to wipe** unsynced/dirty data (`{skipped:"unsynced"}`); the App sign-out path keeps the data for the next sign-in instead of reloading. Foreign path passes `{force:true}` (BIZLOGIC-1). +6 A4 regression tests. **Residual `SIGNOUT-RETAIN-1`** (no user feedback / shared-device retention window) tracked in the action plan; **A1** (foreign recover-before-wipe) still open.
 - [ ] **churn-wantedlist** — WantedList.jsx is the repo's top churn + fix hotspot and is uncovered by Deep-Dives A/B — _significant_ · `src/WantedList.jsx (3579 lines)`
       ↳ Schedule a dedicated review/decomposition pass: extract the hover-preview, inline-edit, and keyboard-shortcut state into smaller hooks/components; this is the highest-ROI target for reducing future regressions.
 

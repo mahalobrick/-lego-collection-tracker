@@ -16,7 +16,7 @@ Dev server: `npm run dev` (port 5179). Build: `npm run build`.
 - **[`docs/architecture-audit.md`](docs/architecture-audit.md)** — full architecture audit + prioritized checklist.
 - **[`docs/audit-action-plan.md`](docs/audit-action-plan.md)** — sequenced work plan (root-cause grouped: stopgap → test → refactor).
 - **[`docs/security.md`](docs/security.md)** — security source of truth (audit + remediation). Don't duplicate it; cross-link.
-- ⚠️ **Open Critical `SYNC-CRIT-1`**: the sync "fresh device" check can silently overwrite unsynced sold-sets / portfolio / budget / settings. Touching sync? Read **Deep-Dive A** first.
+- ✅ **`SYNC-CRIT-1` / `A4` / `A11` CLOSED (Phase D)**: census, overwrite, build, push-guard, dedup-hash + the sign-out wipe-guard now all derive from one registry (`BACKUP_KEYS` in `src/utils/exportBackup.js`). Sync is still the highest-blast-radius code — touching it? Read **Deep-Dive A** + [`docs/audit-action-plan.md`](docs/audit-action-plan.md) (esp. *Phase D*) first. Note: sign-out now **retains** unsynced data (A4 trade-off, `SIGNOUT-RETAIN-1`).
 
 ## Coding principles
 
