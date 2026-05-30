@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect } from "vitest";
-import { hasAnyLocalData, BACKUP_KEYS, localContentHash } from "./exportBackup";
+import { hasAnyLocalData, BACKUP_KEYS, localContentHash, clearLocalUserData } from "./exportBackup";
 import { DEFAULT_STORES } from "./storeDefaults";
 
 // Mirrors the app default (DEFAULT_ANNUAL_BUDGET in exportBackup.js) for test setup.
@@ -115,6 +115,54 @@ describe("BACKUP_KEYS registry — one shared list", () => {
       "blCollectionItems", "blOwnedColWidths",
     ].sort();
     expect(BACKUP_KEYS.map((k) => k.key).sort()).toEqual(overwriteSet);
+  });
+});
+
+// A4 regression: the sign-out wipe must NOT destroy never-pushed local data (offline /
+// failed-sync sign-out). clearLocalUserData refuses to wipe unsynced/dirty censused data
+// unless forced; the shared-browser foreign-data wipe (BIZLOGIC-1) passes { force: true }.
+describe("clearLocalUserData — A4 guard", () => {
+  it("refuses to wipe never-pushed data (no blLastPushHash) → { skipped: 'unsynced' }", () => {
+    localStorage.setItem("blOwnedSets", JSON.stringify([{ setNumber: "10497" }]));
+    expect(clearLocalUserData()).toEqual({ skipped: "unsynced" });
+    expect(localStorage.getItem("blOwnedSets")).not.toBeNull();
+  });
+
+  it("refuses to wipe dirty data (local edits diverged from last push)", () => {
+    localStorage.setItem("blOwnedSets", JSON.stringify([{ setNumber: "10497" }]));
+    localStorage.setItem("blLastPushHash", localContentHash()); // mark in-sync…
+    localStorage.setItem("blOwnedSets", JSON.stringify([{ setNumber: "10497" }, { setNumber: "75192" }])); // …then edit
+    expect(clearLocalUserData()).toEqual({ skipped: "unsynced" });
+    expect(localStorage.getItem("blOwnedSets")).not.toBeNull();
+  });
+
+  it("wipes cleanly-synced data (fingerprint matches last push)", () => {
+    localStorage.setItem("blOwnedSets", JSON.stringify([{ setNumber: "10497" }]));
+    localStorage.setItem("blLastPushHash", localContentHash());
+    expect(clearLocalUserData()).toEqual({ cleared: true });
+    expect(localStorage.getItem("blOwnedSets")).toBeNull();
+  });
+
+  it("force: true wipes even unsynced data (foreign-device path / BIZLOGIC-1)", () => {
+    localStorage.setItem("blOwnedSets", JSON.stringify([{ setNumber: "10497" }]));
+    expect(clearLocalUserData({ force: true })).toEqual({ cleared: true });
+    expect(localStorage.getItem("blOwnedSets")).toBeNull();
+  });
+
+  it("empty device wipes (nothing to lose) and clears caches + sync metadata", () => {
+    localStorage.setItem("brickEconomySetCache", JSON.stringify({ "10497": { pieces: 1 } }));
+    localStorage.setItem("blLastPushHash", "abc");
+    expect(clearLocalUserData()).toEqual({ cleared: true });
+    expect(localStorage.getItem("brickEconomySetCache")).toBeNull();
+    expect(localStorage.getItem("blLastPushHash")).toBeNull();
+  });
+
+  it("SIGNOUT_KEEP_KEYS (device-local prefs) survive the wipe", () => {
+    localStorage.setItem("blAutoExportDays", "7");
+    localStorage.setItem("blLastAutoExport", "2026-01-01");
+    clearLocalUserData({ force: true });
+    expect(localStorage.getItem("blAutoExportDays")).toBe("7");
+    expect(localStorage.getItem("blLastAutoExport")).toBe("2026-01-01");
   });
 });
 

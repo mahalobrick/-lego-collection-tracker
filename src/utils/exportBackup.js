@@ -173,8 +173,23 @@ const SIGNOUT_KEEP_KEYS = new Set(["blAutoExportDays", "blLastAutoExport"]);
  * Called on sign-out / session end so the next person can't see the prior user's
  * collection. Leaves device-local prefs (SIGNOUT_KEEP_KEYS) and — critically —
  * any non-bl/brickEconomy keys (e.g. Clerk's own session keys) untouched.
+ *
+ * A4 — never destroys UNSYNCED user data: if this device holds censused data whose
+ * fingerprint differs from the last successful push (offline / failed-sync sign-out),
+ * the wipe is refused and { skipped: "unsynced" } is returned, so the caller keeps the
+ * data for the next sign-in to push. Pass { force: true } for the shared-browser
+ * foreign-data wipe (BIZLOGIC-1), which must clear regardless of sync state.
+ *
+ * The key SET wiped is intentionally a SUPERSET of BACKUP_KEYS — it also clears
+ * regeneratable caches + sync metadata (incl. dynamic brickset* keys) via the
+ * bl/brickEconomy/brickset prefix so nothing leaks on a shared device. The registry
+ * defines only what the A4 guard protects, not the wipe scope.
  */
-export function clearLocalUserData() {
+export function clearLocalUserData({ force = false } = {}) {
+  if (!force && hasAnyLocalData() &&
+      localContentHash() !== localStorage.getItem("blLastPushHash")) {
+    return { skipped: "unsynced" };
+  }
   const toRemove = [];
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
@@ -184,6 +199,7 @@ export function clearLocalUserData() {
     }
   }
   toRemove.forEach(k => localStorage.removeItem(k));
+  return { cleared: true };
 }
 
 /** Rough item counts of a backup object — for the conflict dialog. */

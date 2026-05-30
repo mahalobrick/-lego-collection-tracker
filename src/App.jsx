@@ -75,9 +75,13 @@ export default function App() {
       // computer can't leak the previous user's data.
       syncReadyRef.current = false;
       if (localStorage.getItem("blSyncedUserId")) {
-        clearLocalUserData();
-        sessionStorage.setItem("blSignedOutCleared", "1"); // toast after reload
-        window.location.reload();
+        // A4: clearLocalUserData refuses to wipe unsynced edits (offline/failed-sync sign-out).
+        // Only reload+toast when it actually cleared; otherwise keep the data on this device
+        // so the next sign-in can reconcile and push it rather than destroying it.
+        if (clearLocalUserData().cleared) {
+          sessionStorage.setItem("blSignedOutCleared", "1"); // toast after reload
+          window.location.reload();
+        }
       }
     }
     // Note: the legacy passphrase auto-restore banner was retired here — it assumed a
@@ -104,7 +108,9 @@ export default function App() {
     // Never let it flow into this user's cloud — wipe it and treat this as a fresh
     // device for the signing-in user.
     if (foreign) {
-      if (hasLocal) { clearLocalUserData(); local = summarizeLocal(); hasLocal = false; }
+      // BIZLOGIC-1: foreign data must be wiped regardless of its sync state, so force past
+      // the A4 guard. (A1 — adding a recoverable backup before this wipe — is out of scope here.)
+      if (hasLocal) { clearLocalUserData({ force: true }); local = summarizeLocal(); hasLocal = false; }
       else localStorage.removeItem("blLastPushHash");
     }
 
