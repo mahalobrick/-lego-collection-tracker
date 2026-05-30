@@ -5,7 +5,7 @@ import BudgetDashboard from "./BudgetDashboard";
 import WantedList from "./WantedList";
 import MyCollection from "./MyCollection";
 import AppSettings from "./AppSettings";
-import { exportFullBackup, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup, clearLocalUserData } from "./utils/exportBackup";
+import { exportFullBackup, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup, clearLocalUserData, hasAnyLocalData } from "./utils/exportBackup";
 import { runDailyBEBatch } from "./utils/beSyncValues";
 
 export default function App() {
@@ -97,8 +97,8 @@ export default function App() {
     const syncedUser = localStorage.getItem("blSyncedUserId");
     const foreign = !!syncedUser && syncedUser !== userId;
 
-    let local    = summarizeLocal();
-    let hasLocal = local.sets > 0 || local.wanted > 0 || local.purchases > 0;
+    let local    = summarizeLocal();      // counts (owned/wanted/purchases) for the conflict dialog
+    let hasLocal = hasAnyLocalData();     // SYNC-CRIT-1: full-key census, not just 3 buckets
 
     // Shared browser (BIZLOGIC-1): the local data belongs to a DIFFERENT account.
     // Never let it flow into this user's cloud — wipe it and treat this as a fresh

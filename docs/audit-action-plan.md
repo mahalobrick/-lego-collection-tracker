@@ -47,6 +47,20 @@ The sequence below resolves it: stopgap → test → refactor.
 **Closes by construction:** `SYNC-CRIT-1`, `A4`, `OBS-2`, `DATA-4`; **fix alongside:** `A2`
 - One canonical key list drives census + overwrite + push-guard + wipe (they can no
   longer drift).
+- **Bring the 7 mount-written defaulted keys into the census** — deferred from Step 1
+  because they are default-written on mount and their non-empty defaults are
+  component-inline (so counting them safely needs centralized defaults, which is this
+  step's job). Deferred keys:
+  - `blStores` — **data** (the user's store list); default `DEFAULT_STORES` is inline in
+    `AppSettings.jsx:15` + `BudgetDashboard.jsx:18` (write effect `AppSettings.jsx:364`).
+  - 6 **view-config** keys: `blOwnedColumns`, `blAcquisitionColumns`, `blPurchaseColumns`,
+    `blDashboardWidgetSettings`, `blCollectionItems`, `blOwnedColWidths`
+    (`MyCollection.jsx:279/295/299`, `WantedList.jsx:547`, `BudgetDashboard.jsx:273`).
+  Step 1's census counts the other 10 backup keys (incl. `blAnnualBudget`, whose default
+  already lives in `exportBackup.js`, and `blDisplayCurrency`). The 7 above are
+  **overwritten-but-uncounted** until the registry centralizes their defaults — a known,
+  tracked gap (low severity; both red-team data-loss cases are already covered by the 10),
+  not silent.
 - All writes route through one guarded `setItem` wrapper (quota-safe, single choke point).
 - Fix `A2` in the same pass (fetch-fail flips `syncReadyRef=true` → stale push clobbers
   newer cloud) — third sync-state-machine correctness bug.

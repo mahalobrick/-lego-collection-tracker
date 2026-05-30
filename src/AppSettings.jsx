@@ -12,7 +12,7 @@ import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import { notificationsSupported, notificationPermission, requestNotificationPermission } from "./utils/notifications";
 import { apiFetch } from "./utils/apiFetch";
 
-const DEFAULT_STORES = ["Amazon", "Best Buy", "Bricklink", "LEGO", "Target", "Walmart"];
+import { DEFAULT_STORES } from "./utils/storeDefaults";
 const DEFAULT_ANNUAL_BUDGET = 10320;
 
 

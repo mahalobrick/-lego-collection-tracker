@@ -7,6 +7,8 @@
 // Returns the date string (e.g. "2026-05-23") on success, or null if the user
 // cancelled the save dialog.
 
+import { DEFAULT_STORES } from "./storeDefaults";
+
 const DEFAULT_ANNUAL_BUDGET = 10320;
 
 // Fast non-crypto fingerprint — good enough for dirty-check equality (not security).
@@ -93,6 +95,64 @@ export function summarizeLocal() {
     wanted:    countList(localStorage.getItem("blWantedList")),
     purchases: countList(localStorage.getItem("blPurchases")),
   };
+}
+
+// ── Canonical backup key registry (the ONE shared list) ──────────────────────
+// Every localStorage key the cloud backup round-trips (= what applyBackupToLocalStorage
+// overwrites). `census:true` keys are counted by hasAnyLocalData() to decide whether a
+// device is genuinely "fresh" (safe to silently pull cloud) or holds unsynced user data
+// a silent pull would destroy (SYNC-CRIT-1). The 6 census:false keys are default-written
+// on mount with component-inline defaults — deferred to Step 3, which centralizes them.
+// See docs/audit-action-plan.md.
+export const BACKUP_KEYS = [
+  { key: "blOwnedSets",                      kind: "array",  census: true },
+  { key: "brickEconomyNormalizedCollection", kind: "array",  census: true },
+  { key: "brickEconomyCollectionSyncInfo",   kind: "object", census: true },
+  { key: "blSoldSets",                       kind: "array",  census: true },
+  { key: "blPortfolioHistory",               kind: "array",  census: true },
+  { key: "blWantedList",                     kind: "array",  census: true },
+  { key: "blPurchases",                      kind: "array",  census: true },
+  { key: "blStores",                         kind: "array",  census: true,  default: DEFAULT_STORES },
+  { key: "blStoreBudgets",                   kind: "object", census: true },
+  { key: "blAnnualBudget",    kind: "scalar", census: true,  default: String(DEFAULT_ANNUAL_BUDGET) },
+  { key: "blDisplayCurrency", kind: "scalar", census: true,  default: "USD" },
+  // Deferred to Step 3 (default-on-mount; defaults are component-inline view config):
+  { key: "blOwnedColumns",            kind: "array",  census: false },
+  { key: "blAcquisitionColumns",      kind: "array",  census: false },
+  { key: "blPurchaseColumns",         kind: "array",  census: false },
+  { key: "blDashboardWidgetSettings", kind: "object", census: false },
+  { key: "blCollectionItems",         kind: "array",  census: false },
+  { key: "blOwnedColWidths",          kind: "object", census: false },
+];
+
+/**
+ * True if this device holds any unsynced USER DATA — drives the fresh-device guard in
+ * reconcileOnSignIn (SYNC-CRIT-1). Defaults-aware: empty arrays/objects and default-valued
+ * scalars/lists do NOT count, so a genuinely fresh device still reads as empty and the
+ * legitimate silent cloud pull still happens.
+ */
+export function hasAnyLocalData() {
+  for (const k of BACKUP_KEYS) {
+    if (!k.census) continue;
+    const raw = localStorage.getItem(k.key);
+    if (raw == null) continue;
+    if (k.kind === "array") {
+      try {
+        const v = JSON.parse(raw);
+        if (Array.isArray(v) && v.length &&
+            (k.default == null || JSON.stringify(v) !== JSON.stringify(k.default))) return true;
+      } catch { /* malformed → ignore */ }
+      continue;
+    }
+    if (k.kind === "object") {
+      try { if (Object.keys(JSON.parse(raw) || {}).length) return true; } catch { /* ignore */ }
+      continue;
+    }
+    // scalar
+    if (k.default != null && raw === k.default) continue;
+    if (raw !== "") return true;
+  }
+  return false;
 }
 
 // Device-local preferences that should survive a sign-out (not user content).

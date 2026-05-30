@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@clerk/backend": "^3.4.14",
@@ -20,7 +22,9 @@
   "devDependencies": {
     "@types/papaparse": "^5.5.2",
     "@vitejs/plugin-react": "^6.0.2",
-    "vite": "^8.0.14"
+    "jsdom": "^29.1.1",
+    "vite": "^8.0.14",
+    "vitest": "^4.1.7"
   },
   "overrides": {
     "uuid": "^11.1.1"

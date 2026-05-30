@@ -15,7 +15,7 @@ const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4
 const DEFAULT_annualBudget = 10320;
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-const DEFAULT_STORES = ["Amazon", "Best Buy", "Bricklink", "LEGO", "Target", "Walmart"];
+import { DEFAULT_STORES } from "./utils/storeDefaults";
 
 const DEFAULT_PURCHASE_COLUMNS = [
   { key: "date",       label: "Date",         visible: true  },
