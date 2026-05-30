@@ -11,6 +11,7 @@ import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition } from "./utils/beSyncValues";
 import { apiFetch } from "./utils/apiFetch";
+import { setItemSafe } from "./utils/safeStorage";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
 const CONDITION_CYCLE = ["new", "used_as_new", "used_good", "used_acceptable"];
@@ -272,36 +273,36 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   useEffect(() => {
     // Only persist manually-added items; BE data lives in brickEconomyNormalizedCollection
     const manualItems = sets.filter(s => s.source !== "BrickEconomy");
-    localStorage.setItem("blOwnedSets", JSON.stringify(manualItems));
+    setItemSafe("blOwnedSets", JSON.stringify(manualItems));
   }, [sets]);
 
   useEffect(() => {
-    localStorage.setItem("blCollectionItems", JSON.stringify(collectionItems));
+    setItemSafe("blCollectionItems", JSON.stringify(collectionItems));
   }, [collectionItems]);
 
   useEffect(() => {
-    localStorage.setItem("blCollChartTypes", JSON.stringify(chartTypes));
+    setItemSafe("blCollChartTypes", JSON.stringify(chartTypes));
   }, [chartTypes]);
 
   useEffect(() => {
-    localStorage.setItem("blSoldSets", JSON.stringify(soldSets));
+    setItemSafe("blSoldSets", JSON.stringify(soldSets));
   }, [soldSets]);
 
   useEffect(() => {
-    localStorage.setItem("blOwnedRetireDismissed", JSON.stringify(retireDismissed));
+    setItemSafe("blOwnedRetireDismissed", JSON.stringify(retireDismissed));
   }, [retireDismissed]);
 
   useEffect(() => {
-    localStorage.setItem("blOwnedColumns", JSON.stringify(ownedColumns));
+    setItemSafe("blOwnedColumns", JSON.stringify(ownedColumns));
   }, [ownedColumns]);
 
   useEffect(() => {
-    localStorage.setItem("blOwnedColWidths", JSON.stringify(columnWidths));
+    setItemSafe("blOwnedColWidths", JSON.stringify(columnWidths));
   }, [columnWidths]);
 
   useEffect(() => {
-    localStorage.setItem("blOwnedSort", sortColumn);
-    localStorage.setItem("blOwnedSortDir", sortDirection);
+    setItemSafe("blOwnedSort", sortColumn);
+    setItemSafe("blOwnedSortDir", sortDirection);
   }, [sortColumn, sortDirection]);
 
   // ── Rebrickable — load local catalog in background on mount ─────────────
@@ -331,7 +332,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         // Persist to Brickset cache so future loads don't need to re-fetch
         const cache = JSON.parse(localStorage.getItem("bricksetSetCache") || "{}");
         cache[`brickset_${clean}`] = { fetchedAt: new Date().toISOString(), data: bsData };
-        localStorage.setItem("bricksetSetCache", JSON.stringify(cache));
+        setItemSafe("bricksetSetCache", JSON.stringify(cache));
         // Patch sets state — minifigs + pieces only (BE owns value fields)
         setSets(prev => prev.map(s => {
           if (String(s.setNumber || "").replace(/-1$/, "") !== clean) return s;
@@ -367,7 +368,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       const totalValue = sets.reduce((s, x) => s + (asNumber(x.totalValue) || asNumber(x.currentValue) * (asNumber(x.qty) || 1)), 0);
       const totalPaid  = sets.reduce((s, x) => s + (asNumber(x.totalPaid)  || asNumber(x.paidPrice)    * (asNumber(x.qty) || 1)), 0);
       const next = [...history.filter(h => h.date !== today), { date: today, value: totalValue, paid: totalPaid }];
-      localStorage.setItem("blPortfolioHistory", JSON.stringify(next.sort((a, b) => a.date.localeCompare(b.date)).slice(-365)));
+      setItemSafe("blPortfolioHistory", JSON.stringify(next.sort((a, b) => a.date.localeCompare(b.date)).slice(-365)));
     } catch {}
   }, [sets]);
 
@@ -652,7 +653,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             if (res.ok && !json.error) {
               beData = json.data || json;
               cache[beKey] = { fetchedAt: new Date().toISOString(), data: beData };
-              localStorage.setItem("brickEconomySetCache", JSON.stringify(cache));
+              setItemSafe("brickEconomySetCache", JSON.stringify(cache));
             }
           }
           const beVal = beValueForCondition(beData, form.condition);
@@ -697,7 +698,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         if (Object.keys(updates).length) { enriched++; return { ...s, ...updates }; }
         return s;
       });
-      localStorage.setItem("blOwnedSets", JSON.stringify(next.filter(s => s.source !== "BrickEconomy")));
+      setItemSafe("blOwnedSets", JSON.stringify(next.filter(s => s.source !== "BrickEconomy")));
       return next;
     });
     // Also enrich Wanted List from same local data
@@ -714,7 +715,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         if (Object.keys(updates).length) { wlEnriched++; return { ...w, ...updates }; }
         return w;
       });
-      if (wlEnriched > 0) localStorage.setItem("blWantedList", JSON.stringify(wlNext));
+      if (wlEnriched > 0) setItemSafe("blWantedList", JSON.stringify(wlNext));
       enriched += wlEnriched;
     } catch {}
 
@@ -757,7 +758,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       const cleanNum = String(form.setNumber || "").replace(/-1$/, "").trim();
       const filtered = wl.filter(w => String(w.setNumber || "").replace(/-1$/, "").trim() !== cleanNum);
       if (filtered.length < wl.length) {
-        localStorage.setItem("blWantedList", JSON.stringify(filtered));
+        setItemSafe("blWantedList", JSON.stringify(filtered));
         toast.success(`Removed from Wanted List — now in collection`);
       }
     } catch { /* non-critical */ }
@@ -795,7 +796,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         _fromCollection: true,
       };
       const existing = JSON.parse(localStorage.getItem("blPurchases") || "[]");
-      localStorage.setItem("blPurchases", JSON.stringify([...existing, purchase]));
+      setItemSafe("blPurchases", JSON.stringify([...existing, purchase]));
     } catch {}
     setPurchaseModal(null);
   }
