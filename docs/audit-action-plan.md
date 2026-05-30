@@ -5,17 +5,20 @@
 > groups findings by shared root cause and orders them so we never refactor untested
 > destruction logic before the tests that make it safe exist.
 
-> **Status (Phase E complete, 2026-05-29):** Steps 1–2 are **DONE**; Step 3's **registry half
-> (Phase D)** and its **guarded-write half (Phase E)** are **DONE**. `SYNC-CRIT-1`, `A4`, `A11`
-> are **CLOSED** by the registry; **`OBS-2` is CLOSED (both halves)** by the guarded `setItem`
-> choke point (`setItemSafe` in `src/utils/safeStorage.js`) — every production write (96 sites)
-> now routes through it; a `QuotaExceeded` failure both **surfaces a user banner** (no silent
-> loss) and is **checked by the sync/restore writers** so a dropped write can't be marked synced
-> or clobber the cloud copy; the former global `main.jsx` monkey-patch is gone. **`DATA-4`'s API half is DONE** (the proper
-> guarded API replaces the runtime patch); its **enforcement** (no-bypass PreToolUse hook /
-> `.claude/rules`) is **deferred to Phase G**. **`A2` is CLOSED (Phase F):** a failed cloud fetch
-> no longer enables auto-push, so stale local can't clobber newer cloud. **Still open in Step 3:**
-> the `🔒` hooks (Phase G). See *Phase F*, *Phase E*, and *Phase D — outcome* at the foot of this doc.
+> **Status (Phase G complete — Step 3 FULLY CLOSED, 2026-05-30):** Steps 1–2 are **DONE** and
+> **Step 3 is DONE in full**. `SYNC-CRIT-1`, `A4`, `A11` are **CLOSED** by the registry (Phase D);
+> **`OBS-2` is CLOSED (both halves)** by the guarded `setItem` choke point (`setItemSafe` in
+> `src/utils/safeStorage.js`) — every production write routes through it; a `QuotaExceeded`
+> failure both **surfaces a user banner** (no silent loss) and is **checked by the sync/restore
+> writers** so a dropped write can't be marked synced or clobber the cloud copy (Phase E). **`A2`
+> is CLOSED (Phase F):** a failed cloud fetch no longer enables auto-push. **`DATA-4` is now CLOSED
+> in full (Phase G):** the API half (Phase E) is backstopped by enforcement — an ESLint rule
+> (`eslint.config.js`, `npm run lint`) bans raw `localStorage.setItem` everywhere except the single
+> sanctioned site (`safeStorage.js`: `setItemSafe` + the relocated `restoreRaw`). **`SEC-GAP-2` is
+> CLOSED (Phase G):** the every-handler-authenticates boundary is locked by a dynamic regression
+> test (`src/api-auth.test.js`). **No Step-3 items remain open** — the former `🔒` hooks are
+> landed as a lint + a test (stronger than the originally-sketched CC-only hooks). See *Phase G*,
+> *Phase F*, *Phase E*, and *Phase D — outcome* at the foot of this doc. **59 tests green; lint clean.**
 
 ## The core insight
 
@@ -26,7 +29,7 @@ Several top findings are the **same bug in different places**, not independent i
 | `SYNC-CRIT-1` — census (`summarizeLocal`, 3 buckets) narrower than overwrite scope (`applyBackupToLocalStorage`, 17 keys) | No single canonical definition of "the user's data keys" — census, overwrite, push-guard, and wipe each carry their own ad-hoc list, and they've drifted |
 | `A4` — sign-out wipe destroys never-pushed data | (same) |
 | `OBS-2` — unguarded `setItem` → silent quota loss · ✅ CLOSED (Phase E) | No single guarded write path |
-| `DATA-4` — code bypasses the patched `setItem` · ⚠️ API done (Phase E); enforcement → Phase G | (same) |
+| `DATA-4` — code bypasses the patched `setItem` · ✅ CLOSED (API Phase E; ESLint enforcement Phase G) | (same) |
 
 Both root causes are instances of the audit's architectural finding: **schema-less
 `localStorage` with no data layer.** So the durable fix is structural — make the class
@@ -55,14 +58,16 @@ The sequence below resolves it: stopgap → test → refactor.
 - Confirm step 1 makes both pass.
 - This is the right place to start testing regardless — data-destruction paths first.
 
-### 3. Structural fix — shared key registry + guarded write path · ⚠️ PARTIAL (registry half done, Phase D)
-**Closes by construction:** `SYNC-CRIT-1` ✅, `A4` ✅, `A11` ✅ (registry-driven, Phase D), `OBS-2` ✅ (guarded write, Phase E), `DATA-4` ⚠️ (API Phase E / enforcement Phase G); **fix alongside:** `A2` ✅ (Phase F); **lands** the `🔒` hooks ⬜ (Phase G).
+### 3. Structural fix — shared key registry + guarded write path · ✅ DONE (Phases D–G)
+**Closes by construction:** `SYNC-CRIT-1` ✅, `A4` ✅, `A11` ✅ (registry-driven, Phase D), `OBS-2` ✅ (guarded write, Phase E), `DATA-4` ✅ (API Phase E / ESLint enforcement Phase G); **fixed alongside:** `A2` ✅ (Phase F); **`🔒` hooks landed** as a lint + a test ✅ (Phase G).
 
 > **Phase D landed the registry half:** `BACKUP_KEYS` now drives census + apply + build +
 > push-guard + dedup-hash + the A4 wipe-guard. **Phase E landed the guarded-write half:** all
 > writes route through `setItemSafe` (`src/utils/safeStorage.js`), closing `OBS-2`. **Phase F
-> closed `A2`** (fetch-fail no longer enables auto-push). **Still open in this step:** the `🔒`
-> hooks (incl. `DATA-4` no-bypass enforcement) — Phase G.
+> closed `A2`** (fetch-fail no longer enables auto-push). **Phase G landed the enforcement hooks
+> and closed the step:** `DATA-4`'s no-bypass rule is an ESLint ban on raw `localStorage.setItem`
+> (sole sanctioned site `safeStorage.js`), and `SEC-GAP-2` is a dynamic per-handler auth-required
+> test. **Nothing remains open in this step.**
 
 Scope is the **11 censused data keys** + the sync state machine. It does **NOT** include the
 6 view-config keys' census completion — that's an explicit deferred future step (**Step 5**).
@@ -77,9 +82,10 @@ Scope is the **11 censused data keys** + the sync state machine. It does **NOT**
   key-set, so the device-local `autoExportDays` no longer rides in the hash. The regression
   test (formerly `it.fails`) is now a normal passing test. See *Phase D* + the `A11` section below.
 - Safe to do now because step 2's tests catch any regression.
-- Land the `🔒` hard-enforce candidates here: `SEC-GAP-2` (every `/api` handler
-  authenticates first) and `DATA-4` (no bypassing patched `setItem`) as
-  PreToolUse hooks / `.claude/rules/*.md`.
+- ✅ **Done (Phase G):** the `🔒` hard-enforce candidates — `SEC-GAP-2` (every `/api` handler
+  authenticates first) and `DATA-4` (no bypassing the `setItem` choke point). Landed as
+  **tool-agnostic, CI-runnable** controls (an ESLint rule + a vitest), **stronger** than the
+  originally-sketched CC-only PreToolUse hooks / `.claude/rules`.
 
 ### 4. Lower-urgency structural debt — after the data-loss work
 Not actively destroying data, so it waits. Same "characterize-then-consolidate" discipline.
@@ -125,6 +131,51 @@ loss; sync churn + UX).
 (`src/utils/exportBackup.js`), so the timestamp, regeneratable cache, and device-local
 `autoExportDays` are excluded by construction. The formerly-`it.fails` regression in
 `exportBackup.census.test.js` is now a **normal passing test**.
+
+## Phase G — outcome (lock the invariants: `DATA-4` + `SEC-GAP-2`) · the LAST remediation phase
+
+**What closed (full suite green — 59 tests — + lint clean):** `DATA-4` (in full) and `SEC-GAP-2`.
+Phase G adds no new behaviour; it makes two already-landed invariants **unable to silently
+regress**. Step 3 — and the audit's structural data-loss/auth work — is now **DONE end-to-end**.
+
+### Step 2 (relocation) — one sanctioned raw-write site
+The atomic-rollback in `applyBackupToLocalStorage` was the single production raw
+`localStorage.setItem`/`removeItem` outside the choke point. It now calls
+**`restoreRaw(key, prevValue)`** in `src/utils/safeStorage.js` (behaviour byte-identical: bypasses
+the quota guard, emits no `datachange`/`storagefull`, best-effort per key). So `safeStorage.js` is
+the **sole** module holding raw writes — the precondition for a clean lint ban.
+
+### `DATA-4` enforcement — ESLint over a CC-only hook (design call)
+Mechanism chosen: an **ESLint rule** (`no-restricted-syntax`) banning raw `localStorage.setItem`
+(and `window.localStorage.setItem`), **not** a Claude-Code-only PreToolUse hook — it's
+**tool-agnostic and CI-runnable**, so it catches any contributor/agent, not just CC. Config is
+**deliberately single-purpose** (`eslint.config.js`, one rule, `npm run lint`): a never-linted
+codebase with 1000–2800-line files would drown the signal under a full preset's pre-existing style
+violations. Exemptions: `safeStorage.js` (the sanctioned site) + test fixtures. A no-op
+`react-hooks/exhaustive-deps` stub keeps the config self-contained (no extra plugin dep) so the
+codebase's existing disable directives resolve. **Scope = `setItem` only, not `removeItem`** — the
+choke-point invariant is about *writes* (quota + sync dispatch); ~14 legitimate raw `removeItem`
+wipe sites stay untouched. **Known gap (accepted):** a static rule can't see an aliased write
+(`const s = localStorage; s.setItem(…)`) — no code does this; the lint stops the realistic
+*accidental* reintroduction, deliberate evasion is a code-review concern. Verified: flags a
+deliberate raw `setItem`, passes clean on current `src`, exemptions hold.
+
+### `SEC-GAP-2` enforcement — a dynamic test, not a `withAuth` refactor (design call)
+The auth boundary already exists (APISEC-1: `requireAuth`/`authenticate` in `api/_auth.js`, called
+by every handler), so the residual was **regression-proofing only**. Chosen mechanism: a
+**behavioural test** (`src/api-auth.test.js`), **not** a structural `withAuth` wrapper. Rationale:
+(1) a test enforces the actual security *property* (unauth → 401, secret-bearing `fetch` never
+reached) rather than the mere *presence* of an auth call — it catches auth-checked-but-not-returned
+and auth-after-the-spend; (2) a `withAuth` refactor would touch the single most security-sensitive
+boundary across ~10 handlers with differing CORS/rate-limit ordering — and you'd **still** need the
+test (you can export an unwrapped handler), so the wrapper is redundant structure on a sensitive
+boundary. The test **dynamically enumerates** `api/*.js` at runtime (no hardcoded list), so a new
+handler added without auth is caught automatically — verified by dropping in an unauthed probe
+handler (auto-discovered + flagged, green once removed). It also pins `sync.js`'s pre-auth
+`getKv()` check failing **closed** (503, no secret/data path) when KV is unconfigured.
+`security.md` records this as a **control cross-link, not a trust-boundary change** (under
+APISEC-1). The `🔒` candidates thus landed as a lint + a test — **stronger** than the
+originally-sketched CC-only hooks / `.claude/rules`.
 
 ## Phase F — outcome (A2: fetch-fail must not enable auto-push)
 
@@ -193,10 +244,10 @@ bypasses **both** the quota guard **and** auto-sync — confirmed in the browser
 (`rawWriteDispatchedDatachange === false`). This is exactly what **Phase G**'s `DATA-4` no-bypass
 enforcement (PreToolUse hook / `.claude/rules`) must backstop.
 
-### Residual — `DATA-4` enforcement (deferred to Phase G)
+### Residual — `DATA-4` enforcement (deferred to Phase G) · ✅ CLOSED (Phase G)
 The guarded **API exists and is used everywhere today**, but nothing yet *prevents* a future
 raw `setItem` from being introduced. Closing `DATA-4` fully needs the enforcement hook (Phase G),
-on top of this API.
+on top of this API. **CLOSED in Phase G** by an ESLint ban — see *Phase G — outcome* below.
 
 **Carry-forward (E.5) — one sanctioned raw-write site:** `applyBackupToLocalStorage` (in
 `exportBackup.js`) intentionally uses **raw `setItem`/`removeItem`** for its atomic rollback — the
@@ -205,7 +256,9 @@ fit, so routing it through `setItemSafe` would be wrong. So Phase G's no-bypass 
 *legitimate* raw write **outside** `safeStorage.js`. **Preferred resolution:** relocate sanctioned
 raw writes into `safeStorage.js` (e.g. a `restoreRaw(key, prevValue)` helper) and have the hook
 forbid raw `localStorage.setItem` everywhere **except that module** — rather than whitelisting
-scattered call sites. The same pattern absorbs any future sanctioned raw write.
+scattered call sites. The same pattern absorbs any future sanctioned raw write. ✅ **Resolved in
+Phase G exactly as sketched:** the rollback now calls `restoreRaw` in `safeStorage.js`, and the
+lint exempts only that module (+ test fixtures).
 
 ## Phase D — outcome, decisions & residuals
 
