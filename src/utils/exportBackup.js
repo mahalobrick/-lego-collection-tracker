@@ -27,13 +27,11 @@ function quickHash(str) {
  * getToken — async fn from useAuth() that returns the current session JWT.
  */
 export async function pushToCloudAuth(getToken) {
-  const ownedSets  = localStorage.getItem("blOwnedSets");
-  const beNorm     = localStorage.getItem("brickEconomyNormalizedCollection");
-  const wantedList = localStorage.getItem("blWantedList");
-  const hasAnyData = (ownedSets && ownedSets !== "[]")
-                  || (beNorm    && beNorm    !== "[]")
-                  || (wantedList && wantedList !== "[]");
-  if (!hasAnyData) return { skipped: "no_data" };
+  // Push-guard uses the SAME census as the fresh-device check (hasAnyLocalData, census:true
+  // keys), so it can't drift from the overwrite scope. Closes the blind spot where a
+  // sold-everything / budget-only device (empty owned/wanted) read as "no data" and never
+  // claimed its cloud slot.
+  if (!hasAnyLocalData()) return { skipped: "no_data" };
 
   const backup = buildBackup(new Date());
   delete backup.brickEconomySetCache; // large and fully regeneratable
