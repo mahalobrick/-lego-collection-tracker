@@ -13,6 +13,7 @@ import { notificationsSupported, notificationPermission, requestNotificationPerm
 import { apiFetch } from "./utils/apiFetch";
 
 import { DEFAULT_STORES } from "./utils/storeDefaults";
+import { setItemSafe } from "./utils/safeStorage";
 const DEFAULT_ANNUAL_BUDGET = 10320;
 
 
@@ -24,7 +25,7 @@ function recordPortfolioSnapshot(totalValue, totalPaid) {
     const history = JSON.parse(localStorage.getItem("blPortfolioHistory") || "[]");
     const filtered = history.filter(h => h.date !== today);
     filtered.push({ date: today, value: Number(totalValue) || 0, paid: Number(totalPaid) || 0 });
-    localStorage.setItem("blPortfolioHistory", JSON.stringify(
+    setItemSafe("blPortfolioHistory", JSON.stringify(
       filtered.sort((a, b) => a.date.localeCompare(b.date)).slice(-365)
     ));
   } catch {}
@@ -244,7 +245,7 @@ export default function AppSettings() {
         const json = await res.json();
         if (!res.ok || json.error || !json.sets?.length) throw new Error(json.message || "BF fetch failed");
         bfSets = json.sets; fetchedAt = json.fetchedAt || new Date().toISOString();
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ sets: bfSets, fetchedAt }));
+        setItemSafe(CACHE_KEY, JSON.stringify({ sets: bfSets, fetchedAt }));
       }
       const bfMap = new Map(bfSets.map(s => [String(s.setNumber).replace(/-1$/, ""), s]));
       const currentYear = new Date().getFullYear();
@@ -262,7 +263,7 @@ export default function AppSettings() {
         return { ...w, retiringSoon: yr ? yr <= currentYear + 1 : true, retirementYear: yr ? String(yr) : w.retirementYear || "",
           retirementConfidence: "High", retirementSource: "Brick Fanatics", lastRetirementUpdate: new Date().toISOString().slice(0, 10) };
       });
-      localStorage.setItem("blWantedList", JSON.stringify(wlNext));
+      setItemSafe("blWantedList", JSON.stringify(wlNext));
       setBfSyncLast(fetchedAt);
       setBfSyncResult({ updated, total: bfSets.length });
       toast.success(`BF sync: ${updated} items updated · ${bfSets.length} sets on retiring list`);
@@ -300,7 +301,7 @@ export default function AppSettings() {
         if (Object.keys(up).length)   { enriched++; return { ...s, ...up }; }
         return s;
       });
-      localStorage.setItem("blOwnedSets", JSON.stringify(next));
+      setItemSafe("blOwnedSets", JSON.stringify(next));
     } catch {}
     // Enrich Wanted List
     try {
@@ -315,7 +316,7 @@ export default function AppSettings() {
         if (Object.keys(up).length)   { enriched++; return { ...w, ...up }; }
         return w;
       });
-      localStorage.setItem("blWantedList", JSON.stringify(next));
+      setItemSafe("blWantedList", JSON.stringify(next));
     } catch {}
     setRbFillResult(enriched);
     setRbFilling(false);
@@ -359,16 +360,16 @@ export default function AppSettings() {
     return saved ? JSON.parse(saved) : DEFAULT_STORES;
   });
 
-  useEffect(() => localStorage.setItem("blAutoExportDays", String(autoExportDays)), [autoExportDays]);
-  useEffect(() => localStorage.setItem("blAnnualBudget", annualBudget), [annualBudget]);
-  useEffect(() => localStorage.setItem("blStores", JSON.stringify(stores)), [stores]);
+  useEffect(() => setItemSafe("blAutoExportDays", String(autoExportDays)), [autoExportDays]);
+  useEffect(() => setItemSafe("blAnnualBudget", annualBudget), [annualBudget]);
+  useEffect(() => setItemSafe("blStores", JSON.stringify(stores)), [stores]);
 
   function getPurchases() {
     return JSON.parse(localStorage.getItem("blPurchases") || "[]");
   }
 
   function setPurchases(rows) {
-    localStorage.setItem("blPurchases", JSON.stringify(rows));
+    setItemSafe("blPurchases", JSON.stringify(rows));
   }
 
   function purchaseKey(p) {
@@ -524,7 +525,7 @@ export default function AppSettings() {
       applyBackupToLocalStorage(data);
       // Also restore the set cache — large but worthwhile for a manual full restore
       if (data.brickEconomySetCache && typeof data.brickEconomySetCache === "object") {
-        localStorage.setItem("brickEconomySetCache", JSON.stringify(data.brickEconomySetCache));
+        setItemSafe("brickEconomySetCache", JSON.stringify(data.brickEconomySetCache));
       }
       toast.success("Backup restored. Reloading…");
       setTimeout(() => window.location.reload(), 1200);
@@ -575,7 +576,7 @@ export default function AppSettings() {
   async function applyCollectionImport(sets) {
     const ok = window.confirm(`Import ${sets.length} sets into My Collection? Existing manual entries will be replaced.`);
     if (!ok) return;
-    localStorage.setItem("blOwnedSets", JSON.stringify(sets));
+    setItemSafe("blOwnedSets", JSON.stringify(sets));
     toast.success(`Imported ${sets.length} sets. Refresh to see changes.`);
   }
 
@@ -657,8 +658,8 @@ export default function AppSettings() {
         costBasisSource: "BrickEconomy CSV export",
         inventorySource: "BrickEconomy CSV import"
       };
-      localStorage.setItem("brickEconomyNormalizedCollection", JSON.stringify(normalized));
-      localStorage.setItem("brickEconomyCollectionSyncInfo", JSON.stringify(syncInfo));
+      setItemSafe("brickEconomyNormalizedCollection", JSON.stringify(normalized));
+      setItemSafe("brickEconomyCollectionSyncInfo", JSON.stringify(syncInfo));
       setCollectionSyncInfo(syncInfo);
       toast.success(`Imported ${normalized.length} unique sets (${items.length} entries) from BrickEconomy CSV. Refresh My Collection to see changes.`);
     } catch (err) { toast.error("Could not parse BrickEconomy CSV: " + (err.message || err)); }
@@ -676,7 +677,7 @@ export default function AppSettings() {
       const ok = window.confirm(`Import ${items.length} sets from Brickset? They'll be added as manual items with $0 paid price (update later).`);
       if (!ok) return;
       const existing = JSON.parse(localStorage.getItem("blOwnedSets") || "[]").filter(s => s.source !== "Brickset");
-      localStorage.setItem("blOwnedSets", JSON.stringify([...existing, ...items]));
+      setItemSafe("blOwnedSets", JSON.stringify([...existing, ...items]));
       toast.success(`Imported ${items.length} sets from Brickset. Open My Collection → Collection to review.`);
     } catch (err) { toast.error("Could not parse Brickset CSV: " + (err.message || err)); }
   }
@@ -733,7 +734,7 @@ export default function AppSettings() {
     if (!Array.isArray(data)) throw new Error("Expected an array");
     const ok = window.confirm(`Import ${data.length} wanted list items? Current list will be replaced.`);
     if (!ok) return;
-    localStorage.setItem("blWantedList", JSON.stringify(data));
+    setItemSafe("blWantedList", JSON.stringify(data));
     toast.success(`Wanted list restored with ${data.length} items. Refresh to see changes.`);
   }
 
@@ -898,7 +899,7 @@ export default function AppSettings() {
         (skipped ? ` ${skipped} already in your list will be skipped.` : "")
       );
       if (!ok) return;
-      localStorage.setItem("blWantedList", JSON.stringify([...existing, ...newItems]));
+      setItemSafe("blWantedList", JSON.stringify([...existing, ...newItems]));
       toast.success(`Added ${newItems.length} wanted set${newItems.length !== 1 ? "s" : ""}${skipped ? ` · ${skipped} skipped` : ""}.`);
     } catch (err) {
       toast.error("Could not parse BrickEconomy CSV: " + (err.message || err));
@@ -955,7 +956,7 @@ export default function AppSettings() {
         (skipped ? ` ${skipped} already in your list will be skipped.` : "")
       );
       if (!ok) return;
-      localStorage.setItem("blWantedList", JSON.stringify([...existing, ...newItems]));
+      setItemSafe("blWantedList", JSON.stringify([...existing, ...newItems]));
       toast.success(`Added ${newItems.length} BrickLink wanted set${newItems.length !== 1 ? "s" : ""}${skipped ? ` · ${skipped} skipped` : ""}.`);
     } catch (err) {
       toast.error("Could not parse BrickLink XML: " + (err.message || err));
@@ -1026,7 +1027,7 @@ export default function AppSettings() {
   function saveBrickLinkToken() {
     const trimmed = blAccessTokenInput.trim();
     if (!trimmed) return;
-    localStorage.setItem("blBrickLinkAccessToken", trimmed);
+    setItemSafe("blBrickLinkAccessToken", trimmed);
     setBlConnected(true);
     setBlAccessTokenInput("");
     toast.success("BrickLink access token saved.");
@@ -1070,7 +1071,7 @@ export default function AppSettings() {
         setBlPriceSync({ done, total, status: "running" });
       });
       const now = new Date().toISOString();
-      localStorage.setItem("blPriceSyncLast", now);
+      setItemSafe("blPriceSyncLast", now);
       setBlPriceSyncLast(now);
       setBlPriceSync(null);
       toast.success(`BL prices synced — ${synced} updated, ${skipped} cached, ${failed} failed.`, { duration: 6000 });
@@ -1109,7 +1110,7 @@ export default function AppSettings() {
     const result = await requestNotificationPermission();
     setNotifPermission(result);
     if (result === "granted") {
-      localStorage.setItem("blNotificationsEnabled", "1");
+      setItemSafe("blNotificationsEnabled", "1");
       // Reset throttle so the next app open fires immediately
       localStorage.removeItem("blLastNotifyDate");
       setNotifEnabled(true);
@@ -1159,7 +1160,7 @@ export default function AppSettings() {
           ].map(({ code, label }) => (
             <button
               key={code}
-              onClick={() => { setDisplayCurrency(code); localStorage.setItem("blDisplayCurrency", code); }}
+              onClick={() => { setDisplayCurrency(code); setItemSafe("blDisplayCurrency", code); }}
               style={{
                 background: displayCurrency === code ? "#c9a84c" : "rgba(255,255,255,0.04)",
                 color: displayCurrency === code ? "#0d1623" : "#8a9bb0",
