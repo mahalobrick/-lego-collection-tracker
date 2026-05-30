@@ -11,7 +11,7 @@ Several top findings are the **same bug in different places**, not independent i
 
 | Symptom finding | Shared root cause |
 |---|---|
-| `SYNC-CRIT-1` — census (`summarizeLocal`, 3 buckets) narrower than overwrite scope (`applyBackupToLocalStorage`, ~15 keys) | No single canonical definition of "the user's data keys" — census, overwrite, push-guard, and wipe each carry their own ad-hoc list, and they've drifted |
+| `SYNC-CRIT-1` — census (`summarizeLocal`, 3 buckets) narrower than overwrite scope (`applyBackupToLocalStorage`, 17 keys) | No single canonical definition of "the user's data keys" — census, overwrite, push-guard, and wipe each carry their own ad-hoc list, and they've drifted |
 | `A4` — sign-out wipe destroys never-pushed data | (same) |
 | `OBS-2` — 111 unguarded `setItem` → silent quota loss | No single guarded write path |
 | `DATA-4` — code bypasses the patched `setItem` | (same) |
@@ -47,20 +47,17 @@ The sequence below resolves it: stopgap → test → refactor.
 **Closes by construction:** `SYNC-CRIT-1`, `A4`, `OBS-2`, `DATA-4`; **fix alongside:** `A2`
 - One canonical key list drives census + overwrite + push-guard + wipe (they can no
   longer drift).
-- **Bring the 7 mount-written defaulted keys into the census** — deferred from Step 1
-  because they are default-written on mount and their non-empty defaults are
-  component-inline (so counting them safely needs centralized defaults, which is this
-  step's job). Deferred keys:
-  - `blStores` — **data** (the user's store list); default `DEFAULT_STORES` is inline in
-    `AppSettings.jsx:15` + `BudgetDashboard.jsx:18` (write effect `AppSettings.jsx:364`).
-  - 6 **view-config** keys: `blOwnedColumns`, `blAcquisitionColumns`, `blPurchaseColumns`,
-    `blDashboardWidgetSettings`, `blCollectionItems`, `blOwnedColWidths`
-    (`MyCollection.jsx:279/295/299`, `WantedList.jsx:547`, `BudgetDashboard.jsx:273`).
-  Step 1's census counts the other 10 backup keys (incl. `blAnnualBudget`, whose default
-  already lives in `exportBackup.js`, and `blDisplayCurrency`). The 7 above are
-  **overwritten-but-uncounted** until the registry centralizes their defaults — a known,
-  tracked gap (low severity; both red-team data-loss cases are already covered by the 10),
-  not silent.
+- **Bring the 6 mount-written view-config keys into the census** — deferred from Step 1
+  because they are default-written on mount and their defaults are component-inline (so
+  counting them safely needs centralized defaults, which is this step's job):
+  `blOwnedColumns`, `blAcquisitionColumns`, `blPurchaseColumns`, `blDashboardWidgetSettings`,
+  `blCollectionItems`, `blOwnedColWidths`
+  (`MyCollection.jsx:279/295/299`, `WantedList.jsx:547`, `BudgetDashboard.jsx:273`).
+  Step 1 already censuses the other **11** backup keys — including `blStores` (via the
+  exported `DEFAULT_STORES`, `src/utils/storeDefaults.js`), `blAnnualBudget` (default in
+  `exportBackup.js`), and `blDisplayCurrency`. The 6 above are **overwritten-but-uncounted**
+  until the registry centralizes their defaults — a known, tracked gap (low severity:
+  view config, not data; both red-team data-loss cases are covered by the 11), not silent.
 - All writes route through one guarded `setItem` wrapper (quota-safe, single choke point).
 - Fix `A2` in the same pass (fetch-fail flips `syncReadyRef=true` → stale push clobbers
   newer cloud) — third sync-state-machine correctness bug.
