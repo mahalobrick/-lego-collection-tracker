@@ -58,13 +58,18 @@ export async function pushToCloudAuth(getToken) {
 
 // ── Sync reconciliation helpers (Phase 4) ────────────────────────────────────
 
-// Canonical dedup fingerprint of a backup — excludes the timestamp (changes every
-// build) and the regeneratable set cache (stripped before push, absent in cloud copy)
-// so a freshly-built local backup and a pulled cloud backup hash identically when
-// their actual data matches.
+// Canonical dedup fingerprint of a backup — a PROJECTION over exactly the BACKUP_KEYS
+// registry (in stable registry order). By construction it excludes the timestamp, the
+// regeneratable set cache, and device-local prefs (settings.autoExportDays) — none are
+// registry keys — so a freshly-built local backup and a pulled cloud backup hash identically
+// when their synced data matches, regardless of caches or per-device export schedules (A11).
 function dedupHash(backup) {
-  const { exportedAt: _ts, brickEconomySetCache: _c, ...rest } = backup;
-  return quickHash(JSON.stringify(rest));
+  const projection = {};
+  for (const k of BACKUP_KEYS) {
+    const src = k.settings ? backup.settings : backup;
+    projection[k.key] = src ? src[k.field] : undefined;
+  }
+  return quickHash(JSON.stringify(projection));
 }
 
 /** Fingerprint of the CURRENT local data — compare against blLastPushHash to detect unsynced edits. */

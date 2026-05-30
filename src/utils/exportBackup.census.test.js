@@ -166,15 +166,13 @@ describe("clearLocalUserData — A4 guard", () => {
   });
 });
 
-// PENDING regression for A11 (docs/audit-action-plan.md): the dedup hash currently includes
-// the device-local settings.autoExportDays (pushToCloudAuth/dedupHash strip only
-// brickEconomySetCache), so two devices with identical user data but different auto-export
-// schedules read as mutually dirty -> spurious push churn / conflict dialogs. This pins the
-// CORRECT behavior: device-local prefs + caches must not affect the sync fingerprint.
-// Marked `it.fails` because it FAILS today; when A11 is fixed in Step 3 it will pass and
-// `it.fails` flips RED -> at that point remove `.fails`.
+// A11 (docs/audit-action-plan.md): the dedup hash must NOT include device-local prefs
+// (settings.autoExportDays) or the regeneratable cache, so two devices with identical user
+// data but different auto-export schedules don't read as mutually dirty (spurious push churn
+// / conflict dialogs). Fixed in Step 3 — dedupHash now projects only the BACKUP_KEYS registry,
+// so prefs + caches are excluded by construction. (Was `it.fails` before the fix.)
 describe("dedupHash determinism — device-local pref + cache must not change the sync hash (A11)", () => {
-  it.fails("states differing ONLY in blAutoExportDays / brickEconomySetCache hash the same (PENDING — fix in Step 3)", () => {
+  it("states differing ONLY in blAutoExportDays / brickEconomySetCache hash the same", () => {
     localStorage.clear();
     localStorage.setItem("blOwnedSets", JSON.stringify([{ setNumber: "10497", qty: 1 }]));
     localStorage.setItem("blAutoExportDays", "1");
