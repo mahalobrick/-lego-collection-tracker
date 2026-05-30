@@ -91,6 +91,63 @@ For a vibe-coded app this is in notably good shape on the fundamentals that usua
 | File imports (CSV/XML/XLSX) | n/a (client-only) | — | — | No server upload; FILEUPLOAD-1 |
 | Google Fonts `@import`, Clerk CDN | n/a | — | — | TPR-1 / TPR-2 |
 
+### 2d. localStorage Namespace & Sync Classification (reference)
+
+The primary store is browser `localStorage` (`bl*` / `brickEconomy*` / `brickset*` keys); the cloud
+is a single per-user JSON backup of a *subset* of these. **The authoritative source for *what
+syncs* is the `BACKUP_KEYS` registry in [`src/utils/exportBackup.js`](../src/utils/exportBackup.js)
+(~line 128)** — this table is a navigational map, not an independent source of truth. If the two
+ever disagree, the registry wins.
+
+| localStorage key | Group | Holds | Synced? |
+|---|---|---|---|
+| `blOwnedSets` | Core data | Manually-added owned sets | ✅ |
+| `brickEconomyNormalizedCollection` | Core data | Owned sets imported/normalized from BrickEconomy | ✅ |
+| `blWantedList` | Core data | Wanted List items (buy targets) | ✅ |
+| `blPurchases` | Core data | Budget purchase records | ✅ |
+| `blSoldSets` | Core data | Sets marked as sold | ✅ |
+| `blPortfolioHistory` | Core data | Portfolio value over time | ✅ |
+| `blStores` / `blStoreBudgets` / `blAnnualBudget` | Core data | Budget config: stores & limits | ✅ |
+| `blDisplayCurrency` | Setting | Display currency | ✅ |
+| `blOwnedColumns` / `blPurchaseColumns` / `*ColWidths` | UI pref | Table columns & widths | ✅ (settings) |
+| `blDashboardWidgetSettings` | UI pref | Which dashboard widgets show | ✅ (settings) |
+| `brickEconomySetCache` | Cache | Raw BrickEconomy responses per set | ❌ regeneratable |
+| `bricksetSetCache` / `bricksetThemesCache` | Cache | Brickset set + theme responses | ❌ regeneratable |
+| `blPriceGuideCache` / `blSessionToken` | Cache | BrickLink prices + session token | ❌ regeneratable |
+| `legoLastChanceCache` / `blBFRetirementCache` | Cache | Retirement / last-chance lists | ❌ regeneratable |
+| `blPriceHistory` | Cache | 60-day rolling price snapshots | ❌ derived |
+| `blLastPushHash` / `blLastCloudPush` / `blSyncedUserId` | Sync meta | Dedup hash + last-push markers | ❌ device-local |
+| `blBrickLinkAccessToken` | Secret (local) | User's BrickLink token (Settings) | ❌ |
+| `beValueBatchLast` / `beValueSyncLast` / `blPriceSyncLast` | Sync meta | Timestamps gating background syncs | ❌ |
+| `blAutoExportDays` / `blLastAutoExport` | Device pref | Local auto-download settings | ❌ device-local |
+| `blNotificationsEnabled` / `blLastNotifyDate` | Device pref | Notification opt-in + daily throttle | ❌ |
+| `blMigrated_v1/v2/v3` | Migration flag | One-time migration markers | ❌ |
+
+*Security notes:* the wipe set in `clearLocalUserData()` is intentionally a **superset** of
+`BACKUP_KEYS` (it also clears caches) — see `SIGNOUT-RETAIN-1`. `blBrickLinkAccessToken` is a
+user secret held **only** in local storage and is never written into the synced cloud blob.
+
+### 2e. Environment Variables (reference)
+
+Server-only vars never reach the browser (the point of the `/api` proxies); only the
+`VITE_`-prefixed key is bundled into client code. Values live in `.env.local` — never committed
+(verified, `SECRET-1`).
+
+| Env var | Scope | Used by | Purpose |
+|---|---|---|---|
+| `BRICKECONOMY_API_KEY` | Server only | `brickeconomy-set.js`, `brickeconomy-collection.js` | Auth header for the BrickEconomy value API |
+| `BRICKSET_API_KEY` | Server only | `brickset-set/search/themes.js` | Auth for the Brickset catalog API |
+| `SCRAPERAPI_KEY` | Server only | `brickfanatics-retiring.js` | Auth for ScraperAPI (Cloudflare-bypass proxy) |
+| `CLERK_SECRET_KEY` | Server only | `_auth.js` (`verifyToken`) | Verifies the Clerk JWT on every `/api` request |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Client (shipped) | `@clerk/react` in the browser | Public Clerk key to start the login flow |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Server only | `sync.js`, `_ratelimit.js` | Upstash Redis REST access (sync blob + rate limiting) |
+| `KV_REST_API_READ_ONLY_TOKEN` | Server only | (read paths) | Read-only Upstash token |
+| `REDIS_URL` / `KV_URL` | Server only | (Upstash provisioning) | Redis connection strings |
+| `VERCEL_OIDC_TOKEN` | Build/deploy | Vercel | Deploy-time identity token |
+
+*The four highest-sensitivity secrets are catalogued as single points of failure in §4g
+(`CLERK_SECRET_KEY`, `KV_REST_API_TOKEN`, and the metered owner API keys).*
+
 ---
 
 ## 3. Findings by Category

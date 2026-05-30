@@ -88,7 +88,11 @@ figure without flagging.
 
 - **Surfacing:** at-retail labeled as retail (basis tag), unknown as "—" and excluded from
   totals — confirm the exact UI/rollup treatment.
-- **price_events migration:** replace the app's own `blPriceHistory` with BrickEconomy's real
-  `price_events_*`?
+- **price_events migration:** the app currently maintains its own price history as a **60-day
+  rolling `blPriceHistory`** — daily snapshots, one per set per calendar day, upserted by
+  [`src/utils/priceHistory.js`](../src/utils/priceHistory.js) (oldest dropped past 60 entries);
+  feeds trend arrows / growth charts. Migration target: reconcile or replace it with
+  BrickEconomy's real `price_events_*` (genuine dated history, deeper than 60 days). Decide
+  whether to backfill from `price_events_*` or run both during transition.
 - **V4 BrickLink robustness:** confirm API-auth vs scrape before promoting BrickLink-sold to the
   primary value source.
