@@ -106,9 +106,12 @@ describe("characterization — buildBackup <-> apply (Phase C)", () => {
     expect(keys.sort()).toEqual(BACKUP_KEYS.map((k) => k.key).sort());
   });
 
-  it("buildBackup's getItem key-set == BACKUP_KEYS ∪ {brickEconomySetCache, blAutoExportDays}", async () => {
+  it("buildBackup's getItem key-set == BACKUP_KEYS ∪ {brickEconomySetCache, blAutoExportDays, blLastAutoExport}", async () => {
     const { getKeys } = await exportAndCapture();
-    const expected = [...BACKUP_KEYS.map((k) => k.key), "brickEconomySetCache", "blAutoExportDays"].sort();
+    // blLastAutoExport: exportFullBackup's final stamp now writes via the guarded setItemSafe,
+    // which reads the key first for change-detection (Phase E choke point — the production
+    // monkey-patch always did this read; this characterization just now sees it).
+    const expected = [...BACKUP_KEYS.map((k) => k.key), "brickEconomySetCache", "blAutoExportDays", "blLastAutoExport"].sort();
     expect(getKeys.sort()).toEqual(expected);
   });
 

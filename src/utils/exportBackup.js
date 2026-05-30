@@ -8,6 +8,7 @@
 // cancelled the save dialog.
 
 import { DEFAULT_STORES } from "./storeDefaults";
+import { setItemSafe } from "./safeStorage";
 
 const DEFAULT_ANNUAL_BUDGET = 10320;
 
@@ -51,8 +52,8 @@ export async function pushToCloudAuth(getToken) {
   if (res.status === 503) return null;
   if (!res.ok) throw new Error(`Sync failed: HTTP ${res.status}`);
   const json = await res.json();
-  localStorage.setItem("blLastCloudPush", json.savedAt || new Date().toISOString());
-  localStorage.setItem("blLastPushHash", contentHash);
+  setItemSafe("blLastCloudPush", json.savedAt || new Date().toISOString());
+  setItemSafe("blLastPushHash", contentHash);
   return json;
 }
 
@@ -82,9 +83,9 @@ export function localContentHash() {
  * so the next auto-push correctly skips (no redundant re-push of just-pulled data).
  */
 export function markSynced(backup, userId) {
-  localStorage.setItem("blLastPushHash", dedupHash(backup));
-  localStorage.setItem("blLastCloudPush", backup.exportedAt || new Date().toISOString());
-  if (userId) localStorage.setItem("blSyncedUserId", userId);
+  setItemSafe("blLastPushHash", dedupHash(backup));
+  setItemSafe("blLastCloudPush", backup.exportedAt || new Date().toISOString());
+  if (userId) setItemSafe("blSyncedUserId", userId);
 }
 
 function countList(raw) {
@@ -252,13 +253,13 @@ export function applyBackupToLocalStorage(data) {
     if (!src) continue; // backup has no `settings` object → skip the nested keys
     const val = src[k.field];
     if (k.kind === "scalar") {
-      if (k.settings ? !!val : val != null) localStorage.setItem(k.key, val);
+      if (k.settings ? !!val : val != null) setItemSafe(k.key, val);
     } else if (k.settings) {
-      if (val) localStorage.setItem(k.key, JSON.stringify(val));
+      if (val) setItemSafe(k.key, JSON.stringify(val));
     } else if (k.kind === "array") {
-      if (Array.isArray(val)) localStorage.setItem(k.key, JSON.stringify(val));
+      if (Array.isArray(val)) setItemSafe(k.key, JSON.stringify(val));
     } else {
-      if (val && typeof val === "object") localStorage.setItem(k.key, JSON.stringify(val));
+      if (val && typeof val === "object") setItemSafe(k.key, JSON.stringify(val));
     }
   }
 }
@@ -304,7 +305,7 @@ export async function exportFullBackup() {
       const writable = await handle.createWritable();
       await writable.write(content);
       await writable.close();
-      localStorage.setItem("blLastAutoExport", now.toISOString());
+      setItemSafe("blLastAutoExport", now.toISOString());
       return date;
     } catch (err) {
       if (err.name === "AbortError") return null; // user hit Cancel — don't fall through
@@ -320,6 +321,6 @@ export async function exportFullBackup() {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
-  localStorage.setItem("blLastAutoExport", now.toISOString());
+  setItemSafe("blLastAutoExport", now.toISOString());
   return date;
 }
