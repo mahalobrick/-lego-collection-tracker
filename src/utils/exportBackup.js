@@ -81,11 +81,16 @@ export function localContentHash() {
 /**
  * Mark local state as in-sync with a given backup: records its hash + timestamp + owning user
  * so the next auto-push correctly skips (no redundant re-push of just-pulled data).
+ *
+ * Returns true only if the hash mark itself stuck. If the guarded write fails (full storage),
+ * the mark did NOT advance — callers must treat the device as still-dirty rather than clean,
+ * so they never report a sync that didn't persist.
  */
 export function markSynced(backup, userId) {
-  setItemSafe("blLastPushHash", dedupHash(backup));
+  const ok = setItemSafe("blLastPushHash", dedupHash(backup));
   setItemSafe("blLastCloudPush", backup.exportedAt || new Date().toISOString());
   if (userId) setItemSafe("blSyncedUserId", userId);
+  return ok;
 }
 
 function countList(raw) {
@@ -235,7 +240,15 @@ export async function fetchFromCloudAuth(getToken) {
 
 const BACKUP_VERSION = 2; // increment here whenever the backup schema changes
 
-/** Apply a backup object to localStorage (same logic as the Settings restore). */
+/**
+ * Apply a backup object to localStorage (same logic as the Settings restore).
+ *
+ * Returns { ok, applied, failedKey }. On a guarded-write failure (full storage) it ABORTS at
+ * the first failed key rather than writing more of a partial restore, and reports ok:false with
+ * the keys applied so far + the key that failed. Callers MUST check ok: a partial restore must
+ * never be marked synced (the partial local state would otherwise auto-push up and clobber the
+ * good cloud copy) and must never be reported as a full success.
+ */
 export function applyBackupToLocalStorage(data) {
   if (data.version && data.version > BACKUP_VERSION) {
     throw new Error(
@@ -248,20 +261,25 @@ export function applyBackupToLocalStorage(data) {
   // nested settings.* → plain truthy (empty []/{} are truthy, so kept); scalar → !=null for the
   // budget (a legit 0 survives) / truthy for currency. Build-only keys (brickEconomySetCache,
   // autoExportDays) aren't in the registry, so they're never restored.
+  const applied = [];
   for (const k of BACKUP_KEYS) {
     const src = k.settings ? data.settings : data;
     if (!src) continue; // backup has no `settings` object → skip the nested keys
     const val = src[k.field];
+    let wrote = null; // null = nothing to write for this key; true/false = guarded-write result
     if (k.kind === "scalar") {
-      if (k.settings ? !!val : val != null) setItemSafe(k.key, val);
+      if (k.settings ? !!val : val != null) wrote = setItemSafe(k.key, val);
     } else if (k.settings) {
-      if (val) setItemSafe(k.key, JSON.stringify(val));
+      if (val) wrote = setItemSafe(k.key, JSON.stringify(val));
     } else if (k.kind === "array") {
-      if (Array.isArray(val)) setItemSafe(k.key, JSON.stringify(val));
+      if (Array.isArray(val)) wrote = setItemSafe(k.key, JSON.stringify(val));
     } else {
-      if (val && typeof val === "object") setItemSafe(k.key, JSON.stringify(val));
+      if (val && typeof val === "object") wrote = setItemSafe(k.key, JSON.stringify(val));
     }
+    if (wrote === false) return { ok: false, applied, failedKey: k.key };
+    if (wrote === true) applied.push(k.key);
   }
+  return { ok: true, applied };
 }
 
 function buildBackup(now) {

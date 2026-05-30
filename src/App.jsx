@@ -103,6 +103,25 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, userId]);
 
+  // Apply a pulled cloud backup, then mark it synced — but ONLY when the restore fully landed.
+  // If a guarded write failed (device storage full), the restore is partial: we must NOT mark it
+  // synced (a partial local state read as "clean" would auto-push up and clobber the good cloud
+  // copy) and must NOT report success. Freezes auto-push and surfaces an actionable error.
+  // Returns true when the device now holds the full cloud data and was marked synced.
+  function applyCloudBackup(cloud) {
+    const restore = applyBackupToLocalStorage(cloud);
+    if (!restore.ok) {
+      syncReadyRef.current = false; // freeze auto-push so the partial state can't escape to cloud
+      toast.error(
+        "Couldn't load your cloud data — this device's storage is full. Free up space or export a backup, then reload.",
+        { id: "storagefull", duration: 8000 }
+      );
+      return false;
+    }
+    markSynced(cloud, userId);
+    return true;
+  }
+
   // First-sign-in reconciliation — decide between local and cloud data WITHOUT ever
   // silently destroying unsynced work. Sets syncReadyRef when safe to auto-push.
   async function reconcileOnSignIn() {
@@ -140,10 +159,10 @@ export default function App() {
 
     // ── Fresh device (no local data) → pull silently ─────────────
     if (!hasLocal) {
-      applyBackupToLocalStorage(cloud);
-      markSynced(cloud, userId);
-      toast.success("Synced from cloud ✓", { duration: 3000 });
-      setTimeout(() => window.location.reload(), 1500);
+      if (applyCloudBackup(cloud)) {
+        toast.success("Synced from cloud ✓", { duration: 3000 });
+        setTimeout(() => window.location.reload(), 1500);
+      }
       return;
     }
 
@@ -157,10 +176,10 @@ export default function App() {
 
     // Safe to pull silently only if this device has no unsynced edits AND belongs to this user.
     if (sameUser && cloudNewer && !localDirty) {
-      applyBackupToLocalStorage(cloud);
-      markSynced(cloud, userId);
-      toast.success("Synced from cloud ✓", { duration: 3000 });
-      setTimeout(() => window.location.reload(), 1500);
+      if (applyCloudBackup(cloud)) {
+        toast.success("Synced from cloud ✓", { duration: 3000 });
+        setTimeout(() => window.location.reload(), 1500);
+      }
       return;
     }
 
@@ -178,11 +197,12 @@ export default function App() {
 
   function resolveConflictUseCloud() {
     const { cloud } = syncConflict;
-    applyBackupToLocalStorage(cloud);
-    markSynced(cloud, userId);
-    setSyncConflict(null);
-    toast.success("Loaded your cloud data — reloading…", { duration: 2500 });
-    setTimeout(() => window.location.reload(), 1200);
+    if (applyCloudBackup(cloud)) {
+      setSyncConflict(null);
+      toast.success("Loaded your cloud data — reloading…", { duration: 2500 });
+      setTimeout(() => window.location.reload(), 1200);
+    }
+    // On failure the conflict dialog stays open so the user can free space and retry.
   }
 
   async function resolveConflictKeepLocal() {

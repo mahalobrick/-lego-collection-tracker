@@ -522,7 +522,16 @@ export default function AppSettings() {
         "Restore full backup? This will replace ALL data — collection, wanted list, budget, and settings. Cannot be undone."
       );
       if (!ok) return;
-      applyBackupToLocalStorage(data);
+      const restore = applyBackupToLocalStorage(data);
+      if (!restore.ok) {
+        // Partial restore — device storage is full. Don't restore the cache, don't reload,
+        // and don't report success: the data on this device is now incomplete.
+        toast.error(
+          "Restore incomplete — this device's storage is full. Free up space or export a backup, then try again.",
+          { id: "storagefull", duration: 8000 }
+        );
+        return;
+      }
       // Also restore the set cache — large but worthwhile for a manual full restore
       if (data.brickEconomySetCache && typeof data.brickEconomySetCache === "object") {
         setItemSafe("brickEconomySetCache", JSON.stringify(data.brickEconomySetCache));
