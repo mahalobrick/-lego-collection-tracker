@@ -245,36 +245,28 @@ export function applyBackupToLocalStorage(data) {
 }
 
 function buildBackup(now) {
-  return {
-    version: 2,
-    app: "BrickLedger",
-    exportedAt: now.toISOString(),
-    // ── Collection ───────────────────────────────────────────────
-    ownedSets:              JSON.parse(localStorage.getItem("blOwnedSets")                      || "[]"),
-    brickEconomyNormalized: JSON.parse(localStorage.getItem("brickEconomyNormalizedCollection") || "[]"),
-    brickEconomySetCache:   JSON.parse(localStorage.getItem("brickEconomySetCache")             || "{}"),
-    brickEconomySyncInfo:   JSON.parse(localStorage.getItem("brickEconomyCollectionSyncInfo")   || "{}"),
-    soldSets:               JSON.parse(localStorage.getItem("blSoldSets")                       || "[]"),  // ← was missing
-    portfolioHistory:       JSON.parse(localStorage.getItem("blPortfolioHistory")               || "[]"),  // ← was missing
-    // ── Wanted List ──────────────────────────────────────────────
-    wantedList: JSON.parse(localStorage.getItem("blWantedList") || "[]"),
-    // ── Budget ───────────────────────────────────────────────────
-    budgetPurchases: JSON.parse(localStorage.getItem("blPurchases")    || "[]"),
-    stores:          JSON.parse(localStorage.getItem("blStores")        || "[]"),
-    storeBudgets:    JSON.parse(localStorage.getItem("blStoreBudgets")  || "{}"),
-    annualBudget:    (() => { const s = localStorage.getItem("blAnnualBudget"); return s !== null ? Number(s) : DEFAULT_ANNUAL_BUDGET; })(),
-    // ── Settings & preferences ───────────────────────────────────
-    settings: {
-      currency:          localStorage.getItem("blDisplayCurrency") || "USD",
-      ownedColumns:      JSON.parse(localStorage.getItem("blOwnedColumns")            || "null"),
-      acquisitionColumns:JSON.parse(localStorage.getItem("blAcquisitionColumns")      || "null"),
-      purchaseColumns:   JSON.parse(localStorage.getItem("blPurchaseColumns")         || "null"),
-      dashboardWidgets:  JSON.parse(localStorage.getItem("blDashboardWidgetSettings") || "null"),
-      collectionItems:   JSON.parse(localStorage.getItem("blCollectionItems")         || "null"),
-      ownedColWidths:    JSON.parse(localStorage.getItem("blOwnedColWidths")          || "null"),
-      autoExportDays:    Number(localStorage.getItem("blAutoExportDays")) || 0,
+  // Registry-driven so build reads exactly the same key-set apply writes. Read defaults
+  // preserved: top-level array → "[]", top-level object → "{}", nested settings.* → "null",
+  // currency → "USD", annualBudget → Number (defaulted, so a legit 0 stays 0).
+  const settings = {};
+  const backup = { version: 2, app: "BrickLedger", exportedAt: now.toISOString() };
+  for (const k of BACKUP_KEYS) {
+    const raw = localStorage.getItem(k.key);
+    const target = k.settings ? settings : backup;
+    if (k.kind === "scalar") {
+      target[k.field] = k.settings
+        ? (raw || k.default)                                // currency: "" → "USD"
+        : (raw === null ? Number(k.default) : Number(raw)); // annualBudget: number
+    } else {
+      const empty = k.settings ? "null" : (k.kind === "array" ? "[]" : "{}");
+      target[k.field] = JSON.parse(raw || empty);
     }
-  };
+  }
+  // Build-only keys (NOT in the sync registry — see the exclusions note beside BACKUP_KEYS):
+  backup.brickEconomySetCache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
+  settings.autoExportDays = Number(localStorage.getItem("blAutoExportDays")) || 0;
+  backup.settings = settings;
+  return backup;
 }
 
 export async function exportFullBackup() {
