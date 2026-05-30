@@ -13,8 +13,9 @@
 > loss) and is **checked by the sync/restore writers** so a dropped write can't be marked synced
 > or clobber the cloud copy; the former global `main.jsx` monkey-patch is gone. **`DATA-4`'s API half is DONE** (the proper
 > guarded API replaces the runtime patch); its **enforcement** (no-bypass PreToolUse hook /
-> `.claude/rules`) is **deferred to Phase G**. **Still open in Step 3:** `A2`, and the `🔒` hooks
-> (Phase G). See *Phase E* and *Phase D — outcome* at the foot of this doc.
+> `.claude/rules`) is **deferred to Phase G**. **`A2` is CLOSED (Phase F):** a failed cloud fetch
+> no longer enables auto-push, so stale local can't clobber newer cloud. **Still open in Step 3:**
+> the `🔒` hooks (Phase G). See *Phase F*, *Phase E*, and *Phase D — outcome* at the foot of this doc.
 
 ## The core insight
 
@@ -55,12 +56,13 @@ The sequence below resolves it: stopgap → test → refactor.
 - This is the right place to start testing regardless — data-destruction paths first.
 
 ### 3. Structural fix — shared key registry + guarded write path · ⚠️ PARTIAL (registry half done, Phase D)
-**Closes by construction:** `SYNC-CRIT-1` ✅, `A4` ✅, `A11` ✅ (registry-driven, Phase D), `OBS-2` ✅ (guarded write, Phase E), `DATA-4` ⚠️ (API Phase E / enforcement Phase G); **fix alongside:** `A2` ⬜; **lands** the `🔒` hooks ⬜ (Phase G).
+**Closes by construction:** `SYNC-CRIT-1` ✅, `A4` ✅, `A11` ✅ (registry-driven, Phase D), `OBS-2` ✅ (guarded write, Phase E), `DATA-4` ⚠️ (API Phase E / enforcement Phase G); **fix alongside:** `A2` ✅ (Phase F); **lands** the `🔒` hooks ⬜ (Phase G).
 
 > **Phase D landed the registry half:** `BACKUP_KEYS` now drives census + apply + build +
 > push-guard + dedup-hash + the A4 wipe-guard. **Phase E landed the guarded-write half:** all
-> writes route through `setItemSafe` (`src/utils/safeStorage.js`), closing `OBS-2`. **Still open
-> in this step:** `A2` and the `🔒` hooks (incl. `DATA-4` no-bypass enforcement) — Phase G.
+> writes route through `setItemSafe` (`src/utils/safeStorage.js`), closing `OBS-2`. **Phase F
+> closed `A2`** (fetch-fail no longer enables auto-push). **Still open in this step:** the `🔒`
+> hooks (incl. `DATA-4` no-bypass enforcement) — Phase G.
 
 Scope is the **11 censused data keys** + the sync state machine. It does **NOT** include the
 6 view-config keys' census completion — that's an explicit deferred future step (**Step 5**).
@@ -68,8 +70,9 @@ Scope is the **11 censused data keys** + the sync state machine. It does **NOT**
   longer drift).
 - ✅ **Done (Phase E):** all writes route through one guarded `setItem` wrapper (`setItemSafe`,
   quota-safe, single choke point) — `OBS-2` closed.
-- Fix `A2` in the same pass (fetch-fail flips `syncReadyRef=true` → stale push clobbers
-  newer cloud) — third sync-state-machine correctness bug.
+- ✅ **Done (Phase F):** `A2` — fetch-fail used to flip `syncReadyRef=true` → stale push could
+  clobber newer cloud. Now a failed fetch leaves auto-push frozen; the ref flips true only on a
+  confirmed successful reconcile. Third sync-state-machine correctness bug. See *Phase F* below.
 - ✅ **Done (Phase D):** `A11` — `dedupHash` is now a projection over the registry's synced
   key-set, so the device-local `autoExportDays` no longer rides in the hash. The regression
   test (formerly `it.fails`) is now a normal passing test. See *Phase D* + the `A11` section below.
@@ -122,6 +125,27 @@ loss; sync churn + UX).
 (`src/utils/exportBackup.js`), so the timestamp, regeneratable cache, and device-local
 `autoExportDays` are excluded by construction. The formerly-`it.fails` regression in
 `exportBackup.census.test.js` is now a **normal passing test**.
+
+## Phase F — outcome (A2: fetch-fail must not enable auto-push)
+
+**What closed (full suite green + production build clean):** `A2`. The fetch-fail catch in
+`reconcileOnSignIn` (`src/App.jsx`) used to set `syncReadyRef.current = true`, which let a later
+debounced/interval auto-push send this device's (possibly stale) local data up and **clobber a
+newer cloud copy**. A failed fetch means the cloud state is **UNKNOWN**, not confirmed-clean — so
+the catch now simply logs and returns, leaving `syncReadyRef` at its top-of-function `false`.
+`syncReadyRef` now flips `true` **only on a confirmed successful reconcile** (cloud-empty claim,
+silent pull, or same-user-local-current); a subsequent reload retries the fetch.
+
+### Decision — net-first test renders the real `<App>`
+`A2` lives in App-component logic, not a pure util, so the new suite
+(`src/App.reconcile.test.jsx`, **2 tests → 47 total**) renders the real `<App>` with the four
+god-modules + Clerk + the network boundary (`fetchFromCloudAuth`/`pushToCloudAuth`) mocked, then
+drives the reconcile and the 10s auto-push timer with fake timers. The failing test (dirty local +
+failed fetch → assert `pushToCloudAuth` never called) was confirmed **red against the old code**;
+a passing **control** (successful same-user reconcile → push *does* fire) guards against an
+over-correction that would freeze auto-push outright. First App-level integration test in the repo
+— the pattern (mock the leaves, mock the network boundary, drive effects under fake timers) is
+reusable for the rest of the sync state machine.
 
 ## Phase E — outcome & decisions (guarded write path)
 
