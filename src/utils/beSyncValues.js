@@ -1,5 +1,6 @@
 import { asNumber } from "./formatting";
 import { apiFetch } from "./apiFetch";
+import { setItemSafe } from "./safeStorage";
 
 const CACHE_TTL_MS  = 24 * 60 * 60 * 1000; // 24 hours — used by manual sync
 const BATCH_DELAY_MS = 400;
@@ -48,7 +49,7 @@ function applyCache(normalized, manual, cache) {
     updatedCount++;
     return { ...s, currentValue: val, totalValue: val * qty };
   });
-  localStorage.setItem("brickEconomyNormalizedCollection", JSON.stringify(updatedNormalized));
+  setItemSafe("brickEconomyNormalizedCollection", JSON.stringify(updatedNormalized));
 
   const updatedManual = manual.map(s => {
     const key = String(s.setNumber || "").replace(/-1$/, "");
@@ -59,7 +60,7 @@ function applyCache(normalized, manual, cache) {
     updatedCount++;
     return { ...s, currentValue: val };
   });
-  localStorage.setItem("blOwnedSets", JSON.stringify(updatedManual));
+  setItemSafe("blOwnedSets", JSON.stringify(updatedManual));
 
   return updatedCount;
 }
@@ -114,8 +115,8 @@ export async function runDailyBEBatch() {
     if (i < batch.length - 1) await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
   }
 
-  localStorage.setItem("brickEconomySetCache", JSON.stringify(cache));
-  localStorage.setItem("beValueBatchLast", new Date().toISOString());
+  setItemSafe("brickEconomySetCache", JSON.stringify(cache));
+  setItemSafe("beValueBatchLast", new Date().toISOString());
 
   const updated  = applyCache(normalized, manual, cache);
   const cycledays = Math.ceil(allNums.length / DAILY_BATCH_SIZE);
@@ -160,8 +161,8 @@ export async function syncBEValues(onProgress, force = false) {
     if (i < toFetch.length - 1) await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
   }
 
-  localStorage.setItem("brickEconomySetCache", JSON.stringify(cache));
-  localStorage.setItem("beValueSyncLast", new Date().toISOString());
+  setItemSafe("brickEconomySetCache", JSON.stringify(cache));
+  setItemSafe("beValueSyncLast", new Date().toISOString());
 
   const updated = applyCache(normalized, manual, cache);
   return { updated, skipped: skippedCount, failed };

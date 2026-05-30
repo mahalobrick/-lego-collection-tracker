@@ -10,6 +10,7 @@
  */
 
 import { apiFetch } from "./apiFetch";
+import { setItemSafe } from "./safeStorage";
 
 const LS_KEY   = "legoLastChanceCache";
 const TTL_MS   = 23 * 60 * 60 * 1000; // 23 hours (just under CDN's 24hr)
@@ -38,7 +39,7 @@ export async function getLastChanceCodes() {
 
     // Persist to localStorage
     try {
-      localStorage.setItem(
+      setItemSafe(
         LS_KEY,
         JSON.stringify({ fetchedAt: json.fetchedAt, setCodes: json.setCodes })
       );

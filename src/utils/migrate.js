@@ -1,4 +1,5 @@
 // One-time migrations — runs on every app boot, skips already-applied steps.
+import { setItemSafe } from "./safeStorage";
 
 const V1_KEY_MAP = {
   legoAnnualBudget:         "blAnnualBudget",
@@ -18,21 +19,21 @@ export function runMigrations() {
     for (const [oldKey, newKey] of Object.entries(V1_KEY_MAP)) {
       const value = localStorage.getItem(oldKey);
       if (value !== null) {
-        localStorage.setItem(newKey, value);
+        setItemSafe(newKey, value);
         localStorage.removeItem(oldKey);
       }
     }
-    localStorage.setItem("blMigrated_v1", "1");
+    setItemSafe("blMigrated_v1", "1");
   }
 
   // v2 — collapse year-suffixed purchases key into blPurchases
   if (!localStorage.getItem("blMigrated_v2")) {
     const old = localStorage.getItem("blPurchases_2026");
     if (old !== null && localStorage.getItem("blPurchases") === null) {
-      localStorage.setItem("blPurchases", old);
+      setItemSafe("blPurchases", old);
       localStorage.removeItem("blPurchases_2026");
     }
-    localStorage.setItem("blMigrated_v2", "1");
+    setItemSafe("blMigrated_v2", "1");
   }
 
   // v3 — remove auto-seeded store budgets so user starts with blank inputs
@@ -49,6 +50,6 @@ export function runMigrations() {
         if (isSeeded) localStorage.removeItem("blStoreBudgets");
       } catch {}
     }
-    localStorage.setItem("blMigrated_v3", "1");
+    setItemSafe("blMigrated_v3", "1");
   }
 }

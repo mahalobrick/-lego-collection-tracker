@@ -8,6 +8,7 @@
  * Storage key: "blPriceHistory"
  * Shape: { [setNumber]: [{ date, msrp?, value?, blPriceNew?, blPriceUsed? }, ...] }
  */
+import { setItemSafe } from "./safeStorage";
 
 const STORAGE_KEY = "blPriceHistory";
 const MAX_SNAPSHOTS = 60; // ~2 months of daily snapshots
@@ -22,7 +23,7 @@ function loadHistory() {
 
 function saveHistory(history) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    setItemSafe(STORAGE_KEY, JSON.stringify(history));
   } catch {}
 }
 

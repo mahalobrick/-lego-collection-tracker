@@ -5,6 +5,7 @@
 // Price guide cache is stored under "blPriceGuideCache" as { [setNumber]: { data, cachedAt } }.
 
 import { apiFetch } from "./apiFetch";
+import { setItemSafe } from "./safeStorage";
 
 const SESSION_TTL_MS = 50 * 60 * 1000;        // 50 minutes
 const PRICE_GUIDE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -63,7 +64,7 @@ export async function getBrickLinkSession() {
       return null;
     }
 
-    localStorage.setItem("blSessionToken", JSON.stringify({
+    setItemSafe("blSessionToken", JSON.stringify({
       token: data.sessionToken,
       cachedAt: Date.now()
     }));
@@ -122,7 +123,7 @@ export async function fetchBrickLinkPriceGuide(setNumber) {
     try {
       const cache = JSON.parse(localStorage.getItem(cacheKey) || "{}");
       cache[normalizedNumber] = { data, cachedAt: Date.now() };
-      localStorage.setItem(cacheKey, JSON.stringify(cache));
+      setItemSafe(cacheKey, JSON.stringify(cache));
     } catch { /* ignore cache write errors */ }
 
     return data;

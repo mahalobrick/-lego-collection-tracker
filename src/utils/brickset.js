@@ -1,4 +1,5 @@
 import { apiFetch } from "./apiFetch";
+import { setItemSafe } from "./safeStorage";
 
 const CACHE_KEY = "bricksetSetCache";
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -25,7 +26,7 @@ export async function fetchLegoThemes() {
     if (json.error === "no_key" || !res.ok) return [];
     const themes = json.themes || [];
     try {
-      localStorage.setItem(THEMES_CACHE_KEY, JSON.stringify({ fetchedAt: new Date().toISOString(), themes }));
+      setItemSafe(THEMES_CACHE_KEY, JSON.stringify({ fetchedAt: new Date().toISOString(), themes }));
     } catch { /* ignore */ }
     return themes;
   } catch {
@@ -95,7 +96,7 @@ export async function fetchBricksetSet(setNumber) {
     try {
       const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || "{}");
       cache[`brickset_${setNumber}`] = { fetchedAt: new Date().toISOString(), data };
-      localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+      setItemSafe(CACHE_KEY, JSON.stringify(cache));
     } catch {
       // ignore cache write errors
     }

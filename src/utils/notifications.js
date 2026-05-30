@@ -5,6 +5,7 @@
  * throttled to once per calendar day to avoid spam on every page load.
  * Only fires while the browser tab is open — no service-worker push yet.
  */
+import { setItemSafe } from "./safeStorage";
 
 export function notificationsSupported() {
   return "Notification" in window;
@@ -35,7 +36,7 @@ export function fireOpenNotifications(priceDropItems, lastChanceItems) {
   // Throttle to once per calendar day
   const today = new Date().toISOString().slice(0, 10);
   if (localStorage.getItem("blLastNotifyDate") === today) return;
-  localStorage.setItem("blLastNotifyDate", today);
+  setItemSafe("blLastNotifyDate", today);
 
   priceDropItems.forEach(item => {
     const sp   = Number(item.storePrice) || 0;
