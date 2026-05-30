@@ -174,6 +174,15 @@ The guarded **API exists and is used everywhere today**, but nothing yet *preven
 raw `setItem` from being introduced. Closing `DATA-4` fully needs the enforcement hook (Phase G),
 on top of this API.
 
+**Carry-forward (E.5) — one sanctioned raw-write site:** `applyBackupToLocalStorage` (in
+`exportBackup.js`) intentionally uses **raw `setItem`/`removeItem`** for its atomic rollback — the
+revert must NOT emit `datachange`/`storagefull`, and it only restores prior values that already
+fit, so routing it through `setItemSafe` would be wrong. So Phase G's no-bypass rule will see a
+*legitimate* raw write **outside** `safeStorage.js`. **Preferred resolution:** relocate sanctioned
+raw writes into `safeStorage.js` (e.g. a `restoreRaw(key, prevValue)` helper) and have the hook
+forbid raw `localStorage.setItem` everywhere **except that module** — rather than whitelisting
+scattered call sites. The same pattern absorbs any future sanctioned raw write.
+
 ## Phase D — outcome, decisions & residuals
 
 **What closed (registry-driven; full suite green + production build clean):** `SYNC-CRIT-1`,

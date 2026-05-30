@@ -37,7 +37,7 @@ Findings were produced by parallel subagents grounded in real files, then each C
 | Sev | ID | Finding | Area | Effort | Verified |
 |---|---|---|---|---|---|
 | Critical | `SYNC-CRIT-1` | "Fresh device" emptiness census is narrower than the cloud-pull overwrite scope → silent loss of unsynced sold-sets / portfolio / stores / budget / settings | [Deep-Dive A — Cloud-Sync Reconciliation](#area-deepA-sync) | moderate | CONFIRMED (red-team ×2) · ✅ CLOSED (Phase D) |
-| High | `OBS-2` | 111 unguarded localStorage.setItem calls — QuotaExceededError causes silent data loss | [Error Handling, Observability & Testing](#area-errors-testing) | moderate | CONFIRMED → High |
+| High | `OBS-2` | 111 unguarded localStorage.setItem calls — QuotaExceededError causes silent data loss | [Error Handling, Observability & Testing](#area-errors-testing) | moderate | CONFIRMED → **CLOSED (Phase E; hardened E.5)** |
 | High | `A2` | Cloud fetch failure sets syncReadyRef=true, letting a stale local push overwrite newer cloud | [Deep-Dive A — Cloud-Sync Reconciliation](#area-deepA-sync) | moderate | CONFIRMED |
 | High | `A4` | Sign-out wipe destroys local data that was never pushed (offline / failed-sync sign-out) | [Deep-Dive A — Cloud-Sync Reconciliation](#area-deepA-sync) | moderate | CONFIRMED · ✅ CLOSED (Phase D) |
 | High | `churn-wantedlist` | WantedList.jsx is the repo's top churn + fix hotspot and is uncovered by Deep-Dives A/B | [Deep-Dive C — Churn-Based Hotspot Discovery](#area-deepC-churn) | significant | CONFIRMED |
@@ -649,7 +649,7 @@ _Work top-down. `🔒` = candidate for hard enforcement (PreToolUse hook or path
       ↳ DONE: census (`hasAnyLocalData`), overwrite (`applyBackupToLocalStorage`), build, and `pushToCloudAuth`'s push-guard now **all derive from the `BACKUP_KEYS` registry**. The census counts every overwritten data key, so `!hasLocal` (→ silent pull) is true only for a genuinely empty device. Locked by `exportBackup.census.test.js` + `exportBackup.roundtrip.test.js`.
 
 ### High
-- [ ] **OBS-2** `🔒` — 111 unguarded localStorage.setItem calls — QuotaExceededError causes silent data loss — _moderate_ · `src/main.jsx:21 (patched setItem); src/MyCollection.jsx:799 (purchase write inside empty catch); 111 setItem call sites total`
+- [x] **OBS-2** — 111 unguarded localStorage.setItem calls — QuotaExceededError causes silent data loss — _moderate_ · CLOSED (Phase E; hardened E.5): all writes route through guarded `setItemSafe`; cloud restore is atomic (snapshot + rollback). No-bypass enforcement (`🔒`) tracked under **DATA-4 / Phase G**.
       ↳ Add a safeSetItem(key,value) wrapper that on QuotaExceededError surfaces a toast.error ('Storage full — export a backup and clear caches') and ideally evicts regeneratable caches (brickEconomySetCache, bricksetSetCache) before retrying. Route the highest-value writes (blPurchases, blOwnedSets, blWantedList) through it, and never wrap those writes in an empty catch.
 - [ ] **A2** — Cloud fetch failure sets syncReadyRef=true, letting a stale local push overwrite newer cloud — _moderate_ · `src/App.jsx:94-95`
       ↳ On fetch failure, leave syncReadyRef=false (block pushes) and retry the fetch with backoff, or only allow pushes after a successful reconcile. A failed pull must never enable a push that can overwrite unseen cloud state.
