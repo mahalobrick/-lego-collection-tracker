@@ -10,6 +10,7 @@ import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./util
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition } from "./utils/beSyncValues";
+import { portfolioValue } from "./utils/portfolio";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
 
@@ -397,7 +398,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     // Prefer pre-computed totals for BE items (totalValue/totalPaid already account for qty).
     // Fall back to per-unit × qty for manually added sets that don't have those fields.
     const costBasis = sets.reduce((sum, s) => sum + (asNumber(s.totalPaid) || asNumber(s.paidPrice) * (asNumber(s.qty) || 1)), 0);
-    const value = sets.reduce((sum, s) => sum + (asNumber(s.totalValue) || asNumber(s.currentValue) * (asNumber(s.qty) || 1)), 0);
+    const value = portfolioValue(sets);
     const themes = new Set(sets.map(s => s.theme).filter(Boolean)).size;
     const duplicates = sets.filter(s => (asNumber(s.qty) || 1) > 1).length;
     const retiredSets = sets.filter(s => s.retired).length;

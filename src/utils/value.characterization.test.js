@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { beValueForCondition } from "./beSyncValues";
+import { portfolioValue } from "./portfolio";
 import { asNumber, money } from "./formatting";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -102,22 +103,12 @@ describe("beValueForCondition() — CURRENT behavior (characterization)", () => 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Portfolio rollup — pins MyCollection.jsx:400 (the `value` reduce in `stats`).
+// Portfolio rollup — pins MyCollection.jsx's `value` reduce in `stats`.
 //
-// The formula is replicated verbatim here (the live one is embedded in a useMemo
-// inside the component; extraction is deferred to V2). The comment ties the mirror
-// to its source so V2's extraction can swap this for a direct import.
+// As of V2a step 1 this imports the REAL extracted function (src/utils/portfolio.js)
+// instead of a mirror. The component now calls the same `portfolioValue` inside its
+// useMemo, so these green assertions prove the extraction changed no behavior.
 // ─────────────────────────────────────────────────────────────────────────────
-
-// MIRROR of MyCollection.jsx:400 —
-//   value = sets.reduce((sum, s) => sum + (asNumber(s.totalValue)
-//                                          || asNumber(s.currentValue) * (asNumber(s.qty) || 1)), 0)
-function portfolioValue(sets) {
-  return sets.reduce(
-    (sum, s) => sum + (asNumber(s.totalValue) || asNumber(s.currentValue) * (asNumber(s.qty) || 1)),
-    0,
-  );
-}
 
 describe("portfolio value rollup — CURRENT behavior (characterization)", () => {
   it("counts an unknown-value set as $0 (the bug, pinned for V2)", () => {
