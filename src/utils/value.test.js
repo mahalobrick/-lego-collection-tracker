@@ -28,10 +28,12 @@ const SOURCES = ["brickeconomy", "bricklink", "brickset"];
 const RETIRED = [true, false];
 
 // The spec'd basis: unknown amount → 'unknown'; Brickset is always retail (MSRP);
-// a market source is 'market' once retired, else 'retail' (sticker price).
+// BrickLink is raw sold data → always 'market'; BrickEconomy is 'market' once
+// retired, else 'retail' (it echoes the sticker price at-retail).
 function expectedBasis({ known }, source, retired) {
   if (!known) return "unknown";
   if (source === "brickset") return "retail";
+  if (source === "bricklink") return "market";
   return retired ? "market" : "retail";
 }
 
@@ -105,9 +107,14 @@ describe("toValue() — basis derivation rules", () => {
     expect(toValue(50, { source: "brickset", retired: false }).basis).toBe("retail");
   });
 
-  it("a market source flips retail → market on retirement", () => {
+  it("BrickEconomy flips retail → market on retirement (echoes sticker price at-retail)", () => {
     expect(toValue(372.2, { source: "brickeconomy", retired: false }).basis).toBe("retail");
     expect(toValue(372.2, { source: "brickeconomy", retired: true }).basis).toBe("market");
+  });
+
+  it("BrickLink is market basis whenever a real figure exists, even at-retail (raw sold data)", () => {
+    expect(toValue(372.2, { source: "bricklink", retired: false }).basis).toBe("market");
+    expect(toValue(372.2, { source: "bricklink", retired: true }).basis).toBe("market");
   });
 
   it("defaults: no source, not retired → retail when known, unknown when not", () => {

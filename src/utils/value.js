@@ -14,8 +14,10 @@
 //       'retail'  — sticker/MSRP price (at-retail set, or Brickset's static MSRP)
 //       'market'  — a real secondary-market figure (retired set on a market source)
 //       'unknown' — no usable amount
-//   - basis flips retail → market once a set is retired (market source only);
-//     Brickset is always 'retail' (it is original MSRP by definition).
+//   - BrickLink is raw sold data — always 'market' when a real figure exists.
+//   - BrickEconomy echoes the sticker price at-retail, so it flips retail →
+//     market once a set is retired.
+//   - Brickset is always 'retail' (it is original MSRP by definition).
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -46,10 +48,11 @@ function normalizeAmount(raw) {
 
 /**
  * Derive the basis tag from amount + source + retirement.
- *  - no amount               → 'unknown'
- *  - Brickset (original MSRP) → always 'retail'
- *  - market source + retired  → 'market' (real secondary market exists)
- *  - market source at-retail   → 'retail' (the figure is the sticker price)
+ *  - no amount                → 'unknown'
+ *  - Brickset (original MSRP)  → always 'retail'
+ *  - BrickLink (raw sold data) → always 'market' (a real resale figure)
+ *  - BrickEconomy + retired    → 'market' (real secondary market exists)
+ *  - BrickEconomy at-retail    → 'retail' (the figure is the sticker price)
  *
  * @param {number|null} amount
  * @param {string|null} source
@@ -59,6 +62,7 @@ function normalizeAmount(raw) {
 function deriveBasis(amount, source, retired) {
   if (amount === null) return "unknown";
   if (source === "brickset") return "retail";
+  if (source === "bricklink") return "market";
   return retired ? "market" : "retail";
 }
 
