@@ -64,7 +64,7 @@ describe("hasAnyLocalData — SYNC-CRIT-1 census", () => {
     expect(hasAnyLocalData()).toBe(true);
   });
 
-  it("DEFERRED (Step 3): a view-config settings key alone does NOT count", () => {
+  it("DEFERRED (Step 5): a view-config settings key alone does NOT count", () => {
     localStorage.setItem("blOwnedColumns", JSON.stringify([{ key: "name", visible: true }]));
     expect(hasAnyLocalData()).toBe(false);
   });
@@ -97,7 +97,7 @@ describe("BACKUP_KEYS registry — one shared list", () => {
     );
   });
 
-  it("deferred = the 6 view-config keys (tracked in Step 3)", () => {
+  it("deferred = the 6 view-config keys (tracked in Step 5)", () => {
     expect(deferred).toEqual(
       [
         "blAcquisitionColumns", "blCollectionItems", "blDashboardWidgetSettings",
