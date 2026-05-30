@@ -15,6 +15,7 @@ import { fetchBricksetSet, searchBricksetCatalog, fetchLegoThemes } from "./util
 import { getLastChanceCodes, isLastChanceSet, getCachedLastChanceCodes } from "./utils/legoLastChance";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { apiFetch } from "./utils/apiFetch";
+import { setItemSafe } from "./utils/safeStorage";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
 
@@ -124,7 +125,7 @@ export default function WantedList({ onBuyNow }) {
     };
     setDealLog(prev => {
       const next = [entry, ...prev].slice(0, 100); // keep last 100
-      localStorage.setItem("blDealLog", JSON.stringify(next));
+      setItemSafe("blDealLog", JSON.stringify(next));
       return next;
     });
   }
@@ -132,7 +133,7 @@ export default function WantedList({ onBuyNow }) {
   function deleteDealEntry(id) {
     setDealLog(prev => {
       const next = prev.filter(d => d.id !== id);
-      localStorage.setItem("blDealLog", JSON.stringify(next));
+      setItemSafe("blDealLog", JSON.stringify(next));
       return next;
     });
   }
@@ -194,7 +195,7 @@ export default function WantedList({ onBuyNow }) {
       _fromWanted: true,
     };
     const existing = JSON.parse(localStorage.getItem("blPurchases") || "[]");
-    localStorage.setItem("blPurchases", JSON.stringify([...existing, purchase]));
+    setItemSafe("blPurchases", JSON.stringify([...existing, purchase]));
 
     // Optionally add to My Collection
     if (buyAddToCollection) {
@@ -217,13 +218,13 @@ export default function WantedList({ onBuyNow }) {
         notes:        buyModal.notes || "",
         addedAt:      new Date().toISOString(),
       };
-      localStorage.setItem("blOwnedSets", JSON.stringify([...ownedSets, newSet]));
+      setItemSafe("blOwnedSets", JSON.stringify([...ownedSets, newSet]));
     }
 
     // Remove from Wanted List
     setWanted(prev => {
       const next = prev.filter(w => w !== buyModal);
-      localStorage.setItem("blWantedList", JSON.stringify(next));
+      setItemSafe("blWantedList", JSON.stringify(next));
       return next;
     });
 
@@ -241,7 +242,7 @@ export default function WantedList({ onBuyNow }) {
   const [inlineEdit, setInlineEdit] = useState(null); // { index, key, value }
 
   useEffect(() => {
-    localStorage.setItem("blCustomFieldsSchema", JSON.stringify(customFieldsSchema));
+    setItemSafe("blCustomFieldsSchema", JSON.stringify(customFieldsSchema));
   }, [customFieldsSchema]);
 
   function addCustomField() {
@@ -365,7 +366,7 @@ export default function WantedList({ onBuyNow }) {
   }
 
   useEffect(() => {
-    localStorage.setItem("blWantedList", JSON.stringify(wanted));
+    setItemSafe("blWantedList", JSON.stringify(wanted));
   }, [wanted]);
 
   // ── Retroactive Brickset refresh ─────────────────────────────────────────
@@ -466,7 +467,7 @@ export default function WantedList({ onBuyNow }) {
         if (!res.ok || json.error || !json.sets?.length) throw new Error(json.message || "BF fetch failed");
         bfSets    = json.sets;
         fetchedAt = json.fetchedAt || new Date().toISOString();
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ sets: bfSets, fetchedAt }));
+        setItemSafe(CACHE_KEY, JSON.stringify({ sets: bfSets, fetchedAt }));
       }
 
       // ── 2. Build lookup map: setNumber → { retirementDate, theme } ────────
@@ -502,7 +503,7 @@ export default function WantedList({ onBuyNow }) {
             lastRetirementUpdate: new Date().toISOString().slice(0, 10),
           };
         });
-        localStorage.setItem("blWantedList", JSON.stringify(next));
+        setItemSafe("blWantedList", JSON.stringify(next));
         return next;
       });
 
@@ -544,15 +545,15 @@ export default function WantedList({ onBuyNow }) {
   });
 
   useEffect(() => {
-    localStorage.setItem("blAcquisitionColumns", JSON.stringify(columns));
+    setItemSafe("blAcquisitionColumns", JSON.stringify(columns));
   }, [columns]);
 
   useEffect(() => {
-    localStorage.setItem("blWLItems", JSON.stringify(wlItems));
+    setItemSafe("blWLItems", JSON.stringify(wlItems));
   }, [wlItems]);
 
   useEffect(() => {
-    localStorage.setItem("blWLChartTypes", JSON.stringify(chartTypes));
+    setItemSafe("blWLChartTypes", JSON.stringify(chartTypes));
   }, [chartTypes]);
 
   function cycleChartType(key) {
@@ -1193,7 +1194,7 @@ export default function WantedList({ onBuyNow }) {
         try {
           const cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
           cache[key] = { fetchedAt: new Date().toISOString(), data };
-          localStorage.setItem("brickEconomySetCache", JSON.stringify(cache));
+          setItemSafe("brickEconomySetCache", JSON.stringify(cache));
         } catch {}
 
         // Record price snapshot
@@ -1307,7 +1308,7 @@ export default function WantedList({ onBuyNow }) {
             if (res.ok && !json.error) {
               beData = json.data || json;
               cache[lookupKey] = { fetchedAt: new Date().toISOString(), data: beData };
-              localStorage.setItem("brickEconomySetCache", JSON.stringify(cache));
+              setItemSafe("brickEconomySetCache", JSON.stringify(cache));
             }
           }
           if (beData) {
@@ -2535,7 +2536,7 @@ export default function WantedList({ onBuyNow }) {
               onClick={() => {
                 const newDismissed = [...lcAlertDismissed, ...lcSets.map(w => String(w.setNumber))];
                 setLcAlertDismissed(newDismissed);
-                localStorage.setItem("blLCAlertDismissed", JSON.stringify(newDismissed));
+                setItemSafe("blLCAlertDismissed", JSON.stringify(newDismissed));
               }}
               style={{ background: "transparent", border: "1px solid #7f1d1d", color: "#8a9bb0", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12, flexShrink: 0 }}
             >
@@ -2572,7 +2573,7 @@ export default function WantedList({ onBuyNow }) {
               onClick={() => {
                 const next = [...priceDropDismissed, ...priceDropAlerts.map(w => String(w.setNumber))];
                 setPriceDropDismissed(next);
-                localStorage.setItem("blPriceDropDismissed", JSON.stringify(next));
+                setItemSafe("blPriceDropDismissed", JSON.stringify(next));
               }}
               style={{ background: "transparent", border: "1px solid #166534", color: "#8a9bb0", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12, flexShrink: 0 }}
             >
