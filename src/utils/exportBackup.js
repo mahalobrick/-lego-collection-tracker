@@ -98,31 +98,43 @@ export function summarizeLocal() {
 }
 
 // ── Canonical backup key registry (the ONE shared list) ──────────────────────
-// Every localStorage key the cloud backup round-trips (= what applyBackupToLocalStorage
-// overwrites). `census:true` keys are counted by hasAnyLocalData() to decide whether a
-// device is genuinely "fresh" (safe to silently pull cloud) or holds unsynced user data
-// a silent pull would destroy (SYNC-CRIT-1). The 6 census:false keys are default-written
-// on mount with component-inline defaults — deferred to Step 3, which centralizes them.
-// See docs/audit-action-plan.md.
+// The single source of truth for "the user's data keys": the census, overwrite (apply),
+// build, push-guard and dedup-hash all DERIVE from this list so they can never drift
+// apart again (SYNC-CRIT-1 / A4 / A11). Per entry:
+//   key      — the localStorage key
+//   field    — its property name in the backup object (under `settings` when settings:true)
+//   kind     — "array" | "object" | "scalar"; drives the build default + apply guard
+//   census   — counted by hasAnyLocalData() to decide if a device is genuinely "fresh"
+//              (safe to silently pull cloud) vs holds unsynced data a pull would destroy
+//   default  — value that does NOT count as user data (defaults-aware census)
+//   settings — true when the field lives under backup.settings.*
+// The 6 census:false keys are default-written on mount from component-inline view config;
+// completing their census is deferred to Step 5 (see docs/audit-action-plan.md).
+//
+// Intentionally EXCLUDED from the sync registry (touched by the round-trip but not synced):
+//   • brickEconomySetCache — regeneratable BrickEconomy cache; deleted before push, restored
+//     only via file-import. Correctly outside the sync round-trip.
+//   • blAutoExportDays — device-local preference (which browser auto-downloads); not restored
+//     by apply, survives sign-out (SIGNOUT_KEEP_KEYS), excluded from the dedup hash.
 export const BACKUP_KEYS = [
-  { key: "blOwnedSets",                      kind: "array",  census: true },
-  { key: "brickEconomyNormalizedCollection", kind: "array",  census: true },
-  { key: "brickEconomyCollectionSyncInfo",   kind: "object", census: true },
-  { key: "blSoldSets",                       kind: "array",  census: true },
-  { key: "blPortfolioHistory",               kind: "array",  census: true },
-  { key: "blWantedList",                     kind: "array",  census: true },
-  { key: "blPurchases",                      kind: "array",  census: true },
-  { key: "blStores",                         kind: "array",  census: true,  default: DEFAULT_STORES },
-  { key: "blStoreBudgets",                   kind: "object", census: true },
-  { key: "blAnnualBudget",    kind: "scalar", census: true,  default: String(DEFAULT_ANNUAL_BUDGET) },
-  { key: "blDisplayCurrency", kind: "scalar", census: true,  default: "USD" },
-  // Deferred to Step 3 (default-on-mount; defaults are component-inline view config):
-  { key: "blOwnedColumns",            kind: "array",  census: false },
-  { key: "blAcquisitionColumns",      kind: "array",  census: false },
-  { key: "blPurchaseColumns",         kind: "array",  census: false },
-  { key: "blDashboardWidgetSettings", kind: "object", census: false },
-  { key: "blCollectionItems",         kind: "array",  census: false },
-  { key: "blOwnedColWidths",          kind: "object", census: false },
+  { key: "blOwnedSets",                      field: "ownedSets",              kind: "array",  census: true },
+  { key: "brickEconomyNormalizedCollection", field: "brickEconomyNormalized", kind: "array",  census: true },
+  { key: "brickEconomyCollectionSyncInfo",   field: "brickEconomySyncInfo",   kind: "object", census: true },
+  { key: "blSoldSets",                       field: "soldSets",               kind: "array",  census: true },
+  { key: "blPortfolioHistory",               field: "portfolioHistory",       kind: "array",  census: true },
+  { key: "blWantedList",                     field: "wantedList",             kind: "array",  census: true },
+  { key: "blPurchases",                      field: "budgetPurchases",        kind: "array",  census: true },
+  { key: "blStores",                         field: "stores",                 kind: "array",  census: true,  default: DEFAULT_STORES },
+  { key: "blStoreBudgets",                   field: "storeBudgets",           kind: "object", census: true },
+  { key: "blAnnualBudget",    field: "annualBudget", kind: "scalar", census: true,  default: String(DEFAULT_ANNUAL_BUDGET) },
+  { key: "blDisplayCurrency", field: "currency",     kind: "scalar", census: true,  default: "USD", settings: true },
+  // Deferred to Step 5 (default-on-mount; defaults are component-inline view config):
+  { key: "blOwnedColumns",            field: "ownedColumns",       kind: "array",  census: false, settings: true },
+  { key: "blAcquisitionColumns",      field: "acquisitionColumns", kind: "array",  census: false, settings: true },
+  { key: "blPurchaseColumns",         field: "purchaseColumns",    kind: "array",  census: false, settings: true },
+  { key: "blDashboardWidgetSettings", field: "dashboardWidgets",   kind: "object", census: false, settings: true },
+  { key: "blCollectionItems",         field: "collectionItems",    kind: "array",  census: false, settings: true },
+  { key: "blOwnedColWidths",          field: "ownedColWidths",     kind: "object", census: false, settings: true },
 ];
 
 /**
@@ -211,26 +223,24 @@ export function applyBackupToLocalStorage(data) {
       `Update BrickLedger and try again.`
     );
   }
-  if (Array.isArray(data.ownedSets))              localStorage.setItem("blOwnedSets",                      JSON.stringify(data.ownedSets));
-  if (Array.isArray(data.brickEconomyNormalized)) localStorage.setItem("brickEconomyNormalizedCollection", JSON.stringify(data.brickEconomyNormalized));
-  if (data.brickEconomySyncInfo  && typeof data.brickEconomySyncInfo  === "object") localStorage.setItem("brickEconomyCollectionSyncInfo", JSON.stringify(data.brickEconomySyncInfo));
-  if (Array.isArray(data.soldSets))               localStorage.setItem("blSoldSets",        JSON.stringify(data.soldSets));
-  if (Array.isArray(data.portfolioHistory))        localStorage.setItem("blPortfolioHistory", JSON.stringify(data.portfolioHistory));
-  if (Array.isArray(data.wantedList))              localStorage.setItem("blWantedList",       JSON.stringify(data.wantedList));
-  if (Array.isArray(data.budgetPurchases))         localStorage.setItem("blPurchases",        JSON.stringify(data.budgetPurchases));
-  if (Array.isArray(data.stores))                  localStorage.setItem("blStores",           JSON.stringify(data.stores));
-  if (data.storeBudgets && typeof data.storeBudgets === "object") localStorage.setItem("blStoreBudgets", JSON.stringify(data.storeBudgets));
-  if (data.annualBudget != null)                   localStorage.setItem("blAnnualBudget",     data.annualBudget);
-  if (data.settings) {
-    if (data.settings.currency)            localStorage.setItem("blDisplayCurrency",         data.settings.currency);
-    if (data.settings.ownedColumns)        localStorage.setItem("blOwnedColumns",            JSON.stringify(data.settings.ownedColumns));
-    if (data.settings.acquisitionColumns)  localStorage.setItem("blAcquisitionColumns",      JSON.stringify(data.settings.acquisitionColumns));
-    if (data.settings.purchaseColumns)     localStorage.setItem("blPurchaseColumns",         JSON.stringify(data.settings.purchaseColumns));
-    if (data.settings.dashboardWidgets)    localStorage.setItem("blDashboardWidgetSettings", JSON.stringify(data.settings.dashboardWidgets));
-    if (data.settings.collectionItems)     localStorage.setItem("blCollectionItems",         JSON.stringify(data.settings.collectionItems));
-    if (data.settings.ownedColWidths)      localStorage.setItem("blOwnedColWidths",          JSON.stringify(data.settings.ownedColWidths));
-    // autoExportDays intentionally NOT restored — it's a device-local preference
-    // (which browser should auto-download); cloud/backup restore should not override it.
+  // Registry-driven so the overwrite set can never drift from the census/build/push-guard.
+  // Guards preserved exactly: top-level array → Array.isArray; top-level object → typeof object;
+  // nested settings.* → plain truthy (empty []/{} are truthy, so kept); scalar → !=null for the
+  // budget (a legit 0 survives) / truthy for currency. Build-only keys (brickEconomySetCache,
+  // autoExportDays) aren't in the registry, so they're never restored.
+  for (const k of BACKUP_KEYS) {
+    const src = k.settings ? data.settings : data;
+    if (!src) continue; // backup has no `settings` object → skip the nested keys
+    const val = src[k.field];
+    if (k.kind === "scalar") {
+      if (k.settings ? !!val : val != null) localStorage.setItem(k.key, val);
+    } else if (k.settings) {
+      if (val) localStorage.setItem(k.key, JSON.stringify(val));
+    } else if (k.kind === "array") {
+      if (Array.isArray(val)) localStorage.setItem(k.key, JSON.stringify(val));
+    } else {
+      if (val && typeof val === "object") localStorage.setItem(k.key, JSON.stringify(val));
+    }
   }
 }
 
