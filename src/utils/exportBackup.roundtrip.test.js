@@ -128,3 +128,72 @@ describe("characterization — buildBackup <-> apply (Phase C)", () => {
     expect(() => applyBackupToLocalStorage({ version: 999 })).toThrow(/newer than this app supports/);
   });
 });
+
+// CHARACTERIZATION — the edge cases a registry-driven rewrite is most likely to DRIFT on:
+// keys absent from localStorage, and present-but-empty/falsy values. These pin the exact
+// build->apply behavior TODAY (top-level vs nested guard asymmetry, default coercions,
+// falsy-zero budget) so Step 3's registry rewrite can't change any of it silently.
+describe("characterization — edge cases: absent / empty / falsy (Phase D net)", () => {
+  it("absent keys: apply (re)writes top-level data keys as empty containers + defaults; leaves 6 nested view-config absent", async () => {
+    localStorage.clear(); // every backup key absent → build reads its default
+    const { backup } = await exportAndCapture();
+    localStorage.clear();
+    applyBackupToLocalStorage(backup);
+
+    // Top-level data keys are unconditionally (re)written by apply's Array.isArray / typeof-object guards.
+    expect(localStorage.getItem("blOwnedSets")).toBe("[]");
+    expect(localStorage.getItem("brickEconomyNormalizedCollection")).toBe("[]");
+    expect(localStorage.getItem("brickEconomyCollectionSyncInfo")).toBe("{}");
+    expect(localStorage.getItem("blSoldSets")).toBe("[]");
+    expect(localStorage.getItem("blPortfolioHistory")).toBe("[]");
+    expect(localStorage.getItem("blWantedList")).toBe("[]");
+    expect(localStorage.getItem("blPurchases")).toBe("[]");
+    expect(localStorage.getItem("blStores")).toBe("[]"); // build defaults to "[]" here, NOT DEFAULT_STORES
+    expect(localStorage.getItem("blStoreBudgets")).toBe("{}");
+    expect(localStorage.getItem("blAnnualBudget")).toBe("10320"); // DEFAULT_ANNUAL_BUDGET
+    expect(localStorage.getItem("blDisplayCurrency")).toBe("USD");
+
+    // The 6 nested view-config keys build to null → apply's truthy settings.* guard skips them.
+    for (const k of ["blOwnedColumns", "blAcquisitionColumns", "blPurchaseColumns",
+                     "blDashboardWidgetSettings", "blCollectionItems", "blOwnedColWidths"]) {
+      expect(localStorage.getItem(k)).toBeNull();
+    }
+  });
+
+  it("present empty/falsy values: characterized coercions survive build->apply", async () => {
+    localStorage.clear();
+    localStorage.setItem("blOwnedSets", "[]");                 // empty array stays empty
+    localStorage.setItem("blStoreBudgets", "{}");             // empty object stays empty
+    localStorage.setItem("blDisplayCurrency", "");           // "" coerces to "USD" via build's `|| "USD"`
+    localStorage.setItem("blAnnualBudget", "0");            // falsy-zero MUST survive (Number(0) != null)
+    localStorage.setItem("blOwnedColumns", "[]");           // nested empty array (truthy) is written back
+    localStorage.setItem("blDashboardWidgetSettings", "{}"); // nested empty object (truthy) is written back
+
+    const { backup } = await exportAndCapture();
+    localStorage.clear();
+    applyBackupToLocalStorage(backup);
+
+    expect(localStorage.getItem("blOwnedSets")).toBe("[]");
+    expect(localStorage.getItem("blStoreBudgets")).toBe("{}");
+    expect(localStorage.getItem("blDisplayCurrency")).toBe("USD"); // "" → default
+    expect(localStorage.getItem("blAnnualBudget")).toBe("0");      // 0 preserved, not defaulted away
+    expect(localStorage.getItem("blOwnedColumns")).toBe("[]");
+    expect(localStorage.getItem("blDashboardWidgetSettings")).toBe("{}");
+  });
+
+  it("blAnnualBudget coercions: '0' stays '0', '' becomes '0', absent becomes the default", async () => {
+    for (const [raw, expected] of [["0", "0"], ["", "0"]]) {
+      localStorage.clear();
+      localStorage.setItem("blAnnualBudget", raw);
+      const { backup } = await exportAndCapture();
+      localStorage.clear();
+      applyBackupToLocalStorage(backup);
+      expect(localStorage.getItem("blAnnualBudget")).toBe(expected);
+    }
+    localStorage.clear();
+    const { backup } = await exportAndCapture(); // absent → DEFAULT_ANNUAL_BUDGET
+    localStorage.clear();
+    applyBackupToLocalStorage(backup);
+    expect(localStorage.getItem("blAnnualBudget")).toBe("10320");
+  });
+});
