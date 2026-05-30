@@ -5,13 +5,15 @@
 > groups findings by shared root cause and orders them so we never refactor untested
 > destruction logic before the tests that make it safe exist.
 
-> **Status (Phase D complete, 2026-05-29):** Steps 1–2 are **DONE**; Step 3's **registry half
-> is DONE**. `SYNC-CRIT-1`, `A4`, and `A11` are **CLOSED** — the census, overwrite (apply),
-> build, push-guard, dedup-hash, and the A4 sign-out wipe-guard all now derive from one registry
-> (`BACKUP_KEYS` in `src/utils/exportBackup.js`), so they can't drift again. A11's
-> formerly-`it.fails` regression is now a normal passing test. **Still open in Step 3:** the
-> guarded `setItem` choke point (`OBS-2`/`DATA-4`), `A2`, and the `🔒` hooks. See *Phase D —
-> outcome, decisions & residuals* at the foot of this doc.
+> **Status (Phase E complete, 2026-05-29):** Steps 1–2 are **DONE**; Step 3's **registry half
+> (Phase D)** and its **guarded-write half (Phase E)** are **DONE**. `SYNC-CRIT-1`, `A4`, `A11`
+> are **CLOSED** by the registry; **`OBS-2` is CLOSED** by the guarded `setItem` choke point
+> (`setItemSafe` in `src/utils/safeStorage.js`) — every production write (96 sites) now routes
+> through it, a `QuotaExceeded` failure surfaces a user banner instead of silent loss, and the
+> former global `main.jsx` monkey-patch is gone. **`DATA-4`'s API half is DONE** (the proper
+> guarded API replaces the runtime patch); its **enforcement** (no-bypass PreToolUse hook /
+> `.claude/rules`) is **deferred to Phase G**. **Still open in Step 3:** `A2`, and the `🔒` hooks
+> (Phase G). See *Phase E* and *Phase D — outcome* at the foot of this doc.
 
 ## The core insight
 
@@ -21,8 +23,8 @@ Several top findings are the **same bug in different places**, not independent i
 |---|---|
 | `SYNC-CRIT-1` — census (`summarizeLocal`, 3 buckets) narrower than overwrite scope (`applyBackupToLocalStorage`, 17 keys) | No single canonical definition of "the user's data keys" — census, overwrite, push-guard, and wipe each carry their own ad-hoc list, and they've drifted |
 | `A4` — sign-out wipe destroys never-pushed data | (same) |
-| `OBS-2` — 111 unguarded `setItem` → silent quota loss | No single guarded write path |
-| `DATA-4` — code bypasses the patched `setItem` | (same) |
+| `OBS-2` — unguarded `setItem` → silent quota loss · ✅ CLOSED (Phase E) | No single guarded write path |
+| `DATA-4` — code bypasses the patched `setItem` · ⚠️ API done (Phase E); enforcement → Phase G | (same) |
 
 Both root causes are instances of the audit's architectural finding: **schema-less
 `localStorage` with no data layer.** So the durable fix is structural — make the class
@@ -52,17 +54,19 @@ The sequence below resolves it: stopgap → test → refactor.
 - This is the right place to start testing regardless — data-destruction paths first.
 
 ### 3. Structural fix — shared key registry + guarded write path · ⚠️ PARTIAL (registry half done, Phase D)
-**Closes by construction:** `SYNC-CRIT-1` ✅, `A4` ✅, `A11` ✅ (registry-driven, Phase D), `OBS-2` ⬜, `DATA-4` ⬜; **fix alongside:** `A2` ⬜; **lands** the `🔒` hooks ⬜.
+**Closes by construction:** `SYNC-CRIT-1` ✅, `A4` ✅, `A11` ✅ (registry-driven, Phase D), `OBS-2` ✅ (guarded write, Phase E), `DATA-4` ⚠️ (API Phase E / enforcement Phase G); **fix alongside:** `A2` ⬜; **lands** the `🔒` hooks ⬜ (Phase G).
 
 > **Phase D landed the registry half:** `BACKUP_KEYS` now drives census + apply + build +
-> push-guard + dedup-hash + the A4 wipe-guard. **Still open in this step:** the guarded
-> `setItem` choke point (`OBS-2`/`DATA-4`), `A2`, and the `🔒` hooks — deferred to a later phase.
+> push-guard + dedup-hash + the A4 wipe-guard. **Phase E landed the guarded-write half:** all
+> writes route through `setItemSafe` (`src/utils/safeStorage.js`), closing `OBS-2`. **Still open
+> in this step:** `A2` and the `🔒` hooks (incl. `DATA-4` no-bypass enforcement) — Phase G.
 
 Scope is the **11 censused data keys** + the sync state machine. It does **NOT** include the
 6 view-config keys' census completion — that's an explicit deferred future step (**Step 5**).
 - One canonical key list drives census + overwrite + push-guard + wipe (they can no
   longer drift).
-- All writes route through one guarded `setItem` wrapper (quota-safe, single choke point).
+- ✅ **Done (Phase E):** all writes route through one guarded `setItem` wrapper (`setItemSafe`,
+  quota-safe, single choke point) — `OBS-2` closed.
 - Fix `A2` in the same pass (fetch-fail flips `syncReadyRef=true` → stale push clobbers
   newer cloud) — third sync-state-machine correctness bug.
 - ✅ **Done (Phase D):** `A11` — `dedupHash` is now a projection over the registry's synced
@@ -117,6 +121,38 @@ loss; sync churn + UX).
 (`src/utils/exportBackup.js`), so the timestamp, regeneratable cache, and device-local
 `autoExportDays` are excluded by construction. The formerly-`it.fails` regression in
 `exportBackup.census.test.js` is now a **normal passing test**.
+
+## Phase E — outcome & decisions (guarded write path)
+
+**What closed (full suite green + production build clean):** `OBS-2`, and the **API half of
+`DATA-4`**. The former global `main.jsx` `setItem` monkey-patch is replaced by an explicit
+single choke point — `setItemSafe` in **`src/utils/safeStorage.js`** — and **all 96 production
+`localStorage.setItem` sites** now route through it (the only remaining raw write is the one
+inside `setItemSafe` itself). Net: a new `safeStorage` unit suite (8 tests: success / datachange
+dispatch / quota / non-quota re-throw) plus an updated `buildBackup` read-set characterization;
+38 tests total.
+
+### Decision — quota-failure policy (the OBS-2 replacement for silent loss)
+On `QuotaExceededError` the guard **dispatches `brickledger:storagefull`** (App.jsx renders a
+**deduped** `react-hot-toast` banner via a stable id) and **returns `false`** — it does **not**
+throw (most of the 96 sites are fire-and-forget event handlers; throwing would crash them). Any
+**non-quota** error is **re-thrown** (real bug, not a full disk). One **uniform** guard for all
+keys — no critical/cosmetic fork inside the choke point; the few integrity-critical callers
+(backup/sync) may check the boolean return.
+
+### Decision — the choke point also OWNS the auto-push trigger
+The removed monkey-patch did double duty: guard **and** the change-detected
+`brickledger:datachange` dispatch that drives App.jsx's debounced auto-push. `setItemSafe`
+carries that forward verbatim (same `SYNC_SKIP_KEYS` + `bl`/`brickEconomy` prefix filter, same
+read-before-write change detection). **Consequence:** a *raw* `localStorage.setItem` now silently
+bypasses **both** the quota guard **and** auto-sync — confirmed in the browser
+(`rawWriteDispatchedDatachange === false`). This is exactly what **Phase G**'s `DATA-4` no-bypass
+enforcement (PreToolUse hook / `.claude/rules`) must backstop.
+
+### Residual — `DATA-4` enforcement (deferred to Phase G)
+The guarded **API exists and is used everywhere today**, but nothing yet *prevents* a future
+raw `setItem` from being introduced. Closing `DATA-4` fully needs the enforcement hook (Phase G),
+on top of this API.
 
 ## Phase D — outcome, decisions & residuals
 
