@@ -8,21 +8,45 @@ const BATCH_DELAY_MS = 400;
 const DAILY_BATCH_SIZE = 50; // sets per day for the rolling background sync
 
 /**
- * Pick the right BE value based on the set's condition.
+ * Pick the right BE value for a SINGLE condition.
  * "new" / "sealed" → current_value_new
  * "used*"          → current_value_used (fall back to new if absent)
- * "mixed" / null   → average of both if both present, else whichever exists
+ * "mixed" / null   → the new figure (no synthetic blend — a mixed *set* is valued
+ *                    per copy by beValueForSet; this is only the lone-condition fallback).
+ *
+ * V2b: the old (new+used)/2 blend for "mixed"/null is retired (G3). It invented a
+ * price that corresponds to no real market figure and silently assumed a 50/50
+ * new/used split regardless of the actual copies owned.
  */
 export function beValueForCondition(d, condition) {
   const vNew  = asNumber(d?.current_value_new);
   const vUsed = asNumber(d?.current_value_used);
   if (!vNew && !vUsed) return asNumber(d?.retail_price_us);
-  if (!condition || condition === "mixed") {
-    return (vNew && vUsed) ? (vNew + vUsed) / 2 : (vNew || vUsed);
-  }
   if (condition === "new" || condition === "sealed") return vNew || vUsed;
   if (String(condition).startsWith("used"))           return vUsed || vNew;
   return vNew || vUsed;
+}
+
+/**
+ * Total current value for an owned set, valuing each copy at its OWN condition.
+ *
+ * A set's entries[] are individual copies (one CSV row each). A mixed set — copies
+ * in different conditions — is summed per copy: new copies at the new figure, used
+ * copies at the used figure, NOT averaged into a synthetic (new+used)/2 blend (G3).
+ * A single-condition set (every copy alike, or a manual set with no entries[]) is
+ * just its one condition's value × quantity — unchanged from the pre-V2b behavior.
+ *
+ * @param {Object} d  BrickEconomy API data (set-level new/used/retail figures).
+ * @param {Object} s  Owned set (may carry entries[], condition, qty/quantity).
+ * @returns {number}  Combined value across all copies of this set.
+ */
+export function beValueForSet(d, s) {
+  const entries = s?.entries;
+  if (entries?.length) {
+    return entries.reduce((sum, e) => sum + beValueForCondition(d, e.condition), 0);
+  }
+  const qty = asNumber(s?.qty) || asNumber(s?.quantity) || 1;
+  return beValueForCondition(d, s?.condition) * qty;
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -44,17 +68,17 @@ function applyCache(normalized, manual, cache) {
     const key = String(s.setNumber || "").replace(/-1$/, "");
     const d   = cache[key]?.data;
     if (!d) return s;
-    // V1: route through the provenance type so it exists in the pipeline. The
-    // written number stays identical — toValue passes finite figures through, so
-    // `.amount` equals the bare value beValueForCondition produced today.
-    const v   = toValue(beValueForCondition(d, s.condition), {
+    // V2b: value each copy at its OWN condition (beValueForSet) — mixed sets are
+    // summed per entry, retiring the synthetic blend. The result is the qty-adjusted
+    // total; currentValue is the per-copy average so currentValue × qty == totalValue.
+    const v     = toValue(beValueForSet(d, s), {
       source: "brickeconomy", condition: s.condition, retired: d.retired,
     });
-    const val = v.amount;
-    if (!val) return s;
+    const total = v.amount;
+    if (!total) return s;
     const qty = asNumber(s.qty) || asNumber(s.quantity) || 1;
     updatedCount++;
-    return { ...s, currentValue: val, totalValue: val * qty };
+    return { ...s, currentValue: total / qty, totalValue: total };
   });
   setItemSafe("brickEconomyNormalizedCollection", JSON.stringify(updatedNormalized));
 

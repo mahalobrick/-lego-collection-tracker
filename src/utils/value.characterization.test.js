@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { beValueForCondition } from "./beSyncValues";
+import { beValueForCondition, beValueForSet } from "./beSyncValues";
 import { portfolioValue } from "./portfolio";
 import { asNumber, money } from "./formatting";
 
@@ -74,10 +74,13 @@ describe("beValueForCondition() — CURRENT behavior (characterization)", () => 
       expect(beValueForCondition(RETIRED, "used_good")).toBe(298.99);
     });
 
-    it("null/mixed condition BLENDS new+used into a synthetic average (G3)", () => {
-      // (372.20 + 298.99) / 2 — a price that corresponds to no real market figure.
-      expect(beValueForCondition(RETIRED, null)).toBeCloseTo(335.595, 5);
-      expect(beValueForCondition(RETIRED, "mixed")).toBeCloseTo(335.595, 5);
+    it("null/mixed condition no longer blends — falls back to the new figure (G3 fixed)", () => {
+      // The synthetic (372.20 + 298.99) / 2 = 335.595 blend is retired: it matched no
+      // real market figure. With no entries[] to value per copy, beValueForCondition
+      // defaults to the new figure rather than inventing an average. A mixed *set* is
+      // now summed per copy by beValueForSet (see below).
+      expect(beValueForCondition(RETIRED, null)).toBe(372.20);
+      expect(beValueForCondition(RETIRED, "mixed")).toBe(372.20);
     });
   });
 
@@ -99,6 +102,44 @@ describe("beValueForCondition() — CURRENT behavior (characterization)", () => 
       expect(beValueForCondition({}, "new")).toBe(0);
       expect(beValueForCondition(undefined, "new")).toBe(0);
     });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// beValueForSet() — V2b per-copy valuation. A mixed set is summed across its
+// entries[] at each copy's OWN condition, retiring the synthetic (new+used)/2 blend.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("beValueForSet() — per-copy valuation (V2b, retires the blend)", () => {
+  it("values a mixed set (1 new + 1 used) as new + used, NOT the average", () => {
+    const mixedSet = {
+      qty: 2,
+      condition: "mixed",
+      entries: [{ condition: "new" }, { condition: "used" }],
+    };
+    // 372.20 + 298.99 = 671.19 — the real per-copy total, never (…)/2 = 335.595.
+    expect(beValueForSet(RETIRED, mixedSet)).toBeCloseTo(671.19, 5);
+    expect(beValueForSet(RETIRED, mixedSet)).not.toBeCloseTo(335.595, 5);
+  });
+
+  it("an uneven mix (2 new + 1 used) sums per copy, beating the 50/50 blend", () => {
+    const mixedSet = {
+      qty: 3,
+      condition: "mixed",
+      entries: [{ condition: "new" }, { condition: "new" }, { condition: "used" }],
+    };
+    // Per copy: 372.20 + 372.20 + 298.99 = 1043.39. The old blend × qty assumed a
+    // 50/50 split: 335.595 × 3 = 1006.785 — undervaluing the extra new copy.
+    expect(beValueForSet(RETIRED, mixedSet)).toBeCloseTo(1043.39, 5);
+  });
+
+  it("a single-condition multi-copy set is value × copies (unchanged)", () => {
+    const newSet = { qty: 3, condition: "new", entries: [{ condition: "new" }, { condition: "new" }, { condition: "new" }] };
+    expect(beValueForSet(RETIRED, newSet)).toBeCloseTo(372.20 * 3, 5);
+  });
+
+  it("a manual set (no entries[]) is value × qty for its lone condition", () => {
+    expect(beValueForSet(RETIRED, { qty: 2, condition: "used" })).toBeCloseTo(298.99 * 2, 5);
+    expect(beValueForSet(RETIRED, { qty: 1, condition: "new" })).toBe(372.20);
   });
 });
 
