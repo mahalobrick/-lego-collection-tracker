@@ -128,7 +128,14 @@ export default function App() {
     syncReadyRef.current = false;
     let cloud = null;
     try { cloud = await fetchFromCloudAuth(getToken); }
-    catch (err) { console.warn("[BrickLedger] Sync fetch failed:", err.message); syncReadyRef.current = true; return; }
+    catch (err) {
+      // A2: a failed fetch leaves the cloud state UNKNOWN. Do NOT enable auto-push off the back
+      // of it — a later push would send this device's (possibly stale) local data up and clobber
+      // a newer cloud copy. syncReadyRef stays false (set at the top of this fn); it flips true
+      // only on a confirmed successful reconcile. A subsequent reload retries the fetch.
+      console.warn("[BrickLedger] Sync fetch failed:", err.message);
+      return;
+    }
 
     const syncedUser = localStorage.getItem("blSyncedUserId");
     const foreign = !!syncedUser && syncedUser !== userId;
