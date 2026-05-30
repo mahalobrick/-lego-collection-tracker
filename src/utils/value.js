@@ -1,0 +1,86 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Value provenance type (V1).
+//
+// The value layer's structural gap is that a set's worth is stored as a bare
+// number, stripped of WHERE it came from, in WHAT condition, and on WHAT basis
+// (real market vs. sticker price vs. nothing) — see docs/value-layer-plan.md §2.
+// This module introduces the shape that carries that provenance. It does NOT yet
+// change any displayed number; consumers keep reading `.amount`. Behavior fixes
+// (excluding unknowns from totals, not laundering retail as value) are V2.
+//
+// Canonical rules (docs/valuation.md §"Value rules"):
+//   - amount is `null` when unknown — NEVER 0. Unknown ≠ $0.
+//   - basis tags how the figure should be read:
+//       'retail'  — sticker/MSRP price (at-retail set, or Brickset's static MSRP)
+//       'market'  — a real secondary-market figure (retired set on a market source)
+//       'unknown' — no usable amount
+//   - basis flips retail → market once a set is retired (market source only);
+//     Brickset is always 'retail' (it is original MSRP by definition).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * @typedef {Object} Value
+ * @property {number|null} amount    Numeric value, or null when unknown (never 0-for-unknown).
+ * @property {string|null} source    Where it came from: 'brickeconomy' | 'bricklink' | 'brickset' | null.
+ * @property {string|null} condition The set's tracked condition (e.g. 'new', 'used', 'used_good').
+ * @property {'retail'|'market'|'unknown'} basis How to read the figure (see module header).
+ * @property {string|null} asOf      ISO timestamp the figure is as-of, or null.
+ */
+
+/**
+ * Parse a raw value field into a number, or null when it carries no usable amount.
+ * Distinguishes a genuine 0 (kept) from missing/blank/unparseable (→ null). This is
+ * the falsy-zero fix at the type boundary: absence becomes null, not 0.
+ *
+ * @param {*} raw
+ * @returns {number|null}
+ */
+function normalizeAmount(raw) {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+  const str = String(raw).trim();
+  if (str === "") return null;
+  const n = Number(str.replace(/[$,]/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Derive the basis tag from amount + source + retirement.
+ *  - no amount               → 'unknown'
+ *  - Brickset (original MSRP) → always 'retail'
+ *  - market source + retired  → 'market' (real secondary market exists)
+ *  - market source at-retail   → 'retail' (the figure is the sticker price)
+ *
+ * @param {number|null} amount
+ * @param {string|null} source
+ * @param {boolean} retired
+ * @returns {'retail'|'market'|'unknown'}
+ */
+function deriveBasis(amount, source, retired) {
+  if (amount === null) return "unknown";
+  if (source === "brickset") return "retail";
+  return retired ? "market" : "retail";
+}
+
+/**
+ * Normalize a raw value figure into a {@link Value} provenance struct.
+ *
+ * @param {*} raw  The raw amount (number or string from an API field).
+ * @param {Object} [opts]
+ * @param {string|null} [opts.source]     'brickeconomy' | 'bricklink' | 'brickset'.
+ * @param {string|null} [opts.condition]  Tracked condition of the set.
+ * @param {boolean}     [opts.retired]    Whether the set is retired (gates market basis).
+ * @param {string|null} [opts.asOf]       ISO timestamp; defaults to now.
+ * @returns {Value}
+ */
+export function toValue(raw, opts = {}) {
+  const { source = null, condition = null, retired = false, asOf } = opts;
+  const amount = normalizeAmount(raw);
+  return {
+    amount,
+    source: source ?? null,
+    condition: condition ?? null,
+    basis: deriveBasis(amount, source ?? null, !!retired),
+    asOf: asOf ?? new Date().toISOString(),
+  };
+}

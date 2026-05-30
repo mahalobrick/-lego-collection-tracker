@@ -1,6 +1,7 @@
 import { asNumber } from "./formatting";
 import { apiFetch } from "./apiFetch";
 import { setItemSafe } from "./safeStorage";
+import { toValue } from "./value";
 
 const CACHE_TTL_MS  = 24 * 60 * 60 * 1000; // 24 hours — used by manual sync
 const BATCH_DELAY_MS = 400;
@@ -43,7 +44,13 @@ function applyCache(normalized, manual, cache) {
     const key = String(s.setNumber || "").replace(/-1$/, "");
     const d   = cache[key]?.data;
     if (!d) return s;
-    const val = beValueForCondition(d, s.condition);
+    // V1: route through the provenance type so it exists in the pipeline. The
+    // written number stays identical — toValue passes finite figures through, so
+    // `.amount` equals the bare value beValueForCondition produced today.
+    const v   = toValue(beValueForCondition(d, s.condition), {
+      source: "brickeconomy", condition: s.condition, retired: d.retired,
+    });
+    const val = v.amount;
     if (!val) return s;
     const qty = asNumber(s.qty) || asNumber(s.quantity) || 1;
     updatedCount++;
@@ -55,7 +62,10 @@ function applyCache(normalized, manual, cache) {
     const key = String(s.setNumber || "").replace(/-1$/, "");
     const d   = cache[key]?.data;
     if (!d) return s;
-    const val = beValueForCondition(d, s.condition);
+    const v   = toValue(beValueForCondition(d, s.condition), {
+      source: "brickeconomy", condition: s.condition, retired: d.retired,
+    });
+    const val = v.amount;
     if (!val) return s;
     updatedCount++;
     return { ...s, currentValue: val };
