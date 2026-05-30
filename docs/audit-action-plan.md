@@ -177,6 +177,29 @@ handler (auto-discovered + flagged, green once removed). It also pins `sync.js`'
 APISEC-1). The `🔒` candidates thus landed as a lint + a test — **stronger** than the
 originally-sketched CC-only hooks / `.claude/rules`.
 
+### CI — making the locks load-bearing
+`.github/workflows/ci.yml` runs `npm run lint && npm test` on every `pull_request` and every push
+to `main` (Node 20, `npm ci`). Before this, the DATA-4 lint and SEC-GAP-2 test only fired when
+someone ran them locally; now a regression (a raw `localStorage.setItem`, or an `/api` handler that
+skips auth) **blocks the merge**. This also closes the "no CI" clause of `TEST-1`.
+
+### Verification — `removeItem` is outside the lint; audited for a "deletion doesn't sync" gap
+The DATA-4 lint bans `setItem` only, so raw `localStorage.removeItem` is governed by neither the
+lint nor the `datachange`/auto-push trigger. Audited all raw `removeItem` sites for the asymmetry
+*"deletes syncable user data without propagating the deletion to cloud."* **Result: no finding —
+none deletes `BACKUP_KEYS` (syncable) user data.** The sites are all wipe/cache/transient/migration:
+`clearApiCache` + `bricksetSetCache` (regeneratable caches), `disconnectBrickLink`
+(`blBrickLinkAccessToken`/`blSessionToken`/`blPriceGuideCache` — tokens/cache), notifications
+(`blNotificationsEnabled`/`blLastNotifyDate` — pref/throttle), `blLastPushHash` (sync metadata,
+`SYNC_SKIP`), `blDealLog` (device-local, not in the registry — *never* synced, so its clear is
+symmetric, not a gap), and `clearLocalUserData` (the deliberate superset wipe). **Why there's no
+ongoing gap:** real deletions of syncable data (remove an owned set / purchase / wanted item) are
+implemented as *edits* — the smaller array is re-serialized through `setItemSafe`, which fires
+`datachange` → auto-push. Raw `removeItem` is reserved for whole-key removal of non-syncable keys.
+**One benign edge noted (not a finding):** `migrate.js` v3 raw-removes `blStoreBudgets` (a registry
+key) — but only when its content exactly equals the auto-seeded default (not user data), once at
+boot, before reconcile. No user data lost; no asymmetry in normal use.
+
 ## Phase F — outcome (A2: fetch-fail must not enable auto-push)
 
 **What closed (full suite green + production build clean):** `A2`. The fetch-fail catch in
@@ -186,6 +209,16 @@ newer cloud copy**. A failed fetch means the cloud state is **UNKNOWN**, not con
 the catch now simply logs and returns, leaving `syncReadyRef` at its top-of-function `false`.
 `syncReadyRef` now flips `true` **only on a confirmed successful reconcile** (cloud-empty claim,
 silent pull, or same-user-local-current); a subsequent reload retries the fetch.
+
+### Residual — `A2` frozen-sync resilience (Medium, accepted-for-now)
+The fix is fail-safe but not fail-*resilient*: a failed fetch leaves auto-push **frozen until the
+next reload** — there is no automatic in-session retry/backoff, and **no user-facing signal** that
+sync is paused. **Accepted** as the safe default (frozen-but-correct strictly beats the old
+stale-push-clobber). **Follow-up:** a bounded retry-with-backoff on the reconcile fetch + a sticky
+"sync paused — changes are only on this device" indicator (shares UI with `OBS-3`). The sibling
+finding **`OBS-4`** (fetch-fail treated as a silent "local wins") has its data-safety half closed by
+this same change; this note is its remaining UX half. Tracked in `architecture-audit.md` (A2/OBS-4
+checklist).
 
 ### Decision — net-first test renders the real `<App>`
 `A2` lives in App-component logic, not a pure util, so the new suite

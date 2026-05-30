@@ -1,0 +1,25 @@
+name: CI
+
+# Makes the Phase G locks load-bearing: the DATA-4 lint and the SEC-GAP-2 auth test run on every
+# PR and every push to main, so a regression (a raw localStorage.setItem, or an /api handler that
+# skips auth) blocks the merge instead of only failing when someone runs it locally.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Lint (DATA-4 — no raw localStorage.setItem)
+        run: npm run lint
+      - name: Test (incl. SEC-GAP-2 — every /api handler authenticates)
+        run: npm test
