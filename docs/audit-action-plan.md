@@ -61,6 +61,9 @@ The sequence below resolves it: stopgap → test → refactor.
 - All writes route through one guarded `setItem` wrapper (quota-safe, single choke point).
 - Fix `A2` in the same pass (fetch-fail flips `syncReadyRef=true` → stale push clobbers
   newer cloud) — third sync-state-machine correctness bug.
+- Fix `A11` in the same pass (found in Phase B; see below) — derive `dedupHash` + the
+  pushed blob from the registry's synced key-set so the device-local `autoExportDays`
+  stops riding in the hash. A pending `it.fails` regression test already pins the fix.
 - Safe to do now because step 2's tests catch any regression.
 - Land the `🔒` hard-enforce candidates here: `SEC-GAP-2` (every `/api` handler
   authenticates first) and `DATA-4` (no bypassing patched `setItem`) as
@@ -75,6 +78,30 @@ Not actively destroying data, so it waits. Same "characterize-then-consolidate" 
   churn/fix hotspot) — highest blast radius, so highest payoff to break up.
 
 ---
+
+## Registry exclusions & a Phase-B finding (`A11`)
+
+Two keys are touched by the backup round-trip but intentionally **excluded from
+`BACKUP_KEYS`** (the user-data *sync* registry). To be documented in a comment beside
+`BACKUP_KEYS` when `exportBackup.js` is next edited:
+
+- **`brickEconomySetCache`** — regeneratable BrickEconomy cache; `delete`d before push
+  (`exportBackup.js:39`), stripped from `dedupHash` (`:68`), restored only via file-import
+  (`AppSettings.importFullBackup`). Correctly outside the sync round-trip.
+- **`blAutoExportDays`** — device-local preference (which browser auto-downloads); not
+  restored by `apply` (`:232`), survives wipe (`SIGNOUT_KEEP_KEYS`). Correctly out of the
+  registry/restore — **but** currently leaks into the hash/push, see `A11`.
+
+### `A11` — device-local pref leaks into the dedup hash + pushed blob (Phase B; fold into Step 3)
+`dedupHash` (`exportBackup.js:67-68`) strips `exportedAt` + `brickEconomySetCache` but
+**not** the nested `settings.autoExportDays`, and `pushToCloudAuth` (`:39`) deletes only
+`brickEconomySetCache`. So `autoExportDays` rides in both the dedup fingerprint and the
+pushed cloud blob. **Effect:** two devices with identical user data but different
+auto-export schedules hash differently → each reads the other as dirty → spurious
+push churn and possible conflict dialogs. **Severity: Medium** (no data loss; sync churn +
+UX). **Fix:** in Step 3, derive `dedupHash`/push from the registry's synced key-set so
+device-local prefs and caches are excluded by construction. Pinned by a pending
+`it.fails` regression in `exportBackup.census.test.js`.
 
 ## Guardrails carried from the audit
 

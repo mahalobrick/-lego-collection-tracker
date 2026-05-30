@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect } from "vitest";
-import { hasAnyLocalData, BACKUP_KEYS } from "./exportBackup";
+import { hasAnyLocalData, BACKUP_KEYS, localContentHash } from "./exportBackup";
 import { DEFAULT_STORES } from "./storeDefaults";
 
 // Mirrors the app default (DEFAULT_ANNUAL_BUDGET in exportBackup.js) for test setup.
@@ -115,5 +115,29 @@ describe("BACKUP_KEYS registry — one shared list", () => {
       "blCollectionItems", "blOwnedColWidths",
     ].sort();
     expect(BACKUP_KEYS.map((k) => k.key).sort()).toEqual(overwriteSet);
+  });
+});
+
+// PENDING regression for A11 (docs/audit-action-plan.md): the dedup hash currently includes
+// the device-local settings.autoExportDays (pushToCloudAuth/dedupHash strip only
+// brickEconomySetCache), so two devices with identical user data but different auto-export
+// schedules read as mutually dirty -> spurious push churn / conflict dialogs. This pins the
+// CORRECT behavior: device-local prefs + caches must not affect the sync fingerprint.
+// Marked `it.fails` because it FAILS today; when A11 is fixed in Step 3 it will pass and
+// `it.fails` flips RED -> at that point remove `.fails`.
+describe("dedupHash determinism — device-local pref + cache must not change the sync hash (A11)", () => {
+  it.fails("states differing ONLY in blAutoExportDays / brickEconomySetCache hash the same (PENDING — fix in Step 3)", () => {
+    localStorage.clear();
+    localStorage.setItem("blOwnedSets", JSON.stringify([{ setNumber: "10497", qty: 1 }]));
+    localStorage.setItem("blAutoExportDays", "1");
+    localStorage.setItem("brickEconomySetCache", JSON.stringify({ "10497": { pieces: 100 } }));
+    const h1 = localContentHash();
+
+    // identical user data; only the device-local pref + regeneratable cache differ
+    localStorage.setItem("blAutoExportDays", "30");
+    localStorage.setItem("brickEconomySetCache", JSON.stringify({ "10497": { pieces: 999 } }));
+    const h2 = localContentHash();
+
+    expect(h1).toBe(h2);
   });
 });
