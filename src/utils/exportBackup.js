@@ -8,7 +8,7 @@
 // cancelled the save dialog.
 
 import { DEFAULT_STORES } from "./storeDefaults";
-import { setItemSafe } from "./safeStorage";
+import { setItemSafe, restoreRaw } from "./safeStorage";
 
 const DEFAULT_ANNUAL_BUDGET = 10320;
 
@@ -272,12 +272,11 @@ export function applyBackupToLocalStorage(data) {
   const rollback = () => {
     // Revert in reverse so the disk only ever shrinks back toward a state that already fit
     // (the prior values coexisted at snapshot time), so these restores can't re-overflow.
-    // Raw setItem/removeItem — NOT setItemSafe — so the revert emits no datachange/storagefull.
+    // restoreRaw is the SINGLE sanctioned raw-write helper (safeStorage.js) — the revert emits
+    // no datachange/storagefull and bypasses the quota guard by design (DATA-4 lint exempts it).
     for (let i = applied.length - 1; i >= 0; i--) {
       const key = applied[i];
-      const prev = snapshot.get(key);
-      try { if (prev === null) localStorage.removeItem(key); else localStorage.setItem(key, prev); }
-      catch { /* best-effort revert */ }
+      restoreRaw(key, snapshot.get(key));
     }
   };
   for (const k of BACKUP_KEYS) {

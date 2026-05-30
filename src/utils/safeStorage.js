@@ -58,3 +58,23 @@ export function setItemSafe(key, value) {
   }
   return true;
 }
+
+/**
+ * Raw, UNGUARDED restore of a key to a prior value — the ONLY sanctioned raw localStorage
+ * write besides setItemSafe, kept HERE so the DATA-4 lint can ban raw setItem everywhere else.
+ *
+ * Used solely by applyBackupToLocalStorage's atomic rollback: it reverts a key to a value that
+ * ALREADY fit in storage moments earlier, so it must deliberately bypass the quota guard and
+ * must NOT emit datachange/storagefull (the revert is a no-op as far as sync is concerned).
+ * A null prevValue means the key was absent before the apply → remove it. Best-effort: a failed
+ * revert is swallowed (the apply has already failed; we want the closest-to-prior state we can get).
+ *
+ * @param {string} key
+ * @param {string|null} prevValue  the snapshotted pre-apply value (null = key was absent)
+ */
+export function restoreRaw(key, prevValue) {
+  try {
+    if (prevValue === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, prevValue);
+  } catch { /* best-effort revert */ }
+}
