@@ -10,7 +10,7 @@ import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./util
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition } from "./utils/beSyncValues";
-import { portfolioValue } from "./utils/portfolio";
+import { portfolioValue, knownValueCount } from "./utils/portfolio";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
 
@@ -404,7 +404,11 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     const retiredSets = sets.filter(s => s.retired).length;
     const newSets     = sets.filter(s => !s.condition || s.condition === "new" || s.condition === "sealed").length;
     const usedSets    = sets.filter(s => s.condition && s.condition.startsWith("used")).length;
-    const avgValue    = sets.length ? value / sets.length : 0;
+    // Avg over sets that HAVE a value — unknown-value sets are excluded so they
+    // don't drag the average down as phantom $0s (avgPaid still spans all sets:
+    // a paid price is known even when the current value isn't).
+    const valuedSets  = knownValueCount(sets);
+    const avgValue    = valuedSets ? value / valuedSets : 0;
     const avgPaid     = sets.length ? costBasis / sets.length : 0;
 
     // Stats sourced from normalized BE data (entries carry the raw fields)

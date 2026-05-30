@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { beValueForCondition, beValueForSet } from "./beSyncValues";
-import { portfolioValue } from "./portfolio";
+import { portfolioValue, knownValueCount } from "./portfolio";
 import { asNumber, money } from "./formatting";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -152,9 +152,10 @@ describe("beValueForSet() — per-copy valuation (V2b, retires the blend)", () =
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("portfolio value rollup — CURRENT behavior (characterization)", () => {
-  it("counts an unknown-value set as $0 (the bug, pinned for V2)", () => {
-    // A set whose value is genuinely unknown (no currentValue/totalValue) contributes
-    // 0 to the total — unknown ≠ $0, but today the math says it is.
+  it("an unknown-value set contributes 0 to the combined total (sum unchanged, V2b)", () => {
+    // A set whose value is genuinely unknown (no currentValue/totalValue) adds nothing
+    // to the headline total — the sum is the same whether unknown is null or 0. Its
+    // EXCLUSION from count metrics is what changed (see knownValueCount below).
     const sets = [
       { setNumber: "10300", currentValue: 199.99, qty: 1 },
       { setNumber: "99999" /* never valued → unknown */, qty: 1 },
@@ -177,6 +178,37 @@ describe("portfolio value rollup — CURRENT behavior (characterization)", () =>
 
   it("treats missing qty as 1", () => {
     expect(portfolioValue([{ currentValue: 75 }])).toBe(75);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// knownValueCount() — V2b. Unknown-value sets are excluded from count-based metrics
+// (e.g. Avg Set Value) instead of being counted as phantom $0s. Math only.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("knownValueCount() — excludes unknown from count metrics (V2b)", () => {
+  it("counts only sets that carry a value figure", () => {
+    const sets = [
+      { setNumber: "10300", currentValue: 199.99, qty: 1 }, // known
+      { setNumber: "21322", totalValue: 372.20, qty: 1 },   // known
+      { setNumber: "99999", qty: 1 },                        // unknown → excluded
+    ];
+    expect(knownValueCount(sets)).toBe(2);
+  });
+
+  it("an all-unknown collection has a known count of 0", () => {
+    expect(knownValueCount([{ setNumber: "99999", qty: 1 }, { setNumber: "88888" }])).toBe(0);
+  });
+
+  it("averages value over known sets only — unknown no longer drags it down", () => {
+    // Two $100 sets + one unknown. The right average is $100, not $200/3 ≈ $66.67.
+    const sets = [
+      { currentValue: 100, qty: 1 },
+      { currentValue: 100, qty: 1 },
+      { setNumber: "unknown", qty: 1 },
+    ];
+    const value = portfolioValue(sets);           // 200 (unknown adds 0)
+    const avgOverKnown = value / knownValueCount(sets);
+    expect(avgOverKnown).toBeCloseTo(100, 5);     // not 200/3
   });
 });
 
