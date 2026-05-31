@@ -30,9 +30,9 @@ will consume, so it comes first.
 - **Done** — V2a: extract rollup to a tested pure function; derive provenance at read time; BrickLink basis fix (sold = market).
 - **Done** — V2b: value mixed sets per-copy by condition (retire the synthetic `(new+used)/2` blend); exclude unknown-value sets from count-based metrics.
 - **Done** — V2c: surfacing — unknown reads `—`; at-retail marked by tooltip; ROI left as-is (a below-MSRP buy correctly reads its discount, e.g. +25%); "N of M sets have no value data" note.
-- **Now** — V2 cleanup: reconcile ROI / cost-basis over unknown-value sets (consistent exclusion, matching the avg-value fix).
-- **Planned** — `price_events` migration: replace the app's own 60-day rolling `blPriceHistory` (`priceHistory.js`) with BrickEconomy's real `price_events_*`.
-- **Planned** — V4: wire BrickLink sold prices into the value waterfall (BrickLink genuine-sample → BrickEconomy fallback). The proxy is already live for on-demand columns; gated on confirming it runs on real API auth (50-min session) vs the scrape fallback before BrickLink becomes the primary value source.
+- **Now** — V2 cleanup: reconcile ROI / cost-basis over unknown-value sets (consistent with the avg-value fix). *Open decision:* does total cost basis include sets whose value is unknown (honest "total spent"), or exclude them to match the ROI ratio (with an "N excluded" note)?
+- **Planned** — `price_events` migration *(suggested next — the quick warm-up)*: replace the app's own 60-day rolling `blPriceHistory` (`priceHistory.js`) with BrickEconomy's real `price_events_*`.
+- **Planned** — V4 *(the big one, after `price_events`)*: wire BrickLink sold prices into the value waterfall (BrickLink genuine-sample → BrickEconomy fallback) — the leap from modeled value to real-market-anchored value. The proxy is already live for on-demand columns; gated on confirming it runs on real API auth (50-min session) vs the scrape fallback before BrickLink becomes the primary value source.
 
 ## Arc 3 — Buy / decision layer — Planned (next major arc)
 
