@@ -277,6 +277,20 @@ The ranked gaps from the STEP-0 map, each tagged to the phase that closes it. **
   error surface so client failures are visible — **no silent `null`**. (c) Resolve the dead BL fallback
   — **decision: remove vs wire, lean REMOVE** — and clear the §9 #7 dead code. Closes gaps #2, #3, #7,
   #1(fallback).
+  - **Console findings (recorded 2026-05-31; apply in S5/S6).** From a live browser-console pass:
+    - **Brickset → typed envelope (S5).** Map upstream `404` → `kind:"not_found"`, `400` →
+      `kind:"bad_request"` (both already in the §4 enum). No new shape needed.
+    - **`not_found` renders QUIETLY (S6).** An expected Brickset `404` — gear/promo numbers like `5007428`
+      that Brickset simply doesn't catalog — is **"no data," not an error**: no toast, no `console.error`.
+      Only `timeout` / `upstream_error` / `rate_limited` surface a real failure signal (§4.2). This is the
+      one place the typed-error surface must distinguish "absent" from "broke" by *kind*.
+    - **Client-side number validation before the call (S6, new sub-item).** Skip identifiers Brickset
+      can't serve *before* spending the request: the **L-prefixed IDs** (`L0002221`/`L0002232`/`L0002288`)
+      are malformed → guaranteed `400`; never send them. The `5007xxx` cases are **valid-format but
+      uncatalogued**, so they can't be pre-filtered — they are the quiet `not_found` case above.
+  - **Non-issues (recorded so they aren't chased):** `contentscript.js`/`ObjectMultiplex` console noise is
+    a **browser extension**, not app code; the manifest `timeout` warning + `apple-mobile-web-app-capable`
+    deprecation are **PWA cosmetics**. Neither is in scope.
 - **P4 — Brickset contract test.** Pin the `.asmx → data` field-select mapping. (Rebrickable is
   trivial/optional — a bundled CSV with no runtime drift.) Closes gap #4(Brickset).
 - **Exit criterion (not a work phase).** Once BrickLink is fixture-pinned (P2) and its fallback is

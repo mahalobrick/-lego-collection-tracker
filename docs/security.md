@@ -27,10 +27,10 @@ For a vibe-coded app this is in notably good shape on the fundamentals that usua
 |---|---|
 | 🚨 Critical | 0 |
 | 🔴 High | 1 |
-| 🟡 Medium | 3 |
+| 🟡 Medium | 4 |
 | 🟢 Low | 8 |
 | ℹ️ Info | 11 |
-| **Total** | **23** |
+| **Total** | **24** |
 
 ### Estimated remediation effort
 **Phase 0 + 1 (the real work): ~half a day.** The dominant task is wiring the shared Clerk `authenticate()` helper into ~8 proxy handlers and updating their client call sites (`APISEC-1`). Everything else in Phases 0–2 is trivial-to-moderate. Medium/Low/Info cleanup is a few more hours, mostly optional.
@@ -164,6 +164,9 @@ All keys via `process.env` only. `internalError()` (`api/_cors.js:45-52`) logs s
 
 **SECRET-3 — Stale `x-backup-secret` header in CORS allow-list** · 🟢 Low · Confirmed · trivial
 `api/_cors.js:39` advertises `x-backup-secret` in `Access-Control-Allow-Headers`, but no consumer exists (leftover from the deleted `cloud-backup.js`). Misleading; could invite reintroduction of a shared-secret path. **Fix:** remove `x-backup-secret` (and `Authorization` if no route consumes it — verify the Clerk JWT path).
+
+**SECRET-4 — Production deploy runs on Clerk *development*-instance keys** · 🟡 Medium · Confirmed · trivial (ops)
+Browser-console pass on the prod deploy (`lego-app-rust.vercel.app`) shows Clerk's **"development keys"** warning — prod is using a Clerk *development* instance (`pk_test_…`/`sk_test_…`) rather than a **production instance** (`pk_live_…`/`sk_live_…`). Dev instances are explicitly not for production: relaxed bot/abuse protection, lower limits, a shared dev Frontend API, and the visible dev banner. **Fix:** create a Clerk **production instance**, set the prod `VITE_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY` in Vercel env (not `.env.local`), and re-point `authorizedParties`/`APP_ORIGIN` accordingly (ties to [AUTH-1](#category-2--authentication)). **Config/ops, not code — out of the integration-standard arc; track here as a deploy finding.**
 
 ### Category 2 — Authentication
 
