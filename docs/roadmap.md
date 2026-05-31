@@ -9,7 +9,9 @@ A living plan: arcs and phases with status. Update statuses as phases land. Comp
 ## Where we are
 
 The architecture-audit arc is closed. The value layer — the foundation everything else reads
-from — has its core nearly complete; surfacing (V2c) is the current phase.
+from — has its core complete: the provenance type, correct mixed/unknown handling, and surfacing
+have all shipped. The remaining value-arc threads are a small cleanup plus the BrickLink / price-
+history work.
 
 ## Arc 1 — Architecture audit & remediation — Done
 
@@ -27,8 +29,8 @@ will consume, so it comes first.
 - **Done** — V1: value provenance type `{amount, source, condition, basis, asOf}` + characterization tests.
 - **Done** — V2a: extract rollup to a tested pure function; derive provenance at read time; BrickLink basis fix (sold = market).
 - **Done** — V2b: value mixed sets per-copy by condition (retire the synthetic `(new+used)/2` blend); exclude unknown-value sets from count-based metrics.
-- **Now** — V2c: surfacing — unknown reads `—`; at-retail marked by tooltip; ROI left as-is (shows purchase margin vs retail, tooltip carries the "retail not market" caveat); "N of M sets have no value data" note.
-- **Next** — V2 cleanup: reconcile ROI / cost-basis over unknown-value sets (consistent exclusion, matching the avg-value fix).
+- **Done** — V2c: surfacing — unknown reads `—`; at-retail marked by tooltip; ROI left as-is (a below-MSRP buy correctly reads its discount, e.g. +25%); "N of M sets have no value data" note.
+- **Now** — V2 cleanup: reconcile ROI / cost-basis over unknown-value sets (consistent exclusion, matching the avg-value fix).
 - **Planned** — `price_events` migration: replace the app's own 60-day rolling `blPriceHistory` (`priceHistory.js`) with BrickEconomy's real `price_events_*`.
 - **Planned** — V4: wire BrickLink sold prices into the value waterfall (BrickLink genuine-sample → BrickEconomy fallback). The proxy is already live for on-demand columns; gated on confirming it runs on real API auth (50-min session) vs the scrape fallback before BrickLink becomes the primary value source.
 
