@@ -2,7 +2,9 @@
 
 How the app is organized: the order of operations, the four data layers, and the full
 source map. For *how value is determined* see `docs/valuation.md`; for the value-layer
-build plan see `docs/value-layer-plan.md`.
+build plan see `docs/value-layer-plan.md`; for *how each external source must plug in*
+(proxy contract, caching, error/fallback, contract-test lock) see
+`docs/integration-standard.md`.
 
 ## Order of operations
 

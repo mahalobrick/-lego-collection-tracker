@@ -2,7 +2,9 @@
 
 **Scope: collection monetary valuation only** — how BrickLedger decides what a set is
 worth. One layer of the app; the buy/decision layer and order of operations live in
-`docs/app-architecture.md`. Companion to `docs/value-layer-plan.md` (build plan).
+`docs/app-architecture.md`. Companion to `docs/value-layer-plan.md` (build plan). For how
+the value sources must plug in (proxy contract, caching, contract-test lock) and the V4
+BrickLink gating answer, see `docs/integration-standard.md`.
 
 ## What this layer answers
 

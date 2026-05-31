@@ -2,7 +2,9 @@
 
 A living plan: arcs and phases with status. Update statuses as phases land. Companions:
 `docs/valuation.md` (value spec), `docs/app-architecture.md` (layers + source map),
-`docs/value-layer-plan.md` (value build plan), `docs/audit-action-plan.md` (closed audit arc).
+`docs/value-layer-plan.md` (value build plan), `docs/audit-action-plan.md` (closed audit arc),
+`docs/integration-standard.md` (external-source standard + conformance audit — supersedes the
+"API fixtures / contract tests" bullet below).
 
 **Status labels:** Done · Now · Next · Planned · Backlog
 
