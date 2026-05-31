@@ -10,7 +10,8 @@ import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./util
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition } from "./utils/beSyncValues";
-import { portfolioValue, knownValueCount } from "./utils/portfolio";
+import { portfolioValue, knownValueCount, setValueProvenance } from "./utils/portfolio";
+import { formatValueCell, unknownValueNote, retailTooltip } from "./utils/valueDisplay";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
 
@@ -427,7 +428,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       .reduce((sum, e) => sum + (Number(e.current_value) || 0), 0);
 
     return {
-      totalQty, costBasis, value, themes, duplicates,
+      totalQty, costBasis, value, valuedSets, themes, duplicates,
       retiredSets, newSets, usedSets, avgValue, avgPaid,
       pieces, retailValue, minifigs, newEntries, usedEntries, newSetsValue, usedSetsValue,
       gainLoss: value - costBasis,
@@ -915,7 +916,12 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     if (column.key === "condition") return set.condition ? (CONDITION_LABELS[set.condition] || set.condition) : "—";
     if (column.key === "qty") return qty;
     if (column.key === "paid") return money(paid);
-    if (column.key === "value") return money(value);
+    if (column.key === "value") {
+      // Derive provenance at read: unknown → "—" (not $0), at-retail → retail tooltip.
+      const prov = setValueProvenance(set);
+      const tip = retailTooltip(prov);
+      return <span title={tip || undefined}>{formatValueCell(prov)}</span>;
+    }
     if (column.key === "gain") return money(gain);
     if (column.key === "roi") return roi !== null ? `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%` : "—";
     if (column.key === "minifigs") return set.minifigs != null ? set.minifigs : "—";
@@ -1168,7 +1174,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                     style={{ opacity: draggedCollItem === item.key ? 0.4 : 1, cursor: "grab" }}
                   >
                     {item.key === "qty"          ? <Card title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} /> :
-                     item.key === "value"        ? <Card title="Collection Value" value={money(stats.value)} /> :
+                     item.key === "value"        ? <Card title="Collection Value" value={money(stats.value)} sub={unknownValueNote(stats.valuedSets, sets.length)} /> :
                      item.key === "cost"         ? <Card title="Cost Basis"       value={money(stats.costBasis)} /> :
                      item.key === "gain"         ? <Card title="Net Gain / Loss"  value={money(stats.gainLoss)} good={stats.gainLoss >= 0} /> :
                      item.key === "roi"          ? <Card title="ROI"              value={`${stats.roi.toFixed(1)}%`} good={stats.roi >= 0} /> :
