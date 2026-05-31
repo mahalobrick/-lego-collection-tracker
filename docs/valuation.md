@@ -62,6 +62,29 @@ worth. One layer of the app; the buy/decision layer and order of operations live
 7. **Confidence = a genuine recent sold sample exists** (derived). Not source divergence — the
    sources aren't independent.
 
+## Cost basis & ROI
+
+Cost carries the **same null-vs-$0 discipline as value** (rule 6), with one twist:
+the stored shape cannot tell a *genuinely-free* $0 (a GWP known to be free) from a
+*cost that was never recorded* — there is no free/GWP marker on an owned set, and an
+empty paid field stores `0`. So both are treated uniformly as "no usable cost".
+
+- **A percentage ROI is only meaningful when value AND cost are both known and
+  cost > 0.** `% ROI` is computed over exactly that subset (`portfolioROI` /
+  `setROI` in `src/utils/portfolio.js`); two mirror-image exclusions fall out:
+  - *unknown value, known cost* → no computable return → excluded from `% ROI`.
+  - *$0 / GWP cost, known value* → return is ÷0 → excluded from `% ROI` (never
+    Infinity/NaN). Its full value still counts as **absolute gain**.
+- **Absolute dollar totals stay inclusive and honest.** *Total spent* sums every
+  set's cost ($0 adds $0); *total value* is unchanged (rule 6); *net gain* is
+  `Σ(value − cost)` over **value-known** sets — so an unknown-value set's recorded
+  cost no longer drags gain into a phantom loss, and a $0-cost set contributes its
+  full value as gain.
+- **Surfacing:** a set excluded from `% ROI` (unknown value OR cost ≤ 0) renders
+  `—`, with a "N sets excluded from ROI (no value or no cost)" note. A dedicated
+  free/GWP label would need a **new persisted field** (a sync-surface change) and is
+  deferred until that marker exists.
+
 ## Retired status (valuation-relevant)
 
 Retired status (Brickset / BrickEconomy) determines whether a **used** value exists and whether

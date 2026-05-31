@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { portfolioValue } from "./portfolio";
+import {
+  portfolioValue,
+  portfolioROI,
+  portfolioGain,
+  totalSpent,
+  setROI,
+  setCost,
+  roiExcludedCount,
+} from "./portfolio";
 import { asNumber } from "./formatting";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -55,49 +63,67 @@ const KNOWN_FLAT = { setNumber: "21322", currentValue: 100, paidPrice: 100, qty:
 const UNKNOWN_VALUE_WITH_COST = { setNumber: "99999", paidPrice: 50, qty: 1 };         // no value, $50 paid
 const ZERO_COST_KNOWN_VALUE = { setNumber: "40178", currentValue: 80, paidPrice: 0, qty: 1 }; // GWP-like
 
-describe("portfolio %ROI — CURRENT behavior (characterization, bug pinned)", () => {
-  it("(a) an unknown-value set's cost DRAGS portfolio ROI down to a false 0%", () => {
-    // Known set alone is +50%. The unknown-value set adds $50 cost but $0 value,
-    // cancelling the gain: (150 − 150)/150 = 0%. The unknown ought to be excluded.
+// PINS FLIPPED (V2 cleanup): each test shows the OLD inline formula's bug value
+// for contrast, then asserts the CORRECTED behavior from the real pure functions.
+describe("portfolio %ROI — CORRECTED behavior (pins flipped)", () => {
+  it("(a) an unknown-value set is EXCLUDED from %ROI — the +50% is no longer dragged to 0%", () => {
     const sets = [KNOWN_GAIN, UNKNOWN_VALUE_WITH_COST];
-    expect(currentPortfolioRoi(sets)).toBeCloseTo(0, 5);   // BUG — honest answer is +50%
+    expect(currentPortfolioRoi(sets)).toBeCloseTo(0, 5);     // OLD bug: dragged to 0%
+    expect(portfolioROI(sets)).toBeCloseTo(50, 5);           // FIXED: only the eligible {KNOWN_GAIN}
   });
 
-  it("(a) the same drag pulls net gain to $0 instead of +$50", () => {
-    expect(currentPortfolioGain([KNOWN_GAIN, UNKNOWN_VALUE_WITH_COST])).toBeCloseTo(0, 5); // BUG — honest +50
+  it("(a) net gain excludes the unknown set's cost — +$50, not $0", () => {
+    expect(currentPortfolioGain([KNOWN_GAIN, UNKNOWN_VALUE_WITH_COST])).toBeCloseTo(0, 5); // OLD bug
+    expect(portfolioGain([KNOWN_GAIN, UNKNOWN_VALUE_WITH_COST])).toBeCloseTo(50, 5);       // FIXED
   });
 
-  it("(b) a $0-cost set's value INFLATES portfolio ROI", () => {
-    // Flat set is 0%. The GWP's $80 value lands on a $100 cost base it didn't add to:
-    // (180 − 100)/100 = +80%. The GWP ought to be excluded from the %.
+  it("(b) a $0-cost set is EXCLUDED from %ROI — its value no longer inflates it to +80%", () => {
     const sets = [KNOWN_FLAT, ZERO_COST_KNOWN_VALUE];
-    expect(currentPortfolioRoi(sets)).toBeCloseTo(80, 5);  // BUG — honest answer is 0%
+    expect(currentPortfolioRoi(sets)).toBeCloseTo(80, 5);    // OLD bug: inflated to +80%
+    expect(portfolioROI(sets)).toBeCloseTo(0, 5);            // FIXED: only the eligible {KNOWN_FLAT}
   });
 
-  it("(b) net gain already counts the GWP's full value (this stays correct)", () => {
-    // Absolute gain = value − cost over both-known sets = (100−100) + (80−0) = 80.
-    // This is the honest answer and must NOT change after the fix.
-    expect(currentPortfolioGain([KNOWN_FLAT, ZERO_COST_KNOWN_VALUE])).toBeCloseTo(80, 5);
+  it("(b) net gain still counts the GWP's full value (unchanged, $80)", () => {
+    // Absolute gain = value − cost over value-known sets = (100−100) + (80−0) = 80.
+    expect(portfolioGain([KNOWN_FLAT, ZERO_COST_KNOWN_VALUE])).toBeCloseTo(80, 5);
   });
 
-  it("total spent is inclusive of every set ($0 adds $0) — stays honest", () => {
-    expect(currentCostBasis([KNOWN_GAIN, UNKNOWN_VALUE_WITH_COST])).toBeCloseTo(150, 5);
-    expect(currentCostBasis([KNOWN_FLAT, ZERO_COST_KNOWN_VALUE])).toBeCloseTo(100, 5);
+  it("%ROI never produces Infinity/NaN, even for an all-$0-cost collection", () => {
+    expect(portfolioROI([ZERO_COST_KNOWN_VALUE])).toBeNull();           // no eligible set → "—"
+    expect(portfolioROI([UNKNOWN_VALUE_WITH_COST])).toBeNull();         // unknown value → "—"
+    expect(portfolioROI([])).toBeNull();
+    expect(Number.isFinite(portfolioROI([KNOWN_GAIN]))).toBe(true);
+  });
+
+  it("total spent stays inclusive of every set ($0 adds $0) — matches the old sum", () => {
+    expect(totalSpent([KNOWN_GAIN, UNKNOWN_VALUE_WITH_COST])).toBeCloseTo(150, 5);
+    expect(totalSpent([KNOWN_FLAT, ZERO_COST_KNOWN_VALUE])).toBeCloseTo(100, 5);
+    // The fix did NOT touch the absolute spent total — same as the old formula.
+    expect(totalSpent([KNOWN_GAIN, UNKNOWN_VALUE_WITH_COST]))
+      .toBeCloseTo(currentCostBasis([KNOWN_GAIN, UNKNOWN_VALUE_WITH_COST]), 5);
+  });
+
+  it("counts how many sets are excluded from %ROI (unknown value OR cost ≤ 0)", () => {
+    expect(roiExcludedCount([KNOWN_GAIN, UNKNOWN_VALUE_WITH_COST])).toBe(1); // the unknown
+    expect(roiExcludedCount([KNOWN_FLAT, ZERO_COST_KNOWN_VALUE])).toBe(1);   // the $0-cost
+    expect(roiExcludedCount([KNOWN_GAIN, UNKNOWN_VALUE_WITH_COST, ZERO_COST_KNOWN_VALUE])).toBe(2);
+    expect(roiExcludedCount([KNOWN_GAIN, KNOWN_FLAT])).toBe(0);
   });
 });
 
-describe("per-row ROI cell — CURRENT behavior (characterization, bug pinned)", () => {
-  it("a known gainer reads +50%", () => {
+describe("per-row ROI cell — CORRECTED behavior (pins flipped)", () => {
+  it("a known gainer still reads +50%", () => {
     expect(currentRowRoi(KNOWN_GAIN)).toBeCloseTo(50, 5);
+    expect(setROI(KNOWN_GAIN)).toBeCloseTo(50, 5);
   });
 
-  it("an unknown-value set with a cost reads a FALSE −100% (value laundered to $0)", () => {
-    // value→0, paid 50 → (0 − 50)/50 = −100%. Should read "—" (no value → no return).
-    expect(currentRowRoi(UNKNOWN_VALUE_WITH_COST)).toBeCloseTo(-100, 5); // BUG — should be "—"/null
+  it("an unknown-value set reads '—' (null), not a false −100%", () => {
+    expect(currentRowRoi(UNKNOWN_VALUE_WITH_COST)).toBeCloseTo(-100, 5); // OLD bug
+    expect(setROI(UNKNOWN_VALUE_WITH_COST)).toBeNull();                  // FIXED
   });
 
-  it("a $0-cost set already reads '—' (the paid>0 guard means no ÷0 here today)", () => {
-    // The per-row guard already returns null on $0 cost — pinned so the fix keeps it.
-    expect(currentRowRoi(ZERO_COST_KNOWN_VALUE)).toBeNull();
+  it("a $0-cost set reads '—' (null) — no ÷0, no Infinity", () => {
+    expect(setROI(ZERO_COST_KNOWN_VALUE)).toBeNull();
+    expect(setCost(ZERO_COST_KNOWN_VALUE)).toBe(0);
   });
 });
