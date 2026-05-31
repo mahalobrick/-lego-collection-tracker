@@ -277,6 +277,13 @@ The ranked gaps from the STEP-0 map, each tagged to the phase that closes it. **
   error surface so client failures are visible — **no silent `null`**. (c) Resolve the dead BL fallback
   — **decision: remove vs wire, lean REMOVE** — and clear the §9 #7 dead code. Closes gaps #2, #3, #7,
   #1(fallback).
+  - **S4 wrapper scope (RATIFIED 2026-05-31).** `fetchWithTimeout` (`api/_fetch.js`) splits two jobs:
+    its **universal** part — apply the timeout + map an abort/network throw to a typed failure — is what
+    the **bare-`fetch` ban enforces everywhere, `sync.js` included** (a hung Upstash call is the same hang
+    we're closing; no allowlist). The **B2 envelope** (`{ok:false, error:{kind, source}}` with the
+    data-source `source` enum) is layered **only by the data-source proxies**. So `sync.js` gets the
+    timeout, keeps its own Upstash error handling, and **never emits the data-source envelope** — no fake
+    `"upstash"` source value.
   - **Console findings (recorded 2026-05-31; apply in S5/S6).** From a live browser-console pass:
     - **Brickset → typed envelope (S5).** Map upstream `404` → `kind:"not_found"`, `400` →
       `kind:"bad_request"` (both already in the §4 enum). No new shape needed.
