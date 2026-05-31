@@ -185,3 +185,61 @@ export function portfolioROI(sets) {
 export function roiExcludedCount(sets) {
   return sets.reduce((n, s) => n + (roiEligible(s) ? 0 : 1), 0);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Unknown ≠ 0 sweep. Per-set gain + a group rollup, both null-aware by construction
+// so NO consumer has to do its own `asNumber(value) || 0`. A set with unknown value
+// has no computable gain → null (→ "—"), never a phantom −cost loss; a group's
+// figures are the same null-aware portfolio funcs applied to that group's sets.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Per-set net gain (value − cost), or `null` when the set's value is UNKNOWN — no
+ * value means no computable gain (render "—"), never a phantom −cost loss. A
+ * $0-cost set with a known value gains its full value (cost 0). Mirrors the
+ * value-known rule of {@link portfolioGain} at the single-set grain, so the
+ * per-row gains sum to the headline Net Gain.
+ *
+ * @param {Object} s
+ * @returns {number|null}
+ */
+export function setGain(s) {
+  const amount = setValueProvenance(s).amount;
+  return amount === null ? null : amount - setCost(s);
+}
+
+/**
+ * Group sets by `keyFn` and roll each group up through the SAME null-aware portfolio
+ * functions — so a per-theme / per-status / per-year breakdown excludes unknown-value
+ * sets exactly like the headline does, and surfaces how many were excluded.
+ *
+ * Each group: `{ key, count, qty, value, spent, gain, roi, knownValueCount,
+ * unknownValueCount }`. `value`/`gain`/`roi` are value-known-aware (`roi` is null
+ * when no set in the group qualifies); `spent` stays inclusive ($0 adds $0).
+ *
+ * @param {Array<Object>} sets
+ * @param {(s: Object) => (string|null|undefined)} keyFn  Group key; falsy → "Other".
+ * @returns {Array<{key:string,count:number,qty:number,value:number,spent:number,gain:number,roi:number|null,knownValueCount:number,unknownValueCount:number}>}
+ */
+export function groupRollup(sets, keyFn) {
+  const groups = new Map();
+  for (const s of sets) {
+    const key = keyFn(s) || "Other";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(s);
+  }
+  return [...groups.entries()].map(([key, gsets]) => {
+    const known = knownValueCount(gsets);
+    return {
+      key,
+      count: gsets.length,
+      qty: gsets.reduce((n, s) => n + (asNumber(s.qty) || 1), 0),
+      value: portfolioValue(gsets),
+      spent: totalSpent(gsets),
+      gain: portfolioGain(gsets),
+      roi: portfolioROI(gsets),
+      knownValueCount: known,
+      unknownValueCount: gsets.length - known,
+    };
+  });
+}
