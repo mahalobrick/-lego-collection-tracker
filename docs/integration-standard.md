@@ -171,9 +171,9 @@ should follow that file's pattern (capture script → fixtures → shape test).
 | Source / endpoint | Pinned? | By / gap |
 |---|---|---|
 | BE `/set` `price_events_*` | ✅ | 5 fixtures + `priceEvents.test.js` |
-| BE `/set` **value fields** (`current_value_*`, `retail_price_us`) | ⚠️ partial | fixtures exist; value-field *shape* not directly asserted (only derived output via `value.characterization`) → **P2** |
-| BE `/collection/sets` | ❌ | unpinned → **P2** |
-| **BrickLink** priceguide (API-session shape) | ❌ | unpinned → **P2** |
+| BE `/set` **value fields** (`current_value_*`, `retail_price_us`, `forecast_*`, `retired`) | ✅ | **P2 done** — `beSetValueFields.contract.test.js` pins the consumed-field shape against the 5 real fixtures (presence matrix + drift guards in `be-fixtures/README.md`) |
+| BE `/collection/sets` | n/a | **P2 finding** — the network endpoint has **no client consumer** (zero `brickeconomy-collection` callers in `src/`); the real collection normalizer reads a **BE CSV export** (`normalizeBrickEconomyCollection`/`parseBECollectionCSV` in `AppSettings.jsx`), which is out of the network-source scope (like Rebrickable). Nothing to pin → [§9](#9-remediation-backlog) gap #8 |
+| **BrickLink** priceguide (API-session shape) | ❌ | **P2 blocked** — unreachable in this env (no BL keys in `.env.local`; session token is per-user/live/50-min). Needs a real payload captured from the running app → [§9](#9-remediation-backlog) gap #1 |
 | **Brickset** set/search/themes | ❌ | unpinned → **P4** |
 | Rebrickable CSV columns | ❌ | bundled CSV, no runtime drift → trivial/optional |
 
@@ -245,13 +245,14 @@ The ranked gaps from the STEP-0 map, each tagged to the phase that closes it. **
 
 | # | Gap | Phase |
 |---|---|---|
-| 1 | No BrickLink contract test (+ dead fallback) — the V4 blocker | **P2** (test) + **P3** (fallback) |
+| 1 | No BrickLink contract test (+ dead fallback) — the V4 blocker | **P2** (test, *blocked on live capture*) + **P3** (fallback) |
 | 2 | No fetch timeouts on 4 of 5 live proxies | **P3** |
 | 3 | Silent failure is the default UX (Brickset/BL → `null`, no UI signal) | **P3** |
-| 4 | Schema-drift blind spots (passthrough propagates; field-select masks) | **P2** / **P4** (contract tests) |
+| 4 | Schema-drift blind spots (passthrough propagates; field-select masks) | **P2** (BE ✅) / **P4** (Brickset) |
 | 5 | Modeled value frozen into synced records without an `asOf` write-guard | **Parked** |
-| 6 | BE value-field shape not directly pinned (only derived output + price_events) | **P2** |
+| 6 | ✅ **CLOSED (P2)** — BE value-field shape now pinned (`beSetValueFields.contract.test.js`) | ~~P2~~ done |
 | 7 | Dead code (`bricklink-priceguide.js:104-106` no-op block; self-clearing `blPriceHistory`) | **P3** (with #1) |
+| 8 | `/api/brickeconomy-collection` is an **unconsumed proxy** — no client caller; the real collection store is CSV-normalized (`normalizeBrickEconomyCollection`). Either remove the dead endpoint or wire it; the CSV-column contract is out of network scope. | **P3** (decide remove vs wire) |
 
 ### Phases
 
@@ -259,6 +260,12 @@ The ranked gaps from the STEP-0 map, each tagged to the phase that closes it. **
   and pin shapes for: **BrickLink** API-session priceguide, **BE value fields** (`current_value_*`,
   `retail_price_us`), and **BE `/collection/sets`**. Generalizes the be-fixtures practice; expect it to
   expose today's unpinned drift. Closes gaps #1(test), #4(BE), #6.
+  - **Status (2026-05-31):** **BE value fields ✅ done** — `beSetValueFields.contract.test.js` pins the
+    consumed-field shape (44 assertions, green; no BE drift found). Two net-first findings reshaped the
+    rest of P2: **(a)** `/collection/sets` has **no consumer** — the target rested on a false premise
+    (the real normalizer is CSV-driven), reclassified to gap #8 (P3 remove-vs-wire); **(b)** **BrickLink
+    is unreachable in this env** (no BL keys; per-user live session token) — the fixture must be captured
+    from the running app's devtools, then pinned. P2 stays open on the BrickLink capture only.
 - **P3 — Resilience hardening.** (a) Add `AbortSignal.timeout(...)` to the 4 unguarded proxies, with a
   **by-construction lock**: an auto-discovery test (sibling to `api-auth.test.js`) asserting every proxy
   has a timeout **and** returns a typed error — so a new proxy that omits either fails CI. (b) A typed

@@ -54,6 +54,37 @@ Presence is **keyed on retirement / secondary-market existence** — the whole `
 3. The companion fields (`current_value_used_low/high`, `rolling_growth_lastyear`, `rolling_growth_12months`,
    sometimes `retired_date`) travel with `price_events_*`. Not needed for the warm-up; noted for V4/price-drop.
 
+## Value-field contract (integration-standard §5, P2)
+
+The same five fixtures also pin the **value fields** the rollup and the value-bearing detail
+panels consume — tested by [`src/utils/beSetValueFields.contract.test.js`](../../src/utils/beSetValueFields.contract.test.js).
+This is the lock §5 logs as P2 (the value-field *shape* was previously only asserted via the
+*derived* output in `value.characterization.test.js`, never the upstream shape directly).
+
+**Consumed value fields → reader:**
+
+| Field | Type | Reader | Present in |
+|---|---|---|---|
+| `current_value_new` | number > 0 | `beValueForCondition` (beSyncValues.js:22) | **all 5** |
+| `retail_price_us` | number > 0 | value fallback (beSyncValues.js:24) + MSRP label | **all 5** |
+| `forecast_value_new_2_years` | number > 0 | SetDetailPanel/WatchDetailPanel/WantedList | **all 5** |
+| `forecast_value_new_5_years` | number > 0 | SetDetailPanel/WatchDetailPanel/WantedList | **all 5** |
+| `current_value_used` | number > 0 | `beValueForCondition` (beSyncValues.js:23) | retired only |
+| `current_value_used_low` / `_high` | number (band) | (V4/price-drop) | retired only |
+| `retired` | boolean `true` | value provenance (beSyncValues.js:75,90) | retired only — **absent**, not `false`, at-retail |
+| `retired_date` | `YYYY-MM-DD` string | `entries[0]?.retired_date` (MyCollection:195) | **inconsistent** — `71460-1` yes, `30432-1` no |
+
+**Drift guards the test pins:**
+
+1. **`current_value_new_low`/`_high` are NOT delivered by BE.** Only the *used* value carries a
+   `low`/`high` band (and only on retired sets). The orientation listed `(+low/high)` for NEW as a
+   candidate — reality has no new band in any captured payload. No production code reads it, so this is
+   benign **today**; the absence is pinned so a consumer can't quietly assume it exists.
+2. **At-retail invariant:** `current_value_new === retail_price_us` (new value mirrors the sticker
+   price), and the entire `retired`/`current_value_used*` cluster is **absent** (not `null`/`false`).
+3. **`retired_date` is not a guaranteed retired field** — present on `71460-1`, absent on `30432-1` —
+   so it is pinned *where present* (type only), not required.
+
 ## Not captured: the genuine ~3% no-*value* set
 
 valuation.md notes ~3% of sets have **no `current_value_new` at all**. That is a *value-layer* gap, distinct
