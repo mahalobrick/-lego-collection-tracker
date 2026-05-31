@@ -68,10 +68,11 @@ async function fetchPage(pageNum) {
   const url =
     pageNum === 1 ? LEGO_BASE : `${LEGO_BASE}?page=${pageNum}`;
   try {
-    const res = await fetch(url, { headers: HEADERS });
+    const res = await fetchWithTimeout(url, { headers: HEADERS }, { timeoutMs: 15_000 });
     if (!res.ok) return { sets: [], total: 0, perPage: 18 };
     return parsePage(await res.text());
   } catch {
+    // network/timeout (FetchFailure) or parse error → empty page (same as before)
     return { sets: [], total: 0, perPage: 18 };
   }
 }
@@ -79,6 +80,9 @@ async function fetchPage(pageNum) {
 const { setCors, internalError } = require("./_cors");
 const { requireAuth } = require("./_auth");
 const { rateLimitAllow } = require("./_ratelimit");
+const { fetchWithTimeout, sendSourceError } = require("./_fetch");
+
+const SOURCE = "lego";
 
 module.exports = async function handler(req, res) {
   if (setCors(req, res, "GET, OPTIONS")) return res.status(200).end();
@@ -87,8 +91,10 @@ module.exports = async function handler(req, res) {
   if (!userId) return;
 
   if (!(await rateLimitAllow(userId, { limit: 1000, windowSeconds: 60, bucket: "proxy" }))) {
-    res.setHeader("Retry-After", "60");
-    return res.status(429).json({ error: "rate_limited" });
+    return sendSourceError(res, {
+      kind: "rate_limited", source: SOURCE,
+      message: "Too many requests — please retry shortly.", retryAfter: 60,
+    });
   }
 
   try {
@@ -96,8 +102,9 @@ module.exports = async function handler(req, res) {
     const page1 = await fetchPage(1);
 
     if (page1.total === 0 && page1.sets.length === 0) {
-      return res.status(502).json({
-        error: "Could not parse LEGO Last Chance page",
+      return sendSourceError(res, {
+        kind: "bad_gateway", source: SOURCE,
+        message: "Could not load the LEGO last-chance list.",
       });
     }
 
