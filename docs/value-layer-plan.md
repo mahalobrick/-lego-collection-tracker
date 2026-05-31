@@ -234,9 +234,12 @@ is started; this is the proposal to shape against.**
 
 ---
 
-## 5. `price_events` migration — Phase 1 (shape pinned from REAL data, fixture-first)
+## 5. `price_events` migration — Phases 1–2
 
-> **Status:** Phase 1 done — shape pinned, no production code touched. Captured live **2026-05-31**.
+> **Status:** Phase 1 done (shape pinned, 2026-05-31). **Phase 2 done** — pure read adapter
+> [`src/utils/priceEvents.js`](../src/utils/priceEvents.js) (`priceEventsFromBE`), fixture-tested
+> ([`priceEvents.test.js`](../src/utils/priceEvents.test.js), 15 tests against all 5 real fixtures),
+> **dark — no consumer/UI wiring, no storage/sync surface touched**. Consumers are Phase 3.
 > The "valuation.md asserts it" unknown is now a real, pinned contract:
 > [`test-data/be-fixtures/`](../test-data/be-fixtures/) + [`scripts/capture-price-events.mjs`](../scripts/capture-price-events.mjs).
 
@@ -284,13 +287,22 @@ set (null `current_value_new`) is a value-layer gap, **not** captured and **not*
   **Phase 3 live-repoint targets are exactly two:** the **WatchDetailPanel value chart** and the
   **`getPriceTrend` arrows**. `wlPriceTrendData` is NOT a repoint target — it is deleted in Phase 4.
 
-### Phase 2 note (do NOT build yet) — 0 = unknown discipline
+### Phase 2 — the read adapter (DONE)
 
-The adapter must apply the **same 0 = unknown rule as the value layer** (valuation.md rule 6 /
-[`value.js` `valueAmount`](../src/utils/value.js)): a `price_event` whose value is missing or `0` is
-**unknown** — **omitted from the series, never plotted as `$0`**. No zeros appear in the real fixtures, but
-this is defensive and keeps the chart consistent with how every other value read in the app treats 0.
-(This is VALUE data, so the value-side rule applies — not the cost asymmetry.)
+[`priceEventsFromBE(data)`](../src/utils/priceEvents.js) — pure, no I/O; caller passes the cached
+`brickEconomySetCache[key].data` blob. Returns `{ new: [{date,value}], used: [{date,value}] }` — two
+**separate** series (not merged by date; new/used dates differ). Each input read defensively (`?? []`);
+absent (non-retired) → empty series. Re-sorted **ASC** (BE delivers DESC). D1: callers render only `new`;
+`used` is mapped anyway so V4 adds the used line with zero rework.
+
+**0 = unknown discipline** — applied via the single-sourced [`value.js` `valueAmount`](../src/utils/value.js)
+(valuation.md rule 6): a `price_event` whose value is missing / `0` / unparseable is **unknown → omitted**,
+never a `$0` point; a point with no usable date is also dropped (can't place it on the axis). No zeros in the
+real fixtures — defensive, and consistent with every other value read. VALUE-side rule (not the cost asymmetry).
+
+**Tested** against all 5 real fixtures: `30432-1` (new+used, both ASC, len 12/12), `71460-1` (new len 12,
+used `[]`), `10300-1`/`10307-1`/`10363-1` (both `[]` — the "no history" case) + synthetic 0/null/missing-date
+omission and null/undefined/non-array inputs (pure, no throw).
 
 ---
 
