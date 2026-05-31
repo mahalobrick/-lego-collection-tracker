@@ -48,7 +48,7 @@ setCors  →  requireAuth  →  rateLimitAllow  →  fetch(upstream, { timeout }
   fetch`). Verified by reading every `api/*.js`.
 - ✅ **Field-select**: Brickset (`brickset-set.js`, `brickset-search.js`, `brickset-themes.js`) and
   BrickLink (`bricklink-priceguide.js`) map to a curated shape.
-- ⚠️ **BrickEconomy is raw passthrough** (`brickeconomy-set.js`, `brickeconomy-collection.js` return
+- ⚠️ **BrickEconomy `/set` is raw passthrough** (`brickeconomy-set.js` returns
   `JSON.parse(text)` verbatim; the full blob is cached client-side). This propagates upstream drift
   straight to the client instead of failing at a curated boundary. Tolerated for now because the BE
   blob has many consumers and `price_events_*` is already pinned (§5) — but it is the reason BE value
@@ -172,7 +172,7 @@ should follow that file's pattern (capture script → fixtures → shape test).
 |---|---|---|
 | BE `/set` `price_events_*` | ✅ | 5 fixtures + `priceEvents.test.js` |
 | BE `/set` **value fields** (`current_value_*`, `retail_price_us`, `forecast_*`, `retired`) | ✅ | **P2 done** — `beSetValueFields.contract.test.js` pins the consumed-field shape against the 5 real fixtures (presence matrix + drift guards in `be-fixtures/README.md`) |
-| BE `/collection/sets` | n/a | **P2 finding** — the network endpoint has **no client consumer** (zero `brickeconomy-collection` callers in `src/`); the real collection normalizer reads a **BE CSV export** (`normalizeBrickEconomyCollection`/`parseBECollectionCSV` in `AppSettings.jsx`), which is out of the network-source scope (like Rebrickable). Nothing to pin → [§9](#9-remediation-backlog) gap #8 |
+| BE `/collection/sets` | n/a | **P2 finding** — the network endpoint has **no client consumer** (zero `brickeconomy-collection` callers in `src/`); the real collection normalizer reads a **BE CSV export** (`normalizeBrickEconomyCollection`/`parseBECollectionCSV` in `AppSettings.jsx`), which is out of the network-source scope (like Rebrickable). Nothing to pin; the dead endpoint was **removed in P3 S2** → [§9](#9-remediation-backlog) gap #8 (closed) |
 | **BrickLink** priceguide (API-session shape) | ❌ | **P2 blocked** — unreachable in this env (no BL keys in `.env.local`; session token is per-user/live/50-min). Needs a real payload captured from the running app → [§9](#9-remediation-backlog) gap #1 |
 | **Brickset** set/search/themes | ❌ | unpinned → **P4** |
 | Rebrickable CSV columns | ❌ | bundled CSV, no runtime drift → trivial/optional |
@@ -187,7 +187,7 @@ only `price_events` is locked today.
 
 | Source | Proxy endpoint(s) | Client util | Proxy pattern | Cache key | Precedence (value layer) |
 |---|---|---|---|---|---|
-| **BrickEconomy** | `brickeconomy-set`, `brickeconomy-collection` | `beSyncValues.js` | raw passthrough ⚠️ | `brickEconomySetCache` | **canonical current value** + price history |
+| **BrickEconomy** | `brickeconomy-set` | `beSyncValues.js` | raw passthrough ⚠️ | `brickEconomySetCache` | **canonical current value** + price history |
 | **BrickLink** | `bricklink-auth`, `bricklink-priceguide` | `bricklink-client.js` | field-select | `blPriceGuideCache` | sold sample — **display-only today; value-layer = V4** |
 | **Brickset** | `brickset-set/search/themes` | `brickset.js` | field-select | `bricksetSetCache`/`bricksetThemesCache` | MSRP **label** + retirement (not in rollup) |
 | **LEGO.com** | `lego-last-chance` | `legoLastChance.js` | field-select | `legoLastChanceCache` | buy layer (last-chance) |
@@ -252,7 +252,7 @@ The ranked gaps from the STEP-0 map, each tagged to the phase that closes it. **
 | 5 | Modeled value frozen into synced records without an `asOf` write-guard | **Parked** |
 | 6 | ✅ **CLOSED (P2)** — BE value-field shape now pinned (`beSetValueFields.contract.test.js`) | ~~P2~~ done |
 | 7 | Dead code (`bricklink-priceguide.js:104-106` no-op block; self-clearing `blPriceHistory`) | **P3** (with #1) |
-| 8 | `/api/brickeconomy-collection` is an **unconsumed proxy** — no client caller; the real collection store is CSV-normalized (`normalizeBrickEconomyCollection`). Either remove the dead endpoint or wire it; the CSV-column contract is out of network scope. | **P3** (decide remove vs wire) |
+| 8 | ✅ **CLOSED (P3 S2)** — `/api/brickeconomy-collection` was an unconsumed proxy (no client caller; the real collection store is CSV-normalized via `normalizeBrickEconomyCollection`). **Removed** (commit `3693a60`) along with its `vite.config.js` dev route; the api-auth enumeration guard dropped `>=10`→`>=9` (8 proxies + `sync.js`). | ~~P3~~ done |
 
 ### Phases
 
