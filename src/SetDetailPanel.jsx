@@ -1,15 +1,13 @@
 import { useState, useEffect } from "react";
 import { asNumber, money, setImageUrl, conditionLabel, conditionColor, daysUntilRetirement } from "./utils/formatting";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
+import { setValueProvenance, setGain, setROI } from "./utils/portfolio";
+import { toValue } from "./utils/value";
+import { formatValueCell } from "./utils/valueDisplay";
 
 function entryPaid(e) {
   return asNumber(e.paid_price ?? e.Paid ?? e.paid ?? 0);
 }
-
-function entryValue(e) {
-  return asNumber(e.current_value ?? e.Value ?? e.value ?? 0);
-}
-
 
 function shortDate(iso) {
   if (!iso) return null;
@@ -48,9 +46,13 @@ export default function SetDetailPanel({ item, onClose, onEdit }) {
   const entries = item.entries || [];
   const qty = item.quantity || entries.length || 1;
   const totalPaid = asNumber(item.totalPaid);
-  const totalValue = asNumber(item.totalValue);
-  const gain = totalValue - totalPaid;
-  const roi = totalPaid > 0 ? (gain / totalPaid) * 100 : 0;
+  // Null-aware value/gain/roi: unknown value → "—", never $0 / phantom −cost / −100%.
+  // (unknown≠0 sweep)
+  const prov = setValueProvenance(item);
+  const valueKnown = prov.amount !== null;
+  const totalValue = prov.amount ?? 0;
+  const gain = setGain(item);   // null when value unknown
+  const roi = setROI(item);     // null when value unknown OR cost ≤ 0
   const avgPaid = qty > 0 ? totalPaid / qty : 0;
 
   // Enrich with cached BrickEconomy set data
@@ -156,12 +158,12 @@ export default function SetDetailPanel({ item, onClose, onEdit }) {
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <StatBox label="Cost Basis" value={money(totalPaid)} />
-          <StatBox label="Market Value" value={money(totalValue)} />
-          <StatBox label="Net Gain" value={money(gain)} color={gain >= 0 ? "#5aa832" : "#ff8b8b"} />
-          <StatBox label="ROI" value={`${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%`} color={roi >= 0 ? "#5aa832" : "#ff8b8b"} />
+          <StatBox label="Market Value" value={formatValueCell(prov)} />
+          <StatBox label="Net Gain" value={gain === null ? "—" : money(gain)} color={gain === null ? undefined : gain >= 0 ? "#5aa832" : "#ff8b8b"} />
+          <StatBox label="ROI" value={roi === null ? "—" : `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%`} color={roi === null ? undefined : roi >= 0 ? "#5aa832" : "#ff8b8b"} />
           <StatBox label="Avg Paid / Copy" value={money(avgPaid)} />
-          <StatBox label="Value / Copy" value={qty > 0 ? money(totalValue / qty) : "—"} />
-          {retailPrice && totalPaid > 0 && <StatBox label="vs. Retail" value={`${(((totalValue / qty) - retailPrice) / retailPrice * 100) >= 0 ? "+" : ""}${(((totalValue / qty) - retailPrice) / retailPrice * 100).toFixed(1)}%`} color={(totalValue / qty) >= retailPrice ? "#5aa832" : "#ff8b8b"} />}
+          <StatBox label="Value / Copy" value={valueKnown && qty > 0 ? money(totalValue / qty) : "—"} />
+          {valueKnown && retailPrice && totalPaid > 0 && <StatBox label="vs. Retail" value={`${(((totalValue / qty) - retailPrice) / retailPrice * 100) >= 0 ? "+" : ""}${(((totalValue / qty) - retailPrice) / retailPrice * 100).toFixed(1)}%`} color={(totalValue / qty) >= retailPrice ? "#5aa832" : "#ff8b8b"} />}
         </div>
 
         {blPrice && (blPrice.avg_price_new > 0 || blPrice.avg_price_used > 0) && (
@@ -218,9 +220,12 @@ export default function SetDetailPanel({ item, onClose, onEdit }) {
             <div style={{ display: "grid", gap: 8 }}>
               {entries.map((entry, i) => {
                 const paid = entryPaid(entry);
-                const val = entryValue(entry);
-                const g = val - paid;
-                const r = paid > 0 ? (g / paid) * 100 : 0;
+                // Null-aware per copy: unknown value → "—", never $0 / phantom −cost.
+                // (unknown≠0 sweep)
+                const entryProv = toValue(entry.current_value ?? entry.Value ?? entry.value, { condition: entry.condition, retired: item.retired });
+                const val = entryProv.amount;
+                const g = val === null ? null : val - paid;
+                const r = (val === null || paid <= 0) ? null : (g / paid) * 100;
                 const cond = conditionLabel(entry.condition);
                 const acquired = shortDate(entry.aquired_date || entry.acquired_date);
                 return (
@@ -235,8 +240,8 @@ export default function SetDetailPanel({ item, onClose, onEdit }) {
                         {acquired && <span style={{ color: "#5d6f80", fontSize: 12 }}>{acquired}</span>}
                         {!cond && !acquired && <span style={{ color: "#5d6f80", fontSize: 13 }}>Copy {i + 1}</span>}
                       </div>
-                      <span style={{ color: r >= 0 ? "#5aa832" : "#ff8b8b", fontWeight: 900, fontSize: 13 }}>
-                        {r >= 0 ? "+" : ""}{r.toFixed(1)}%
+                      <span style={{ color: r === null ? "#5d6f80" : r >= 0 ? "#5aa832" : "#ff8b8b", fontWeight: 900, fontSize: 13 }}>
+                        {r === null ? "—" : `${r >= 0 ? "+" : ""}${r.toFixed(1)}%`}
                       </span>
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
@@ -246,11 +251,11 @@ export default function SetDetailPanel({ item, onClose, onEdit }) {
                       </div>
                       <div>
                         <div style={{ color: "#5d6f80", fontSize: 11 }}>Value</div>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: "#e8e2d5" }}>{money(val)}</div>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: "#e8e2d5" }}>{formatValueCell(entryProv)}</div>
                       </div>
                       <div>
                         <div style={{ color: "#5d6f80", fontSize: 11 }}>Gain</div>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: g >= 0 ? "#5aa832" : "#ff8b8b" }}>{money(g)}</div>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: g === null ? "#5d6f80" : g >= 0 ? "#5aa832" : "#ff8b8b" }}>{g === null ? "—" : money(g)}</div>
                       </div>
                     </div>
                   </div>

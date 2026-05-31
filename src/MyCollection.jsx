@@ -10,7 +10,7 @@ import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./util
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition } from "./utils/beSyncValues";
-import { portfolioValue, knownValueCount, setValueProvenance, totalSpent, portfolioGain, portfolioROI, roiExcludedCount, setROI } from "./utils/portfolio";
+import { portfolioValue, knownValueCount, setValueProvenance, totalSpent, portfolioGain, portfolioROI, roiExcludedCount, setROI, setGain, groupRollup } from "./utils/portfolio";
 import { formatValueCell, unknownValueNote, retailTooltip, roiExclusionNote } from "./utils/valueDisplay";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
@@ -367,8 +367,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       const today = new Date().toISOString().slice(0, 10);
       const history = JSON.parse(localStorage.getItem("blPortfolioHistory") || "[]");
       if (history.some(h => h.date === today)) return;
-      const totalValue = sets.reduce((s, x) => s + (asNumber(x.totalValue) || asNumber(x.currentValue) * (asNumber(x.qty) || 1)), 0);
-      const totalPaid  = sets.reduce((s, x) => s + (asNumber(x.totalPaid)  || asNumber(x.paidPrice)    * (asNumber(x.qty) || 1)), 0);
+      // Null-aware: snapshot the same headline figures (unknown excluded from value).
+      // (unknown≠0 sweep)
+      const totalValue = portfolioValue(sets);
+      const totalPaid  = totalSpent(sets);
       const next = [...history.filter(h => h.date !== today), { date: today, value: totalValue, paid: totalPaid }];
       setItemSafe("blPortfolioHistory", JSON.stringify(next.sort((a, b) => a.date.localeCompare(b.date)).slice(-365)));
     } catch {}
@@ -440,17 +442,11 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   }, [sets]);
 
   const themeChartData = useMemo(() => {
-    const byTheme = {};
-    sets.forEach(s => {
-      const t = s.theme || "Other";
-      if (!byTheme[t]) byTheme[t] = { qty: 0, value: 0 };
-      byTheme[t].qty += asNumber(s.qty) || 1;
-      // Use totalValue for BE items (already aggregated); fall back to per-unit × qty for manual
-      byTheme[t].value += asNumber(s.totalValue) || asNumber(s.currentValue) * (asNumber(s.qty) || 1);
-    });
-    return Object.entries(byTheme)
-      .sort((a, b) => b[1].value - a[1].value)
-      .map(([name, d]) => ({ name, qty: d.qty, value: d.value }));
+    // groupRollup sums KNOWN values per theme (unknown excluded, not counted as $0).
+    // (unknown≠0 sweep)
+    return groupRollup(sets, s => s.theme)
+      .map(g => ({ name: g.key, qty: g.qty, value: g.value }))
+      .sort((a, b) => b.value - a.value);
   }, [sets]);
 
   const topRoiSets = useMemo(() => {
@@ -466,9 +462,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   }, [sets]);
 
   const topValueSets = useMemo(() => {
+    // Sort by null-aware value; unknown (null) sorts as 0 → bottom. (unknown≠0 sweep)
     return [...sets].sort((a, b) =>
-      (asNumber(b.totalValue) || asNumber(b.currentValue) * (asNumber(b.qty) || 1)) -
-      (asNumber(a.totalValue) || asNumber(a.currentValue) * (asNumber(a.qty) || 1))
+      (setValueProvenance(b).amount ?? 0) - (setValueProvenance(a).amount ?? 0)
     );
   }, [sets]);
 
@@ -494,16 +490,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
   // ── Theme performance table ───────────────────────────────────────────────
   const themePerformance = useMemo(() => {
-    const byTheme = {};
-    sets.forEach(s => {
-      const t = s.theme || "Other";
-      if (!byTheme[t]) byTheme[t] = { theme: t, sets: 0, paid: 0, value: 0 };
-      byTheme[t].sets  += 1;
-      byTheme[t].paid  += asNumber(s.totalPaid)  || asNumber(s.paidPrice)    * (asNumber(s.qty) || 1);
-      byTheme[t].value += asNumber(s.totalValue) || asNumber(s.currentValue) * (asNumber(s.qty) || 1);
-    });
-    return Object.values(byTheme)
-      .map(t => ({ ...t, gain: t.value - t.paid, roi: t.paid > 0 ? ((t.value - t.paid) / t.paid) * 100 : null }))
+    // Per-theme rollup via the null-aware funcs: value/gain/roi exclude unknown-value
+    // sets exactly like the headline; `spent` stays inclusive. (unknown≠0 sweep)
+    return groupRollup(sets, s => s.theme)
+      .map(g => ({ theme: g.key, sets: g.count, paid: g.spent, value: g.value, gain: g.gain, roi: g.roi, knownCount: g.knownValueCount }))
       .sort((a, b) => (b.roi ?? -999) - (a.roi ?? -999));
   }, [sets]);
 
@@ -911,8 +901,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   function renderOwnedCell(set, column) {
     const qty = asNumber(set.qty) || 1;
     const paid = asNumber(set.totalPaid) || asNumber(set.paidPrice) * qty;
-    const value = asNumber(set.totalValue) || asNumber(set.currentValue) * qty;
-    const gain = value - paid;
+    // null when value is unknown → "—", never a phantom −cost loss. (unknown≠0 sweep)
+    const gain = setGain(set);
     // null when excluded from %ROI (unknown value OR cost ≤ 0) → cell reads "—".
     // Never Infinity/NaN. (V2 cleanup)
     const roi = setROI(set);
@@ -929,7 +919,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       const tip = retailTooltip(prov);
       return <span title={tip || undefined}>{formatValueCell(prov)}</span>;
     }
-    if (column.key === "gain") return money(gain);
+    if (column.key === "gain") return gain === null ? "—" : money(gain);
     if (column.key === "roi") return roi !== null ? `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%` : "—";
     if (column.key === "minifigs") return set.minifigs != null ? set.minifigs : "—";
     if (column.key === "acquiredDate") return fmtShortDate(set.acquiredDate);
@@ -1007,15 +997,11 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         const bPaid = asNumber(b.totalPaid) || asNumber(b.paidPrice) * (asNumber(b.qty) || 1);
         result = aPaid - bPaid;
       } else if (sortColumn === "value") {
-        const aVal = asNumber(a.totalValue) || asNumber(a.currentValue) * (asNumber(a.qty) || 1);
-        const bVal = asNumber(b.totalValue) || asNumber(b.currentValue) * (asNumber(b.qty) || 1);
-        result = aVal - bVal;
+        // Null-aware: unknown value sorts as 0. (unknown≠0 sweep)
+        result = (setValueProvenance(a).amount ?? 0) - (setValueProvenance(b).amount ?? 0);
       } else if (sortColumn === "gain") {
-        const aVal = asNumber(a.totalValue) || asNumber(a.currentValue) * (asNumber(a.qty) || 1);
-        const aPaid = asNumber(a.totalPaid) || asNumber(a.paidPrice) * (asNumber(a.qty) || 1);
-        const bVal = asNumber(b.totalValue) || asNumber(b.currentValue) * (asNumber(b.qty) || 1);
-        const bPaid = asNumber(b.totalPaid) || asNumber(b.paidPrice) * (asNumber(b.qty) || 1);
-        result = (aVal - aPaid) - (bVal - bPaid);
+        // Null-aware: unknown-value sets (no computable gain) sort as 0. (unknown≠0 sweep)
+        result = (setGain(a) ?? 0) - (setGain(b) ?? 0);
       } else if (sortColumn === "addedAt") {
         result = String(a.addedAt || "").localeCompare(String(b.addedAt || ""));
       } else {
@@ -1400,7 +1386,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         {topValueSets.length > 0 ? (
                           <div style={{ display: "grid", gap: 8 }}>
                             {topValueSets.slice(0, showAllValuable ? 15 : 5).map((s, i) => {
-                              const val = asNumber(s.totalValue) || asNumber(s.currentValue) * (asNumber(s.qty) || 1);
+                              // Unknown value → "—", never "$0.00". (unknown≠0 sweep)
+                              const prov = setValueProvenance(s);
                               return (
                                 <div key={`${s.setNumber}-${i}`}
                                   onClick={() => { setDetailSet(openSetDetail(s.setNumber) || s); setDetailSetIndex(sets.indexOf(s)); }}
@@ -1412,7 +1399,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                                     <div style={{ color: "#5d6f80", fontSize: 12 }}>{s.theme || "—"} · Qty {asNumber(s.qty) || 1}</div>
                                   </div>
                                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                    <span style={{ fontWeight: 900, fontSize: 14 }}>{money(val)}</span>
+                                    <span style={{ fontWeight: 900, fontSize: 14 }}>{formatValueCell(prov)}</span>
                                     <span style={{ color: "#5d6f80", fontSize: 16 }}>›</span>
                                   </div>
                                 </div>
@@ -1583,8 +1570,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                                     <td style={tdStyle}>{t.theme}</td>
                                     <td style={tdStyleR}>{t.sets}</td>
                                     <td style={tdStyleR}>{money(t.paid)}</td>
-                                    <td style={tdStyleR}>{money(t.value)}</td>
-                                    <td style={{ ...tdStyleR, color: t.gain >= 0 ? "#5aa832" : "#ff8b8b" }}>{money(t.gain)}</td>
+                                    <td style={tdStyleR}>{t.knownCount > 0 ? money(t.value) : "—"}</td>
+                                    <td style={{ ...tdStyleR, color: t.knownCount > 0 && t.gain >= 0 ? "#5aa832" : t.knownCount > 0 ? "#ff8b8b" : "#5d6f80" }}>{t.knownCount > 0 ? money(t.gain) : "—"}</td>
                                     <td style={{ ...tdStyleR, color: (t.roi ?? 0) >= 0 ? "#5aa832" : "#ff8b8b", fontWeight: 900 }}>
                                       {t.roi != null ? `${t.roi >= 0 ? "+" : ""}${t.roi.toFixed(1)}%` : "—"}
                                     </td>

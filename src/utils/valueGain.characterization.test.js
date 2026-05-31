@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { portfolioValue, portfolioGain } from "./portfolio";
+import { portfolioValue, portfolioGain, setGain, groupRollup } from "./portfolio";
+import { formatValueCell } from "./valueDisplay";
+import { setValueProvenance } from "./portfolio";
 import { asNumber, money } from "./formatting";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -30,47 +32,50 @@ const currentThemeGain  = (sets) => currentThemeValue(sets) - currentThemePaid(s
 const KNOWN   = { theme: "Icons", currentValue: 150, paidPrice: 100, qty: 1 }; // gain +50
 const UNKNOWN = { theme: "Icons", paidPrice: 50, qty: 1 };                      // no value, $50 paid
 
-describe("per-row GAIN cell — CURRENT behavior (characterization, bug pinned)", () => {
+// PINS FLIPPED (unknown≠0 sweep, STEP 2): each test shows the OLD inline-formula bug
+// value for contrast, then asserts the CORRECTED behavior via the null-aware funcs the
+// leaking sites now route through.
+describe("per-row GAIN cell — CORRECTED behavior (pins flipped)", () => {
   beforeEach(() => localStorage.clear()); // money() default → USD
 
   it("a known set's gain is value − cost (+$50)", () => {
     expect(currentRowGain(KNOWN)).toBeCloseTo(50, 5);
+    expect(setGain(KNOWN)).toBeCloseTo(50, 5);
   });
 
-  it("an UNKNOWN-value set shows a phantom −$50 loss (value laundered to $0)", () => {
-    // value → 0, cost 50 → gain = −50. Honest answer: no value → no gain → "—"/null.
-    expect(currentRowGain(UNKNOWN)).toBeCloseTo(-50, 5); // BUG — should be null → "—"
-    expect(money(currentRowGain(UNKNOWN))).toBe("-$50.00"); // and it renders as a real loss
-  });
-});
-
-describe("theme rollup — CURRENT behavior (characterization, bug pinned)", () => {
-  it("a theme's gain is dragged down by an unknown set's cost (reads $0, not +$50)", () => {
-    // Icons = KNOWN(+50 gain) + UNKNOWN($50 cost, $0 value). Theme gain collapses to
-    // (150 − 150) = 0; over known-value sets only it should be +50.
-    const icons = [KNOWN, UNKNOWN];
-    expect(currentThemeGain(icons)).toBeCloseTo(0, 5);   // BUG — should be +50
-    // The theme VALUE sum already matches known-only numerically (unknown adds 0)…
-    expect(currentThemeValue(icons)).toBeCloseTo(150, 5);
-    // …but the unknown set is silently folded in with no "N unknown" signal — the
-    // leak is the gain/roi drag above, plus the missing per-theme unknown count.
+  it("an UNKNOWN-value set's gain is null → '—', not a phantom −$50 loss", () => {
+    expect(currentRowGain(UNKNOWN)).toBeCloseTo(-50, 5); // OLD bug: phantom −$50
+    expect(setGain(UNKNOWN)).toBeNull();                 // FIXED → cell renders "—"
   });
 });
 
-describe("Most Valuable Sets display — CURRENT behavior (characterization, bug pinned)", () => {
+describe("theme rollup — CORRECTED behavior (pins flipped)", () => {
+  it("a theme's gain excludes the unknown set's cost (+$50, not $0) and counts it unknown", () => {
+    const icons = groupRollup([KNOWN, UNKNOWN], s => s.theme).find(g => g.key === "Icons");
+    expect(currentThemeGain([KNOWN, UNKNOWN])).toBeCloseTo(0, 5); // OLD bug: dragged to 0
+    expect(icons.gain).toBeCloseTo(50, 5);                        // FIXED
+    expect(icons.value).toBeCloseTo(150, 5);
+    expect(icons.unknownValueCount).toBe(1);                      // unknown now surfaced
+  });
+});
+
+describe("Most Valuable Sets display — CORRECTED behavior (pins flipped)", () => {
   beforeEach(() => localStorage.clear());
 
-  it("an unknown-value set renders \"$0.00\", not \"—\"", () => {
-    expect(money(rawValue(UNKNOWN))).toBe("$0.00"); // BUG — should be "—"
-    expect(money(rawValue(KNOWN))).toBe("$150.00");
+  it("an unknown-value set renders '—', not '$0.00'", () => {
+    expect(money(rawValue(UNKNOWN))).toBe("$0.00");                 // OLD bug
+    expect(formatValueCell(setValueProvenance(UNKNOWN))).toBe("—"); // FIXED
+    expect(formatValueCell(setValueProvenance(KNOWN))).toBe("$150.00");
   });
 });
 
-// Sanity: the null-aware headline funcs already exclude the unknown set correctly —
-// this is the target the leaking sites above must match after STEP 2.
-describe("headline funcs already correct (the target to match)", () => {
-  it("portfolioValue sums known only; portfolioGain excludes the unknown set's cost", () => {
-    expect(portfolioValue([KNOWN, UNKNOWN])).toBeCloseTo(150, 5);
-    expect(portfolioGain([KNOWN, UNKNOWN])).toBeCloseTo(50, 5); // unknown's $50 cost excluded
+// Reconciliation: the per-row gains (null-aware) sum to the headline Net Gain.
+describe("per-row gains reconcile with the headline Net Gain", () => {
+  it("Σ setGain over value-known sets === portfolioGain", () => {
+    const sets = [KNOWN, UNKNOWN];
+    const summed = sets.map(setGain).filter(g => g !== null).reduce((a, b) => a + b, 0);
+    expect(summed).toBeCloseTo(portfolioGain(sets), 5);
+    expect(portfolioValue(sets)).toBeCloseTo(150, 5);
+    expect(portfolioGain(sets)).toBeCloseTo(50, 5);
   });
 });

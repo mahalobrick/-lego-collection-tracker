@@ -43,6 +43,7 @@ Use the preview server and screenshot tool to verify visual changes landed corre
 ## Key conventions
 - **IDs**: `wl_${Date.now()}_${Math.random().toString(36).slice(2,7)}` for wanted items
 - **Money**: always `asNumber()` before arithmetic — never trust raw string fields
+- **Value / gain (unknown ≠ 0)**: a set's value or gain is consumed ONLY via the null-aware functions in `src/utils/portfolio.js` (`setValueProvenance().amount`, `setGain`, `setROI`, `portfolioValue/Gain/ROI`, `groupRollup`) and rendered via `valueDisplay.js` (`formatValueCell`). Unknown value is `null` → "—" / excluded, NEVER `$0`. Never write your own `asNumber(s.totalValue) || asNumber(s.currentValue) * qty` or `value - paid` at a consumer site — that re-opens the falsy-zero class. (Cost/spent stays inclusive: `$0` adds `$0`.)
 - **localStorage**: changes need a state update to trigger re-renders; don't read stale values in closures
 - **localStorage writes**: always `setItemSafe()` from `src/utils/safeStorage.js` — never raw `localStorage.setItem` (quota guard + auto-sync trigger; DATA-4). `npm run lint` enforces this; the only sanctioned raw writes live in `safeStorage.js`
 - **Backups**: before any large edit, the existing pattern is copy file → `file.bak.jsx`

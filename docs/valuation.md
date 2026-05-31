@@ -58,7 +58,14 @@ worth. One layer of the app; the buy/decision layer and order of operations live
    `currentValue` (BE) divergence by tagging source explicitly.) *(G1)*
 6. **Unknown ≠ 0.** First-class unknown state, rendered "—", **excluded from the combined total**
    (which still sums all known-value sets, new + used) with a "N sets have no value data" note —
-   never silently counted as $0. *(falsy-zero)*
+   never silently counted as $0. *(falsy-zero)* **Enforced by construction:** every value/gain
+   consumer — per-row value & gain cells, headline totals, avgValue, ROI + ROI leaders,
+   Value-by-Theme, Theme Performance, Most Valuable Sets, the portfolio-history snapshot, and the
+   set detail panel (set-level + per-copy) — routes through the null-aware functions in
+   `src/utils/portfolio.js` (`setValueProvenance`, `setGain`, `setROI`, `portfolioValue/Gain/ROI`,
+   `groupRollup`). No consumer does its own `asNumber(value) || 0` or `value − paid`. (Sold-tab
+   realized gains are computed from a known sale price; CSV import/export and the wanted-list ROI
+   are separate surfaces, tracked as follow-ups.)
 7. **Confidence = a genuine recent sold sample exists** (derived). Not source divergence — the
    sources aren't independent.
 
