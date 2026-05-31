@@ -76,7 +76,7 @@ curl abuse of the key-bearing proxies. See [`docs/security.md`](security.md) (`A
 | Retiring waves | App open | Brick Fanatics (via ScraperAPI) | `blBFRetirementCache` (7d) | Retirement dates/waves |
 | Offline lookup | Instant | Rebrickable CSV | in-memory | Name/theme/parts fallback |
 | Budget Excel import | User picks an `.xlsx` file | User's file (`importBudgetExcel.js`) | → writes `blPurchases` | Budget tab purchase rows |
-| Daily price-history snapshots | When a value/price updates | Derived (`priceHistory.js`) | `blPriceHistory` (60-day rolling) | Trend arrows, growth charts |
+| Price history | On demand (read) | BrickEconomy `price_events_*` via `priceEventsFromBE` | `brickEconomySetCache[key].data` (read-only adapter) | WatchDetailPanel price chart (retired-only) |
 | Auth on every request | Every `/api` call | Clerk (`apiFetch.js` attaches JWT) | — (token in memory) | Gates every server feature |
 | Cloud sync | Sign-in / after edits | Upstash Redis | `blLastPushHash` | All data, across devices |
 

@@ -130,7 +130,7 @@ or a retail-price fallback, and as-of when. This is the structural gap the whole
 | G2 | Retail price treated as current value | `beSyncValues.js:18`, `MyCollection.jsx:633,664` | Med | **High** | Most user-visible correctness bug. Needs the §1b "retail, not market" tag to fix cleanly. |
 | G3 | new/used blended into a synthetic average | `beSyncValues.js:19-21` | Low | Med | Cheap to stop blending; harder to decide what to show instead (split vs. condition-driven single). |
 | G4 | Used band (`_low`/`_high`) ignored | never consumed | Low | Low | Free confidence signal currently dropped. |
-| G5 | BE `price_events_*` ignored; app keeps its **own** `blPriceHistory` snapshots | `priceHistory.js`, `WantedList.jsx:1201,1329` | Med | Med | We reinvent (worse) price history while the API hands us real dated observations. Price-drop feature should consume `price_events_*` directly. |
+| G5 ✅ RESOLVED | ~~BE `price_events_*` ignored; app keeps its **own** `blPriceHistory` snapshots~~ — closed by the price_events migration (§5): `priceHistory.js` deleted, chart reads `price_events_*` via `priceEventsFromBE`. | (was `priceHistory.js`) | Med | Med | History now comes from the API's real dated observations. The price-drop feature (at-retail) still awaits V4/BrickLink — `price_events_*` are retired-only. |
 | G6 | `retired`/`retired_date`/`rolling_growth_*` not used in valuation | partially shown in detail panels only | Low | Low | `retired` is the key confidence discriminator (§1b) yet never gates valuation. |
 | G7 | Forecasts stored but unanchored | `SetDetailPanel.jsx:65`, `WantedList.jsx:1213`, etc. | Low | Low | `forecast_value_new_*` stored as bare numbers too; same provenance gap as G1, lower stakes. |
 
@@ -234,27 +234,40 @@ is started; this is the proposal to shape against.**
 
 ---
 
-## 5. `price_events` migration — Phases 1–3
+## 5. `price_events` migration — Phases 1–4 (COMPLETE)
 
-> **Status:** Phase 1 done (shape pinned, 2026-05-31). **Phase 2 done** — pure read adapter
-> [`src/utils/priceEvents.js`](../src/utils/priceEvents.js) (`priceEventsFromBE`), fixture-tested
-> ([`priceEvents.test.js`](../src/utils/priceEvents.test.js), 15 tests against all 5 real fixtures),
-> **dark — no consumer/UI wiring, no storage/sync surface touched**. **Phase 3 (chart) done** —
-> the [`WatchDetailPanel`](../src/WatchDetailPanel.jsx) price-history chart now reads
-> `priceEventsFromBE(cached).new` (the BE blob already in scope at lines 28–32) instead of the
-> local `getPriceHistory` rolling window; the dead `blPriceNew` line + `hasBL` legend were dropped;
-> the `length < 2 → return null` guard is the "no history" state (BE events are retired-only → empty
-> for at-retail sets). UI-smoked: retired set → 12-pt gold ASC line, no blue line, axis/tooltip
-> correct; at-retail + no-cache sets → Price History section cleanly absent, no error.
+> **Status: DONE (all four phases, 2026-05-31).** Phase 1 pinned the shape from real fixtures.
+> Phase 2 added the pure read adapter [`src/utils/priceEvents.js`](../src/utils/priceEvents.js)
+> (`priceEventsFromBE`), fixture-tested ([`priceEvents.test.js`](../src/utils/priceEvents.test.js),
+> 15 tests against all 5 real fixtures), dark. Phase 3 repointed the
+> [`WatchDetailPanel`](../src/WatchDetailPanel.jsx) price-history chart onto
+> `priceEventsFromBE(cached).new` (the BE blob already in scope at lines 28–32), dropping the dead
+> `blPriceNew` line + `hasBL` legend; `length < 2 → return null` is the "no history" state (events are
+> retired-only → empty for at-retail). **Phase 4 (teardown) done** — the local price-history
+> subsystem is fully retired: the value + `blPriceNew` + `blPriceUsed` trend arrows in `WantedList`,
+> the always-empty `wlPriceTrendData` aggregate + its "Avg BL Price Trend" card, the two
+> `recordPriceSnapshot` writer calls, and `src/utils/priceHistory.js` itself (with its
+> `getPriceHistory`/`getPriceTrend`/`recordPriceSnapshot` exports) are all deleted.
 >
-> **Phase 3 scope was narrowed (Sam, map-approval)** to the **WatchDetailPanel chart ONLY**. The
-> [`getPriceTrend`](../src/utils/priceHistory.js) arrows in [`WantedList`](../src/WantedList.jsx) were
-> **deliberately left untouched** — they keep reading live local history, so nothing breaks now.
-> **Phase 4 teardown** (the deferred set): drop the value/`blPriceNew`/`blPriceUsed` trend arrows
-> (value arrow dropped unless Sam says otherwise), retire `getPriceHistory` + `getPriceTrend`, delete
-> the always-empty `wlPriceTrendData` (D2), and delete the dead `blPriceNew` / `blPriceUsed` fields (D2).
-> The "valuation.md asserts it" unknown is now a real, pinned contract:
+> **D1 — RESOLVED:** the chart renders the `new` series only; `used` is mapped by the adapter but
+> unrendered until V4. **D2 — RESOLVED:** the *dead BL schema* = the `blPriceNew`/`blPriceUsed` keys
+> in the price-history *snapshot* schema (only ever fed `{msrp, value}`); these died with
+> `priceHistory.js`. The **live BrickLink `item.blPriceNew/blPriceUsed/*Min/*Max` fields + their 4
+> wanted-list columns were PRESERVED** — they are populated by the BrickLink price-guide fetch
+> (`WantedList.jsx` ~L1340), distinct from the dead snapshot schema. Only the (always-null) trend
+> *arrow* was removed from those cells; the live price value display stays.
+>
+> **No test-count change** (235 → 235): `priceHistory.js` had no test file. **Device-local
+> `blPriceHistory` key left in place** — not in any sync/backup registry, never pushed, self-clears
+> on sign-out; no migration needed. A user's persisted (stale) `price-trend` card degrades to the
+> render chain's `: null` terminator (harmless empty card only if previously made visible; default
+> was `visible:false`). UI-smoked: wanted-list table shows currentValue + live BL columns with **no
+> arrows**, no aggregate trend chart, no console errors; WatchDetailPanel chart unaffected.
+>
+> The "valuation.md asserts it" unknown is a real, pinned contract:
 > [`test-data/be-fixtures/`](../test-data/be-fixtures/) + [`scripts/capture-price-events.mjs`](../scripts/capture-price-events.mjs).
+> **Strategic note carried forward:** `price_events_*` are retired-only → honest history for retired
+> sets, but **not** an at-retail deal-watch signal (that awaits V4 / BrickLink).
 
 **Pinned shape** (full contract + per-case matrix in the fixtures README):
 - `price_events_new[]` / `price_events_used[]` = arrays of `{ date: "YYYY-MM-DD" (string), value: number }`.

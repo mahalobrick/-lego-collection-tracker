@@ -33,8 +33,9 @@ worth. One layer of the app; the buy/decision layer and order of operations live
 - No estimated-vs-sales boolean; confidence is **derived** (retired + price_events presence +
   used band).
 - API never blends new/used; any single blended "Value" is a BrickLedger invention to remove.
-- Unused today: `price_events_new/used` (real history — prefer over the app's `blPriceHistory`),
-  `rolling_growth_*`, `retired_date`. ~96.8% of sets have a value; ~3% none.
+- `price_events_new/used` (real dated history, retired-only) now backs the WatchDetailPanel
+  price-history chart via `priceEventsFromBE` — it replaced the app's home-grown `blPriceHistory`.
+  Still unused: `rolling_growth_*`, `retired_date`. ~96.8% of sets have a value; ~3% none.
 
 ## Value rules
 
@@ -132,11 +133,13 @@ figure without flagging.
 
 - **Surfacing:** at-retail labeled as retail (basis tag), unknown as "—" and excluded from
   totals — confirm the exact UI/rollup treatment.
-- **price_events migration:** the app currently maintains its own price history as a **60-day
-  rolling `blPriceHistory`** — daily snapshots, one per set per calendar day, upserted by
-  [`src/utils/priceHistory.js`](../src/utils/priceHistory.js) (oldest dropped past 60 entries);
-  feeds trend arrows / growth charts. Migration target: reconcile or replace it with
-  BrickEconomy's real `price_events_*` (genuine dated history, deeper than 60 days). Decide
-  whether to backfill from `price_events_*` or run both during transition.
+- **price_events migration: DONE.** The app no longer maintains its own price history — the
+  home-grown 60-day rolling `blPriceHistory` and `src/utils/priceHistory.js` were retired. Price
+  history is now read straight from BrickEconomy's real dated `price_events_*` via
+  [`priceEventsFromBE`](../src/utils/priceEvents.js) (pure read-from-cache adapter), rendered in
+  the WatchDetailPanel chart. No backfill / no dual-run was needed: `price_events_*` are deeper in
+  calendar span (~12 points over 6+ months) but **retired-only** (absent for at-retail sets, which
+  cleanly show no chart). The dead local trend arrows and the always-empty aggregate trend chart
+  were removed. See [value-layer-plan.md §5](value-layer-plan.md#5-price_events-migration--phases-14).
 - **V4 BrickLink robustness:** confirm API-auth vs scrape before promoting BrickLink-sold to the
   primary value source.

@@ -5,7 +5,6 @@ import toast from "react-hot-toast";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import { DEFAULT_WANTED_COLUMNS } from "./utils/columnDefaults";
 import { fireOpenNotifications } from "./utils/notifications";
-import { recordPriceSnapshot, getPriceTrend, getPriceHistory } from "./utils/priceHistory";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { searchInput, filterSelect, clearFilterButton } from "./uiStyles";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, LineChart, Line } from "recharts";
@@ -40,7 +39,6 @@ const DEFAULT_WL_ITEMS = [
   { key: "theme-breakdown",    type: "panel", label: "By Theme",               visible: false, width: "half",  collapsed: false },
   { key: "action-breakdown",   type: "panel", label: "Action Breakdown",       visible: false, width: "half",  collapsed: false },
   { key: "score-distribution", type: "panel", label: "Score Distribution",     visible: false, width: "half",  collapsed: false },
-  { key: "price-trend",        type: "panel", label: "Avg BL Price Trend",     visible: false, width: "full",  collapsed: false },
 ];
 
 export default function WantedList({ onBuyNow }) {
@@ -815,18 +813,7 @@ export default function WantedList({ onBuyNow }) {
     }
     if (key === "theme") return item.theme || "—";
     if (key === "pieces") return item.pieces ? item.pieces.toLocaleString() : "—";
-    if (key === "currentValue") {
-      if (!item.currentValue) return "—";
-      const trend = getPriceTrend(item.setNumber, "value");
-      const arrow = trend === "up" ? "↑" : trend === "down" ? "↓" : trend === "flat" ? "→" : null;
-      const arrowColor = trend === "up" ? "#5aa832" : trend === "down" ? "#ef4444" : "#5d6f80";
-      return (
-        <span>
-          {money(item.currentValue)}
-          {arrow && <span style={{ marginLeft: 4, fontSize: 11, color: arrowColor, fontWeight: 700 }}>{arrow}</span>}
-        </span>
-      );
-    }
+    if (key === "currentValue") return item.currentValue ? money(item.currentValue) : "—";
     if (key === "retirementYear") {
       if (!item.retirementYear) return "—";
       return item.retirementYear;
@@ -846,30 +833,8 @@ export default function WantedList({ onBuyNow }) {
     if (key === "ageMin") return item.ageMin ? `${item.ageMin}+` : "—";
     if (key === "forecast2yr") return item.forecast2yr ? money(item.forecast2yr) : "—";
     if (key === "forecast5yr") return item.forecast5yr ? money(item.forecast5yr) : "—";
-    if (key === "blPriceNew") {
-      if (!item.blPriceNew) return "—";
-      const trend = getPriceTrend(item.setNumber, "blPriceNew");
-      const arrow = trend === "up" ? "↑" : trend === "down" ? "↓" : trend === "flat" ? "→" : null;
-      const arrowColor = trend === "up" ? "#5aa832" : trend === "down" ? "#ef4444" : "#5d6f80";
-      return (
-        <span>
-          {money(item.blPriceNew)}
-          {arrow && <span style={{ marginLeft: 4, fontSize: 11, color: arrowColor, fontWeight: 700 }}>{arrow}</span>}
-        </span>
-      );
-    }
-    if (key === "blPriceUsed") {
-      if (!item.blPriceUsed) return "—";
-      const trend = getPriceTrend(item.setNumber, "blPriceUsed");
-      const arrow = trend === "up" ? "↑" : trend === "down" ? "↓" : trend === "flat" ? "→" : null;
-      const arrowColor = trend === "up" ? "#5aa832" : trend === "down" ? "#ef4444" : "#5d6f80";
-      return (
-        <span>
-          {money(item.blPriceUsed)}
-          {arrow && <span style={{ marginLeft: 4, fontSize: 11, color: arrowColor, fontWeight: 700 }}>{arrow}</span>}
-        </span>
-      );
-    }
+    if (key === "blPriceNew") return item.blPriceNew ? money(item.blPriceNew) : "—";
+    if (key === "blPriceUsed") return item.blPriceUsed ? money(item.blPriceUsed) : "—";
     if (key === "owned") {
       const isOwned = ownedSetNumbers.has(String(item.setNumber || "").replace(/-1$/, ""));
       return isOwned
@@ -1152,23 +1117,6 @@ export default function WantedList({ onBuyNow }) {
     });
     return buckets;
   })();
-  // Aggregate BL price trend — daily avg across all sets (only dates with ≥3 entries)
-  const wlPriceTrendData = (() => {
-    const byDate = {};
-    wanted.forEach(w => {
-      if (!w.setNumber) return;
-      getPriceHistory(w.setNumber).forEach(snap => {
-        const v = asNumber(snap.blPriceNew);
-        if (!v) return;
-        if (!byDate[snap.date]) byDate[snap.date] = [];
-        byDate[snap.date].push(v);
-      });
-    });
-    return Object.entries(byDate)
-      .filter(([, vals]) => vals.length >= 3)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, vals]) => ({ date, avgBlNew: Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 100) / 100 }));
-  })();
 
   // ── Bulk price refresh ────────────────────────────────────────────────────
   // Re-fetches BrickEconomy data for every tracked set (rate-limited 1/500ms).
@@ -1196,12 +1144,6 @@ export default function WantedList({ onBuyNow }) {
           cache[key] = { fetchedAt: new Date().toISOString(), data };
           setItemSafe("brickEconomySetCache", JSON.stringify(cache));
         } catch {}
-
-        // Record price snapshot
-        recordPriceSnapshot(key, {
-          msrp:       data.retail_price_us,
-          value:      data.current_value_new,
-        });
 
         // Patch the matching wanted item
         setWanted(prev => prev.map(w => {
@@ -1325,10 +1267,6 @@ export default function WantedList({ onBuyNow }) {
                 }
               }
               return Object.keys(updates).length ? { ...prev, ...updates } : prev;
-            });
-            recordPriceSnapshot(lookupKey, {
-              msrp:  bsData?.retail_price_us || beData.retail_price_us,
-              value: beData.current_value_new,
             });
             if (beData.current_value_new) {
               setLookupMessage(m => m + ` · Value: $${Number(beData.current_value_new).toFixed(0)}`);
@@ -1813,26 +1751,6 @@ export default function WantedList({ onBuyNow }) {
                                 {wlScoreBuckets.map((b, i) => <Cell key={i} fill={b.color} />)}
                               </Bar>
                             </BarChart>
-                          </ResponsiveContainer>
-                        )}
-                      </div>
-                    ) : item.key === "price-trend" ? (
-                      <div style={{ ...panel, marginTop: 0 }}>
-                        <h4 style={{ margin: "0 0 4px" }}>Avg BL Price Trend</h4>
-                        <div style={{ fontSize: 12, color: "#5d6f80", marginBottom: 14 }}>Average BrickLink new price across all tracked sets</div>
-                        {wlPriceTrendData.length < 5 ? (
-                          <div style={{ color: "#5d6f80", fontSize: 13 }}>Not enough data yet — prices are recorded each time you look up a set. Come back after a few days of use.</div>
-                        ) : (
-                          <ResponsiveContainer width="100%" height={160}>
-                            <LineChart data={wlPriceTrendData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
-                              <XAxis dataKey="date" tick={{ fill: "#5d6f80", fontSize: 10 }} axisLine={false} tickLine={false}
-                                tickFormatter={d => d.slice(5)} interval="preserveStartEnd" />
-                              <YAxis tick={{ fill: "#5d6f80", fontSize: 11 }} axisLine={false} tickLine={false}
-                                tickFormatter={v => `$${v}`} width={48} />
-                              <Tooltip formatter={v => [money(v), "Avg BL New"]} labelFormatter={l => `Date: ${l}`}
-                                contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
-                              <Line type="monotone" dataKey="avgBlNew" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                            </LineChart>
                           </ResponsiveContainer>
                         )}
                       </div>
