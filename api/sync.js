@@ -14,6 +14,10 @@
 const { authenticate } = require("./_auth");
 const { rateLimitAllow } = require("./_ratelimit");
 const { setCors, internalError } = require("./_cors");
+// Timeout-ONLY (no data-source envelope): a thrown FetchFailure propagates to the handler's
+// try/catch -> internalError, exactly like today's raw fetch network-throw. sync.js is the sync
+// substrate, not a data source — it never emits the {kind, source} envelope.
+const { fetchWithTimeout } = require("./_fetch");
 
 const ONE_YEAR = 60 * 60 * 24 * 365;
 
@@ -21,9 +25,9 @@ const ONE_YEAR = 60 * 60 * 24 * 365;
 function upstashClient(url, token) {
   return {
     async get(key) {
-      const r = await fetch(`${url}/get/${encodeURIComponent(key)}`, {
+      const r = await fetchWithTimeout(`${url}/get/${encodeURIComponent(key)}`, {
         headers: { Authorization: `Bearer ${token}` },
-      });
+      }, { timeoutMs: 15_000 });
       const j = await r.json();
       if (j.result === null || j.result === undefined) return null;
       let parsed = typeof j.result === "string" ? JSON.parse(j.result) : j.result;
@@ -31,11 +35,11 @@ function upstashClient(url, token) {
       return parsed;
     },
     async set(key, value, ex) {
-      await fetch(`${url}/set/${encodeURIComponent(key)}?ex=${ex}`, {
+      await fetchWithTimeout(`${url}/set/${encodeURIComponent(key)}?ex=${ex}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(value),
-      });
+      }, { timeoutMs: 15_000 });
     },
   };
 }
