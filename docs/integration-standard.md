@@ -53,7 +53,8 @@ setCors  →  requireAuth  →  rateLimitAllow  →  fetch(upstream, { timeout }
   straight to the client instead of failing at a curated boundary. Tolerated for now because the BE
   blob has many consumers and `price_events_*` is already pinned (§5) — but it is the reason BE value
   fields are a **P2** contract-test target.
-- ❌ **Timeouts** are missing on 4 of 5 live proxies → **P3** (§4).
+- ⏳ **Timeouts**: the shared `fetchWithTimeout` wrapper landed (P3 S4, Brick Fanatics migrated as the
+  reference); the remaining proxies + `sync.js` migrate onto it in **P3 S5** → **§4**.
 
 ---
 
@@ -140,11 +141,15 @@ open refinement is a tighter/​cost-aware (or fail-closed) limit for the Scrape
 
 ### Current conformance
 
-- ❌ **Timeouts: only Brick Fanatics has one** (`AbortSignal.timeout(45_000)`). BrickEconomy, Brickset,
-  BrickLink, and LEGO.com proxies have **no** fetch timeout → **P3**.
-- ❌ **Silent failure is the default UX.** Brickset/BrickLink failures return `null` + `console.warn`;
-  the UI shows no data with no error signal. Only the BE sync surfaces a "failed" count → **P3** (typed
-  error surface).
+- ⏳ **Timeouts: the shared wrapper landed (P3 S4).** `fetchWithTimeout` in [`api/_fetch.js`](../api/_fetch.js)
+  applies the timeout and maps an abort/network throw to a typed `FetchFailure`; **Brick Fanatics is the
+  migrated reference**. BrickEconomy, Brickset, BrickLink, LEGO.com **and `sync.js`** still call bare `fetch`
+  → migrate in **P3 S5**, made permanent by the no-bare-`fetch` lock test (S5 final commit).
+- ⏳ **Typed-error envelope helper landed (P3 S4).** `sendSourceError` emits the B2 shape
+  `{ok:false, error:{kind, source, …}}` with a fixed kind→HTTP-status map (data-source proxies only;
+  `sync.js` keeps its own Upstash handling); Brick Fanatics emits it today. The remaining proxies still
+  return `null` + `console.warn` silently → **P3 S5** (proxies) + **S6** (client surface that renders the
+  envelope instead of swallowing it).
 - ✅ **The BrickLink scrape fallback + no-op block were removed (P3 S3)** — a primary-API auth/parse/network
   failure now returns a clean ad-hoc error (upstream status / `502` invalid JSON / `500`) instead of a dead
   `{format:"html"}` the client discarded. See the V4 gating answer in [§8](#8-the-v4-gating-answer-bricklink).

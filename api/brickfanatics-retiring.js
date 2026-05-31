@@ -150,6 +150,10 @@ function parseArticle(html) {
 const { setCors, internalError } = require("./_cors");
 const { requireAuth } = require("./_auth");
 const { rateLimitAllow } = require("./_ratelimit");
+const { fetchWithTimeout, FetchFailure, sendSourceError } = require("./_fetch");
+
+// Envelope source enum (machine token) — distinct from the payload's "Brick Fanatics" display label.
+const SOURCE = "brickfanatics";
 
 module.exports = async function handler(req, res) {
   if (setCors(req, res, "GET, OPTIONS")) return res.status(200).end();
@@ -158,15 +162,17 @@ module.exports = async function handler(req, res) {
   if (!userId) return;
 
   if (!(await rateLimitAllow(userId, { limit: 60, windowSeconds: 60, bucket: "scrape" }))) {
-    res.setHeader("Retry-After", "60");
-    return res.status(429).json({ error: "rate_limited" });
+    return sendSourceError(res, {
+      kind: "rate_limited", source: SOURCE,
+      message: "Too many requests — please retry shortly.", retryAfter: 60,
+    });
   }
 
   const apiKey = process.env.SCRAPERAPI_KEY || "";
   if (!apiKey) {
-    return res.status(503).json({
-      error: "no_key",
-      message: "SCRAPERAPI_KEY not configured — add it to .env.local and Vercel env vars.",
+    return sendSourceError(res, {
+      kind: "not_configured", source: SOURCE,
+      message: "Brick Fanatics retirement data is not configured.",
     });
   }
 
@@ -178,17 +184,13 @@ module.exports = async function handler(req, res) {
       `&url=${encodeURIComponent(BF_URL)}` +
       `&render=true`;
 
-    const r = await fetch(scraperUrl, {
-      headers: { Accept: "text/html" },
-      // ScraperAPI can take 20-30s on JS render — set a generous timeout
-      signal: AbortSignal.timeout(45_000),
-    });
+    // ScraperAPI can take 20-30s on JS render — generous timeout via the shared wrapper.
+    const r = await fetchWithTimeout(scraperUrl, { headers: { Accept: "text/html" } }, { timeoutMs: 45_000 });
 
     if (!r.ok) {
-      return res.status(502).json({
-        error: "scraper_error",
-        status: r.status,
-        message: `ScraperAPI returned HTTP ${r.status}`,
+      return sendSourceError(res, {
+        kind: "bad_gateway", source: SOURCE,
+        message: "Brick Fanatics scraper returned an error.", status: r.status,
       });
     }
 
@@ -203,10 +205,9 @@ module.exports = async function handler(req, res) {
     const sets = parseArticle(html);
 
     if (sets.length === 0) {
-      return res.status(502).json({
-        error: "parse_failed",
-        message:
-          "Parsed 0 sets — the article structure may have changed. Use ?debug=1 to inspect the raw HTML.",
+      return sendSourceError(res, {
+        kind: "bad_gateway", source: SOURCE,
+        message: "Parsed 0 Brick Fanatics sets — the article structure may have changed.",
       });
     }
 
@@ -238,6 +239,15 @@ module.exports = async function handler(req, res) {
       source: "Brick Fanatics",
     });
   } catch (err) {
+    if (err instanceof FetchFailure) {
+      return sendSourceError(res, {
+        kind: err.kind === "timeout" ? "timeout" : "upstream_error",
+        source: SOURCE,
+        message: err.kind === "timeout"
+          ? "Brick Fanatics request timed out."
+          : "Could not reach Brick Fanatics.",
+      });
+    }
     return internalError(res, err, "brickfanatics-retiring");
   }
 };
