@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { asNumber, money, setImageUrl, conditionLabel, conditionColor, daysUntilRetirement } from "./utils/formatting";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { setValueProvenance, setGain, setROI } from "./utils/portfolio";
-import { toValue } from "./utils/value";
+import { toValue, valueAmount } from "./utils/value";
 import { formatValueCell } from "./utils/valueDisplay";
 
 function entryPaid(e) {
@@ -221,8 +221,10 @@ export default function SetDetailPanel({ item, onClose, onEdit }) {
               {entries.map((entry, i) => {
                 const paid = entryPaid(entry);
                 // Null-aware per copy: unknown value → "—", never $0 / phantom −cost.
+                // valueAmount applies the shared VALUE-only 0→unknown rule (same source as
+                // rawSetValue), so a stored current_value of 0 reads as unknown, not $0.
                 // (unknown≠0 sweep)
-                const entryProv = toValue(entry.current_value ?? entry.Value ?? entry.value, { condition: entry.condition, retired: item.retired });
+                const entryProv = toValue(valueAmount(entry.current_value ?? entry.Value ?? entry.value), { condition: entry.condition, retired: item.retired });
                 const val = entryProv.amount;
                 const g = val === null ? null : val - paid;
                 const r = (val === null || paid <= 0) ? null : (g / paid) * 100;

@@ -10,6 +10,7 @@ import {
   groupRollup,
 } from "./portfolio";
 import { formatValueCell } from "./valueDisplay";
+import { toValue, valueAmount } from "./value";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOCK: a stored 0 value reads as UNKNOWN, end-to-end — for VALUE, 0 and absent
@@ -76,5 +77,40 @@ describe("an unknown (0-value) set shows '—' and is excluded from totals / avg
     expect(g.value).toBeCloseTo(150, 5);
     expect(g.knownValueCount).toBe(1);
     expect(g.unknownValueCount).toBe(1);
+  });
+});
+
+// The SetDetailPanel per-copy breakdown builds its Value via toValue directly (not
+// rawSetValue), so it routes the raw entry value through the SAME shared valueAmount
+// helper. This pins that a per-copy entry stored with current_value: 0 reads as
+// unknown end-to-end — value "—" and gain "—", never "$0.00" / a phantom 0 − paid.
+describe("per-copy entry: a stored current_value 0 is unknown (value '—', gain '—')", () => {
+  beforeEach(() => localStorage.clear());
+
+  // Mirrors SetDetailPanel's per-copy inline read.
+  const entryProv = (entry) =>
+    toValue(valueAmount(entry.current_value ?? entry.Value ?? entry.value), {
+      condition: entry.condition,
+      retired: false,
+    });
+  const entryGain = (entry, paid) => {
+    const val = entryProv(entry).amount;
+    return val === null ? null : val - paid;
+  };
+
+  it("current_value: 0 → value unknown → cell '—', never '$0.00'", () => {
+    const prov = entryProv({ current_value: 0 });
+    expect(prov.amount).toBeNull();
+    expect(formatValueCell(prov)).toBe("—");
+  });
+
+  it("current_value: 0 → gain '—' (null), never a phantom 0 − paid loss", () => {
+    expect(entryGain({ current_value: 0 }, 50)).toBeNull(); // NOT −50
+  });
+
+  it("a known per-copy value still renders and gains normally", () => {
+    const prov = entryProv({ current_value: 120 });
+    expect(formatValueCell(prov)).toBe("$120.00");
+    expect(entryGain({ current_value: 120 }, 100)).toBeCloseTo(20, 5);
   });
 });

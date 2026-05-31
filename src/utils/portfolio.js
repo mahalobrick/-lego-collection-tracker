@@ -1,5 +1,5 @@
 import { asNumber } from "./formatting";
-import { toValue } from "./value";
+import { toValue, valueAmount } from "./value";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Portfolio rollup (V2a). Pure, no React, no localStorage.
@@ -25,14 +25,21 @@ import { toValue } from "./value";
  * 0 contribution (it adds nothing), but count-based metrics can now exclude it
  * instead of dragging an average down with a phantom $0 (see {@link knownValueCount}).
  *
+ * For VALUE, a stored 0 and an absent field are the SAME — both unknown. No set is
+ * genuinely worth $0, so a 0 value always means "no data"; the coalescing is done by
+ * the shared, value-only {@link valueAmount} helper (also used by SetDetailPanel's
+ * per-copy path — the single source of this rule). Do NOT "fix" this to treat 0 as a
+ * real value: value.zero-unknown.test.js guards it. (Cost is separate — a $0 cost can
+ * be genuine GWP.)
+ *
  * @param {Object} s
  * @returns {number|null}
  */
 function rawSetValue(s) {
-  const total = asNumber(s.totalValue);
-  if (total) return total;
-  const perUnit = asNumber(s.currentValue);
-  return perUnit ? perUnit * (asNumber(s.qty) || 1) : null;
+  const total = valueAmount(s.totalValue);
+  if (total !== null) return total;
+  const perUnit = valueAmount(s.currentValue);
+  return perUnit === null ? null : perUnit * (asNumber(s.qty) || 1);
 }
 
 /**

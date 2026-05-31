@@ -20,6 +20,28 @@
 //   - Brickset is always 'retail' (it is original MSRP by definition).
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { asNumber } from "./formatting";
+
+/**
+ * The VALUE-only "0 means unknown" coalescing — the SINGLE point where a stored 0
+ * (or missing / blank / unparseable) value collapses to unknown (null). No real set
+ * is genuinely worth $0, so for VALUE a 0 always means "no data". Both the set-level
+ * funnel (`rawSetValue`, src/utils/portfolio.js) and the per-copy breakdown
+ * (SetDetailPanel) feed their raw value field through here before {@link toValue},
+ * so the 0→unknown rule lives in ONE place. Locked by value.zero-unknown.test.js.
+ *
+ * VALUE-ONLY — do NOT use this for cost: a $0 cost can be genuine (GWP). {@link toValue}
+ * / {@link normalizeAmount} stay general (they keep a genuine 0); this wrapper is
+ * applied only to the value amount on a value read.
+ *
+ * @param {*} raw
+ * @returns {number|null}  null when 0 / missing / unparseable; the number otherwise.
+ */
+export function valueAmount(raw) {
+  const n = asNumber(raw);
+  return n ? n : null;
+}
+
 /**
  * @typedef {Object} Value
  * @property {number|null} amount    Numeric value, or null when unknown (never 0-for-unknown).

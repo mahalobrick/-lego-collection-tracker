@@ -58,14 +58,28 @@ worth. One layer of the app; the buy/decision layer and order of operations live
    `currentValue` (BE) divergence by tagging source explicitly.) *(G1)*
 6. **Unknown ≠ 0.** First-class unknown state, rendered "—", **excluded from the combined total**
    (which still sums all known-value sets, new + used) with a "N sets have no value data" note —
-   never silently counted as $0. *(falsy-zero)* **Enforced by construction:** every value/gain
-   consumer — per-row value & gain cells, headline totals, avgValue, ROI + ROI leaders,
-   Value-by-Theme, Theme Performance, Most Valuable Sets, the portfolio-history snapshot, and the
-   set detail panel (set-level + per-copy) — routes through the null-aware functions in
-   `src/utils/portfolio.js` (`setValueProvenance`, `setGain`, `setROI`, `portfolioValue/Gain/ROI`,
-   `groupRollup`). No consumer does its own `asNumber(value) || 0` or `value − paid`. (Sold-tab
-   realized gains are computed from a known sale price; CSV import/export and the wanted-list ROI
-   are separate surfaces, tracked as follow-ups.)
+   never silently counted as $0. *(falsy-zero)* Two parts, both true today:
+
+   - **0 = unknown, for value.** A stored 0 value and an absent value field are treated
+     **identically — both unknown**. No set is genuinely worth $0, so a 0 always means "no data."
+     This coalescing is **single-sourced** in `valueAmount()` (`src/utils/value.js`), applied by
+     both the set-level funnel (`rawSetValue`) and the SetDetailPanel per-copy breakdown, and
+     **locked end-to-end** by `value.zero-unknown.test.js` (a stored `totalValue:0` / `currentValue:0`
+     / per-copy `current_value:0` reads "—" and is excluded from totals / avg / ROI). Honest caveat:
+     storage **may still hold baked-0 values** from older imports — harmless, because they're
+     recovered to unknown on every read; *truly-clean value storage* (never persisting a 0) is a
+     future migration bundled with the cost-provenance work, **not done here**. **Asymmetry:** this
+     0-means-unknown rule is **VALUE-only** — for COST a $0 can be genuine (a free GWP), handled
+     separately (see *Cost basis & ROI*). `toValue`/`normalizeAmount` stay general and keep a 0;
+     only the value amount is coalesced, via `valueAmount`.
+   - **Routed through null-aware funcs.** Every value/gain consumer — per-row value & gain cells,
+     headline totals, avgValue, ROI + ROI leaders, Value-by-Theme, Theme Performance, Most Valuable
+     Sets, the portfolio-history snapshot, and the set detail panel (set-level + per-copy) — reads
+     through the null-aware functions in `src/utils/portfolio.js` (`setValueProvenance`, `setGain`,
+     `setROI`, `portfolioValue/Gain/ROI`, `groupRollup`). No consumer does its own
+     `asNumber(value) || 0` or `value − paid`. (Sold-tab realized gains are computed from a known
+     sale price; CSV import/export and the wanted-list ROI are separate surfaces, tracked as
+     follow-ups.)
 7. **Confidence = a genuine recent sold sample exists** (derived). Not source divergence — the
    sources aren't independent.
 

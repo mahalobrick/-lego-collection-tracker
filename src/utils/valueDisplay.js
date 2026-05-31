@@ -15,15 +15,20 @@ import { money } from "./formatting";
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Render a set's value cell from its {@link import("./value").Value} struct.
- * Unknown (amount === null) → "—"; a known amount (incl. a genuine 0) → money().
- * Unknown is NEVER rendered as $0.00 (docs/valuation.md rule 6).
+ * Render a set's value cell from its {@link import("./value").Value} struct:
+ * amount null → "—" (unknown), else money(). Unknown is NEVER rendered as $0.00
+ * (docs/valuation.md rule 6).
+ *
+ * This is a pure formatter — it does NOT decide 0-vs-unknown. For VALUE the 0→unknown
+ * coalescing is single-sourced upstream in {@link import("./value").valueAmount} (used
+ * by rawSetValue and the per-copy path), so a 0 amount never reaches here on a value
+ * read; there is no genuine-$0 value case to render.
  *
  * @param {import("./value").Value} value
  * @returns {string}
  */
 export function formatValueCell(value) {
-  if (!value || value.amount === null) return "—";
+  if (!value || value.amount == null) return "—";
   return money(value.amount);
 }
 
