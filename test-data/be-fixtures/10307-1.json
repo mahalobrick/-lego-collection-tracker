@@ -1,0 +1,23 @@
+{
+  "data": {
+    "set_number": "10307-1",
+    "name": "Eiffel Tower",
+    "theme": "Icons",
+    "subtheme": "Landmarks",
+    "year": 2022,
+    "pieces_count": 10001,
+    "availability": "retaillimited",
+    "retail_price_us": 629.99,
+    "retail_price_uk": 554.99,
+    "retail_price_ca": 799.99,
+    "retail_price_eu": 629.99,
+    "retail_price_au": 999.99,
+    "ean": "5702017153292",
+    "upc": "673419355797",
+    "released_date": "2022-11-25",
+    "current_value_new": 629.99,
+    "forecast_value_new_2_years": 797.31,
+    "forecast_value_new_5_years": 939.3,
+    "currency": "USD"
+  }
+}

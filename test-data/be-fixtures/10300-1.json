@@ -1,0 +1,28 @@
+{
+  "data": {
+    "set_number": "10300-1",
+    "name": "Back to the Future Time Machine",
+    "theme": "Icons",
+    "subtheme": "Licensed",
+    "year": 2022,
+    "pieces_count": 1872,
+    "minifigs_count": 2,
+    "minifigs": [
+      "btf001",
+      "btf002"
+    ],
+    "availability": "retail",
+    "retail_price_us": 199.99,
+    "retail_price_uk": 169.99,
+    "retail_price_ca": 249.99,
+    "retail_price_eu": 199.99,
+    "retail_price_au": 299.99,
+    "ean": "5702017153186",
+    "upc": "673419761697",
+    "released_date": "2022-04-01",
+    "current_value_new": 199.99,
+    "forecast_value_new_2_years": 223.94,
+    "forecast_value_new_5_years": 259.22,
+    "currency": "USD"
+  }
+}

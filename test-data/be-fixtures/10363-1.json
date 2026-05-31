@@ -1,0 +1,26 @@
+{
+  "data": {
+    "set_number": "10363-1",
+    "name": "Leonardo da Vinci's Flying Machine",
+    "theme": "Icons",
+    "year": 2025,
+    "pieces_count": 493,
+    "minifigs_count": 1,
+    "minifigs": [
+      "twn518"
+    ],
+    "availability": "retail",
+    "retail_price_us": 49.99,
+    "retail_price_uk": 54.99,
+    "retail_price_ca": 64.99,
+    "retail_price_eu": 59.99,
+    "retail_price_au": 99.99,
+    "ean": "5702017815893",
+    "upc": "673419404976",
+    "released_date": "2025-01-01",
+    "current_value_new": 49.99,
+    "forecast_value_new_2_years": 52.29,
+    "forecast_value_new_5_years": 55.68,
+    "currency": "USD"
+  }
+}

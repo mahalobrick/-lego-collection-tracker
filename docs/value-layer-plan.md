@@ -234,6 +234,66 @@ is started; this is the proposal to shape against.**
 
 ---
 
+## 5. `price_events` migration — Phase 1 (shape pinned from REAL data, fixture-first)
+
+> **Status:** Phase 1 done — shape pinned, no production code touched. Captured live **2026-05-31**.
+> The "valuation.md asserts it" unknown is now a real, pinned contract:
+> [`test-data/be-fixtures/`](../test-data/be-fixtures/) + [`scripts/capture-price-events.mjs`](../scripts/capture-price-events.mjs).
+
+**Pinned shape** (full contract + per-case matrix in the fixtures README):
+- `price_events_new[]` / `price_events_used[]` = arrays of `{ date: "YYYY-MM-DD" (string), value: number }`.
+- **Newest-first (DESC)**; the chart sorts ASC → adapter must re-sort.
+- **A fixed ~12-point, newest-first, retired-only window** — exactly 12 points in every present case.
+  Framing correction vs. the docs' earlier "deeper than 60 days": BE events are **deeper in calendar
+  span** (12 points stretch ~6+ months) but **sparser** than the app's 60 *daily* points, and **absent
+  for ALL at-retail sets**. So this is not "more of the same history" — it is real, irregular,
+  retired-only history replacing a dense-but-shallow synthetic one.
+- Presence is keyed on retirement: **both keys entirely absent** (not `[]`/`null`) for non-retired sets;
+  `price_events_used` can be absent while `_new` is present (presence is `used ⊆ new`).
+- **Already in the cached `data` object → NO new network call** for sets the daily/manual BE sync has
+  already fetched (`beSyncValues.fetchSet` stores the whole `data` blob; the proxy is a verbatim passthrough).
+  The adapter reads `brickEconomySetCache[key].data.price_events_*`. Only never-synced sets need a fetch,
+  which the existing sync already performs.
+
+**Strategic note (Arc 3 / deal-watch):** BE `price_events_*` are **retired-only** → they are **NOT a
+deal-watch signal for at-retail sets** (which is where price drops are actionable). The deal-watch feature
+(Arc 3) therefore depends on **V4 / BrickLink**, not on this migration. This warm-up gives honest history
+for retired sets; it does not unlock price-drop alerts.
+
+Fixtures (real): `10300-1`, `10307-1`, `10363-1` (at-retail, events absent — the **unknown-history** case),
+`71460-1` (retired, new-only events), `30432-1` (retired, new+used events). The genuine ~3% **no-value**
+set (null `current_value_new`) is a value-layer gap, **not** captured and **not** blocking this migration
+(unknown-*history* is covered by the at-retail fixtures).
+
+### Decisions — RATIFIED (2026-05-31)
+
+- **D1 — new-only chart. RATIFIED.** Render **only the new series now**. Refinement: the **Phase 2
+  adapter maps BOTH `price_events_new` AND `price_events_used`** (each `?? []`), likely as **two
+  separate series** in its return shape — so **V4 adds the used line with zero rework** (just render the
+  already-mapped second series). The adapter does the full mapping; Phase 3 renders new-only. New-only is
+  always satisfiable (`pe_new` present whenever any events exist); the used series is conditional and its
+  *rendering* waits for V4.
+
+- **D2 — delete the dead BL schema in Phase 4. RATIFIED.** Delete **both** the dead `blPriceNew` /
+  `blPriceUsed` fields **and** the always-empty `WantedList.wlPriceTrendData`. **Do NOT
+  repoint/resurrect `wlPriceTrendData`** — it is removed, not migrated. These are **not placeholders**:
+  V4 adds a real BL series via the **same read-from-cache adapter pattern** (D1), so there is nothing to
+  preserve. `recordPriceSnapshot` only ever writes `{ msrp, value }`, so today these never populate and
+  the WatchDetailPanel blue line / the trend chart never draw.
+
+  **Phase 3 live-repoint targets are exactly two:** the **WatchDetailPanel value chart** and the
+  **`getPriceTrend` arrows**. `wlPriceTrendData` is NOT a repoint target — it is deleted in Phase 4.
+
+### Phase 2 note (do NOT build yet) — 0 = unknown discipline
+
+The adapter must apply the **same 0 = unknown rule as the value layer** (valuation.md rule 6 /
+[`value.js` `valueAmount`](../src/utils/value.js)): a `price_event` whose value is missing or `0` is
+**unknown** — **omitted from the series, never plotted as `$0`**. No zeros appear in the real fixtures, but
+this is defensive and keeps the chart consistent with how every other value read in the app treats 0.
+(This is VALUE data, so the value-side rule applies — not the cost asymmetry.)
+
+---
+
 ## Appendix — verification commands
 
 ```
