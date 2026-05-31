@@ -23,7 +23,7 @@ export async function fetchLegoThemes() {
   try {
     const res = await apiFetch("/api/brickset-themes");
     const json = await res.json();
-    if (json.error === "no_key" || !res.ok) return [];
+    if (!res.ok) return [];  // includes the not_configured (no API key) envelope
     const themes = json.themes || [];
     try {
       setItemSafe(THEMES_CACHE_KEY, JSON.stringify({ fetchedAt: new Date().toISOString(), themes }));
@@ -45,8 +45,9 @@ export async function searchBricksetCatalog(query, theme = "") {
     if (theme) params.set("theme", theme);
     const res = await apiFetch(`/api/brickset-search?${params}`);
     const json = await res.json();
-    if (json.error === "no_key") return { sets: [], noKey: true };
-    if (!res.ok || json.error) return { sets: [], error: json.message || json.error };
+    // Failure body is now the typed envelope { ok:false, error:{ kind, source, message } }.
+    if (json.error?.kind === "not_configured") return { sets: [], noKey: true };
+    if (!res.ok || json.error) return { sets: [], error: json.error?.message || "Brickset request failed." };
     return { sets: json.sets || [], total: json.total };
   } catch (err) {
     return { sets: [], error: err.message };
@@ -81,12 +82,8 @@ export async function fetchBricksetSet(setNumber) {
     const res = await apiFetch(`/api/brickset-set?number=${encodeURIComponent(setNumber)}`);
     const json = await res.json();
 
-    if (json.error === "no_key") {
-      // API key not configured — silently return null
-      return null;
-    }
-
     if (!res.ok || json.error) {
+      // includes the not_configured (no API key) envelope — silently return null
       return null;
     }
 
