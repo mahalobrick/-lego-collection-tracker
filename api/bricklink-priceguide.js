@@ -96,43 +96,16 @@ module.exports = async function handler(req, res) {
           source: "bricklink"
         });
       } catch {
-        // JSON parse failed — fall through to fallback
+        // Primary API returned non-JSON — no usable price data.
+        return res.status(502).json({ error: "BrickLink returned invalid JSON" });
       }
     }
 
-    // 401/403 or parse failure — fall through to HTML fallback
-    if (primaryRes.status !== 401 && primaryRes.status !== 403 && primaryRes.ok) {
-      // Unexpected non-auth error but not auth related — still try fallback
-    }
-  } catch { /* network error — try fallback */ }
-
-  // ── Fallback: HTML catalog page ──────────────────────────────
-  const itemNo = number.replace(/-1$/, "");
-  const fallbackUrl =
-    `https://www.bricklink.com/catalogPG.asp` +
-    `?itemType=S&itemNo=${encodeURIComponent(itemNo)}&colorID=0&priceRemarks=Y&viewType=D&usg=1`;
-
-  try {
-    const fallbackRes = await fetch(fallbackUrl, {
-      headers: {
-        "x-bl-session-token": sessionToken,
-        "x-bl-tpa-client-id": CLIENT_ID,
-        "User-Agent": "LEGO Buy Target App/1.0"
-      }
+    // Primary API did not return OK (expired session 401/403, or upstream error).
+    return res.status(primaryRes.status).json({
+      error: "BrickLink price lookup failed",
+      message: `HTTP ${primaryRes.status}`
     });
-
-    const text = await fallbackRes.text();
-
-    // Check if it looks like JSON
-    const trimmed = text.trim();
-    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-      try {
-        return res.status(200).json(JSON.parse(trimmed));
-      } catch { /* fall through */ }
-    }
-
-    // Return raw HTML/text for client-side parsing
-    return res.status(200).json({ raw: text, format: "html" });
   } catch (err) {
     return internalError(res, err, "bricklink-priceguide");
   }

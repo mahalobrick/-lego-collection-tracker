@@ -145,9 +145,11 @@ open refinement is a tighter/​cost-aware (or fail-closed) limit for the Scrape
 - ❌ **Silent failure is the default UX.** Brickset/BrickLink failures return `null` + `console.warn`;
   the UI shows no data with no error signal. Only the BE sync surfaces a "failed" count → **P3** (typed
   error surface).
-- ❌ **The BrickLink scrape fallback is a dead no-op** — see the V4 gating answer in [§9](#9-remediation-backlog) → **P3** (decision: remove vs wire, lean **remove**).
+- ✅ **The BrickLink scrape fallback + no-op block were removed (P3 S3)** — a primary-API auth/parse/network
+  failure now returns a clean ad-hoc error (upstream status / `502` invalid JSON / `500`) instead of a dead
+  `{format:"html"}` the client discarded. See the V4 gating answer in [§8](#8-the-v4-gating-answer-bricklink).
 - ✅ **Non-JSON/HTML is detected** at the proxy (BE → `502 "returned HTML"`; Brickset → `502 invalid
-  JSON`; BrickLink → flags `{format:"html"}`).
+  JSON`; BrickLink → `502 "returned invalid JSON"` since P3 S3).
 - ✅ **Rate-limiter fail-open** is documented and logged (`_ratelimit.js`).
 
 ---
@@ -224,16 +226,19 @@ precedence rules and the BE-vs-Brickset `retail_price_us` source-tag (G1) live i
 `docs/valuation.md` gates V4 (BrickLink as a primary *value* source) on confirming BrickLink runs on
 real API auth, not the scrape fallback. **Answer, from reading the code:**
 
-> **BrickLink is API-authed; the scrape fallback is a dead no-op.** The proxy
+> **BrickLink is API-authed; the scrape fallback was dead and is now removed (P3 S3).** The proxy
 > [`api/bricklink-priceguide.js`](../api/bricklink-priceguide.js) tries the real BrickLink store API
-> (`api.bricklink.com/.../price`) with a **50-minute session token** minted by `bricklink-auth`; on
-> auth/parse failure it falls back to scraping `catalogPG.asp` and returns `{ raw, format: "html" }`.
-> **But the client discards exactly that** — `bricklink-client.js:120`: `if (data.format === "html")
-> return null` — and there is **no client-side HTML parser**. So today BrickLink data reaches the UI
-> **only** via the real API session; if it fails, the client silently gets `null`.
+> (`api.bricklink.com/.../price`) with a **50-minute session token** minted by `bricklink-auth`.
+> **Before P3 S3**, an auth/parse failure fell back to scraping `catalogPG.asp` and returned
+> `{ raw, format: "html" }` — but the client discarded exactly that (`bricklink-client.js`:
+> `if (data.format === "html") return null`) and there is **no client-side HTML parser**, so that path
+> was dead for every user. **P3 S3 removed** both the scrape fallback and the no-op block; a primary-API
+> failure now returns a clean ad-hoc error (upstream status / `502` / `500`). BrickLink data reaches the
+> UI **only** via the real API session — and a failure is now an honest non-2xx, not a discarded blob.
 
-So: V4's premise (real API auth) holds in practice, and the "scrape fallback" is the dead code P3
-resolves (lean **remove**). This is the fact V4 depends on; the V4 build is a separate arc.
+So: V4's premise (real API auth) holds in practice, and the scrape fallback — the dead code P3 was to
+resolve — is **removed (P3 S3, lean-remove decision executed)**. This is the fact V4 depends on; the V4
+build is a separate arc.
 
 ---
 
@@ -245,13 +250,13 @@ The ranked gaps from the STEP-0 map, each tagged to the phase that closes it. **
 
 | # | Gap | Phase |
 |---|---|---|
-| 1 | No BrickLink contract test (+ dead fallback) — the V4 blocker | **P2** (test, *blocked: gated on BrickLink API connection; pin when connected*) + **P3** (dead-code removal, proceeds now) |
+| 1 | No BrickLink contract test (+ dead fallback) — the V4 blocker | **P2** (test, *blocked: gated on BrickLink API connection; pin when connected*) + **P3** (dead-code removal ✅ done S3) |
 | 2 | No fetch timeouts on 4 of 5 live proxies | **P3** |
 | 3 | Silent failure is the default UX (Brickset/BL → `null`, no UI signal) | **P3** |
 | 4 | Schema-drift blind spots (passthrough propagates; field-select masks) | **P2** (BE ✅) / **P4** (Brickset) |
 | 5 | Modeled value frozen into synced records without an `asOf` write-guard | **Parked** |
 | 6 | ✅ **CLOSED (P2)** — BE value-field shape now pinned (`beSetValueFields.contract.test.js`) | ~~P2~~ done |
-| 7 | Dead code (`bricklink-priceguide.js:104-106` no-op block; self-clearing `blPriceHistory`) | **P3** (with #1) |
+| 7 | ✅ **CLOSED** — `bricklink-priceguide.js` no-op block **removed (P3 S3)**; the self-clearing `blPriceHistory` was **retired** in the price_events arc (`72a2c30`, now only a comment reference). | ~~P3~~ done |
 | 8 | ✅ **CLOSED (P3 S2)** — `/api/brickeconomy-collection` was an unconsumed proxy (no client caller; the real collection store is CSV-normalized via `normalizeBrickEconomyCollection`). **Removed** (commit `3693a60`) along with its `vite.config.js` dev route; the api-auth enumeration guard dropped `>=10`→`>=9` (8 proxies + `sync.js`). | ~~P3~~ done |
 
 ### Phases

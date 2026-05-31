@@ -116,9 +116,6 @@ export async function fetchBrickLinkPriceGuide(setNumber) {
 
     const data = await res.json();
 
-    // Don't cache fallback HTML responses — they contain no price data
-    if (data && data.format === "html") return null;
-
     // Cache the result under the normalized key
     try {
       const cache = JSON.parse(localStorage.getItem(cacheKey) || "{}");
