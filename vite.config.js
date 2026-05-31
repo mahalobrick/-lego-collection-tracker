@@ -31,7 +31,6 @@ function makeRes(nativeRes) {
 }
 
 const API_ROUTES = {
-  '/api/brickeconomy-collection':   require('./api/brickeconomy-collection'),
   '/api/brickeconomy-set':          require('./api/brickeconomy-set'),
   '/api/brickset-set':              require('./api/brickset-set'),
   '/api/brickset-search':           require('./api/brickset-search'),

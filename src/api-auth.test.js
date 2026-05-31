@@ -61,8 +61,8 @@ beforeAll(() => {
 
 describe("SEC-GAP-2 — every /api handler rejects unauthenticated requests", () => {
   it("discovered the handler set (guards against a vacuously-empty enumeration)", () => {
-    // 9 proxies + sync.js. If this ever drops, the it.each below would silently assert nothing.
-    expect(handlerFiles.length).toBeGreaterThanOrEqual(10);
+    // 8 proxies + sync.js. If this ever drops, the it.each below would silently assert nothing.
+    expect(handlerFiles.length).toBeGreaterThanOrEqual(9);
   });
 
   it.each(handlerFiles)("%s → 401 and spends no secret when unauthenticated", async (file) => {
