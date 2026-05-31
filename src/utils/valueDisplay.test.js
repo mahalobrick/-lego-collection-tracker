@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatValueCell, unknownValueNote, retailTooltip } from "./valueDisplay";
+import { formatValueCell, unknownValueNote, retailTooltip, roiExclusionNote } from "./valueDisplay";
 import { money } from "./formatting";
 import { toValue } from "./value";
 
@@ -86,5 +86,21 @@ describe("retailTooltip()", () => {
   it("is absent for a missing/nullish struct", () => {
     expect(retailTooltip(null)).toBeNull();
     expect(retailTooltip(undefined)).toBeNull();
+  });
+});
+
+describe("roiExclusionNote()", () => {
+  it("is omitted (null) when nothing is excluded", () => {
+    expect(roiExclusionNote(0)).toBeNull();
+    expect(roiExclusionNote(undefined)).toBeNull();
+    expect(roiExclusionNote(-1)).toBeNull();
+  });
+
+  it("uses the singular for one excluded set", () => {
+    expect(roiExclusionNote(1)).toBe("1 set excluded from ROI (no value or no cost)");
+  });
+
+  it("uses the plural for several", () => {
+    expect(roiExclusionNote(3)).toBe("3 sets excluded from ROI (no value or no cost)");
   });
 });

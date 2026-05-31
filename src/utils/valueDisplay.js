@@ -60,3 +60,17 @@ export function retailTooltip(value) {
   if (!value || value.basis !== "retail") return null;
   return RETAIL_TOOLTIP;
 }
+
+/**
+ * Note for how many sets are excluded from % ROI — unknown value OR no cost
+ * (cost ≤ 0). A % return isn't meaningful without both a known value and a
+ * positive cost, so those sets read "—"; this note tells the reader how many.
+ * Returns null when none are excluded so the caller omits the note entirely.
+ *
+ * @param {number} excludedCount  Sets excluded from %ROI (roiExcludedCount).
+ * @returns {string|null}
+ */
+export function roiExclusionNote(excludedCount) {
+  if (!excludedCount || excludedCount <= 0) return null;
+  return `${excludedCount} set${excludedCount === 1 ? "" : "s"} excluded from ROI (no value or no cost)`;
+}

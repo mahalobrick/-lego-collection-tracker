@@ -10,8 +10,8 @@ import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./util
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition } from "./utils/beSyncValues";
-import { portfolioValue, knownValueCount, setValueProvenance } from "./utils/portfolio";
-import { formatValueCell, unknownValueNote, retailTooltip } from "./utils/valueDisplay";
+import { portfolioValue, knownValueCount, setValueProvenance, totalSpent, portfolioGain, portfolioROI, roiExcludedCount, setROI } from "./utils/portfolio";
+import { formatValueCell, unknownValueNote, retailTooltip, roiExclusionNote } from "./utils/valueDisplay";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
 
@@ -398,7 +398,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     const totalQty = sets.reduce((sum, s) => sum + (asNumber(s.qty) || 1), 0);
     // Prefer pre-computed totals for BE items (totalValue/totalPaid already account for qty).
     // Fall back to per-unit × qty for manually added sets that don't have those fields.
-    const costBasis = sets.reduce((sum, s) => sum + (asNumber(s.totalPaid) || asNumber(s.paidPrice) * (asNumber(s.qty) || 1)), 0);
+    const costBasis = totalSpent(sets);
     const value = portfolioValue(sets);
     const themes = new Set(sets.map(s => s.theme).filter(Boolean)).size;
     const duplicates = sets.filter(s => (asNumber(s.qty) || 1) > 1).length;
@@ -431,8 +431,11 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       totalQty, costBasis, value, valuedSets, themes, duplicates,
       retiredSets, newSets, usedSets, avgValue, avgPaid,
       pieces, retailValue, minifigs, newEntries, usedEntries, newSetsValue, usedSetsValue,
-      gainLoss: value - costBasis,
-      roi: costBasis ? ((value - costBasis) / costBasis) * 100 : 0
+      // Gain over value-known sets; % ROI over {value known, cost > 0} only (null
+      // when none qualify → "—"). roiExcluded drives the exclusion note. (V2 cleanup)
+      gainLoss: portfolioGain(sets),
+      roi: portfolioROI(sets),
+      roiExcluded: roiExcludedCount(sets)
     };
   }, [sets]);
 
@@ -452,7 +455,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
   const topRoiSets = useMemo(() => {
     return [...sets]
-      .filter(s => asNumber(s.paidPrice) > 0)
+      // %ROI rule: value known AND cost > 0. Excludes $0-cost (÷0) and unknown-value
+      // sets (would otherwise rank as a false −100%). (V2 cleanup)
+      .filter(s => asNumber(s.paidPrice) > 0 && setValueProvenance(s).amount !== null)
       .map(s => ({
         ...s,
         _roi: asNumber(s.roiPct) || ((asNumber(s.currentValue) - asNumber(s.paidPrice)) / asNumber(s.paidPrice)) * 100
@@ -908,7 +913,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     const paid = asNumber(set.totalPaid) || asNumber(set.paidPrice) * qty;
     const value = asNumber(set.totalValue) || asNumber(set.currentValue) * qty;
     const gain = value - paid;
-    const roi = paid > 0 ? ((gain / paid) * 100) : null;
+    // null when excluded from %ROI (unknown value OR cost ≤ 0) → cell reads "—".
+    // Never Infinity/NaN. (V2 cleanup)
+    const roi = setROI(set);
 
     if (column.key === "setNumber") return <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{set.setNumber || "—"}</span>;
     if (column.key === "name") return set.name || "—";
@@ -1177,7 +1184,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                      item.key === "value"        ? <Card title="Collection Value" value={money(stats.value)} sub={unknownValueNote(stats.valuedSets, sets.length)} /> :
                      item.key === "cost"         ? <Card title="Cost Basis"       value={money(stats.costBasis)} /> :
                      item.key === "gain"         ? <Card title="Net Gain / Loss"  value={money(stats.gainLoss)} good={stats.gainLoss >= 0} /> :
-                     item.key === "roi"          ? <Card title="ROI"              value={`${stats.roi.toFixed(1)}%`} good={stats.roi >= 0} /> :
+                     item.key === "roi"          ? <Card title="ROI"              value={stats.roi === null ? "—" : `${stats.roi.toFixed(1)}%`} good={stats.roi === null ? undefined : stats.roi >= 0} sub={roiExclusionNote(stats.roiExcluded)} /> :
                      item.key === "themes"       ? <Card title="Themes"           value={stats.themes} /> :
                      item.key === "duplicates"   ? <Card title="Multi-Copy Sets"  value={stats.duplicates} /> :
                      item.key === "retired"      ? <Card title="Retired Sets"     value={stats.retiredSets} sub={sets.length ? `${((stats.retiredSets / sets.length) * 100).toFixed(1)}% of unique sets` : null} /> :

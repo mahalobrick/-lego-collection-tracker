@@ -9,9 +9,9 @@ A living plan: arcs and phases with status. Update statuses as phases land. Comp
 ## Where we are
 
 The architecture-audit arc is closed. The value layer — the foundation everything else reads
-from — has its core complete: the provenance type, correct mixed/unknown handling, and surfacing
-have all shipped. The remaining value-arc threads are a small cleanup plus the BrickLink / price-
-history work.
+from — has its core complete: the provenance type, correct mixed/unknown handling, surfacing,
+and honest ROI / cost-basis have all shipped. The remaining value-arc threads are the BrickLink /
+price-history work (`price_events` migration, then V4).
 
 ## Arc 1 — Architecture audit & remediation — Done
 
@@ -30,7 +30,7 @@ will consume, so it comes first.
 - **Done** — V2a: extract rollup to a tested pure function; derive provenance at read time; BrickLink basis fix (sold = market).
 - **Done** — V2b: value mixed sets per-copy by condition (retire the synthetic `(new+used)/2` blend); exclude unknown-value sets from count-based metrics.
 - **Done** — V2c: surfacing — unknown reads `—`; at-retail marked by tooltip; ROI left as-is (a below-MSRP buy correctly reads its discount, e.g. +25%); "N of M sets have no value data" note.
-- **Now** — V2 cleanup: reconcile ROI / cost-basis over unknown-value sets (consistent with the avg-value fix). *Open decision:* does total cost basis include sets whose value is unknown (honest "total spent"), or exclude them to match the ROI ratio (with an "N excluded" note)?
+- **Done** — V2 cleanup: ROI is honest about unknown-value AND zero-cost sets. *Decision settled:* total cost basis stays **inclusive** (honest "total spent", $0 adds $0); the **percentage** ROI is computed only over `{value known, cost > 0}` (excludes unknown-value and $0/GWP, no ÷0), with an "N excluded from ROI" note; net gain = `Σ(value − cost)` over value-known sets (a $0-cost set contributes its full value). *Follow-up:* a genuine-free/GWP label is **deferred** — the stored shape can't tell a real free $0 from an unrecorded cost, and a dedicated marker would be a new persisted field (sync-surface decision).
 - **Planned** — `price_events` migration *(suggested next — the quick warm-up)*: replace the app's own 60-day rolling `blPriceHistory` (`priceHistory.js`) with BrickEconomy's real `price_events_*`.
 - **Planned** — V4 *(the big one, after `price_events`)*: wire BrickLink sold prices into the value waterfall (BrickLink genuine-sample → BrickEconomy fallback) — the leap from modeled value to real-market-anchored value. The proxy is already live for on-demand columns; gated on confirming it runs on real API auth (50-min session) vs the scrape fallback before BrickLink becomes the primary value source.
 
