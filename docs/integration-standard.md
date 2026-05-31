@@ -53,8 +53,9 @@ setCors  →  requireAuth  →  rateLimitAllow  →  fetch(upstream, { timeout }
   straight to the client instead of failing at a curated boundary. Tolerated for now because the BE
   blob has many consumers and `price_events_*` is already pinned (§5) — but it is the reason BE value
   fields are a **P2** contract-test target.
-- ⏳ **Timeouts**: the shared `fetchWithTimeout` wrapper landed (P3 S4, Brick Fanatics migrated as the
-  reference); the remaining proxies + `sync.js` migrate onto it in **P3 S5** → **§4**.
+- ✅ **Timeouts**: every `/api` handler **and `sync.js`** route their upstream fetch through
+  `fetchWithTimeout` (P3 S5; wrapper landed S4). Locked by construction —
+  [`src/api-no-bare-fetch.test.js`](../src/api-no-bare-fetch.test.js) fails CI on any bare `fetch(`. See **§4**.
 
 ---
 
@@ -141,15 +142,16 @@ open refinement is a tighter/​cost-aware (or fail-closed) limit for the Scrape
 
 ### Current conformance
 
-- ⏳ **Timeouts: the shared wrapper landed (P3 S4).** `fetchWithTimeout` in [`api/_fetch.js`](../api/_fetch.js)
-  applies the timeout and maps an abort/network throw to a typed `FetchFailure`; **Brick Fanatics is the
-  migrated reference**. BrickEconomy, Brickset, BrickLink, LEGO.com **and `sync.js`** still call bare `fetch`
-  → migrate in **P3 S5**, made permanent by the no-bare-`fetch` lock test (S5 final commit).
-- ⏳ **Typed-error envelope helper landed (P3 S4).** `sendSourceError` emits the B2 shape
-  `{ok:false, error:{kind, source, …}}` with a fixed kind→HTTP-status map (data-source proxies only;
-  `sync.js` keeps its own Upstash handling); Brick Fanatics emits it today. The remaining proxies still
-  return `null` + `console.warn` silently → **P3 S5** (proxies) + **S6** (client surface that renders the
-  envelope instead of swallowing it).
+- ✅ **Timeouts: every proxy upstream fetch carries one (P3 S5).** All nine handlers **and `sync.js`** route
+  through `fetchWithTimeout` ([`api/_fetch.js`](../api/_fetch.js)) — a slow upstream returns a typed error
+  instead of hanging. **Locked by construction:** [`src/api-no-bare-fetch.test.js`](../src/api-no-bare-fetch.test.js)
+  (sibling to `api-auth.test.js`) fails CI on any bare `fetch(` in a handler. Per-source timeouts:
+  BE / Brickset / BrickLink **12s** (fast JSON), LEGO **15s** (HTML pages), Brick Fanatics **45s** (ScraperAPI
+  render), `sync.js` **15s** (Upstash).
+- ⏳ **Typed-error envelope: every data-source proxy emits it (P3 S5).** `sendSourceError` returns the B2
+  shape `{ok:false, error:{kind, source, …}}` from every failure path (`sync.js` is **timeout-only** — keeps
+  its own Upstash handling, never emits the envelope). The **client still swallows it** (`!res.ok → null/[]`)
+  → **P3 S6** wires a real "fetch failed" UI signal that consumes the envelope.
 - ✅ **The BrickLink scrape fallback + no-op block were removed (P3 S3)** — a primary-API auth/parse/network
   failure now returns a clean ad-hoc error (upstream status / `502` invalid JSON / `500`) instead of a dead
   `{format:"html"}` the client discarded. See the V4 gating answer in [§8](#8-the-v4-gating-answer-bricklink).
@@ -256,8 +258,8 @@ The ranked gaps from the STEP-0 map, each tagged to the phase that closes it. **
 | # | Gap | Phase |
 |---|---|---|
 | 1 | No BrickLink contract test (+ dead fallback) — the V4 blocker | **P2** (test, *blocked: gated on BrickLink API connection; pin when connected*) + **P3** (dead-code removal ✅ done S3) |
-| 2 | No fetch timeouts on 4 of 5 live proxies | **P3** |
-| 3 | Silent failure is the default UX (Brickset/BL → `null`, no UI signal) | **P3** |
+| 2 | ✅ **CLOSED (P3 S4+S5)** — every handler + `sync.js` route upstream fetches through `fetchWithTimeout`; locked by `api-no-bare-fetch.test.js`. | ~~P3~~ done |
+| 3 | ⏳ **Proxy half done (P3 S5)** — every data-source proxy emits the typed envelope; the client still swallows it (`!res.ok → null`). The client UI signal is **P3 S6**. | **P3 S6** (client) |
 | 4 | Schema-drift blind spots (passthrough propagates; field-select masks) | **P2** (BE ✅) / **P4** (Brickset) |
 | 5 | Modeled value frozen into synced records without an `asOf` write-guard | **Parked** |
 | 6 | ✅ **CLOSED (P2)** — BE value-field shape now pinned (`beSetValueFields.contract.test.js`) | ~~P2~~ done |
@@ -287,6 +289,13 @@ The ranked gaps from the STEP-0 map, each tagged to the phase that closes it. **
   error surface so client failures are visible — **no silent `null`**. (c) Resolve the dead BL fallback
   — **decision: remove vs wire, lean REMOVE** — and clear the §9 #7 dead code. Closes gaps #2, #3, #7,
   #1(fallback).
+  - **Status (2026-05-31): S2–S5 done; S6 remains.** S2 removed the dead BE `/collection` proxy (gap #8);
+    S3 removed the dead BL scrape fallback + no-op (gaps #1-fallback, #7); S4 built `fetchWithTimeout` +
+    the `sendSourceError` envelope (Brick Fanatics reference); S5 migrated every proxy + `sync.js` onto the
+    wrapper and the envelope, landing the no-bare-`fetch` lock (`api-no-bare-fetch.test.js`) — closing
+    gap #2 and the proxy half of gap #3. **S6 (client typed-error surface)** is the only open item:
+    consume the envelope in the UI (a real "fetch failed" signal; `not_found` quiet) + the client-side
+    Brickset number validation.
   - **S4 wrapper scope (RATIFIED 2026-05-31).** `fetchWithTimeout` (`api/_fetch.js`) splits two jobs:
     its **universal** part — apply the timeout + map an abort/network throw to a typed failure — is what
     the **bare-`fetch` ban enforces everywhere, `sync.js` included** (a hung Upstash call is the same hang
