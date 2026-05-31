@@ -1,6 +1,9 @@
 const { setCors, internalError } = require("./_cors");
 const { requireAuth } = require("./_auth");
 const { rateLimitAllow } = require("./_ratelimit");
+const { fetchWithTimeout, FetchFailure, sendSourceError } = require("./_fetch");
+
+const SOURCE = "bricklink";
 
 module.exports = async function handler(req, res) {
   if (setCors(req, res, "GET, OPTIONS")) return res.status(200).end();
@@ -9,8 +12,10 @@ module.exports = async function handler(req, res) {
   if (!userId) return;
 
   if (!(await rateLimitAllow(userId, { limit: 1000, windowSeconds: 60, bucket: "proxy" }))) {
-    res.setHeader("Retry-After", "60");
-    return res.status(429).json({ error: "rate_limited" });
+    return sendSourceError(res, {
+      kind: "rate_limited", source: SOURCE,
+      message: "Too many requests — please retry shortly.", retryAfter: 60,
+    });
   }
 
   let number = String(req.query.number || "").trim();
@@ -48,14 +53,14 @@ module.exports = async function handler(req, res) {
     `?guide_type=sold&new_or_used=N&country_code=US&region=north_america&currency_code=USD`;
 
   try {
-    const primaryRes = await fetch(primaryUrl, {
+    const primaryRes = await fetchWithTimeout(primaryUrl, {
       headers: {
         "x-bl-session-token": sessionToken,
         "x-bl-tpa-client-id": CLIENT_ID,
         "User-Agent": "LEGO Buy Target App/1.0",
         accept: "application/json"
       }
-    });
+    }, { timeoutMs: 12_000 });
 
     if (primaryRes.ok) {
       const text = await primaryRes.text();
@@ -69,14 +74,14 @@ module.exports = async function handler(req, res) {
           `?guide_type=sold&new_or_used=U&country_code=US&region=north_america&currency_code=USD`;
         let usedData = {};
         try {
-          const usedRes = await fetch(usedUrl, {
+          const usedRes = await fetchWithTimeout(usedUrl, {
             headers: {
               "x-bl-session-token": sessionToken,
               "x-bl-tpa-client-id": CLIENT_ID,
               "User-Agent": "LEGO Buy Target App/1.0",
               accept: "application/json"
             }
-          });
+          }, { timeoutMs: 12_000 });
           if (usedRes.ok) {
             const usedJson = JSON.parse(await usedRes.text());
             usedData = usedJson.data || usedJson;
@@ -97,16 +102,28 @@ module.exports = async function handler(req, res) {
         });
       } catch {
         // Primary API returned non-JSON — no usable price data.
-        return res.status(502).json({ error: "BrickLink returned invalid JSON" });
+        return sendSourceError(res, {
+          kind: "bad_gateway", source: SOURCE,
+          message: "BrickLink returned a non-JSON response.",
+        });
       }
     }
 
     // Primary API did not return OK (expired session 401/403, or upstream error).
-    return res.status(primaryRes.status).json({
-      error: "BrickLink price lookup failed",
-      message: `HTTP ${primaryRes.status}`
+    return sendSourceError(res, {
+      kind: "upstream_error", source: SOURCE,
+      message: "BrickLink price lookup failed.", status: primaryRes.status,
     });
   } catch (err) {
+    if (err instanceof FetchFailure) {
+      return sendSourceError(res, {
+        kind: err.kind === "timeout" ? "timeout" : "upstream_error",
+        source: SOURCE,
+        message: err.kind === "timeout"
+          ? "BrickLink request timed out."
+          : "Could not reach BrickLink.",
+      });
+    }
     return internalError(res, err, "bricklink-priceguide");
   }
 };
