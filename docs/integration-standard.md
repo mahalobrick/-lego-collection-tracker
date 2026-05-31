@@ -245,7 +245,7 @@ The ranked gaps from the STEP-0 map, each tagged to the phase that closes it. **
 
 | # | Gap | Phase |
 |---|---|---|
-| 1 | No BrickLink contract test (+ dead fallback) — the V4 blocker | **P2** (test, *blocked on live capture*) + **P3** (fallback) |
+| 1 | No BrickLink contract test (+ dead fallback) — the V4 blocker | **P2** (test, *blocked: gated on BrickLink API connection; pin when connected*) + **P3** (dead-code removal, proceeds now) |
 | 2 | No fetch timeouts on 4 of 5 live proxies | **P3** |
 | 3 | Silent failure is the default UX (Brickset/BL → `null`, no UI signal) | **P3** |
 | 4 | Schema-drift blind spots (passthrough propagates; field-select masks) | **P2** (BE ✅) / **P4** (Brickset) |
@@ -260,12 +260,17 @@ The ranked gaps from the STEP-0 map, each tagged to the phase that closes it. **
   and pin shapes for: **BrickLink** API-session priceguide, **BE value fields** (`current_value_*`,
   `retail_price_us`), and **BE `/collection/sets`**. Generalizes the be-fixtures practice; expect it to
   expose today's unpinned drift. Closes gaps #1(test), #4(BE), #6.
-  - **Status (2026-05-31):** **BE value fields ✅ done** — `beSetValueFields.contract.test.js` pins the
-    consumed-field shape (44 assertions, green; no BE drift found). Two net-first findings reshaped the
-    rest of P2: **(a)** `/collection/sets` has **no consumer** — the target rested on a false premise
-    (the real normalizer is CSV-driven), reclassified to gap #8 (P3 remove-vs-wire); **(b)** **BrickLink
-    is unreachable in this env** (no BL keys; per-user live session token) — the fixture must be captured
-    from the running app's devtools, then pinned. P2 stays open on the BrickLink capture only.
+  - **Status (2026-05-31): P2's delivered lock is the BE value-field contract.** **BE value fields ✅ done**
+    — `beSetValueFields.contract.test.js` pins the consumed-field shape (44 assertions, green; no BE drift
+    found). Two net-first findings reshaped the rest of P2: **(a)** `/collection/sets` has **no consumer** —
+    the target rested on a false premise (the real normalizer is CSV-driven), reclassified to gap #8 (P3
+    remove-vs-wire); **(b)** the **BrickLink contract test is blocked: gated on the BrickLink API
+    connection; pin when connected.** BrickLink is a per-user-connected integration (an access token mints a
+    ~50-min session) and is not connected in this env, so no real BL payload exists to capture — and we will
+    **not** fabricate one (protocol #10 / §5: capture live, never hand-author). All BL-DATA-dependent work
+    (this contract test, API-session validation, V4-as-value-source) stays gated on connecting BrickLink;
+    the BL **proxy-code** cleanups need no data and proceed in P3. P2 is otherwise complete — it carries no
+    open code item, only this connection-gated capture.
 - **P3 — Resilience hardening.** (a) Add `AbortSignal.timeout(...)` to the 4 unguarded proxies, with a
   **by-construction lock**: an auto-discovery test (sibling to `api-auth.test.js`) asserting every proxy
   has a timeout **and** returns a typed error — so a new proxy that omits either fails CI. (b) A typed
