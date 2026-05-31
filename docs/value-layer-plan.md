@@ -234,12 +234,25 @@ is started; this is the proposal to shape against.**
 
 ---
 
-## 5. `price_events` migration — Phases 1–2
+## 5. `price_events` migration — Phases 1–3
 
 > **Status:** Phase 1 done (shape pinned, 2026-05-31). **Phase 2 done** — pure read adapter
 > [`src/utils/priceEvents.js`](../src/utils/priceEvents.js) (`priceEventsFromBE`), fixture-tested
 > ([`priceEvents.test.js`](../src/utils/priceEvents.test.js), 15 tests against all 5 real fixtures),
-> **dark — no consumer/UI wiring, no storage/sync surface touched**. Consumers are Phase 3.
+> **dark — no consumer/UI wiring, no storage/sync surface touched**. **Phase 3 (chart) done** —
+> the [`WatchDetailPanel`](../src/WatchDetailPanel.jsx) price-history chart now reads
+> `priceEventsFromBE(cached).new` (the BE blob already in scope at lines 28–32) instead of the
+> local `getPriceHistory` rolling window; the dead `blPriceNew` line + `hasBL` legend were dropped;
+> the `length < 2 → return null` guard is the "no history" state (BE events are retired-only → empty
+> for at-retail sets). UI-smoked: retired set → 12-pt gold ASC line, no blue line, axis/tooltip
+> correct; at-retail + no-cache sets → Price History section cleanly absent, no error.
+>
+> **Phase 3 scope was narrowed (Sam, map-approval)** to the **WatchDetailPanel chart ONLY**. The
+> [`getPriceTrend`](../src/utils/priceHistory.js) arrows in [`WantedList`](../src/WantedList.jsx) were
+> **deliberately left untouched** — they keep reading live local history, so nothing breaks now.
+> **Phase 4 teardown** (the deferred set): drop the value/`blPriceNew`/`blPriceUsed` trend arrows
+> (value arrow dropped unless Sam says otherwise), retire `getPriceHistory` + `getPriceTrend`, delete
+> the always-empty `wlPriceTrendData` (D2), and delete the dead `blPriceNew` / `blPriceUsed` fields (D2).
 > The "valuation.md asserts it" unknown is now a real, pinned contract:
 > [`test-data/be-fixtures/`](../test-data/be-fixtures/) + [`scripts/capture-price-events.mjs`](../scripts/capture-price-events.mjs).
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { asNumber, money, setImageUrl, daysUntilRetirement, retirementWaveLabel, priorityScore, recommendation } from "./utils/formatting";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
-import { getPriceHistory } from "./utils/priceHistory";
+import { priceEventsFromBE } from "./utils/priceEvents";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 function StatBox({ label, value, color }) {
@@ -156,10 +156,11 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
 
         {/* ── Price History Chart ── */}
         {(() => {
-          const history = getPriceHistory(item.setNumber).filter(s => s.value != null || s.blPriceNew != null);
+          // BrickEconomy price_events (retired-only) — ASC [{date, value}], already the
+          // shape dataKey="value" + tickFormatter expect. Empty for at-retail sets
+          // (no events) → length < 2 → section hidden (the "no history" state).
+          const history = priceEventsFromBE(cached).new;
           if (history.length < 2) return null;
-          const hasValue  = history.some(s => s.value    != null);
-          const hasBL     = history.some(s => s.blPriceNew != null);
           return (
             <div>
               <div style={sectionLabel}>Price History</div>
@@ -180,15 +181,13 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
                     <Tooltip
                       contentStyle={{ background: "#0d1623", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, fontSize: 12 }}
                       labelStyle={{ color: "#8a9bb0" }}
-                      formatter={(v, name) => [money(v), name === "value" ? "Market Value" : "BL Avg (New)"]}
+                      formatter={v => [money(v), "Market Value"]}
                     />
-                    {hasValue && <Line type="monotone" dataKey="value" stroke="#c9a84c" strokeWidth={2} dot={false} connectNulls />}
-                    {hasBL    && <Line type="monotone" dataKey="blPriceNew" stroke="#3b82f6" strokeWidth={1.5} dot={false} connectNulls />}
+                    <Line type="monotone" dataKey="value" stroke="#c9a84c" strokeWidth={2} dot={false} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
                 <div style={{ display: "flex", gap: 14, justifyContent: "center", marginTop: 6 }}>
-                  {hasValue && <span style={{ fontSize: 11, color: "#c9a84c" }}>● Market Value</span>}
-                  {hasBL    && <span style={{ fontSize: 11, color: "#3b82f6" }}>● BL Avg (New)</span>}
+                  <span style={{ fontSize: 11, color: "#c9a84c" }}>● Market Value</span>
                 </div>
               </div>
             </div>
