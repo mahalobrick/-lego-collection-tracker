@@ -1076,14 +1076,18 @@ export default function AppSettings() {
       )];
       if (setNumbers.length === 0) { toast.error("No sets in collection to sync."); return; }
       setBlPriceSync({ done: 0, total: setNumbers.length, status: "running" });
-      const { synced, skipped, failed } = await bulkSyncPrices(setNumbers, ({ done, total }) => {
+      const { synced, skipped, failed, unreachable } = await bulkSyncPrices(setNumbers, ({ done, total }) => {
         setBlPriceSync({ done, total, status: "running" });
       });
       const now = new Date().toISOString();
       setItemSafe("blPriceSyncLast", now);
       setBlPriceSyncLast(now);
       setBlPriceSync(null);
-      toast.success(`BL prices synced — ${synced} updated, ${skipped} cached, ${failed} failed.`, { duration: 6000 });
+      toast.success(
+        `BL prices synced — ${synced} updated, ${skipped} cached, ${failed} failed` +
+        (unreachable ? ` (${unreachable} unreachable)` : "") + ".",
+        { duration: 6000 }
+      );
     } catch (err) {
       setBlPriceSync(null);
       toast.error("BL price sync failed: " + (err.message || err));

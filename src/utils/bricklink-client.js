@@ -6,7 +6,7 @@
 
 import { apiFetch } from "./apiFetch";
 import { setItemSafe } from "./safeStorage";
-import { readSource, reportSourceFailure } from "./readSource";
+import { readSource, reportSourceFailure, classifyFailure } from "./readSource";
 
 const SESSION_TTL_MS = 50 * 60 * 1000;        // 50 minutes
 const PRICE_GUIDE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -80,7 +80,7 @@ export async function getBrickLinkSession() {
 
 // ── Price guide ──────────────────────────────────────────────
 
-export async function fetchBrickLinkPriceGuide(setNumber, { report = true } = {}) {
+export async function fetchBrickLinkPriceGuide(setNumber, { report = true, onFailure } = {}) {
   if (!setNumber) return null;
 
   // Normalize to no-suffix form as the cache key (e.g. "75192" not "75192-1")
@@ -114,6 +114,7 @@ export async function fetchBrickLinkPriceGuide(setNumber, { report = true } = {}
     const out = await readSource(res, "bricklink");
     if (!out.ok) {
       if (report) reportSourceFailure(out);
+      onFailure?.(out);
       return null;
     }
 
@@ -128,7 +129,9 @@ export async function fetchBrickLinkPriceGuide(setNumber, { report = true } = {}
 
     return data;
   } catch (err) {
-    if (report) reportSourceFailure({ ok: false, kind: "upstream_error", source: "bricklink", message: err?.message || "" });
+    const failure = { ok: false, kind: "upstream_error", source: "bricklink", message: err?.message || "" };
+    if (report) reportSourceFailure(failure);
+    onFailure?.(failure);
     return null;
   }
 }
@@ -140,7 +143,7 @@ export async function fetchBrickLinkPriceGuide(setNumber, { report = true } = {}
 // Returns { synced, skipped, failed }.
 
 export async function bulkSyncPrices(setNumbers, onProgress) {
-  if (!setNumbers || setNumbers.length === 0) return { synced: 0, skipped: 0, failed: 0 };
+  if (!setNumbers || setNumbers.length === 0) return { synced: 0, skipped: 0, failed: 0, unreachable: 0 };
 
   // Normalize all set numbers to no-suffix form before cache checks and fetches
   const normalized = [...new Set(setNumbers.map(n => String(n).replace(/-1$/, "")).filter(Boolean))];
@@ -158,13 +161,17 @@ export async function bulkSyncPrices(setNumbers, onProgress) {
 
   let synced = 0;
   let failed = 0;
+  let unreachable = 0; // subset of `failed` that was a "broke" signal (timeout/upstream), not "absent"
   let done = skipped; // already-cached count toward progress
 
   for (let i = 0; i < toFetch.length; i += BULK_BATCH_SIZE) {
     const batch = toFetch.slice(i, i + BULK_BATCH_SIZE);
     await Promise.all(batch.map(async setNumber => {
-      // bulk: silent per-item (one aggregate count toast on completion; unreachable breakout is S6.4)
-      const result = await fetchBrickLinkPriceGuide(setNumber, { report: false });
+      // bulk: per-item toasts suppressed (report:false); tally "unreachable" for the aggregate toast.
+      const result = await fetchBrickLinkPriceGuide(setNumber, {
+        report: false,
+        onFailure: (f) => { if (classifyFailure(f.kind, f.source).surface) unreachable++; },
+      });
       if (result !== null) {
         synced++;
       } else {
@@ -178,5 +185,5 @@ export async function bulkSyncPrices(setNumbers, onProgress) {
     }
   }
 
-  return { synced, skipped, failed };
+  return { synced, skipped, failed, unreachable };
 }

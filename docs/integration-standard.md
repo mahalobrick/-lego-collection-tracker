@@ -148,10 +148,21 @@ open refinement is a tighter/​cost-aware (or fail-closed) limit for the Scrape
   (sibling to `api-auth.test.js`) fails CI on any bare `fetch(` in a handler. Per-source timeouts:
   BE / Brickset / BrickLink **12s** (fast JSON), LEGO **15s** (HTML pages), Brick Fanatics **45s** (ScraperAPI
   render), `sync.js` **15s** (Upstash).
-- ⏳ **Typed-error envelope: every data-source proxy emits it (P3 S5).** `sendSourceError` returns the B2
-  shape `{ok:false, error:{kind, source, …}}` from every failure path (`sync.js` is **timeout-only** — keeps
-  its own Upstash handling, never emits the envelope). The **client still swallows it** (`!res.ok → null/[]`)
-  → **P3 S6** wires a real "fetch failed" UI signal that consumes the envelope.
+- ✅ **Typed-error envelope, surfaced client-side (P3 S5 proxies + S6.1–S6.4 client).** Proxies emit the B2
+  shape `{ok:false, error:{kind, source, …}}` (`sync.js` is **timeout-only** — never emits the envelope); the
+  client funnel `readSource`/`classifyFailure`/`reportSourceFailure`
+  ([`src/utils/readSource.js`](../src/utils/readSource.js)) turns it into a discriminated result and a
+  **deduped "couldn't reach \<source\>" signal** (toast for incidental lookups; inline for the Brickset catalog
+  search — single-sourced via `classifyFailure`). `not_found` / `not_configured` stay **quiet** ("no data" /
+  the inline configure-key path). **Deliberate signal carve-outs — the standard is honest about where the
+  signal does NOT fire:**
+  - **Background daily BE value batch** (`App.jsx` `runDailyBEBatch`) — non-user-initiated, non-critical,
+    retries on next app-open → **silent by design**; surfacing on every open would be noise.
+  - **Bulk BL price sync** (user-initiated, `AppSettings`) — surfaces an **aggregate** count with an
+    **unreachable break-out** ("Y failed (Z unreachable)"), **not** per-item toasts; the interactive
+    single-lookups already carry the per-call broke-vs-absent signal.
+
+  (End-to-end UI smoke + the §9 gap #3 closure land in **P3 S6.5**.)
 - ✅ **The BrickLink scrape fallback + no-op block were removed (P3 S3)** — a primary-API auth/parse/network
   failure now returns a clean ad-hoc error (upstream status / `502` invalid JSON / `500`) instead of a dead
   `{format:"html"}` the client discarded. See the V4 gating answer in [§8](#8-the-v4-gating-answer-bricklink).

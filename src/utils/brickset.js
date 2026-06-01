@@ -1,6 +1,6 @@
 import { apiFetch } from "./apiFetch";
 import { setItemSafe } from "./safeStorage";
-import { readSource, reportSourceFailure } from "./readSource";
+import { readSource, reportSourceFailure, classifyFailure } from "./readSource";
 
 const CACHE_KEY = "bricksetSetCache";
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -45,13 +45,20 @@ export async function searchBricksetCatalog(query, theme = "") {
     if (query) params.set("q", query);
     if (theme) params.set("theme", theme);
     const res = await apiFetch(`/api/brickset-search?${params}`);
-    const json = await res.json();
-    // Failure body is now the typed envelope { ok:false, error:{ kind, source, message } }.
-    if (json.error?.kind === "not_configured") return { sets: [], noKey: true };
-    if (!res.ok || json.error) return { sets: [], error: json.error?.message || "Brickset request failed." };
-    return { sets: json.sets || [], total: json.total };
-  } catch (err) {
-    return { sets: [], error: err.message };
+    const out = await readSource(res, "brickset");
+
+    if (out.ok) {
+      const data = out.data || {};
+      return { sets: data.sets || [], total: data.total };
+    }
+    // Failure — single-sourced with the toast path via classifyFailure.
+    if (out.kind === "not_configured") return { sets: [], noKey: true };
+    const { surface, message } = classifyFailure(out.kind, out.source);
+    // broke kinds → inline message; quiet kinds (e.g. not_found) → empty "no results" state.
+    return surface ? { sets: [], error: message } : { sets: [] };
+  } catch {
+    // pre-response throw (offline/reject) — a broke signal, rendered inline.
+    return { sets: [], error: classifyFailure("upstream_error", "brickset").message };
   }
 }
 
