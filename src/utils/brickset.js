@@ -63,6 +63,14 @@ export async function searchBricksetCatalog(query, theme = "") {
 export async function fetchBricksetSet(setNumber) {
   if (!setNumber) return null;
 
+  // Skip identifiers Brickset can't serve, BEFORE spending the request. This mirrors the proxy's
+  // accept-set exactly (api/brickset-set.js: strip whitespace, append "-1" if no dash, require
+  // /^\d{3,8}-\d+$/) — so we only skip what it would 400 on (e.g. the L-prefixed IDs L0002221), never
+  // a number it would serve. A malformed-input skip is NOT a fetch failure → return null silently
+  // (no signal); the caller gets null → "no data", same as today minus the wasted 400 + console noise.
+  const cleanNum = String(setNumber).trim().replace(/\s+/g, "");
+  if (!/^\d{3,8}(-\d+)?$/.test(cleanNum)) return null;
+
   const cacheKey = `brickset_${setNumber}`;
 
   try {
