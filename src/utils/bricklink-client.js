@@ -6,6 +6,7 @@
 
 import { apiFetch } from "./apiFetch";
 import { setItemSafe } from "./safeStorage";
+import { readSource, reportSourceFailure } from "./readSource";
 
 const SESSION_TTL_MS = 50 * 60 * 1000;        // 50 minutes
 const PRICE_GUIDE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -53,13 +54,14 @@ export async function getBrickLinkSession() {
       body: JSON.stringify({ accessToken })
     });
 
-    if (!res.ok) {
-      console.warn("[BrickLink] Auth failed:", res.status, await res.text().catch(() => ""));
+    const out = await readSource(res, "bricklink");
+    if (!out.ok) {
+      reportSourceFailure(out);
       return null;
     }
 
-    const data = await res.json();
-    if (!data.sessionToken) {
+    const data = out.data;
+    if (!data || !data.sessionToken) {
       console.warn("[BrickLink] No sessionToken in auth response");
       return null;
     }
@@ -71,14 +73,14 @@ export async function getBrickLinkSession() {
 
     return data.sessionToken;
   } catch (err) {
-    console.warn("[BrickLink] Auth error:", err.message);
+    reportSourceFailure({ ok: false, kind: "upstream_error", source: "bricklink", message: err?.message || "" });
     return null;
   }
 }
 
 // ── Price guide ──────────────────────────────────────────────
 
-export async function fetchBrickLinkPriceGuide(setNumber) {
+export async function fetchBrickLinkPriceGuide(setNumber, { report = true } = {}) {
   if (!setNumber) return null;
 
   // Normalize to no-suffix form as the cache key (e.g. "75192" not "75192-1")
@@ -109,12 +111,13 @@ export async function fetchBrickLinkPriceGuide(setNumber) {
       }
     );
 
-    if (!res.ok) {
-      console.warn("[BrickLink] Price guide fetch failed:", res.status);
+    const out = await readSource(res, "bricklink");
+    if (!out.ok) {
+      if (report) reportSourceFailure(out);
       return null;
     }
 
-    const data = await res.json();
+    const data = out.data;
 
     // Cache the result under the normalized key
     try {
@@ -125,7 +128,7 @@ export async function fetchBrickLinkPriceGuide(setNumber) {
 
     return data;
   } catch (err) {
-    console.warn("[BrickLink] Price guide error:", err.message);
+    if (report) reportSourceFailure({ ok: false, kind: "upstream_error", source: "bricklink", message: err?.message || "" });
     return null;
   }
 }
@@ -160,7 +163,8 @@ export async function bulkSyncPrices(setNumbers, onProgress) {
   for (let i = 0; i < toFetch.length; i += BULK_BATCH_SIZE) {
     const batch = toFetch.slice(i, i + BULK_BATCH_SIZE);
     await Promise.all(batch.map(async setNumber => {
-      const result = await fetchBrickLinkPriceGuide(setNumber);
+      // bulk: silent per-item (one aggregate count toast on completion; unreachable breakout is S6.4)
+      const result = await fetchBrickLinkPriceGuide(setNumber, { report: false });
       if (result !== null) {
         synced++;
       } else {

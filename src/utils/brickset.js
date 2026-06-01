@@ -1,5 +1,6 @@
 import { apiFetch } from "./apiFetch";
 import { setItemSafe } from "./safeStorage";
+import { readSource, reportSourceFailure } from "./readSource";
 
 const CACHE_KEY = "bricksetSetCache";
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -80,14 +81,15 @@ export async function fetchBricksetSet(setNumber) {
 
   try {
     const res = await apiFetch(`/api/brickset-set?number=${encodeURIComponent(setNumber)}`);
-    const json = await res.json();
+    const out = await readSource(res, "brickset");
 
-    if (!res.ok || json.error) {
-      // includes the not_configured (no API key) envelope — silently return null
+    if (!out.ok) {
+      // not_found (uncatalogued) + not_configured stay quiet; broke kinds surface
+      reportSourceFailure(out);
       return null;
     }
 
-    const data = json.data;
+    const data = out.data && out.data.data;
     if (!data) return null;
 
     try {
@@ -99,7 +101,8 @@ export async function fetchBricksetSet(setNumber) {
     }
 
     return data;
-  } catch {
+  } catch (err) {
+    reportSourceFailure({ ok: false, kind: "upstream_error", source: "brickset", message: err?.message || "" });
     return null;
   }
 }

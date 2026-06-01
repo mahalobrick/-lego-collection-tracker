@@ -11,6 +11,7 @@
 
 import { apiFetch } from "./apiFetch";
 import { setItemSafe } from "./safeStorage";
+import { readSource, reportSourceFailure } from "./readSource";
 
 const LS_KEY   = "legoLastChanceCache";
 const TTL_MS   = 23 * 60 * 60 * 1000; // 23 hours (just under CDN's 24hr)
@@ -34,8 +35,13 @@ export async function getLastChanceCodes() {
   // Fetch fresh
   try {
     const res  = await apiFetch("/api/lego-last-chance");
-    const json = await res.json();
-    if (!res.ok || json.error || !json.setCodes) return new Set();
+    const out  = await readSource(res, "lego");
+    if (!out.ok) {
+      reportSourceFailure(out);
+      return new Set();
+    }
+    const json = out.data;
+    if (!json || !json.setCodes) return new Set();
 
     // Persist to localStorage
     try {
@@ -46,7 +52,8 @@ export async function getLastChanceCodes() {
     } catch { /* storage full — skip */ }
 
     return new Set(json.setCodes);
-  } catch {
+  } catch (err) {
+    reportSourceFailure({ ok: false, kind: "upstream_error", source: "lego", message: err?.message || "" });
     return new Set();
   }
 }
