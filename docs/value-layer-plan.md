@@ -5,6 +5,10 @@
 > **Value spec:** [`docs/valuation.md`](valuation.md) — the ratified valuation spec (formerly the
 > missing `data-sources.md`; see Blocker 0). This doc is the build plan against it; treat its
 > "Target" column as the proposal shaped to that spec.
+> **Value SOURCE — decided 2026-06-01:** [`docs/value-source-decision.md`](value-source-decision.md).
+> BrickLink 6-mo *sold* is now the canonical current-value source; **BrickEconomy is superseded** as the
+> value source (demoted to fallback). This plan's BE-as-value-source framing is **not yet rewritten** —
+> build-time reconciliation, flagged in that record.
 
 ---
 

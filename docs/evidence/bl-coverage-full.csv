@@ -1,0 +1,601 @@
+set,name,be_new_value,bl_sold_new_avg,lots_new,be_used_value,bl_sold_used_avg,lots_used,be_over_bl_new,be_over_bl_used,bucket
+60345-1,Farmers Market Van,49.99,40.23,63,,32.54,7,1.243,,healthy
+71046-1,Spacewalking Astronaut,,4.34,19,8.29,,0,,,healthy
+75385-1,Battle on Peridea,49.86,48.14,100,,37.63,15,1.036,,healthy
+60418-1,Police Mobile Crime Lab Truck,69.40,50.28,14,,40.49,2,1.380,,healthy
+76275-1,Motorcycle Chase: Spider-Man vs. Doc Ock,18.72,10.89,40,,5.00,1,1.719,,healthy
+75390-1,Luke Skywalker’s X-Wing Mech,20.43,11.59,57,,10.41,2,1.762,,healthy
+10339-1,Santa's Post Office,139.99,112.75,101,,92.07,3,1.242,,healthy
+71047-4,Dragonborn Paladin,,,,12.45,,,,,error/not-found
+76270-1,Batman Mech Armor,15.95,11.74,17,,6.99,1,1.358,,healthy
+60439-1,Space Science Lab,57.79,46.28,26,,31.53,5,1.249,,healthy
+40566-1,Ray the Castaway,,24.78,83,18.55,18.33,7,,1.012,healthy
+40573-1,Christmas Tree,,31.19,28,33.03,25.83,6,,1.279,healthy
+5008074-1,Buildable Grey Castle,20.00,23.86,28,,20.93,1,0.838,,healthy
+76277-1,War Machine Mech Armor,17.80,10.14,35,,8.56,7,1.755,,healthy
+76426-1,Hogwarts Castle Boathouse,52.00,42.77,133,,29.37,10,1.216,,healthy
+76432-1,Forbidden Forest: Magical Creatures,31.99,27.42,53,,17.27,2,1.167,,healthy
+40751-1,Legolas & Gimli,34.98,29.64,90,,21.73,3,1.180,,healthy
+71046-6,Nurse Android,,,,4.54,,,,,error/not-found
+76413-1,Hogwarts: Room of Requirement,54.40,47.81,36,,35.49,8,1.138,,healthy
+30570-1,Wildlife Rescue Hovercraft,,4.16,62,2.22,3.08,3,,0.720,healthy
+10302-1,Optimus Prime,,140.10,27,149.39,99.28,12,,1.505,healthy
+75397-1,Jabba's Sail Barge,499.99,384.28,28,,352.78,5,1.301,,healthy
+71034-2,Sugar Fairy,12.98,65.67,52,3.56,54.85,6,0.198,0.065,healthy
+75321-1,The Razor Crest Microfighter,10.61,10.00,42,7.85,6.82,14,1.061,1.152,healthy
+71037-5,Falconer,,,,12.02,,,,,error/not-found
+40601-1,Majisto's Magical Workshop,35.71,31.62,207,,25.08,10,1.129,,healthy
+71807-1,Sora's Elemental Tech Mech,28.91,17.62,39,,11.77,7,1.640,,healthy
+242401-1,War Machine,6.24,4.55,58,,,0,1.371,,healthy
+60434-1,Space Base and Rocket Launchpad,140.00,111.57,19,,87.00,2,1.255,,healthy
+76292-1,Captain America vs. Red Hulk Battle,49.00,36.39,19,,30.00,1,1.347,,healthy
+60279-1,Fire Hazard Truck,,10.24,17,7.00,4.76,3,,1.469,healthy
+40580-1,Blacktron Cruiser,42.99,38.34,136,,32.83,5,1.121,,healthy
+71034-11,Knight of the Yellow Castle,,,,8.49,,,,,error/not-found
+76424-1,Flying Ford Anglia,14.99,12.28,26,,9.84,4,1.220,,healthy
+60412-1,4x4 Fire Engine with Rescue Boat,35.00,24.75,6,,14.66,2,1.414,,sparse
+10338-1,Bumblebee,,68.41,12,74.69,50.63,2,,1.475,healthy
+42637-1,Friends Advent Calendar 2024,,29.98,2,27.52,,0,,,sparse
+76423-1,Hogwarts Express & Hogsmeade Station,109.95,107.52,21,,68.71,7,1.023,,healthy
+71038-3,Jiminy Cricket,,,,4.00,,,,,error/not-found
+70841-1,Benny's Space Squad,,35.85,107,27.17,24.33,15,,1.117,healthy
+10332-1,Medieval Town Square,,260.50,113,268.59,215.49,14,,1.246,healthy
+75290-1,Mos Eisley Cantina,429.62,429.07,89,,378.52,22,1.001,,healthy
+40416-1,Ice Skating Rink,23.82,20.66,87,,15.91,9,1.153,,healthy
+40527-1,Easter Chicks,13.98,9.82,92,5.08,5.25,3,1.424,0.967,healthy
+75395-1,Advent Calendar,,41.72,19,41.49,21.69,1,,1.913,healthy
+40603-1,Wintertime Carriage Ride,34.99,28.44,84,,24.83,6,1.230,,healthy
+60400-1,Go-Karts and Race Drivers,,7.09,13,8.29,,0,,,healthy
+912403-1,Coruscant Guard,5.86,6.37,75,,,0,0.920,,healthy
+71046-5,M-Tron Powerlifter,,,,7.45,,,,,error/not-found
+30653-1,Batman 1992,10.00,5.46,393,,3.76,3,1.832,,healthy
+60431-1,Space Explorer Rover and Alien Life,,25.31,18,29.04,18.81,5,,1.544,healthy
+60409-1,Mobile Construction Crane,152.04,110.95,54,,98.84,6,1.370,,healthy
+71037-6,T-Rex Costume Fan,,,,4.53,,,,,error/not-found
+76125-1,Iron Man Hall of Armour,89.97,66.08,86,,45.11,17,1.362,,healthy
+40595-1,Tribute to Galileo Galilei,40.00,34.84,79,,27.22,5,1.148,,healthy
+40425-1,Nutcracker,14.56,12.87,33,7.95,9.46,5,1.131,0.841,healthy
+76401-1,Hogwarts Courtyard: Sirius's Rescue,67.44,59.83,30,,45.50,7,1.127,,healthy
+71037-1,Football Referee,,4.55,12,2.43,,0,,,healthy
+40616-1,Harry Potter & Cho Chang,26.68,21.88,13,,16.30,4,1.219,,healthy
+71034-3,Snowman,,210.83,16,4.90,,0,,,healthy
+71045-3,Basil the Bat Lord,,,,9.34,,,,,error/not-found
+76279-1,Spider-Man Race Car & Venom Green Goblin,34.99,26.14,18,,,0,1.338,,healthy
+75361-1,Spider Tank,,44.56,50,32.89,33.42,8,,0.984,healthy
+71038-2,Pinocchio,,111.56,47,4.82,100.36,7,,0.048,healthy
+43240-1,Maleficent's Dragon Form and Aurora's Castle,59.95,40.20,10,,30.05,2,1.491,,healthy
+71038-17,Baymax,,,,5.22,,,,,error/not-found
+75393-1,TIE Fighter & X-Wing Mash-up,107.68,86.43,63,,80.00,1,1.246,,healthy
+40705-1,Micro Ninjago Gardens,19.70,17.14,131,,9.65,3,1.150,,healthy
+30649-1,Ice Dragon Creature,,4.27,62,7.76,,0,,,healthy
+71460-1,Mr. Oz's Spacebus,99.99,59.08,13,,34.99,2,1.693,,healthy
+76288-1,Iron Man & Iron Legion vs. Hydra Soldier,19.99,17.31,14,,13.01,2,1.155,,healthy
+71453-1,Izzie and Bunchu the Bunny,,13.47,11,16.59,7.50,2,,2.212,healthy
+71047-11,Szass Tam,,,,8.49,,,,,error/not-found
+30677-1,Draco in the Forbidden Forest,4.99,4.00,160,,2.81,3,1.247,,healthy
+75373-1,Ambush on Mandalore Battle Pack,19.99,15.08,82,,12.48,5,1.325,,healthy
+60437-1,Jungle Explorer Helicopter,120.00,90.97,14,,,0,1.319,,healthy
+71038-9,Mulan,,,,4.50,,,,,error/not-found
+40631-1,Gandalf the Grey and Balrog,,32.85,88,30.39,22.85,4,,1.330,healthy
+71038-12,Pocahontas,,,,4.45,,,,,error/not-found
+30625-1,Luke Skywalker with Blue Milk,29.71,28.31,68,,22.86,6,1.050,,healthy
+60390-1,Park Tractor,,12.94,23,8.89,10.08,2,,0.882,healthy
+76440-1,Triwizard Tournament: The Arrival,129.99,129.81,29,,101.38,4,1.001,,healthy
+75341-1,Luke Skywalker's Landspeeder,238.42,190.13,64,,132.04,22,1.254,,healthy
+60440-1,LEGO Delivery Truck,99.99,89.97,23,,70.56,5,1.111,,healthy
+71038-10,Ernesto de la Cruz,,,,5.47,,,,,error/not-found
+952403-1,Builder with Cement Mixer,3.09,3.74,24,,,0,0.826,,healthy
+71047-6,Aarakocra Ranger,,,,4.15,,,,,error/not-found
+76290-1,The Avengers vs. The Leviathan,44.99,35.80,32,,20.00,1,1.257,,healthy
+76280-1,Spider-Man vs. Sandman: Final Battle,47.70,33.30,53,,26.35,5,1.433,,healthy
+75356-1,Executor Super Star Destroyer,69.99,58.44,33,,45.17,21,1.198,,healthy
+76404-1,Harry Potter Advent Calendar,,25.87,18,15.00,14.25,4,,1.053,healthy
+76190-1,Iron Man: Iron Monger Mayhem,63.79,47.69,52,,34.53,5,1.338,,healthy
+71047-5,Halfling Druid,,,,4.22,,,,,error/not-found
+71045-12,Dog Groomer,,,,3.49,,,,,error/not-found
+76188-1,Batman Classic TV Series Batmobile,64.98,51.06,146,34.99,36.43,18,1.273,0.961,healthy
+71038-18,Evil Queen,,,,4.69,,,,,error/not-found
+40712-1,Micro Rocket Launchpad,39.99,35.54,106,,22.05,5,1.125,,healthy
+71046-3,Alien Tourist,,,,8.28,,,,,error/not-found
+42623-1,Beach Water Scooter,,7.54,5,9.85,5.81,1,,1.695,sparse
+71045-7,Weightlifter Woman,,,,3.15,,,,,error/not-found
+71820-1,Ninja Team Combo Vehicle,78.36,64.25,8,,,0,1.220,,sparse
+30581-1,Tropical Parrot,,6.30,60,3.33,4.01,3,,0.830,healthy
+30672-1,Steve and Baby Panda,,3.80,115,7.46,,0,,,healthy
+75337-1,AT-TE Walker,,112.23,77,116.19,96.80,35,,1.200,healthy
+75396-1,Desert Skiff & Sarlacc Pit,135.00,83.93,244,,70.94,11,1.608,,healthy
+40547-1,Obi-Wan Kenobi and Darth Vader,,19.36,55,24.89,14.11,8,,1.764,healthy
+71047-10,The Lady of Pain,,,,7.17,,,,,error/not-found
+76415-1,The Battle of Hogwarts,97.88,82.42,47,,62.28,11,1.188,,healthy
+6490363-1,By the Fireplace,23.72,,,,,,,,error/not-found
+910038-1,Ominous Isle,310.79,268.00,51,,227.32,4,1.160,,healthy
+71788-1,Lloyd's Ninja Street Bike,,9.56,18,11.50,7.00,1,,1.643,healthy
+60376-1,Arctic Snowmobile,15.99,10.43,76,,7.75,9,1.533,,healthy
+60401-1,Construction Steamroller,12.99,10.36,37,,6.91,7,1.254,,healthy
+75386-1,Paz Vizsla And Moff Gideon Battle,39.99,26.59,120,,23.40,14,1.504,,healthy
+76430-1,Hogwarts Owlery,56.94,42.51,108,,35.09,11,1.339,,healthy
+71038-1,Oswald the Lucky Rabbit,,6.60,23,4.56,,0,,,healthy
+71046-12,Blacktron Mutant,,,,7.00,,,,,error/not-found
+122405-1,Velociraptor Baby with DNA Lab,4.31,3.84,15,,,0,1.121,,healthy
+76276-1,Venom Mech Armor vs. Miles Morales,14.98,10.18,30,,12.00,1,1.472,,healthy
+40498-1,Penguin,19.99,14.27,46,10.18,9.05,8,1.401,1.125,healthy
+40604-1,Christmas Decor Set,20.71,17.29,48,,9.61,4,1.198,,healthy
+71045-10,Train Guy,,,,3.37,,,,,error/not-found
+71034-10,Ferry Captain,,,,3.64,,,,,error/not-found
+40587-1,Easter Basket,22.00,15.07,134,,5.00,1,1.460,,healthy
+60436-1,City Advent Calendar 2024,,33.51,9,44.48,8.00,1,,5.560,sparse
+30675-1,Tournament Training Ground,10.96,4.12,121,,3.00,1,2.660,,healthy
+40607-1,Summer VIP Add-On pack,10.35,9.47,55,,5.00,1,1.093,,healthy
+60381-1,Advent Calendar,,32.05,3,36.63,9.90,1,,3.700,sparse
+71046-9,Robot Butler,,,,7.46,,,,,error/not-found
+75311-1,Imperial Armoured Marauder,44.99,46.63,71,32.00,30.88,18,0.965,1.036,healthy
+71046-11,Orion,,,,8.90,,,,,error/not-found
+40670-1,Iron Spider-Man,19.60,12.56,33,,7.82,5,1.560,,healthy
+71812-1,Kai's Ninja Climber Mech,,70.54,10,81.14,50.61,4,,1.603,healthy
+75280-1,501st Legion Clone Troopers,39.82,36.79,191,30.60,26.96,47,1.082,1.135,healthy
+76274-1,Batman with the Batmobile vs Harley Quinn and Mr. Freeze,64.96,49.78,64,,33.18,6,1.305,,healthy
+5007427-1,Pirate Adventure Ride,20.23,20.59,37,,8.52,1,0.983,,healthy
+11028-1,Creative Pastel Fun,,18.99,3,19.07,,0,,,sparse
+71809-1,Egalt the Master Dragon,,59.75,24,70.03,42.65,6,,1.642,healthy
+40686-1,Trade Federation Troop Carrier,44.99,44.90,130,,33.77,3,1.002,,healthy
+75391-1,Captain Rex Y-Wing Microfighter,12.99,9.80,97,,6.96,10,1.326,,healthy
+60413-1,Fire Rescue Plane,59.70,45.73,9,,,0,1.306,,sparse
+40273-1,Turkey,19.99,14.93,8,,10.43,5,1.339,,sparse
+76200-1,Bro Thor's New Asgard,34.95,28.89,63,,23.03,14,1.210,,healthy
+71038-13,Cruella de Vil,,,,4.99,,,,,error/not-found
+40609-1,Christmas Fun VIP Add-On Pack,12.02,10.33,53,,5.70,1,1.163,,healthy
+40577-1,Hogwarts: Grand Staircase,78.72,64.00,38,,46.75,3,1.230,,healthy
+42635-1,Dog Grooming Car,13.99,5.50,2,,,0,2.545,,sparse
+75323-1,The Justifier,145.55,116.76,51,,95.79,9,1.247,,healthy
+76909-1,Mercedes-AMG F1 W12 E Performance & Mercedes-AMG Project One,,33.94,42,24.04,16.08,14,,1.495,healthy
+76915-1,Pagani Utopia,26.03,23.23,82,,14.66,12,1.120,,healthy
+60275-1,Police Helicopter,,11.58,17,8.28,4.74,2,,1.746,healthy
+71799-1,NINJAGO City Markets,450.00,384.72,88,,310.75,13,1.170,,healthy
+41743-1,Hair Salon,,28.69,3,33.18,,0,,,sparse
+30650-1,Kai and Rapton's Temple Battle,10.88,4.76,178,,3.20,3,2.286,,healthy
+71792-1,Sora's Transforming Mech Bike Racer,77.88,45.50,27,,30.49,8,1.712,,healthy
+40659-1,Mini Steamboat Willie,55.87,40.13,59,,35.99,1,1.392,,healthy
+75388-1,Jedi Bob's Starfighter,39.99,25.20,59,,21.81,9,1.587,,healthy
+40571-1,Christmas Polar Bears,,12.83,33,9.03,9.00,1,,1.003,healthy
+892403-1,Jay,4.96,3.97,77,,,0,1.250,,healthy
+40747-1,Daffodils,19.94,10.41,23,,7.13,1,1.916,,healthy
+76181-1,Batmobile: The Penguin Chase,,34.28,33,20.12,21.18,9,,0.950,healthy
+30589-1,Go-Kart Racer,9.52,3.87,51,3.00,1.90,2,2.461,1.583,healthy
+77015-1,Temple of the Golden Idol,192.15,165.31,60,,132.24,12,1.162,,healthy
+77012-1,Fighter Plane Chase,,38.39,58,34.95,26.04,10,,1.342,healthy
+71037-11,Rockin' Horse Rider,,,,2.49,,,,,error/not-found
+71038-7,Queen of Hearts,,,,3.72,,,,,error/not-found
+71046-7,Flying Saucer Costume Fan,,,,7.54,,,,,error/not-found
+71034-4,Reindeer Costume,,,,4.08,,,,,error/not-found
+76431-1,Hogwarts: Potions Class,49.99,41.69,107,,30.69,7,1.199,,healthy
+76435-1,Hogwarts Castle: The Great Hall,199.99,179.11,47,,158.09,6,1.117,,healthy
+71045-2,Esports Girl,,55.16,55,3.00,53.13,4,,0.056,healthy
+40531-1,Lars Family Homestead Kitchen,28.96,29.46,100,,22.44,6,0.983,,healthy
+71037-7,Orc,,,,8.99,,,,,error/not-found
+71045-11,Warrior,,,,4.67,,,,,error/not-found
+40675-1,Clone Commander Cody,14.72,11.34,48,,6.77,10,1.298,,healthy
+71047-1,Dwarf Barbarian,,5.52,32,6.55,,0,,,healthy
+77013-1,Escape from the Lost Tomb,,38.67,67,36.35,32.23,11,,1.128,healthy
+40602-1,Winter Market Stall,,16.42,193,17.20,10.18,4,,1.689,healthy
+10698-1,Large Creative Brick Box,59.99,33.66,2,49.79,25.37,2,1.782,1.963,sparse
+76267-1,Marvel Advent Calendar,,26.75,14,27.14,,0,,,healthy
+40687-1,Alien Space Diner,24.99,21.87,74,,20.24,4,1.142,,healthy
+71045-4,Paralympic Athlete,,,,2.54,,,,,error/not-found
+75377-1,Invisible Hand,84.95,63.93,168,,47.75,28,1.329,,healthy
+60420-1,Construction Excavator,64.95,49.42,72,,38.32,10,1.314,,healthy
+40639-1,Bird's Nest,,11.38,41,17.14,7.47,6,,2.295,healthy
+71046-4,Retro Space Heroine,,,,7.61,,,,,error/not-found
+30455-1,Batmobile,,6.29,31,3.00,1.00,1,,3.000,healthy
+40755-1,Imperial Dropship vs. Rebel Scout Speeder,55.00,44.86,131,,28.65,3,1.226,,healthy
+71045-9,Harpy,,,,3.22,,,,,error/not-found
+60428-1,Space Construction Mech,14.70,10.57,40,12.20,7.27,7,1.391,1.679,healthy
+71045-1,Noir Detective,,4.38,17,4.23,,0,,,healthy
+60318-1,Fire Helicopter,,8.46,17,7.00,4.03,2,,1.739,healthy
+71047-3,Tiefling Sorcerer,,,,4.16,,,,,error/not-found
+71034-1,Nutcracker,,5.30,12,4.88,3.49,1,,1.398,healthy
+75317-1,The Mandalorian & The Child,19.99,16.50,123,,9.56,34,1.211,,healthy
+71045-6,Mushroom Girl,,,,4.71,,,,,error/not-found
+71038-15,Prince John,,,,5.17,,,,,error/not-found
+71765-1,Ninja Ultra Combo Mech,,125.63,14,82.65,74.81,6,,1.105,healthy
+75267-1,Mandalorian Battle Pack,19.99,20.01,197,17.47,13.99,32,0.999,1.249,healthy
+76934-1,Ferrari F40 Supercar,,17.32,39,22.40,11.55,2,,1.939,healthy
+75375-1,Millennium Falcon,84.99,59.66,36,,53.55,16,1.425,,healthy
+76281-1,X-Men Jet,90.00,69.90,22,,56.77,3,1.288,,healthy
+40422-1,Frankenstein,,13.58,48,9.75,9.47,10,,1.030,healthy
+71772-1,The Crystal King,,90.66,15,69.99,84.90,3,,0.824,healthy
+76285-1,Spider-Man's Mask,94.16,69.25,36,,51.60,10,1.360,,healthy
+60426-1,Jungle Explorer Truck,39.99,26.97,6,,24.48,2,1.483,,sparse
+71047-7,Mind Flayer,,,,4.37,,,,,error/not-found
+30303-1,The Joker Bumper Car,8.76,6.88,45,,3.58,5,1.273,,healthy
+40703-1,Micro Ninjago City,17.95,17.69,126,,10.34,2,1.015,,healthy
+71038-6,Dr. Facilier,,,,3.66,,,,,error/not-found
+40689-1,Firework Celebrations,14.99,9.24,81,,6.26,3,1.623,,healthy
+71046-8,Ice Planet Explorer,,,,8.39,,,,,error/not-found
+40721-1,Halloween Barn,,11.95,8,15.26,12.99,1,,1.175,sparse
+40704-1,Micro Ninjago Docks,19.95,17.79,94,,,0,1.121,,healthy
+40523-1,Easter Bunnies,21.87,13.90,64,9.91,10.53,3,1.573,0.941,healthy
+76438-1,Harry Potter Advent Calendar 2024,,53.10,15,38.55,31.50,2,,1.224,healthy
+76217-1,I am Groot,,35.52,96,41.46,24.76,49,,1.674,healthy
+71472-1,Izzie's Narwhal Hot-Air Balloon,,10.62,10,12.45,8.00,2,,1.556,healthy
+71045-5,Goat Farmer,,,,6.41,,,,,error/not-found
+30651-1,Quidditch Practice,9.07,4.01,145,,2.70,2,2.259,,healthy
+60387-1,4x4 Off-Roader Adventures,,25.21,10,24.89,,0,,,healthy
+75296-1,Darth Vader Meditation Chamber,70.00,70.80,40,,48.97,11,0.989,,healthy
+76293-1,Spider-Man 2024 Advent Calendar,,31.56,7,41.50,,0,,,sparse
+40525-1,Endgame Battle,,15.19,49,9.90,6.39,2,,1.550,healthy
+75348-1,Mandalorian Fang Fighter vs TIE Interceptor,90.00,82.24,55,,63.73,11,1.094,,healthy
+71046-2,Imposter,,49.17,80,6.18,45.71,6,,0.135,healthy
+75394-1,Imperial Star Destroyer,159.99,152.23,33,,116.50,3,1.051,,healthy
+41439-1,Cat Grooming Car,,10.90,7,4.94,6.89,3,,0.717,sparse
+40499-1,Santa's Sleigh,36.42,33.28,57,30.23,24.84,11,1.094,1.217,healthy
+71454-1,Mateo and Z-Blob the Robot,,15.04,21,13.84,10.78,1,,1.284,healthy
+75336-1,Inquisitor Transport Scythe,111.44,97.20,130,84.83,75.98,28,1.147,1.116,healthy
+60344-1,Chicken Henhouse,,16.24,23,9.95,10.21,7,,0.975,healthy
+40623-1,Battle of Endor Heroes,,31.80,60,27.37,21.84,6,,1.253,healthy
+71046-10,Alien Beetlezoid,,,,5.80,,,,,error/not-found
+71768-1,Jay's Golden Dragon Motorbike,,26.96,28,14.40,18.60,8,,0.774,healthy
+43253-1,Disney Advent Calendar 2024,,19.63,1,37.34,,0,,,sparse
+75374-1,The Onyx Cinder,149.99,117.41,38,,96.48,6,1.277,,healthy
+71034-12,Green Dragon Costume,,,,4.71,,,,,error/not-found
+10497-1,Galaxy Explorer,115.07,102.56,100,80.00,89.30,22,1.122,0.896,healthy
+71047-8,Strahd von Zarovich,,,,4.15,,,,,error/not-found
+40521-1,Mini Disney The Haunted Mansion,34.98,29.71,34,,19.74,2,1.177,,healthy
+71038-14,Robin Hood,,,,5.99,,,,,error/not-found
+30665-1,Baby Gorilla Encounter,9.93,4.05,157,,1.84,3,2.453,,healthy
+30566-1,Fire Helicopter,,4.11,51,1.50,2.05,6,,0.730,healthy
+71047-9,Elf Bard,,,,10.50,,,,,error/not-found
+40272-1,Witch,,12.96,18,10.63,7.20,8,,1.476,healthy
+75980-1,Attack on The Burrow,115.00,107.35,48,,77.36,15,1.071,,healthy
+76923-1,Lamborghini Lambo V12 Vision GT Super Car,,21.15,45,24.89,14.93,10,,1.667,healthy
+40591-1,Death Star II,85.00,57.85,134,,42.03,20,1.469,,healthy
+60433-1,Modular Space Station,95.00,77.40,32,,65.49,3,1.227,,healthy
+11011-1,Bricks and Animals,90.00,56.26,11,,,0,1.600,,healthy
+75378-1,BARC Speeder Escape,,18.17,55,20.74,15.00,1,,1.383,healthy
+76434-1,Aragog In The Forbidden Forest,24.72,16.72,28,,13.41,5,1.479,,healthy
+40484-1,Santa's Front Yard,,15.83,73,12.98,11.93,4,,1.088,healthy
+31140-1,Magical Unicorn,9.99,6.88,22,,4.18,7,1.453,,healthy
+75363-1,The Mandalorian's N-1 Starfighter Microfighter,,12.58,60,11.20,7.74,11,,1.448,healthy
+40539-1,Ahsoka Tano,,13.69,93,12.41,9.74,10,,1.275,healthy
+41703-1,Friendship Tree House,,90.50,16,60.00,61.25,2,,0.980,healthy
+40682-1,Spring Garden House,9.90,8.69,50,,8.52,1,1.140,,healthy
+40622-1,Disney 100th Celebration,,21.42,53,21.00,22.96,3,,0.914,healthy
+10305-1,Lion Knights' Castle,,375.99,395,495.67,463.55,23,,1.069,healthy
+71039-12,Wolverine,,,,7.45,,,,,error/not-found
+75342-1,Republic Fighter Tank,45.00,46.42,229,31.38,35.87,26,0.969,0.875,healthy
+75254-1,AT-ST Raider,,38.31,99,25.00,26.60,35,,0.940,healthy
+76289-1,Thor vs. Surtur Construction Figure,33.74,29.38,39,,19.09,2,1.148,,healthy
+30434-1,Aston Martin Valkyrie AMR Pro,,4.78,100,3.00,2.83,7,,1.062,healthy
+71038-11,Miguel Rivera,,,,5.49,,,,,error/not-found
+76208-1,The Goat Boat,59.95,41.14,34,,27.58,6,1.457,,healthy
+76398-1,Hogwarts Hospital Wing,79.99,71.17,28,,50.26,8,1.124,,healthy
+43232-1,Peter Pan & Wendy's Flight over London,83.36,51.67,27,,40.03,3,1.613,,healthy
+75347-1,TIE Bomber,,41.53,61,53.94,32.90,23,,1.640,healthy
+552402-1,Mateo with Jet Pack,2.67,2.93,29,,,0,0.912,,healthy
+60424-1,Jungle Explorer ATV,17.19,11.81,24,,5.00,1,1.455,,healthy
+30590-1,Scarecrow,,5.22,114,5.45,3.19,2,,1.708,healthy
+75383-1,Sith Infiltrator,89.99,74.52,106,,63.45,13,1.208,,healthy
+71047-2,Gith Warlock,,71.47,246,6.59,71.15,6,,0.093,healthy
+75372-1,Clone Trooper & Battle Droid Battle Pack,29.99,19.32,117,24.89,17.57,17,1.552,1.417,healthy
+75358-1,Tenoo Jedi Temple,,15.57,30,29.34,20.00,1,,1.467,healthy
+30495-1,AT-ST,,5.24,123,6.64,2.42,4,,2.744,healthy
+40584-1,Birthday Diorama,,13.74,17,,,0,,,healthy
+71047-12,Tasha the Witch Queen,,,,4.15,,,,,error/not-found
+71038-16,Experiment 626 Stitch,,,,6.39,,,,,error/not-found
+76179-1,Batman & Selina Kyle Motorcycle Pursuit,18.65,16.74,44,,12.83,2,1.114,,healthy
+30392-1,Hermione's Study Desk,9.57,5.54,132,4.25,3.74,4,1.727,1.137,healthy
+30685-1,TIE Interceptor,10.56,5.21,129,8.76,2.48,5,2.027,3.528,healthy
+30585-1,Fire Patrol Vehicle,,4.27,22,3.60,3.39,2,,1.061,healthy
+30580-1,Santa Claus,,4.75,98,3.21,2.98,3,,1.076,healthy
+71038-4,Sorcerer Mickey,,,,6.94,,,,,error/not-found
+30683-1,McLaren Formula 1 Car,8.80,4.73,71,,2.32,3,1.860,,healthy
+71038-8,Aurora,,,,4.00,,,,,error/not-found
+75376-1,Tantive IV,64.00,50.95,61,,37.79,21,1.256,,healthy
+75298-1,AT-AT vs. Tauntaun Microfighters,25.00,22.09,59,14.99,14.54,13,1.132,1.031,healthy
+71039-1,Agatha Harkness,,4.32,12,4.34,,0,,,healthy
+76428-1,Hagrid's Hut: An Unexpected Visit,74.99,57.85,45,,43.25,7,1.296,,healthy
+40706-1,Micro Ninjago City Markets,19.99,16.71,102,,11.99,2,1.196,,healthy
+10275-1,Elf Club House,,120.96,58,98.99,99.91,8,,0.991,healthy
+21253-1,The Animal Sanctuary,22.12,17.58,23,,14.79,1,1.258,,healthy
+40570-1,Cat and Mouse,,20.55,26,10.16,,0,,,healthy
+71045-8,Triceratops Costume Fan,,,,4.28,,,,,error/not-found
+30435-1,Build Your Own Hogwarts Castle,10.37,5.15,139,4.00,3.62,9,2.013,1.105,healthy
+75389-1,The Dark Falcon,179.99,134.29,69,,119.44,9,1.340,,healthy
+30680-1,AAT,7.99,3.76,301,,1.76,2,2.124,,healthy
+40709-1,Spring Animal Playground,15.00,7.68,10,,,0,1.954,,healthy
+30652-1,Doctor Strange's Interdimensional Portal,,4.94,194,6.17,4.74,4,,1.302,healthy
+60475-1,Advent Calendar 2025,40.68,33.95,45,,,0,1.198,,healthy
+40728-1,Brite Bomber,,8.82,103,8.05,4.59,4,,1.752,healthy
+60452-1,Donut Truck,19.99,15.95,17,,9.06,4,1.254,,healthy
+60414-1,Fire Station with Fire Engine,79.99,64.91,4,,,0,1.232,,sparse
+10785-1,Bakey with Cakey Fun,,10.56,9,12.45,5.37,2,,2.319,sparse
+21343-1,Viking Village,179.95,136.43,117,149.36,114.69,28,1.319,1.302,healthy
+71790-1,Imperium Dragon Hunter Hound,32.02,21.63,21,,15.52,5,1.481,,healthy
+71034-9,Turkey Costume,,,,3.58,,,,,error/not-found
+60429-1,Spaceship and Asteroid Discovery,23.94,15.24,23,,15.00,1,1.571,,healthy
+71052-9,Football Goalkeeper,4.99,,,,,,,,error/not-found
+75292-1,The Razor Crest,145.00,135.96,110,,88.75,58,1.067,,healthy
+76442-1,Hogwarts Castle: Charms Class,19.99,15.72,24,,13.05,2,1.272,,healthy
+40695-1,Borgin and Burkes: Floo Network,38.00,34.50,49,,19.99,1,1.102,,healthy
+71048-2,Wolfpack Beastmaster,13.50,48.24,102,11.21,45.00,3,0.280,0.249,healthy
+31127-1,Street Racer,,18.03,20,11.09,11.58,2,,0.958,healthy
+71795-1,Temple of the Dragon Energy Cores,,86.54,43,87.15,80.28,5,,1.086,healthy
+71039-5,She-Hulk,,,,3.65,,,,,error/not-found
+40563-1,Tribute to LEGO House,16.13,17.22,102,,14.86,3,0.936,,healthy
+60459-1,Airplane vs. Hospital Bed Race Car Pack,10.16,7.68,18,,7.07,3,1.323,,healthy
+71037-4,Carrot Mascot,,,,3.62,,,,,error/not-found
+76402-1,Hogwarts: Dumbledore's Office,77.40,70.54,43,,47.88,12,1.097,,healthy
+60471-1,Arctic Explorer Science Lab Truck,119.99,75.22,2,,56.36,1,1.595,,sparse
+75326-1,Boba Fett's Throne Room,83.56,63.47,79,,51.81,14,1.316,,healthy
+76244-1,Miles Morales vs. Morbius,25.00,19.95,29,,11.80,2,1.253,,healthy
+71048-3,Jetpack Racer,7.99,,,6.63,,,,,error/not-found
+71037-8,Conservationist,,,,3.54,,,,,error/not-found
+71048-11,Crazy Cat Lover,,,,11.40,,,,,error/not-found
+76194-1,Tony Stark's Sakaarian Iron Man,39.68,30.66,24,,13.13,1,1.294,,healthy
+30663-1,Space Hoverbike,4.99,4.23,124,,4.52,6,1.179,,healthy
+71791-1,Zane's Dragon Power Spinjitzu Race Car,59.99,30.96,28,49.79,22.50,9,1.938,2.213,healthy
+30689-1,Birthday Party Animals,4.99,3.77,37,,3.00,1,1.322,,healthy
+60300-1,Wildlife Rescue ATV,,10.73,34,5.83,4.62,2,,1.262,healthy
+75357-1,Ghost & Phantom II,159.99,160.71,59,,122.65,15,0.996,,healthy
+7498-1,Police Station,,184.22,4,89.33,74.30,24,,1.202,sparse
+71049-7,Williams,9.95,,,,,,,,error/not-found
+40700-1,Winter Holiday Train,24.19,17.45,243,,8.61,2,1.386,,healthy
+40768-1,Star Trek: Type-15 Shuttlepod,170.79,105.85,377,,75.37,1,1.614,,healthy
+75324-1,Dark Trooper Attack,34.99,28.57,157,23.28,21.47,28,1.225,1.085,healthy
+30709-1,Ferrari 499P - Hypercar,4.99,4.04,93,,,0,1.236,,healthy
+910049-1,Adventure in Transylvania,500.00,487.40,165,,414.21,5,1.026,,healthy
+10325-1,Alpine Lodge,,116.02,90,122.57,98.75,5,,1.241,healthy
+40697-1,Light Up Carved Pumpkin,,17.44,46,20.75,3.95,1,,5.253,healthy
+40822-1,Jack-O'-Lantern Pickup Truck,,18.57,5,12.44,12.75,2,,0.976,sparse
+40812-1,Snowman Ornaments,12.99,14.04,6,,,0,0.925,,sparse
+75381-1,Buildable Droideka,58.26,46.21,54,,33.36,33,1.261,,healthy
+30719-1,Go-Kart Racer,6.99,4.07,55,,,0,1.716,,healthy
+30365-1,Satellite,,5.94,58,4.13,3.75,2,,1.103,healthy
+76308-1,Spider-Man Mech vs. Anti-Venom,14.99,11.72,12,,7.33,1,1.279,,healthy
+6426244-1,90th Anniversary Mini Castle,36.74,35.48,5,,26.03,1,1.035,,sparse
+5009614-1,Skaters in the Park,24.99,17.65,24,,,0,1.416,,healthy
+6550806-1,Gingerbread Lane,32.96,,,,,,,,error/not-found
+31162-1,Cute Bunny,,13.05,28,16.59,9.57,5,,1.733,healthy
+41681-1,Forest Camper Van and Sailboat,,38.26,7,32.00,,0,,,sparse
+75320-1,Snowtrooper Battle Pack,27.78,22.36,214,24.00,16.05,37,1.243,1.495,healthy
+71048-4,Astronomer Kid,,53.69,1,6.64,,0,,,sparse
+910053-1,The Thieves of Tortuga,498.15,444.66,97,,364.13,2,1.120,,healthy
+10297-1,Boutique Hotel,207.20,213.07,83,,170.32,35,0.972,,healthy
+40497-1,Halloween Owl,,18.04,15,11.06,9.62,4,,1.150,healthy
+75333-1,Obi-Wan Kenobi's Jedi Starfighter,,22.39,117,24.89,17.71,41,,1.406,healthy
+5007428-1,Dragon Adventure Ride,,20.70,32,15.02,,0,,,healthy
+30584-1,Train,9.16,4.75,135,3.00,2.18,5,1.927,1.373,healthy
+71487-1,Z-Blob's Robot and Vehicle Adventures,11.39,7.52,17,,6.84,2,1.515,,healthy
+76395-1,Hogwarts: First Flying Lesson,35.00,30.97,27,,23.90,6,1.130,,healthy
+71052-4,Monster Hunter,4.99,51.69,3,,,0,0.097,,sparse
+40557-1,Defence of Hoth,20.72,18.31,134,12.95,13.17,7,1.132,0.984,healthy
+40658-1,Millennium Falcon Holiday Diorama,,29.03,80,18.79,20.77,3,,0.904,healthy
+71051-1,Peacock Costume Guy,,4.09,9,4.37,,0,,,sparse
+71051-8,Crocodile Costume Girl,,,,4.61,,,,,error/not-found
+30543-1,Christmas Train,,8.52,31,5.00,3.60,2,,1.387,healthy
+10293-1,Santa's Visit,,117.61,63,100.18,103.99,17,,0.963,healthy
+10355-1,Blacktron Renegade,84.97,86.50,52,,73.11,3,0.982,,healthy
+71757-1,Lloyd's Ninja Mech,16.15,11.50,19,,8.25,2,1.405,,healthy
+71051-10,Bunny Costume Girl,,,,4.63,,,,,error/not-found
+75366-1,Advent Calendar,,26.80,23,21.85,21.63,1,,1.010,healthy
+76302-1,Superman Mech vs. Lex Luthor,17.26,12.22,24,,10.49,3,1.413,,healthy
+40775-1,Mini Knights Castle,15.40,14.52,348,,18.35,1,1.061,,healthy
+21170-1,The Pig House,,44.32,2,28.01,24.15,8,,1.160,sparse
+30734-1,Mini F1 ACADEMY Car,3.99,4.10,72,,,0,0.974,,healthy
+71048-10,Pirate Quartermaster,8.98,,,7.45,,,,,error/not-found
+71051-9,Dolphin Costume Girl,,,,4.59,,,,,error/not-found
+76224-1,Batmobile: Batman vs. The Joker Chase,71.03,54.69,62,,32.13,3,1.299,,healthy
+75354-1,Coruscant Guard Gunship,139.99,141.77,99,,115.31,21,0.987,,healthy
+75345-1,501st Clone Troopers Battle Pack,19.99,15.20,175,16.59,11.39,31,1.315,1.457,healthy
+71037-9,Potter,,,,2.36,,,,,error/not-found
+30370-1,Diver,,5.61,56,3.88,3.26,5,,1.188,healthy
+71039-2,Moon Knight,,60.58,77,6.67,51.83,5,,0.129,healthy
+76307-1,Iron Man Mech vs. Ultron,14.99,12.33,10,,7.50,2,1.216,,healthy
+71763-1,Lloyd's Race Car EVO,,31.49,12,25.48,19.22,4,,1.325,healthy
+60443-1,F1 Pit Stop & Pit Crew with Ferrari Car,,18.58,8,24.89,7.00,1,,3.556,sparse
+40769-1,SEGA Genesis Controller,39.99,30.98,170,,,0,1.291,,healthy
+71051-2,Fluffy Cat Costume Girl,,46.32,546,8.29,44.91,3,,0.185,healthy
+71049-12,F1 Car,5.00,,,,,,,,error/not-found
+71051-3,Goldfish Costume Girl,,118.35,130,4.68,,0,,,healthy
+76400-1,Hogwarts Carriage and Thestrals,,19.55,65,16.00,14.99,11,,1.067,healthy
+76387-1,Hogwarts: Fluffy Encounter,68.72,67.24,34,,38.58,10,1.022,,healthy
+76388-1,Hogsmeade Village Visit,90.00,78.67,24,,59.83,12,1.144,,healthy
+40774-1,Classic Animation Scenes,29.16,25.59,206,,22.00,1,1.140,,healthy
+40885-1,Duck Family,,21.21,222,,,0,,,healthy
+40772-1,Celebration Series: 3. Luminous Ghost,18.90,12.65,129,15.69,9.00,1,1.494,1.743,healthy
+71051-4,Monkey Costume Guy,,51.21,8,4.46,,0,,,sparse
+60316-1,Police Station,69.99,49.77,9,,40.70,6,1.406,,sparse
+71039-6,Hawkeye,,,,3.93,,,,,error/not-found
+71048-5,Plush Toy Collector,,,,7.56,,,,,error/not-found
+71049-2,Mercedes-AMG,7.22,44.56,45,,,0,0.162,,healthy
+71741-1,NINJAGO City Gardens,,349.45,81,321.15,284.36,24,,1.129,healthy
+71052-8,Tuba Player,4.99,,,,,,,,error/not-found
+75301-1,Luke Skywalker's X-wing Fighter,83.64,60.55,161,,39.62,51,1.381,,healthy
+40567-1,Forestmen Forest Hideout,44.96,41.06,156,,35.72,6,1.095,,healthy
+76216-1,Iron Man Armoury,,64.47,44,53.90,53.01,2,,1.017,healthy
+71051-5,Frog Costume Guy,,,,8.18,,,,,error/not-found
+75312-1,Boba Fett's Starship,59.96,43.74,93,,28.04,26,1.371,,healthy
+76266-1,Endgame Final Battle,83.50,56.66,17,,71.45,1,1.474,,healthy
+71051-6,Koala Costume Guy,,,,4.84,,,,,error/not-found
+71798-1,Nya and Arin's Baby Dragon Battle,29.99,21.42,9,,,0,1.400,,sparse
+76265-1,Batwing: Batman vs. The Joker,45.72,34.27,31,,22.93,5,1.334,,healthy
+75316-1,Mandalorian Starfighter,69.43,71.47,124,,59.91,26,0.971,,healthy
+40452-1,Hogwarts Gryffindor Dorms,56.17,53.68,22,,37.00,6,1.046,,healthy
+76447-1,Hogwarts Castle: Flying Lessons,79.99,76.97,6,,71.81,1,1.039,,sparse
+41696-1,Pony-Washing Stable,,8.92,4,5.62,5.66,2,,0.993,sparse
+31109-1,Pirate Ship,,95.46,70,107.90,76.08,18,,1.418,healthy
+71052-1,Robot T. rex,4.99,3.78,6,,,0,1.319,,sparse
+10308-1,Holiday Main Street,,123.59,54,108.64,107.13,7,,1.014,healthy
+77256-1,Time Machine from Back to the Future,27.99,28.34,119,,16.85,6,0.988,,healthy
+75310-1,Duel on Mandalore,21.90,21.68,85,20.00,14.97,29,1.010,1.336,healthy
+40818-1,Italy Postcard,14.99,19.62,4,,,0,0.764,,sparse
+71048-9,Cupid,8.16,,,6.77,,,,,error/not-found
+71034-8,Wolf Costume,,,,3.65,,,,,error/not-found
+10356-1,Star Trek: U.S.S. Enterprise NCC-1701-D,399.99,383.14,34,,356.21,4,1.044,,healthy
+31115-1,Space Mining Mech,,48.72,5,20.45,27.06,4,,0.756,sparse
+76335-1,Spider-Man vs. Ghost Rider Motorcycle,9.99,9.70,22,,,0,1.030,,healthy
+75314-1,The Bad Batch Attack Shuttle,222.28,195.65,110,,164.70,44,1.136,,healthy
+30694-1,Space Science Mech,4.99,4.28,101,,4.67,3,1.166,,healthy
+76441-1,Hogwarts Castle: Dueling Club,24.99,24.14,47,,16.06,6,1.035,,healthy
+10354-1,The Lord of the Rings: The Shire,269.99,231.05,28,,210.17,4,1.169,,healthy
+41677-1,Forest Waterfall,,7.50,19,5.88,5.54,6,,1.061,healthy
+40917-1,The Darksaber,57.87,45.24,251,,,0,1.279,,healthy
+71052-2,Marine Biologist,4.99,48.06,304,,,0,0.104,,healthy
+75362-1,Ahsoka Tano's T-6 Jedi Shuttle,,53.07,122,57.99,40.37,21,,1.436,healthy
+71034-5,Christmas Elf,,,,4.23,,,,,error/not-found
+71049-4,McLaren,9.68,,0,,,0,,,no-sales
+71052-10,Cute Witch,4.99,,,,,,,,error/not-found
+71038-5,Tiana,,,,3.70,,,,,error/not-found
+71039-11,Storm,,,,4.68,,,,,error/not-found
+60460-1,No Limits: Race Car Ramp Track,49.99,40.57,10,,,0,1.232,,healthy
+76231-1,Guardians of the Galaxy Advent Calendar,,27.39,18,18.53,,0,,,healthy
+5009806-1,Retro Space Explorer,49.35,29.76,118,,23.55,1,1.658,,healthy
+40820-1,Up-Scaled Santa Minifigure,54.99,65.89,21,,,0,0.835,,healthy
+40352-1,Scarecrow,,17.65,4,16.08,9.86,4,,1.631,sparse
+75436-1,The Mandalorian & Grogu’s Speeder Bike,9.99,9.29,31,,,0,1.075,,healthy
+71051-7,Dalmatian Costume Guy,,,,4.48,,,,,error/not-found
+71052-7,Chocolatier,4.99,,,,,,,,error/not-found
+40806-1,Gingerbread AT-AT Walker,59.99,94.40,167,,43.15,3,0.635,,healthy
+71049-8,VCARB,4.84,,,,,,,,error/not-found
+71761-1,Zane's Power Up Mech EVO,,12.77,27,7.25,7.30,5,,0.993,healthy
+75387-1,Boarding the Tantive IV,60.00,45.74,173,49.80,36.01,11,1.312,1.383,healthy
+71049-9,Sauber,5.33,,,,,,,,error/not-found
+40701-1,Ballerina & Nutcracker Scene,25.00,22.51,110,,14.44,1,1.110,,healthy
+41717-1,Mia's Wildlife Rescue,,28.22,8,25.00,,0,,,sparse
+40203-1,Vampire and Bat,,14.55,12,10.00,9.02,3,,1.109,healthy
+952411-1,Astronaut with Space Satellite,4.67,4.32,22,,,0,1.080,,healthy
+40795-1,Luke Skywalker (Rebel Pilot),,10.00,18,15.53,8.15,2,,1.905,healthy
+40764-1,Easter Bunny Surprise,14.99,8.86,161,,,0,1.692,,healthy
+42640-1,Guinea Pig Playground,15.35,8.75,7,,,0,1.753,,sparse
+30645-1,Snowman,9.89,4.38,52,,2.89,3,2.258,,healthy
+5009378-1,LEGO Best Buy Arcade Race,30.00,23.86,27,,,0,1.257,,healthy
+30708-1,Millennium Falcon,4.99,3.87,417,,2.81,8,1.288,,healthy
+40640-1,LEGO Nutcracker,,10.83,25,12.45,4.95,1,,2.515,healthy
+10343-1,Mini Orchid,29.99,20.67,28,,14.03,3,1.451,,healthy
+40776-1,Hot Chocolate Stand,24.89,18.20,616,,17.71,4,1.367,,healthy
+75405-1,Home One Starcruiser,69.99,47.52,22,,32.65,3,1.473,,healthy
+75400-1,Plo Koon's Jedi Starfighter Microfighter,14.99,12.01,45,,8.62,7,1.248,,healthy
+71052-5,Boba Cup Fan,4.99,,,,,,,,error/not-found
+71039-7,Kate Bishop,,,,4.17,,,,,error/not-found
+30002-1,Police Boat,,5.00,1,3.78,3.19,2,,1.183,sparse
+40558-1,Clone Trooper Command Station,,26.42,147,20.00,21.27,8,,0.940,healthy
+5007490-1,Space Adventure Ride,25.00,26.20,23,,,0,0.954,,healthy
+60450-1,Yellow Construction Wheel Loader,17.00,13.39,12,,8.36,3,1.269,,healthy
+75283-1,Armored Assault Tank (AAT),55.18,52.38,128,38.00,42.45,33,1.054,0.895,healthy
+10370-1,Poinsettia,49.99,32.98,10,41.49,,0,1.516,,healthy
+L0002221-1,Construction Worker with Bulldozer,3.09,2.89,7,,,0,1.068,,sparse
+71048-12,Steampunk Inventor,7.99,,,6.63,,,,,error/not-found
+21341-1,Hocus Pocus: The Sanderson Sister Cottage,280.20,250.46,47,,180.65,13,1.119,,healthy
+75418-1,Advent Calendar,41.68,29.83,33,,,0,1.397,,healthy
+21363-1,The Goonies,329.99,266.74,7,,242.37,3,1.237,,sparse
+40746-1,Santa's Delivery Truck,19.99,17.84,30,,14.55,1,1.120,,healthy
+60466-1,Yellow Bulldozer,64.99,53.16,12,,42.94,5,1.223,,healthy
+5008897-1,Tic Tac Toe,,37.92,53,32.58,27.00,1,,1.207,healthy
+71039-4,Werewolf by Night,,,,3.04,,,,,error/not-found
+75325-1,The Mandalorian's N-1 Starfighter,59.99,38.10,62,,28.70,33,1.575,,healthy
+71049-3,Ferrari,5.77,100.61,26,,,0,0.057,,healthy
+40770-1,Hogwarts Castle: Room of Requirement,45.00,33.37,195,,,0,1.349,,healthy
+71037-2,Robot Warrior,,60.03,61,3.10,57.67,6,,0.054,healthy
+71762-1,Kai's Fire Dragon EVO,,29.22,10,33.16,17.49,5,,1.896,healthy
+L0002288-1,Mateo,7.00,6.69,12,,,0,1.046,,healthy
+910051-1,Mushroom Village,308.42,290.42,36,,,0,1.062,,healthy
+30679-1,Venom Street Bike,,4.01,152,7.28,3.18,4,,2.291,healthy
+40743-1,Christmas Table Decoration,,24.37,7,33.19,19.00,1,,1.747,sparse
+31143-1,Birdhouse,,31.75,29,29.01,22.13,9,,1.311,healthy
+71051-12,Parrot Costume Girl,,,,4.44,,,,,error/not-found
+5007489-1,Fantasy Adventure Ride,18.90,21.37,21,,15.00,1,0.884,,healthy
+60197-1,Passenger Train,,160.42,39,111.28,108.47,17,,1.026,healthy
+75300-1,Imperial TIE Fighter,58.56,51.87,118,,32.35,45,1.129,,healthy
+40767-1,Up-Scaled Baby Astronaut,44.98,32.33,279,,26.51,8,1.391,,healthy
+75359-1,332nd Ahsoka's Clone Trooper Battle Pack,23.30,18.97,162,9.09,14.12,19,1.228,0.644,healthy
+910047-1,Medieval Seaside Market,388.59,331.05,111,,277.50,2,1.174,,healthy
+75448-1,Clone Shock Trooper Mech,14.99,12.30,12,,,0,1.219,,healthy
+75322-1,Hoth AT-ST,64.59,58.40,98,,39.80,22,1.106,,healthy
+71052-12,Unicorn Elf,4.99,,,,,,,,error/not-found
+71037-12,Newspaper Kid,,,,3.30,,,,,error/not-found
+910039-1,The Art of Chocolate,300.00,271.23,62,,229.25,2,1.106,,healthy
+76304-1,Batman Forever Batmobile,99.99,,0,,,0,,,no-sales
+40825-1,Halloween Wreath,,46.84,1,33.19,,0,,,sparse
+L0002232-1,Night Trooper,5.36,5.98,65,,,0,0.897,,healthy
+71052-6,Trash Monster,4.99,,,,,,,,error/not-found
+30559-1,Elsa and Bruni's Forest Camp,,6.46,24,2.75,3.46,2,,0.795,healthy
+40761-1,The Lord of the Rings: Smeagol & Deagol,86.94,74.65,176,,66.30,3,1.165,,healthy
+76178-1,Daily Bugle,410.04,372.53,139,,310.78,24,1.101,,healthy
+40811-1,Altar of the Dead,,22.52,5,12.44,,0,,,sparse
+71049-1,Red Bull RB20,8.69,3.69,11,,,0,2.354,,healthy
+71049-5,Aston Martin,10.48,,,,,,,,error/not-found
+75295-1,Millennium Falcon Microfighter,12.82,12.29,80,6.99,7.78,19,1.043,0.898,healthy
+76261-1,Spider-Man Final Battle,163.60,107.51,74,,80.73,9,1.522,,healthy
+21318-1,Treehouse,227.04,187.05,95,,149.49,32,1.214,,healthy
+71039-3,Mr. Knight,,,,4.00,,,,,error/not-found
+75319-1,The Armorer's Mandalorian Forge,,48.46,114,35.35,35.97,20,,0.983,healthy
+552405-1,Cooper with Double Shooter,2.93,2.90,35,,,0,1.009,,healthy
+40786-1,Micro Command Center,,33.32,87,,16.00,1,,,healthy
+71051-11,Lion Costume Girl,,,,10.72,,,,,error/not-found
+75299-1,Trouble on Tatooine,28.98,20.70,83,15.00,15.22,25,1.400,0.986,healthy
+76253-1,Guardians of the Galaxy Headquarters,13.33,10.90,39,,6.83,2,1.223,,healthy
+71048-6,Pterodactyl Costume Fan,,,,5.46,,,,,error/not-found
+75401-1,Ahsoka's Jedi Interceptor,,33.28,45,37.34,26.59,10,,1.404,healthy
+71780-1,Kai's Ninja Race Car EVO,,9.20,13,8.29,6.56,7,,1.264,healthy
+43214-1,Twirling Rapunzel,,10.33,24,13.50,5.38,1,,2.511,healthy
+30654-1,X-wing Starfighter,9.99,6.00,305,3.00,3.53,11,1.666,0.850,healthy
+952302-1,Police Buggy,2.80,2.85,11,,,0,0.983,,healthy
+30727-1,TIE Advanced,8.16,4.29,92,,2.85,2,1.903,,healthy
+30635-1,Beach Cleanup,,3.53,35,2.55,2.50,1,,1.020,healthy
+30706-1,Quidditch Training,4.99,3.92,169,,4.69,2,1.273,,healthy
+30352-1,Police Car,,4.68,7,2.95,2.48,5,,1.189,sparse
+76389-1,Hogwarts Chamber of Secrets,153.60,132.70,73,,94.62,22,1.158,,healthy
+30420-1,Harry Potter and Hedwig,,5.32,104,3.50,3.89,3,,0.900,healthy
+71037-10,Rococo Aristocrat,,,,3.33,,,,,error/not-found
+30723-1,Ninja Cole's Car,11.40,4.35,97,,3.46,4,2.622,,healthy
+76189-1,Captain America and Hydra Face-Off,,9.89,29,8.00,5.00,1,,1.600,healthy
+30668-1,Easter Bunny with Colorful Eggs,,3.79,109,8.30,2.50,1,,3.320,healthy
+40808-1,Easter Bunny and Chick Egg Hunt,12.99,12.14,6,,,0,1.070,,sparse
+75192-1,Millennium Falcon,849.99,672.43,54,,540.37,20,1.264,,healthy
+10789-1,Spider-Man's Car and Doc Ock,,8.70,32,8.29,5.21,2,,1.590,healthy
+910045-1,Siege Encampment,399.98,336.79,137,,305.80,2,1.188,,healthy
+76456-1,Advent Calendar 2025,44.99,24.58,8,,,0,1.831,,sparse
+75344-1,Boba Fett's Starship Microfighter,,9.21,165,7.18,6.70,19,,1.072,healthy
+71049-10,Haas,7.25,,,,,,,,error/not-found
+71052-11,Mysterious Ronin,4.99,,,,,,,,error/not-found
+40789-1,Flying Moon Car,32.99,29.25,90,,15.00,1,1.128,,healthy
+40816-1,Decorative Easter Egg,,19.99,1,16.59,,0,,,sparse
+40765-1,Kamino Training Facility,39.85,35.24,161,,29.83,4,1.131,,healthy
+71037-3,Brown Astronaut and Spacebaby,,,,8.25,,,,,error/not-found
+71048-7,Longboarder,,,,7.46,,,,,error/not-found
+40565-1,Santa's Workshop,,34.31,58,20.00,21.47,3,,0.931,healthy
+30716-1,Cute Easter Bunny,8.99,3.46,51,,,0,2.601,,healthy
+60247-1,Forest Fire,,11.70,6,5.00,5.08,2,,0.984,sparse
+10312-1,Jazz Club,318.60,249.85,170,,204.10,37,1.275,,healthy
+71048-1,Hamster Costume Fan,,4.17,17,4.97,,0,,,healthy
+76185-1,Spider-Man at the Sanctum Workshop,39.99,34.05,17,,21.00,2,1.175,,healthy
+71034-6,Cardboard Robot,,,,2.90,,,,,error/not-found
+76386-1,Hogwarts: Polyjuice Potion Mistake,25.00,21.34,120,,13.29,19,1.171,,healthy
+40606-1,Spring Fun VIP Add-On Pack,9.98,8.20,111,,,0,1.217,,healthy
+71048-8,Bogeyman,,,,6.63,,,,,error/not-found
+71049-11,F1 Academy,4.11,,,,,,,,error/not-found
+60446-1,Modular Galactic Spaceship,126.60,80.27,16,,40.00,1,1.577,,healthy
+76177-1,Battle at the Ancient Village,35.93,29.22,20,,19.01,6,1.230,,healthy
+40424-1,Winter Snowball Fight,24.68,21.99,19,,,0,1.122,,healthy
+40351-1,Halloween Ghost,,25.98,11,18.43,17.67,8,,1.043,healthy
+40564-1,Winter Elves Scene,,19.55,92,20.05,14.06,3,,1.426,healthy
+76420-1,Triwizard Tournament: The Black Lake,55.00,40.32,62,,23.39,13,1.364,,healthy
+76248-1,The Avengers Quinjet,92.98,74.60,25,,48.81,4,1.246,,healthy
+40585-1,World of Wonders,30.00,22.81,94,,11.50,4,1.315,,healthy
+40274-1,Mr. & Mrs. Claus,,28.50,29,16.80,16.81,12,,0.999,healthy
+71049-6,Alpine,5.50,,,,,,,,error/not-found
+71052-3,BIONICLE Cosplayer,4.99,,,,,,,,error/not-found
+910057-1,Outlaw Forest Den,438.59,346.73,105,,275.84,2,1.265,,healthy
+31120-1,Medieval Castle,133.47,118.54,91,112.30,99.18,15,1.126,1.132,healthy
+30383-1,Naboo Starfighter,,8.29,31,4.50,3.80,8,,1.183,healthy
+60458-1,Pizza vs. Fire Truck Race Car Pack,,6.90,20,8.30,6.00,1,,1.383,healthy
+71034-7,Popcorn Costume,,,,3.94,,,,,error/not-found
+40615-1,Tusken Raider,15.00,11.90,42,,9.90,8,1.260,,healthy
+40599-1,Houses of the World 4,29.82,26.02,41,,25.00,1,1.146,,healthy
+71039-9,Echo,,,,3.13,,,,,error/not-found
+41756-1,Ski Slope and Cafe,,93.20,8,90.59,65.00,1,,1.394,sparse
+40778-1,Winter Gazebo,39.99,32.41,387,,23.95,2,1.234,,healthy
+40773-1,The Goonies: The Walshes' Attic,75.15,62.16,79,,47.50,2,1.209,,healthy
+60432-1,Command Rover and Crane Loader,115.00,98.09,16,,75.00,1,1.172,,healthy
+75364-1,New Republic E-wing vs. Shin Hati's Starfighter,,84.68,66,56.79,68.08,12,,0.834,healthy
+71039-10,Beast,,,,4.97,,,,,error/not-found
+60226-1,Mars Research Shuttle,,38.34,24,18.59,20.12,15,,0.924,healthy

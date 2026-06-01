@@ -23,6 +23,8 @@ collection.json
 # in-browser catalog loader at /sets.csv and /themes.csv):
 !public/sets.csv
 !public/themes.csv
+# ...and committed value-source evidence under docs/ is durable, not scratch:
+!docs/evidence/bl-coverage-full.csv
 
 # Claude-specific config
 .claude/

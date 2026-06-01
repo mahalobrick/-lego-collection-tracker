@@ -6,6 +6,11 @@ worth. One layer of the app; the buy/decision layer and order of operations live
 the value sources must plug in (proxy contract, caching, contract-test lock) and the V4
 BrickLink gating answer, see `docs/integration-standard.md`.
 
+> **Value SOURCE superseded — see [`docs/value-source-decision.md`](value-source-decision.md) (2026-06-01).**
+> The "Canonical current-value source" below is now **BrickLink 6-mo sold**, not BrickEconomy; BE is demoted
+> to historical/fallback provenance. The BE-as-value-source prose in this spec is **intentionally left intact
+> for now** — full reconciliation happens during the build (deferral flagged in the decision record).
+
 ## What this layer answers
 
 "What is this set worth right now?" — the current market value shown in My Collection
