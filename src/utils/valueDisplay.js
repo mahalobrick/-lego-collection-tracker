@@ -15,11 +15,42 @@ import { money } from "./formatting";
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * THE value→display decision, single-sourced: a null/undefined amount → "—"
+ * (unknown, docs/valuation.md rule 6), any number → money() (incl. a genuine 0).
+ * Both the Value-struct path ({@link formatValueCell}) and any bare-number value
+ * read funnel through here so there is ONE "—"-vs-money rule, never an inline
+ * `amount == null ? … : money()` re-implemented at a call site.
+ *
+ * @param {number|null|undefined} amount
+ * @returns {string}
+ */
+export function formatValue(amount) {
+  return amount == null ? "—" : money(amount);
+}
+
+/**
+ * THE aggregate value→display decision: a total over a set of which `knownCount`
+ * carry a known value. When NOTHING is known (knownCount === 0) the total is a
+ * phantom $0 (every contribution was unknown→0), so render "—", not "$0.00";
+ * otherwise render the money() total. This is the aggregate twin of {@link formatValue}
+ * for the headline/card figures (portfolioValue, gain, avg, …) where an all-unknown
+ * collection would otherwise read as a real $0. (docs/valuation.md rule 6)
+ *
+ * @param {number} total       The summed value (unknowns already contribute 0).
+ * @param {number} knownCount  How many contributors had a known value (knownValueCount).
+ * @returns {string}
+ */
+export function formatAggregateValue(total, knownCount) {
+  return knownCount > 0 ? money(total) : "—";
+}
+
+/**
  * Render a set's value cell from its {@link import("./value").Value} struct:
  * amount null → "—" (unknown), else money(). Unknown is NEVER rendered as $0.00
  * (docs/valuation.md rule 6).
  *
- * This is a pure formatter — it does NOT decide 0-vs-unknown. For VALUE the 0→unknown
+ * Thin adapter over {@link formatValue} — the struct and bare-number paths share
+ * one "—"/money decision. It does NOT decide 0-vs-unknown: for VALUE the 0→unknown
  * coalescing is single-sourced upstream in {@link import("./value").valueAmount} (used
  * by rawSetValue and the per-copy path), so a 0 amount never reaches here on a value
  * read; there is no genuine-$0 value case to render.
@@ -28,8 +59,7 @@ import { money } from "./formatting";
  * @returns {string}
  */
 export function formatValueCell(value) {
-  if (!value || value.amount == null) return "—";
-  return money(value.amount);
+  return formatValue(value?.amount);
 }
 
 /**

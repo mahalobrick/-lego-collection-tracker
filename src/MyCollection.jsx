@@ -11,7 +11,7 @@ import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition } from "./utils/beSyncValues";
 import { portfolioValue, knownValueCount, setValueProvenance, totalSpent, portfolioGain, portfolioROI, roiExcludedCount, setROI, setGain, groupRollup } from "./utils/portfolio";
-import { formatValueCell, unknownValueNote, retailTooltip, roiExclusionNote } from "./utils/valueDisplay";
+import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailTooltip, roiExclusionNote } from "./utils/valueDisplay";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
 
@@ -417,6 +417,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     // Stats sourced from normalized BE data (entries carry the raw fields)
     const pieces      = sets.reduce((sum, s) => sum + (s.pieces || 0) * (asNumber(s.qty) || 1), 0);
     const retailValue = sets.reduce((sum, s) => sum + (asNumber(s.totalRetailPrice) || (asNumber(s.retailPrice) || asNumber(s.msrp)) * (asNumber(s.qty) || 1)), 0);
+    // How many sets carry a known retail figure — so an all-unknown collection's Retail
+    // card reads "—" via formatAggregateValue, not a phantom $0. (Workstream A)
+    const retailValueKnown = sets.reduce((n, s) => n + ((asNumber(s.totalRetailPrice) || asNumber(s.retailPrice) || asNumber(s.msrp)) > 0 ? 1 : 0), 0);
     const minifigs    = sets.reduce((sum, s) => sum + (asNumber(s.minifigs) || 0) * (asNumber(s.qty) || 1), 0);
 
     // Entry-level counts — each copy counted individually, matching BE's method.
@@ -424,15 +427,21 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     const allEntries    = sets.flatMap(s => s.entries?.length ? s.entries : [{ condition: s.condition, current_value: asNumber(s.currentValue), retired: s.retired }]);
     const newEntries    = allEntries.filter(e => !e.condition || e.condition === "new" || e.condition === "sealed").length;
     const usedEntries   = allEntries.filter(e => e.condition && e.condition.startsWith("used")).length;
-    const newSetsValue  = allEntries.filter(e => !e.condition || e.condition === "new" || e.condition === "sealed")
-      .reduce((sum, e) => sum + (Number(e.current_value) || 0), 0);
-    const usedSetsValue = allEntries.filter(e => e.condition && e.condition.startsWith("used"))
-      .reduce((sum, e) => sum + (Number(e.current_value) || 0), 0);
+    // New/Used Sets Value via the portfolio funnel on condition-filtered SETS — unknown
+    // value contributes 0 and is excluded from the known-count, so an all-unknown subset
+    // renders "—" (formatAggregateValue), never a phantom $0. (Workstream A)
+    const newSetsList   = sets.filter(s => !s.condition || s.condition === "new" || s.condition === "sealed");
+    const usedSetsList  = sets.filter(s => s.condition && s.condition.startsWith("used"));
+    const newSetsValue   = portfolioValue(newSetsList);
+    const usedSetsValue  = portfolioValue(usedSetsList);
+    const newValueKnown  = knownValueCount(newSetsList);
+    const usedValueKnown = knownValueCount(usedSetsList);
 
     return {
       totalQty, costBasis, value, valuedSets, themes, duplicates,
       retiredSets, newSets, usedSets, avgValue, avgPaid,
-      pieces, retailValue, minifigs, newEntries, usedEntries, newSetsValue, usedSetsValue,
+      pieces, retailValue, retailValueKnown, minifigs, newEntries, usedEntries,
+      newSetsValue, usedSetsValue, newValueKnown, usedValueKnown,
       // Gain over value-known sets; % ROI over {value known, cost > 0} only (null
       // when none qualify → "—"). roiExcluded drives the exclusion note. (V2 cleanup)
       gainLoss: portfolioGain(sets),
@@ -445,7 +454,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     // groupRollup sums KNOWN values per theme (unknown excluded, not counted as $0).
     // (unknown≠0 sweep)
     return groupRollup(sets, s => s.theme)
-      .map(g => ({ name: g.key, qty: g.qty, value: g.value }))
+      .map(g => ({ name: g.key, qty: g.qty, value: g.value, known: g.knownValueCount }))
       .sort((a, b) => b.value - a.value);
   }, [sets]);
 
@@ -1167,9 +1176,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                     style={{ opacity: draggedCollItem === item.key ? 0.4 : 1, cursor: "grab" }}
                   >
                     {item.key === "qty"          ? <Card title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} /> :
-                     item.key === "value"        ? <Card title="Collection Value" value={money(stats.value)} sub={unknownValueNote(stats.valuedSets, sets.length)} /> :
+                     item.key === "value"        ? <Card title="Collection Value" value={formatAggregateValue(stats.value, stats.valuedSets)} sub={unknownValueNote(stats.valuedSets, sets.length)} /> :
                      item.key === "cost"         ? <Card title="Cost Basis"       value={money(stats.costBasis)} /> :
-                     item.key === "gain"         ? <Card title="Net Gain / Loss"  value={money(stats.gainLoss)} good={stats.gainLoss >= 0} /> :
+                     item.key === "gain"         ? <Card title="Net Gain / Loss"  value={formatAggregateValue(stats.gainLoss, stats.valuedSets)} good={stats.valuedSets > 0 ? stats.gainLoss >= 0 : undefined} /> :
                      item.key === "roi"          ? <Card title="ROI"              value={stats.roi === null ? "—" : `${stats.roi.toFixed(1)}%`} good={stats.roi === null ? undefined : stats.roi >= 0} sub={roiExclusionNote(stats.roiExcluded)} /> :
                      item.key === "themes"       ? <Card title="Themes"           value={stats.themes} /> :
                      item.key === "duplicates"   ? <Card title="Multi-Copy Sets"  value={stats.duplicates} /> :
@@ -1185,13 +1194,13 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                          <div style={{ fontSize: 11, color: "#3d4f60", minHeight: 14 }}>new · used</div>
                        </div>
                      ) :
-                     item.key === "avgValue"     ? <Card title="Avg Set Value"    value={money(stats.avgValue)} /> :
+                     item.key === "avgValue"     ? <Card title="Avg Set Value"    value={formatAggregateValue(stats.avgValue, stats.valuedSets)} /> :
                      item.key === "avgPaid"      ? <Card title="Avg Paid / Set"   value={money(stats.avgPaid)} /> :
                      item.key === "pieces"       ? <Card title="Total Pieces"     value={(stats.pieces || beSyncInfo.piecesCount || 0).toLocaleString()} /> :
                      item.key === "minifigs"     ? <Card title="Minifigs"         value={(stats.minifigs || beSyncInfo.minifsCount || 0).toLocaleString()} /> :
-                     item.key === "retailValue"  ? <Card title="Retail Value"     value={money(stats.retailValue || beSyncInfo.retailValue)} /> :
-                     item.key === "newValue"     ? <Card title="New Sets Value"   value={money(stats.newSetsValue)} sub={`${stats.newEntries} sets`} /> :
-                     item.key === "usedValue"    ? <Card title="Used Sets Value"  value={money(stats.usedSetsValue)} sub={`${stats.usedEntries} sets`} /> :
+                     item.key === "retailValue"  ? <Card title="Retail Value"     value={formatAggregateValue(stats.retailValue || beSyncInfo.retailValue, stats.retailValueKnown || (beSyncInfo.retailValue ? 1 : 0))} /> :
+                     item.key === "newValue"     ? <Card title="New Sets Value"   value={formatAggregateValue(stats.newSetsValue, stats.newValueKnown)} sub={`${stats.newEntries} sets`} /> :
+                     item.key === "usedValue"    ? <Card title="Used Sets Value"  value={formatAggregateValue(stats.usedSetsValue, stats.usedValueKnown)} sub={`${stats.usedEntries} sets`} /> :
                      item.key === "watchList"    ? <Card title="Wanted List"      value={watchListHighlights.total} /> : null}
                   </div>
                 ))}
@@ -1310,7 +1319,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                                   </ResponsiveContainer>
                                   {ct === "donut" && (
                                     <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-                                      <div style={{ fontSize: 20, fontWeight: 900, color: "#e8e2d5" }}>{money(stats.value)}</div>
+                                      <div style={{ fontSize: 20, fontWeight: 900, color: "#e8e2d5" }}>{formatAggregateValue(stats.value, stats.valuedSets)}</div>
                                       <div style={{ color: "#8a9bb0", fontSize: 12 }}>Collection Value</div>
                                     </div>
                                   )}
@@ -1327,7 +1336,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                                       <div style={{ color: "#5d6f80", fontSize: 12 }}>{d.qty} set{d.qty !== 1 ? "s" : ""}</div>
                                     </div>
                                   </div>
-                                  <div style={{ fontWeight: 900, fontSize: 13 }}>{money(d.value)}</div>
+                                  <div style={{ fontWeight: 900, fontSize: 13 }}>{formatAggregateValue(d.value, d.known)}</div>
                                 </div>
                               ))}
                               {themeChartData.length > 5 && (
@@ -1903,7 +1912,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                 {hoveredSet.condition && <><span style={{ color: "#5d6f80" }}>Condition</span><span style={{ color: "#e8e2d5", textTransform: "capitalize" }}>{hoveredSet.condition}</span></>}
                 <span style={{ color: "#5d6f80" }}>Qty</span><span style={{ color: "#e8e2d5" }}>{hoveredSet.qty || 1}</span>
                 <span style={{ color: "#5d6f80" }}>Paid</span><span style={{ color: "#e8e2d5" }}>{money(hoveredSet.totalPaid || (asNumber(hoveredSet.paidPrice) * (hoveredSet.qty || 1)))}</span>
-                <span style={{ color: "#5d6f80" }}>Value</span><span style={{ color: "#c9a84c", fontWeight: 700 }}>{money(hoveredSet.totalValue || (asNumber(hoveredSet.currentValue) * (hoveredSet.qty || 1)))}</span>
+                <span style={{ color: "#5d6f80" }}>Value</span><span style={{ color: "#c9a84c", fontWeight: 700 }}>{formatValue(setValueProvenance(hoveredSet).amount)}</span>
                 {hoveredSet.roiPct != null && <><span style={{ color: "#5d6f80" }}>ROI</span><span style={{ color: hoveredSet.roiPct >= 0 ? "#5aa832" : "#ff8b8b", fontWeight: 700 }}>{hoveredSet.roiPct >= 0 ? "+" : ""}{Number(hoveredSet.roiPct).toFixed(1)}%</span></>}
                 {hoveredSet.retired != null && <><span style={{ color: "#5d6f80" }}>Status</span><span style={{ color: hoveredSet.retired ? "#f59e0b" : "#5aa832" }}>{hoveredSet.retired ? "Retired" : "Active"}</span></>}
               </div>
@@ -1950,8 +1959,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             {retirementAlertsForOwned.slice(0, 5).map(s => {
               const qty   = asNumber(s.qty) || 1;
               const paid  = asNumber(s.totalPaid)  || asNumber(s.paidPrice)    * qty;
-              const value = asNumber(s.totalValue) || asNumber(s.currentValue) * qty;
-              const gain  = paid > 0 && value > 0 ? value - paid : null;
+              // Value through the funnel: null when unknown (never a phantom $0), and
+              // gain/roi derive off THAT, not a separate inline read. (Workstream A)
+              const value = setValueProvenance(s).amount;
+              const gain  = value !== null && paid > 0 ? value - paid : null;
               const roi   = gain !== null && paid > 0 ? (gain / paid) * 100 : null;
               const clean = String(s.setNumber || "").replace(/-1$/, "");
               const blUrl = `https://www.bricklink.com/v2/catalog/catalogitem.page?S=${clean}-1#T=S&O={"ss":"US"}`;
@@ -1964,7 +1975,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                     </div>
                     <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
                       {paid  > 0 && <span style={{ fontSize: 12, color: "#8a9bb0" }}>Paid <strong style={{ color: "#e8e2d5" }}>{money(paid)}</strong></span>}
-                      {value > 0 && <span style={{ fontSize: 12, color: "#8a9bb0" }}>Market <strong style={{ color: "#c9a84c" }}>{money(value)}</strong></span>}
+                      {value !== null && <span style={{ fontSize: 12, color: "#8a9bb0" }}>Market <strong style={{ color: "#c9a84c" }}>{formatValue(value)}</strong></span>}
                       {gain !== null && roi !== null && (
                         <span style={{ fontSize: 12, fontWeight: 700, color: gain >= 0 ? "#5aa832" : "#ff8b8b" }}>
                           {gain >= 0 ? "+" : ""}{money(gain)} ({roi >= 0 ? "+" : ""}{roi.toFixed(1)}%)
