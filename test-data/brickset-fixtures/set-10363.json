@@ -1,0 +1,105 @@
+{
+  "status": "success",
+  "matches": 1,
+  "sets": [
+    {
+      "setID": 50682,
+      "number": "10363",
+      "numberVariant": 1,
+      "name": "Leonardo da Vinci's Flying Machine",
+      "year": 2025,
+      "theme": "Icons",
+      "themeGroup": "Model making",
+      "subtheme": "Miscellaneous",
+      "category": "Normal",
+      "released": true,
+      "pieces": 493,
+      "minifigs": 1,
+      "launchDate": "2025-01-01T00:00:00Z",
+      "exitDate": "2026-12-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/10363-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/10363-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/10363-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 4384,
+        "wantedBy": 2085
+      },
+      "LEGOCom": {
+        "US": {
+          "retailPrice": 49.99,
+          "dateFirstAvailable": "2024-11-27T00:00:00Z"
+        },
+        "UK": {
+          "retailPrice": 54.99,
+          "dateFirstAvailable": "2024-11-27T00:00:00Z"
+        },
+        "CA": {
+          "retailPrice": 64.99,
+          "dateFirstAvailable": "2024-11-27T00:00:00Z"
+        },
+        "DE": {
+          "retailPrice": 59.99,
+          "dateFirstAvailable": "2024-11-27T00:00:00Z"
+        }
+      },
+      "rating": 4.2,
+      "reviewCount": 1,
+      "packagingType": "Box",
+      "availability": "Retail",
+      "instructionsCount": 7,
+      "additionalImageCount": 12,
+      "ageRange": {
+        "min": 18
+      },
+      "dimensions": {
+        "height": 26.2,
+        "width": 28.2,
+        "depth": 5.9
+      },
+      "modelDimensions": {
+        "dimension1": 25,
+        "dimension2": 29,
+        "dimension3": 35
+      },
+      "barcode": {
+        "EAN": "5702017815893",
+        "UPC": "673419404976"
+      },
+      "itemNumber": {
+        "NA": "6526763",
+        "EU": "6526762"
+      },
+      "extendedData": {
+        "tags": [
+          "Leonardo da Vinci|n",
+          "18 Plus",
+          "Aircraft",
+          "Artists",
+          "Blueprint",
+          "Brick Separator",
+          "Brickset Awards Finalist",
+          "Display Stand",
+          "France",
+          "Historic",
+          "Leonardo Da Vinci Art",
+          "Nameplate",
+          "Real",
+          "Real Art Piece",
+          "Real Historical Event"
+        ],
+        "description": "<p>Explore the evolution of aeronautical innovation or gift a history-lover with the LEGO® Icons Leonardo da Vinci’s Flying Machine (10363) home and office desk decor building set for adults. Craft a detailed model of da Vinci’s visionary ornithopter featuring an open airframe with flappable textile-covered wings driven by a visible interplay of string, hinges and pulleys. This captivating centrepiece includes a display stand with an attachable Leonardo da Vinci minifigure holding a quill and sketch.</p><p>Get the most out of this model building kit with the LEGO Builder app, where you can zoom in, rotate and view models in 3D as you build. The app also allows you to build as a team, track your progress and explore and save other sets.</p><p>Take time out for a mindful building project with this collectible LEGO ornithopter set, a great Christmas or birthday gift idea for science and history enthusiasts. Discover the inspiring range of LEGO creative building sets designed specifically for adults.</p><ul><li> Da Vinci ornithopter building set for adults – Immerse yourself in the history of aeronautical innovation with the LEGO® Icons Leonardo da Vinci’s Flying Machine building project for adults</li><li> What’s in the box – Everything you need to craft a detailed LEGO® interpretation of da Vinci’s visionary ornithopter, plus a display stand and a Leonardo da Vinci minifigure holding a quill and sketch</li><li> Trigger-activated wings – Recreate Leonardo da Vinci’s flying machine with its flappable textile wings and tail driven by an intricate, visible mechanism of string, hinges and pulleys</li><li> Home and office desk decor – Add a striking centrepiece to the home or office with this detailed display model depicting Leonardo da Vinci’s Flying Machine</li><li> A LEGO® gift for history-lovers – Celebrate a birthday or special occasion with this gift for history-lovers and fans of aviation and historic innovation</li><li> 3D building instructions – Get ready to build like never before with the LEGO® Builder app, where you can save sets, track your progress, zoom in and rotate your model in 3D</li><li> Building kits for adults – Discover a space for relaxation with the inspiring range of LEGO® building sets (sold separately) designed specifically for adults</li><li> Dimensions – The model flying machine in this 493-piece building set measures over 25 cm (10 in.) high, 29 cm (11.5 in.) long and 35 cm (13.5 in.) wide</li></ul>"
+      },
+      "lastUpdated": "2024-11-27T01:22:34.62Z"
+    }
+  ]
+}

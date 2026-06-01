@@ -176,16 +176,30 @@ open refinement is a tighter/​cost-aware (or fail-closed) limit for the Scrape
 ## 5. Contract tests — the by-construction lock
 
 **Target.** Each network source is pinned by **at least one fixture captured from a real payload**, plus
-a shape test asserting the fields the app consumes. A silent upstream schema change then becomes an
-**unmergeable red build** — the same move that made [`src/api-auth.test.js`](../src/api-auth.test.js)
-(auth) and `value.zero-unknown.test.js` (0=unknown) durable. **Do not hand-author fixtures** — capture
-them live and lock a test to the shape.
+a shape test asserting the fields the app consumes. This locks **code-conformance** to the captured shape
+and **documents** it; it does **not** auto-detect a *live* upstream rename — see *What the lock guarantees*
+below. **Do not hand-author fixtures** — capture them live and lock a test to the shape.
 
 **POINT-AT (the established practice this generalizes):** the BrickEconomy `/set` `price_events_*`
 contract — real payloads, capture script, presence matrix, and the pinned shape — lives in
 [`test-data/be-fixtures/README.md`](../test-data/be-fixtures/README.md), tested by
 [`src/utils/priceEvents.test.js`](../src/utils/priceEvents.test.js). Every new source's contract test
 should follow that file's pattern (capture script → fixtures → shape test).
+
+**What a static-fixture lock guarantees (and what it doesn't).** These contract tests run against **frozen
+fixtures**, so they are deterministic and CI-safe — but their guarantee is **narrower** than the runtime
+locks they sit beside, and the standard must not overclaim:
+
+- **They DO, in CI, automatically:** lock **code-conformance** — if a consumer, field-select, or adapter is
+  changed to mis-read the real captured shape, the build goes red — and **document** the exact shape +
+  optionality (the presence matrix).
+- **They do NOT, automatically:** catch a **live upstream rename**. A frozen fixture can't see that Brickset
+  renamed `exitDate`; the test stays green against the old sample. **Live drift is detected out-of-band by
+  re-running the capture script** (`scripts/capture-*.mjs`) and diffing — *not* by CI.
+- **Contrast — the runtime locks** [`src/api-auth.test.js`](../src/api-auth.test.js) (auth) and
+  `value.zero-unknown.test.js` (0=unknown) **do** auto-fail in CI on a regression, because they execute the
+  *live code* against an invariant, not a frozen sample. A fixture contract test is a **documentation + parse
+  lock**, not a live-drift alarm — pair it with a periodic capture-script re-run to cover drift.
 
 ### Current conformance
 
@@ -195,8 +209,8 @@ should follow that file's pattern (capture script → fixtures → shape test).
 | BE `/set` **value fields** (`current_value_*`, `retail_price_us`, `forecast_*`, `retired`) | ✅ | **P2 done** — `beSetValueFields.contract.test.js` pins the consumed-field shape against the 5 real fixtures (presence matrix + drift guards in `be-fixtures/README.md`) |
 | BE `/collection/sets` | n/a | **P2 finding** — the network endpoint has **no client consumer** (zero `brickeconomy-collection` callers in `src/`); the real collection normalizer reads a **BE CSV export** (`normalizeBrickEconomyCollection`/`parseBECollectionCSV` in `AppSettings.jsx`), which is out of the network-source scope (like Rebrickable). Nothing to pin; the dead endpoint was **removed in P3 S2** → [§9](#9-remediation-backlog) gap #8 (closed) |
 | **BrickLink** priceguide (API-session shape) | ❌ | **P2 blocked** — unreachable in this env (no BL keys in `.env.local`; session token is per-user/live/50-min). Needs a real payload captured from the running app → [§9](#9-remediation-backlog) gap #1 |
-| **Brickset** set/search/themes | ❌ | unpinned → **P4** |
-| Rebrickable CSV columns | ❌ | bundled CSV, no runtime drift → trivial/optional |
+| **Brickset** set/search/themes | ✅ | **P4 done** — `brickset.contract.test.js` pins the `getSets`/`getThemes` upstream field-select shape (thorough `/set` incl. the sparse-polybag optional matrix + proxy→client consumed fields; light `/search`/`/themes`) against 6 real fixtures (`test-data/brickset-fixtures/`, presence matrix + observations in its README) |
+| Rebrickable CSV columns | ✅ | **P4 done** — `rebrickable.contract.test.js` asserts the bundled `sets.csv`/`themes.csv` headers carry every column `rebrickable.js` reads (a refreshed-download rename/removal fails CI) |
 
 **The asymmetry to remember:** field-select proxies (Brickset/BrickLink) hide drift as silent `null`s;
 the passthrough proxy (BE) propagates drift to the client. Neither is caught without a contract test —
@@ -272,7 +286,7 @@ The ranked gaps from the STEP-0 map, each tagged to the phase that closes it. **
 | 1 | No BrickLink contract test (+ dead fallback) — the V4 blocker | **P2** (test, *blocked: gated on BrickLink API connection; pin when connected*) + **P3** (dead-code removal ✅ done S3) |
 | 2 | ✅ **CLOSED (P3 S4+S5)** — every handler + `sync.js` route upstream fetches through `fetchWithTimeout`; locked by `api-no-bare-fetch.test.js`. | ~~P3~~ done |
 | 3 | ✅ **CLOSED (P3 S5 proxies + S6 client)** — proxies emit the typed envelope; the client funnel (`readSource`/`classifyFailure`/`reportSourceFailure`) surfaces "broke" kinds as a deduped signal and keeps `not_found`/`not_configured` quiet. UI-smoke-verified (S6.5): broke→1 deduped toast, not_found→quiet, malformed ID→skipped. | ~~P3 S6~~ done |
-| 4 | Schema-drift blind spots (passthrough propagates; field-select masks) | **P2** (BE ✅) / **P4** (Brickset) |
+| 4 | ✅ **CLOSED** — Schema-drift blind spots now pinned: **BE** (P2, `beSetValueFields.contract.test.js`), **Brickset** + **Rebrickable** (P4, `brickset`/`rebrickable.contract.test.js`). Live drift is caught by re-running the capture scripts out-of-band (§5), not CI. | ~~P2/P4~~ done |
 | 5 | Modeled value frozen into synced records without an `asOf` write-guard | **Parked** |
 | 6 | ✅ **CLOSED (P2)** — BE value-field shape now pinned (`beSetValueFields.contract.test.js`) | ~~P2~~ done |
 | 7 | ✅ **CLOSED** — `bricklink-priceguide.js` no-op block **removed (P3 S3)**; the self-clearing `blPriceHistory` was **retired** in the price_events arc (`72a2c30`, now only a comment reference). | ~~P3~~ done |
@@ -332,8 +346,14 @@ The ranked gaps from the STEP-0 map, each tagged to the phase that closes it. **
   - **Non-issues (recorded so they aren't chased):** `contentscript.js`/`ObjectMultiplex` console noise is
     a **browser extension**, not app code; the manifest `timeout` warning + `apple-mobile-web-app-capable`
     deprecation are **PWA cosmetics**. Neither is in scope.
-- **P4 — Brickset contract test.** Pin the `.asmx → data` field-select mapping. (Rebrickable is
-  trivial/optional — a bundled CSV with no runtime drift.) Closes gap #4(Brickset).
+- **P4 — Brickset + Rebrickable contract tests. ✅ DONE (2026-05-31).** `brickset.contract.test.js` pins the
+  `getSets`/`getThemes` upstream field-select shape (thorough `/set` incl. the sparse-polybag optional matrix
+  + proxy→client consumed fields; light `/search`/`/themes`) against 6 real fixtures; `rebrickable.contract.test.js`
+  pins the bundled-CSV column headers. Net-first finding: **no Brickset drift** — every field-selected source
+  path exists in the real payload (the honest catches were *presence variations*: sparse polybags return empty
+  objects, and `exitDate` is an always-present year-end placeholder, not a retirement flag). Also corrected §5's
+  overclaim (static-fixture locks document + lock code-conformance; they do not auto-detect live drift). Closes
+  gap #4(Brickset).
 - **Exit criterion (not a work phase).** Once BrickLink is fixture-pinned (P2) and its fallback is
   resolved (P3), the `valuation.md` V4 gating question is **answered by a test**, not narration. The V4
   build — wiring BrickLink sold prices into the value waterfall — is a **separate arc** (roadmap.md Arc 2).

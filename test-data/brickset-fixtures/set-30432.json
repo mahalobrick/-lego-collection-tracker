@@ -1,0 +1,77 @@
+{
+  "status": "success",
+  "matches": 1,
+  "sets": [
+    {
+      "setID": 32318,
+      "number": "30432",
+      "numberVariant": 1,
+      "name": "The Turtle Beach",
+      "year": 2022,
+      "theme": "Minecraft",
+      "themeGroup": "Licensed",
+      "subtheme": "Minifig-scale",
+      "category": "Normal",
+      "released": true,
+      "pieces": 46,
+      "minifigs": 1,
+      "launchDate": "2022-01-01T00:00:00Z",
+      "exitDate": "2022-12-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/30432-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/30432-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/30432-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 2048,
+        "wantedBy": 696
+      },
+      "LEGOCom": {
+        "US": {},
+        "UK": {},
+        "CA": {},
+        "DE": {}
+      },
+      "rating": 3.8,
+      "reviewCount": 1,
+      "packagingType": "Polybag",
+      "availability": "Retail",
+      "instructionsCount": 2,
+      "additionalImageCount": 0,
+      "ageRange": {},
+      "dimensions": {
+        "height": 19.5,
+        "width": 17,
+        "depth": 1.4
+      },
+      "modelDimensions": {},
+      "barcode": {},
+      "itemNumber": {
+        "NA": "6379586",
+        "EU": "6379585"
+      },
+      "extendedData": {
+        "notes": "[NA] Available from Target, April 2022",
+        "tags": [
+          "Alex|n",
+          "Beach",
+          "Brick Built Animals",
+          "Mojang Studios",
+          "Polybag",
+          "Turtles",
+          "Video Game",
+          "Water"
+        ]
+      },
+      "lastUpdated": "2023-12-10T20:17:27.207Z"
+    }
+  ]
+}

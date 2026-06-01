@@ -1,0 +1,1417 @@
+{
+  "status": "success",
+  "matches": 42,
+  "sets": [
+    {
+      "setID": 52357,
+      "number": "75426",
+      "numberVariant": 1,
+      "name": "Millennium Falcon",
+      "year": 2026,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "SMART Play",
+      "category": "Normal",
+      "released": true,
+      "pieces": 885,
+      "minifigs": 4,
+      "launchDate": "2026-03-01T00:00:00Z",
+      "exitDate": "2027-12-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/75426-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/75426-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/75426-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 297,
+        "wantedBy": 610
+      },
+      "LEGOCom": {
+        "US": {
+          "retailPrice": 99.99,
+          "dateFirstAvailable": "2026-01-28T00:00:00Z"
+        },
+        "UK": {
+          "retailPrice": 89.99,
+          "dateFirstAvailable": "2026-01-28T00:00:00Z"
+        },
+        "CA": {},
+        "DE": {
+          "retailPrice": 99.99,
+          "dateFirstAvailable": "2026-01-28T00:00:00Z"
+        }
+      },
+      "rating": 0,
+      "reviewCount": 0,
+      "packagingType": "Box",
+      "availability": "Retail",
+      "instructionsCount": 2,
+      "additionalImageCount": 19,
+      "ageRange": {
+        "min": 9
+      },
+      "dimensions": {
+        "height": 28.2,
+        "width": 45.6,
+        "depth": 7.2
+      },
+      "modelDimensions": {
+        "dimension1": 27,
+        "dimension2": 24,
+        "dimension3": 9
+      },
+      "barcode": {
+        "EAN": "5702017817736",
+        "UPC": "673419406208"
+      },
+      "itemNumber": {
+        "NA": "6527559",
+        "EU": "6527558"
+      },
+      "extendedData": {},
+      "lastUpdated": "2026-02-17T07:41:38.92Z"
+    },
+    {
+      "setID": 50457,
+      "number": "30708",
+      "numberVariant": 1,
+      "name": "Millennium Falcon",
+      "year": 2025,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Episode IV",
+      "category": "Normal",
+      "released": true,
+      "pieces": 74,
+      "launchDate": "2025-03-01T00:00:00Z",
+      "exitDate": "2025-12-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/30708-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/30708-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/30708-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 10228,
+        "wantedBy": 472
+      },
+      "LEGOCom": {
+        "US": {},
+        "UK": {},
+        "CA": {},
+        "DE": {}
+      },
+      "rating": 3.4,
+      "reviewCount": 3,
+      "packagingType": "Paper bag",
+      "availability": "Retail - limited",
+      "instructionsCount": 2,
+      "additionalImageCount": 4,
+      "ageRange": {
+        "min": 6
+      },
+      "dimensions": {
+        "height": 18,
+        "width": 17,
+        "depth": 3,
+        "weight": 0.055
+      },
+      "modelDimensions": {},
+      "barcode": {
+        "EAN": "5702017819402",
+        "UPC": "673419406871"
+      },
+      "itemNumber": {
+        "NA": "6527999",
+        "EU": "6527998"
+      },
+      "extendedData": {},
+      "lastUpdated": "2026-01-16T00:25:42.8Z"
+    },
+    {
+      "setID": 48521,
+      "number": "75375",
+      "numberVariant": 1,
+      "name": "Millennium Falcon",
+      "year": 2024,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Starship Collection",
+      "category": "Normal",
+      "released": true,
+      "pieces": 921,
+      "launchDate": "2024-03-01T00:00:00Z",
+      "exitDate": "2027-12-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/75375-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/75375-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/75375-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 11443,
+        "wantedBy": 2802
+      },
+      "LEGOCom": {
+        "US": {
+          "retailPrice": 84.99,
+          "dateFirstAvailable": "2024-01-31T00:00:00Z"
+        },
+        "UK": {
+          "retailPrice": 74.99,
+          "dateFirstAvailable": "2024-01-31T00:00:00Z"
+        },
+        "CA": {
+          "retailPrice": 109.99,
+          "dateFirstAvailable": "2024-01-31T00:00:00Z"
+        },
+        "DE": {
+          "retailPrice": 84.99,
+          "dateFirstAvailable": "2024-01-31T00:00:00Z"
+        }
+      },
+      "rating": 4.2,
+      "reviewCount": 3,
+      "packagingType": "Box",
+      "availability": "Retail",
+      "instructionsCount": 7,
+      "additionalImageCount": 7,
+      "ageRange": {
+        "min": 18
+      },
+      "dimensions": {
+        "height": 26.2,
+        "width": 28.2,
+        "depth": 11.8
+      },
+      "modelDimensions": {
+        "dimension1": 13,
+        "dimension2": 24,
+        "dimension3": 19
+      },
+      "barcode": {
+        "EAN": "5702017584348",
+        "UPC": "673419389488"
+      },
+      "itemNumber": {
+        "NA": "6470424",
+        "EU": "6470423"
+      },
+      "extendedData": {},
+      "lastUpdated": "2024-12-08T00:08:44.917Z"
+    },
+    {
+      "setID": 48876,
+      "number": "75389",
+      "numberVariant": 1,
+      "name": "The Dark Falcon",
+      "year": 2024,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Rebuild the Galaxy",
+      "category": "Normal",
+      "released": true,
+      "pieces": 1579,
+      "minifigs": 6,
+      "launchDate": "2024-08-01T00:00:00Z",
+      "exitDate": "2026-12-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/75389-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/75389-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/75389-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 8322,
+        "wantedBy": 3254
+      },
+      "LEGOCom": {
+        "US": {
+          "retailPrice": 179.99,
+          "dateFirstAvailable": "2024-06-26T00:00:00Z"
+        },
+        "UK": {
+          "retailPrice": 159.99,
+          "dateFirstAvailable": "2024-06-26T00:00:00Z"
+        },
+        "CA": {
+          "retailPrice": 239.99,
+          "dateFirstAvailable": "2024-06-26T00:00:00Z"
+        },
+        "DE": {
+          "retailPrice": 179.99,
+          "dateFirstAvailable": "2024-06-26T00:00:00Z"
+        }
+      },
+      "rating": 4.3,
+      "reviewCount": 1,
+      "packagingType": "Box",
+      "availability": "Retail",
+      "instructionsCount": 2,
+      "additionalImageCount": 12,
+      "ageRange": {
+        "min": 10
+      },
+      "dimensions": {
+        "height": 37.8,
+        "width": 48,
+        "depth": 11.2
+      },
+      "modelDimensions": {
+        "dimension1": 12,
+        "dimension2": 43,
+        "dimension3": 32
+      },
+      "barcode": {
+        "EAN": "5702017584454",
+        "UPC": "673419389594"
+      },
+      "itemNumber": {
+        "NA": "6470446",
+        "EU": "6470445"
+      },
+      "extendedData": {},
+      "lastUpdated": "2024-06-25T19:19:45.52Z"
+    },
+    {
+      "setID": 48883,
+      "number": "75395",
+      "numberVariant": 1,
+      "name": "LEGO Star Wars Advent Calendar 2024",
+      "year": 2024,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Seasonal",
+      "category": "Normal",
+      "released": true,
+      "pieces": 368,
+      "minifigs": 6,
+      "launchDate": "2024-09-01T00:00:00Z",
+      "exitDate": "2024-12-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/75395-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/75395-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/75395-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 7397,
+        "wantedBy": 1162
+      },
+      "LEGOCom": {
+        "US": {
+          "retailPrice": 44.99,
+          "dateFirstAvailable": "2024-05-03T00:00:00Z",
+          "dateLastAvailable": "2024-11-24T00:00:00Z"
+        },
+        "UK": {
+          "retailPrice": 29.99,
+          "dateFirstAvailable": "2024-05-03T00:00:00Z",
+          "dateLastAvailable": "2024-11-24T00:00:00Z"
+        },
+        "CA": {
+          "retailPrice": 59.99,
+          "dateFirstAvailable": "2024-05-03T00:00:00Z",
+          "dateLastAvailable": "2025-02-15T00:00:00Z"
+        },
+        "DE": {
+          "retailPrice": 34.99,
+          "dateFirstAvailable": "2024-05-03T00:00:00Z",
+          "dateLastAvailable": "2024-11-30T00:00:00Z"
+        }
+      },
+      "rating": 3.6,
+      "reviewCount": 0,
+      "packagingType": "Box",
+      "availability": "Retail",
+      "instructionsCount": 1,
+      "additionalImageCount": 3,
+      "ageRange": {
+        "min": 6
+      },
+      "dimensions": {},
+      "modelDimensions": {},
+      "barcode": {
+        "EAN": "5702017583426",
+        "UPC": "673419388603"
+      },
+      "itemNumber": {
+        "NA": "6470454",
+        "EU": "6470453"
+      },
+      "extendedData": {},
+      "lastUpdated": "2025-05-04T10:31:50.597Z"
+    },
+    {
+      "setID": 50220,
+      "number": "6523826",
+      "numberVariant": 1,
+      "name": "Millennium Falcon",
+      "year": 2024,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Promotional",
+      "category": "Extended",
+      "released": true,
+      "pieces": 20,
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/6523826-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/6523826-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/6523826-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 105,
+        "wantedBy": 346
+      },
+      "LEGOCom": {
+        "US": {},
+        "UK": {},
+        "CA": {},
+        "DE": {}
+      },
+      "rating": 0,
+      "reviewCount": 0,
+      "packagingType": "None (loose parts)",
+      "availability": "{Not specified}",
+      "instructionsCount": 0,
+      "additionalImageCount": 0,
+      "ageRange": {},
+      "dimensions": {},
+      "modelDimensions": {},
+      "barcode": {},
+      "itemNumber": {},
+      "extendedData": {},
+      "lastUpdated": "2024-05-07T08:15:48.25Z"
+    },
+    {
+      "setID": 47259,
+      "number": "40658",
+      "numberVariant": 1,
+      "name": "Millennium Falcon Holiday Diorama",
+      "year": 2023,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Seasonal",
+      "category": "Normal",
+      "released": true,
+      "pieces": 282,
+      "minifigs": 4,
+      "launchDate": "2023-10-01T00:00:00Z",
+      "exitDate": "2023-12-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/40658-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/40658-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/40658-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 9041,
+        "wantedBy": 1378
+      },
+      "LEGOCom": {
+        "US": {
+          "retailPrice": 29.99,
+          "dateFirstAvailable": "2023-09-02T00:00:00Z",
+          "dateLastAvailable": "2024-03-01T00:00:00Z"
+        },
+        "UK": {
+          "retailPrice": 25.99,
+          "dateFirstAvailable": "2023-09-02T00:00:00Z",
+          "dateLastAvailable": "2024-02-05T00:00:00Z"
+        },
+        "CA": {
+          "retailPrice": 39.99,
+          "dateFirstAvailable": "2023-09-02T00:00:00Z",
+          "dateLastAvailable": "2024-03-01T00:00:00Z"
+        },
+        "DE": {
+          "retailPrice": 29.99,
+          "dateFirstAvailable": "2023-09-02T00:00:00Z",
+          "dateLastAvailable": "2023-12-25T00:00:00Z"
+        }
+      },
+      "rating": 3.8,
+      "reviewCount": 1,
+      "packagingType": "Box",
+      "availability": "LEGO exclusive",
+      "instructionsCount": 2,
+      "additionalImageCount": 2,
+      "ageRange": {
+        "min": 8
+      },
+      "dimensions": {},
+      "modelDimensions": {
+        "dimension1": 17,
+        "dimension2": 12,
+        "dimension3": 8
+      },
+      "barcode": {
+        "EAN": "5702017471556",
+        "UPC": "673419382397"
+      },
+      "itemNumber": {
+        "NA": "6442651",
+        "EU": "6442611"
+      },
+      "extendedData": {},
+      "lastUpdated": "2023-10-01T05:17:48.793Z"
+    },
+    {
+      "setID": 32475,
+      "number": "912280",
+      "numberVariant": 1,
+      "name": "Millennium Falcon",
+      "year": 2022,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Magazine Gift",
+      "category": "Other",
+      "released": true,
+      "pieces": 41,
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/912180-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/912180-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/912280-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 1475,
+        "wantedBy": 503
+      },
+      "LEGOCom": {
+        "US": {},
+        "UK": {},
+        "CA": {},
+        "DE": {}
+      },
+      "rating": 3.8,
+      "reviewCount": 0,
+      "packagingType": "Foil pack",
+      "availability": "Magazine gift",
+      "instructionsCount": 0,
+      "additionalImageCount": 0,
+      "ageRange": {},
+      "dimensions": {},
+      "modelDimensions": {},
+      "barcode": {},
+      "itemNumber": {},
+      "extendedData": {},
+      "lastUpdated": "2022-11-27T21:12:48.897Z"
+    },
+    {
+      "setID": 30752,
+      "number": "75295",
+      "numberVariant": 1,
+      "name": "Millennium Falcon Microfighter",
+      "year": 2021,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "MicroFighters",
+      "category": "Normal",
+      "released": true,
+      "pieces": 101,
+      "minifigs": 1,
+      "launchDate": "2021-01-01T00:00:00Z",
+      "exitDate": "2022-12-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/75295-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/75295-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/75295-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 15888,
+        "wantedBy": 1373
+      },
+      "LEGOCom": {
+        "US": {
+          "retailPrice": 9.99,
+          "dateFirstAvailable": "2021-01-02T00:00:00Z",
+          "dateLastAvailable": "2022-11-27T00:00:00Z"
+        },
+        "UK": {
+          "retailPrice": 8.99,
+          "dateFirstAvailable": "2021-01-01T00:00:00Z",
+          "dateLastAvailable": "2022-12-11T00:00:00Z"
+        },
+        "CA": {
+          "retailPrice": 13.99,
+          "dateFirstAvailable": "2021-01-02T00:00:00Z",
+          "dateLastAvailable": "2022-11-27T00:00:00Z"
+        },
+        "DE": {
+          "retailPrice": 9.99,
+          "dateFirstAvailable": "2021-01-02T00:00:00Z",
+          "dateLastAvailable": "2022-12-12T00:00:00Z"
+        }
+      },
+      "rating": 3.7,
+      "reviewCount": 1,
+      "packagingType": "Box",
+      "availability": "Retail",
+      "instructionsCount": 2,
+      "additionalImageCount": 5,
+      "ageRange": {},
+      "dimensions": {
+        "height": 12.2,
+        "width": 14.1,
+        "depth": 4.6
+      },
+      "modelDimensions": {
+        "dimension1": 4,
+        "dimension2": 8,
+        "dimension3": 7
+      },
+      "barcode": {
+        "EAN": "5702016912654"
+      },
+      "itemNumber": {
+        "NA": "6332840",
+        "EU": "6332839"
+      },
+      "extendedData": {},
+      "lastUpdated": "2020-12-31T22:29:01.74Z"
+    },
+    {
+      "setID": 29952,
+      "number": "75279",
+      "numberVariant": 1,
+      "name": "LEGO Star Wars Advent Calendar",
+      "year": 2020,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Seasonal",
+      "category": "Normal",
+      "released": true,
+      "pieces": 311,
+      "minifigs": 10,
+      "launchDate": "2020-09-01T00:00:00Z",
+      "exitDate": "2020-12-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/75279-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/75279-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/75279-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 11219,
+        "wantedBy": 1822
+      },
+      "LEGOCom": {
+        "US": {
+          "retailPrice": 39.99,
+          "dateFirstAvailable": "2020-09-01T00:00:00Z",
+          "dateLastAvailable": "2020-11-07T00:00:00Z"
+        },
+        "UK": {
+          "retailPrice": 24.99,
+          "dateFirstAvailable": "2020-09-01T00:00:00Z",
+          "dateLastAvailable": "2020-10-16T00:00:00Z"
+        },
+        "CA": {
+          "retailPrice": 49.99,
+          "dateFirstAvailable": "2020-09-01T00:00:00Z",
+          "dateLastAvailable": "2020-11-07T00:00:00Z"
+        },
+        "DE": {
+          "retailPrice": 29.23,
+          "dateFirstAvailable": "2020-09-02T00:00:00Z",
+          "dateLastAvailable": "2020-11-10T00:00:00Z"
+        }
+      },
+      "rating": 3.8,
+      "reviewCount": 1,
+      "packagingType": "Box",
+      "availability": "Retail",
+      "instructionsCount": 1,
+      "additionalImageCount": 30,
+      "ageRange": {
+        "min": 6
+      },
+      "dimensions": {
+        "height": 0,
+        "width": 0,
+        "depth": 0,
+        "weight": 0
+      },
+      "modelDimensions": {},
+      "barcode": {
+        "EAN": "5702016617085",
+        "UPC": "673419318297"
+      },
+      "itemNumber": {
+        "NA": "6289016",
+        "EU": "6289015"
+      },
+      "extendedData": {},
+      "lastUpdated": "2023-07-13T12:07:26.567Z"
+    },
+    {
+      "setID": 30896,
+      "number": "77904",
+      "numberVariant": 1,
+      "name": "Nebulon-B Frigate",
+      "year": 2020,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Promotional",
+      "category": "Normal",
+      "released": true,
+      "pieces": 459,
+      "launchDate": "2020-10-01T00:00:00Z",
+      "exitDate": "2020-10-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/77904-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/77904-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/77904-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 3590,
+        "wantedBy": 4509
+      },
+      "LEGOCom": {
+        "US": {},
+        "UK": {},
+        "CA": {},
+        "DE": {}
+      },
+      "rating": 4.3,
+      "reviewCount": 2,
+      "packagingType": "Box",
+      "availability": "Retail - limited",
+      "instructionsCount": 1,
+      "additionalImageCount": 6,
+      "ageRange": {
+        "min": 9
+      },
+      "dimensions": {
+        "height": 19.1,
+        "width": 26.2,
+        "depth": 7.2
+      },
+      "modelDimensions": {
+        "dimension1": 19,
+        "dimension2": 31,
+        "dimension3": 7
+      },
+      "barcode": {
+        "UPC": "673419333801"
+      },
+      "itemNumber": {
+        "NA": "6321243"
+      },
+      "extendedData": {},
+      "lastUpdated": "2021-04-18T10:26:56.48Z"
+    },
+    {
+      "setID": 29357,
+      "number": "75257",
+      "numberVariant": 1,
+      "name": "Millennium Falcon",
+      "year": 2019,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Episode IX",
+      "category": "Normal",
+      "released": true,
+      "pieces": 1351,
+      "minifigs": 7,
+      "launchDate": "2019-10-04T00:00:00Z",
+      "exitDate": "2024-12-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/75257-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/75257-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/75257-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 15133,
+        "wantedBy": 3644
+      },
+      "LEGOCom": {
+        "US": {
+          "retailPrice": 169.99,
+          "dateFirstAvailable": "2019-10-04T00:00:00Z",
+          "dateLastAvailable": "2024-11-24T00:00:00Z"
+        },
+        "UK": {
+          "retailPrice": 149.99,
+          "dateFirstAvailable": "2019-10-04T00:00:00Z",
+          "dateLastAvailable": "2024-11-28T00:00:00Z"
+        },
+        "CA": {
+          "retailPrice": 209.99,
+          "dateFirstAvailable": "2019-10-04T00:00:00Z",
+          "dateLastAvailable": "2024-11-24T00:00:00Z"
+        },
+        "DE": {
+          "retailPrice": 169.99,
+          "dateFirstAvailable": "2019-10-06T00:00:00Z",
+          "dateLastAvailable": "2024-11-28T00:00:00Z"
+        }
+      },
+      "rating": 4.4,
+      "reviewCount": 3,
+      "packagingType": "Box",
+      "availability": "Retail",
+      "instructionsCount": 4,
+      "additionalImageCount": 4,
+      "ageRange": {
+        "min": 9
+      },
+      "dimensions": {
+        "height": 37.8,
+        "width": 58.2,
+        "depth": 8.7
+      },
+      "modelDimensions": {
+        "dimension1": 14,
+        "dimension2": 44,
+        "dimension3": 32
+      },
+      "barcode": {
+        "EAN": "5702016370799",
+        "UPC": "673419304429"
+      },
+      "itemNumber": {
+        "NA": "6251770",
+        "EU": "6251769"
+      },
+      "extendedData": {},
+      "lastUpdated": "2023-07-13T11:14:24.15Z"
+    },
+    {
+      "setID": 29385,
+      "number": "911949",
+      "numberVariant": 1,
+      "name": "Millennium Falcon",
+      "year": 2019,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Magazine Gift",
+      "category": "Other",
+      "released": true,
+      "pieces": 32,
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/911949-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/911949-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/911949-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 1789,
+        "wantedBy": 626
+      },
+      "LEGOCom": {
+        "US": {},
+        "UK": {},
+        "CA": {},
+        "DE": {}
+      },
+      "rating": 3.6,
+      "reviewCount": 1,
+      "packagingType": "Foil pack",
+      "availability": "Magazine gift",
+      "instructionsCount": 0,
+      "additionalImageCount": 0,
+      "ageRange": {},
+      "dimensions": {},
+      "modelDimensions": {},
+      "barcode": {},
+      "itemNumber": {},
+      "extendedData": {},
+      "lastUpdated": "2019-07-19T16:05:03.06Z"
+    },
+    {
+      "setID": 27009,
+      "number": "75193",
+      "numberVariant": 1,
+      "name": "Millennium Falcon Microfighter",
+      "year": 2018,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "MicroFighters",
+      "category": "Normal",
+      "released": true,
+      "pieces": 92,
+      "minifigs": 1,
+      "launchDate": "2018-01-01T00:00:00Z",
+      "exitDate": "2019-07-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/75193-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/75193-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/75193-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 14893,
+        "wantedBy": 1817
+      },
+      "LEGOCom": {
+        "US": {
+          "retailPrice": 9.99,
+          "dateFirstAvailable": "2018-01-01T00:00:00Z",
+          "dateLastAvailable": "2019-07-14T00:00:00Z"
+        },
+        "UK": {
+          "retailPrice": 8.99,
+          "dateFirstAvailable": "2017-12-29T00:00:00Z",
+          "dateLastAvailable": "2019-06-30T00:00:00Z"
+        },
+        "CA": {
+          "retailPrice": 12.99,
+          "dateFirstAvailable": "2018-01-01T00:00:00Z",
+          "dateLastAvailable": "2019-07-14T00:00:00Z"
+        },
+        "DE": {
+          "retailPrice": 9.99,
+          "dateFirstAvailable": "2017-12-31T00:00:00Z",
+          "dateLastAvailable": "2019-07-01T00:00:00Z"
+        }
+      },
+      "rating": 3.8,
+      "reviewCount": 6,
+      "packagingType": "Box",
+      "availability": "Retail",
+      "instructionsCount": 2,
+      "additionalImageCount": 4,
+      "ageRange": {
+        "min": 6,
+        "max": 12
+      },
+      "dimensions": {
+        "height": 12.2,
+        "width": 14.1,
+        "depth": 4.6,
+        "weight": 0.113
+      },
+      "modelDimensions": {
+        "dimension1": 4,
+        "dimension2": 8,
+        "dimension3": 8
+      },
+      "barcode": {
+        "EAN": "5702016109870",
+        "UPC": "673419281614"
+      },
+      "itemNumber": {
+        "NA": "6212541",
+        "EU": "6212540"
+      },
+      "extendedData": {},
+      "lastUpdated": "2019-07-03T00:44:42.717Z"
+    },
+    {
+      "setID": 27502,
+      "number": "75212",
+      "numberVariant": 1,
+      "name": "Kessel Run Millennium Falcon",
+      "year": 2018,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Solo",
+      "category": "Normal",
+      "released": true,
+      "pieces": 1414,
+      "minifigs": 7,
+      "launchDate": "2018-04-20T00:00:00Z",
+      "exitDate": "2019-07-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/75212-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/75212-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/75212-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 8935,
+        "wantedBy": 4337
+      },
+      "LEGOCom": {
+        "US": {
+          "retailPrice": 169.99,
+          "dateFirstAvailable": "2018-04-14T00:00:00Z",
+          "dateLastAvailable": "2020-02-13T00:00:00Z"
+        },
+        "UK": {
+          "retailPrice": 149.99,
+          "dateFirstAvailable": "2018-04-14T00:00:00Z",
+          "dateLastAvailable": "2019-10-22T00:00:00Z"
+        },
+        "CA": {
+          "retailPrice": 199.99,
+          "dateFirstAvailable": "2018-04-14T00:00:00Z",
+          "dateLastAvailable": "2020-02-13T00:00:00Z"
+        },
+        "DE": {
+          "retailPrice": 169.99,
+          "dateFirstAvailable": "2018-04-14T00:00:00Z",
+          "dateLastAvailable": "2019-09-08T00:00:00Z"
+        }
+      },
+      "rating": 4.1,
+      "reviewCount": 6,
+      "packagingType": "Box",
+      "availability": "Retail",
+      "instructionsCount": 2,
+      "additionalImageCount": 4,
+      "ageRange": {
+        "min": 9,
+        "max": 14
+      },
+      "dimensions": {
+        "height": 37.8,
+        "width": 58.2,
+        "depth": 8.7,
+        "weight": 2.57
+      },
+      "modelDimensions": {
+        "dimension1": 11,
+        "dimension2": 48,
+        "dimension3": 30
+      },
+      "barcode": {
+        "EAN": "5702016110609",
+        "UPC": "673419282277"
+      },
+      "itemNumber": {
+        "NA": "6212706",
+        "EU": "6212705"
+      },
+      "extendedData": {},
+      "lastUpdated": "2023-06-27T07:26:04.213Z"
+    },
+    {
+      "setID": 28139,
+      "number": "75512",
+      "numberVariant": 1,
+      "name": "Millennium Falcon Cockpit",
+      "year": 2018,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Promotional",
+      "category": "Normal",
+      "released": true,
+      "pieces": 203,
+      "minifigs": 2,
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/75512-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/75512-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/75512-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 552,
+        "wantedBy": 2500
+      },
+      "LEGOCom": {
+        "US": {},
+        "UK": {},
+        "CA": {},
+        "DE": {}
+      },
+      "rating": 4.4,
+      "reviewCount": 0,
+      "packagingType": "Box",
+      "availability": "Promotional",
+      "instructionsCount": 0,
+      "additionalImageCount": 0,
+      "ageRange": {
+        "min": 8,
+        "max": 14
+      },
+      "dimensions": {},
+      "modelDimensions": {},
+      "barcode": {
+        "UPC": "673419306690"
+      },
+      "itemNumber": {
+        "NA": "6254610"
+      },
+      "extendedData": {},
+      "lastUpdated": "2023-01-31T09:10:38.113Z"
+    },
+    {
+      "setID": 28561,
+      "number": "5005747",
+      "numberVariant": 1,
+      "name": "Black Card Display Stand",
+      "year": 2018,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Promotional",
+      "category": "Extended",
+      "released": true,
+      "pieces": 42,
+      "minifigs": 1,
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/5005747-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/5005747-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/5005747-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 1885,
+        "wantedBy": 1367
+      },
+      "LEGOCom": {
+        "US": {},
+        "UK": {},
+        "CA": {},
+        "DE": {}
+      },
+      "rating": 3.5,
+      "reviewCount": 1,
+      "packagingType": "Polybag",
+      "availability": "LEGO exclusive",
+      "instructionsCount": 0,
+      "additionalImageCount": 1,
+      "ageRange": {
+        "min": 10
+      },
+      "dimensions": {},
+      "modelDimensions": {},
+      "barcode": {},
+      "itemNumber": {
+        "NA": "6278239",
+        "EU": "6278239"
+      },
+      "extendedData": {},
+      "lastUpdated": "2020-09-19T09:43:26.58Z"
+    },
+    {
+      "setID": 31547,
+      "number": "TRUSWMF",
+      "numberVariant": 2,
+      "name": "Millennium Falcon",
+      "year": 2018,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Promotional",
+      "category": "Other",
+      "released": true,
+      "pieces": 24,
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/TRUSWMF-2.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/TRUSWMF-2.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/TRUSWMF-2",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 100,
+        "wantedBy": 423
+      },
+      "LEGOCom": {
+        "US": {},
+        "UK": {},
+        "CA": {},
+        "DE": {}
+      },
+      "rating": 0,
+      "reviewCount": 0,
+      "packagingType": "None (loose parts)",
+      "availability": "Promotional",
+      "instructionsCount": 0,
+      "additionalImageCount": 0,
+      "ageRange": {
+        "min": 6
+      },
+      "dimensions": {},
+      "modelDimensions": {},
+      "barcode": {},
+      "itemNumber": {},
+      "extendedData": {},
+      "lastUpdated": "2025-09-29T10:34:00.143Z"
+    },
+    {
+      "setID": 26716,
+      "number": "75184",
+      "numberVariant": 1,
+      "name": "LEGO Star Wars Advent Calendar",
+      "year": 2017,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Seasonal",
+      "category": "Normal",
+      "released": true,
+      "pieces": 309,
+      "minifigs": 8,
+      "launchDate": "2017-09-01T00:00:00Z",
+      "exitDate": "2017-12-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/75184-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/75184-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/75184-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 10894,
+        "wantedBy": 1844
+      },
+      "LEGOCom": {
+        "US": {
+          "retailPrice": 39.99,
+          "dateFirstAvailable": "2017-09-02T00:00:00Z",
+          "dateLastAvailable": "2017-11-23T00:00:00Z"
+        },
+        "UK": {
+          "retailPrice": 24.99,
+          "dateFirstAvailable": "2017-09-01T00:00:00Z",
+          "dateLastAvailable": "2018-01-15T00:00:00Z"
+        },
+        "CA": {
+          "retailPrice": 49.99,
+          "dateFirstAvailable": "2017-09-02T00:00:00Z",
+          "dateLastAvailable": "2017-11-23T00:00:00Z"
+        },
+        "DE": {
+          "retailPrice": 29.99,
+          "dateFirstAvailable": "2017-09-02T00:00:00Z",
+          "dateLastAvailable": "2017-12-24T00:00:00Z"
+        }
+      },
+      "rating": 3.5,
+      "reviewCount": 1,
+      "packagingType": "Box",
+      "availability": "Retail",
+      "instructionsCount": 1,
+      "additionalImageCount": 10,
+      "ageRange": {
+        "min": 6,
+        "max": 14
+      },
+      "dimensions": {
+        "height": 26.2128,
+        "width": 38.2016,
+        "depth": 7.0612,
+        "weight": 0.4218405
+      },
+      "modelDimensions": {},
+      "barcode": {
+        "EAN": "5702015869997",
+        "UPC": "673419267717"
+      },
+      "itemNumber": {
+        "NA": "6175783",
+        "EU": "6175782"
+      },
+      "extendedData": {},
+      "lastUpdated": "2023-07-13T12:10:33.38Z"
+    },
+    {
+      "setID": 26725,
+      "number": "75192",
+      "numberVariant": 1,
+      "name": "Millennium Falcon",
+      "year": 2017,
+      "theme": "Star Wars",
+      "themeGroup": "Licensed",
+      "subtheme": "Ultimate Collector Series",
+      "category": "Normal",
+      "released": true,
+      "pieces": 7541,
+      "minifigs": 8,
+      "launchDate": "2017-10-01T00:00:00Z",
+      "exitDate": "2026-12-31T00:00:00Z",
+      "image": {
+        "thumbnailURL": "https://images.brickset.com/sets/small/75192-1.jpg",
+        "imageURL": "https://images.brickset.com/sets/images/75192-1.jpg"
+      },
+      "bricksetURL": "https://brickset.com/sets/75192-1",
+      "collection": {
+        "setID": 0,
+        "qtyOwned": 0,
+        "qtyWanted": 0,
+        "qtyOwnedNew": 0,
+        "qtyOwnedUsed": 0,
+        "wantedPriority": 0
+      },
+      "collections": {
+        "ownedBy": 24500,
+        "wantedBy": 10559
+      },
+      "LEGOCom": {
+        "US": {
+          "retailPrice": 849.99,
+          "dateFirstAvailable": "2018-01-10T00:00:00Z"
+        },
+        "UK": {
+          "retailPrice": 734.99,
+          "dateFirstAvailable": "2018-01-16T00:00:00Z"
+        },
+        "CA": {
+          "retailPrice": 1049.99,
+          "dateFirstAvailable": "2018-01-10T00:00:00Z"
+        },
+        "DE": {
+          "retailPrice": 849.99,
+          "dateFirstAvailable": "2018-04-09T00:00:00Z"
+        }
+      },
+      "rating": 4.4,
+      "reviewCount": 10,
+      "packagingType": "Box",
+      "availability": "LEGO exclusive",
+      "instructionsCount": 15,
+      "additionalImageCount": 61,
+      "ageRange": {
+        "min": 16
+      },
+      "dimensions": {
+        "height": 46,
+        "width": 53.3,
+        "depth": 38.5
+      },
+      "modelDimensions": {
+        "dimension1": 21,
+        "dimension2": 84,
+        "dimension3": 56
+      },
+      "barcode": {
+        "EAN": "5702015869935",
+        "UPC": "673419267656"
+      },
+      "itemNumber": {
+        "NA": "6175771",
+        "EU": "6175770"
+      },
+      "extendedData": {},
+      "lastUpdated": "2023-02-03T20:49:50.973Z"
+    }
+  ]
+}

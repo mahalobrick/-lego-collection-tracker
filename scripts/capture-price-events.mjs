@@ -10,17 +10,12 @@
 // Writes raw payloads to test-data/be-fixtures/<num>.json and prints a shape report.
 // Pick one set per case: (a) retired-with-events, (b) at-retail, (c) ~3% no-value.
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { loadEnvKey } from "./lib/env.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-
-function loadKey() {
-  const env = readFileSync(join(root, ".env.local"), "utf8");
-  const line = env.split("\n").find((l) => l.startsWith("BRICKECONOMY_API_KEY="));
-  return line ? line.slice("BRICKECONOMY_API_KEY=".length).replace(/^["']|["']$/g, "").trim() : "";
-}
 
 function normNum(n) {
   n = String(n).trim().replace(/\s+/g, "");
@@ -28,7 +23,7 @@ function normNum(n) {
   return n;
 }
 
-const key = loadKey();
+const key = loadEnvKey("BRICKECONOMY_API_KEY");
 if (!key) {
   console.error("NO BRICKECONOMY_API_KEY in .env.local");
   process.exit(1);
