@@ -162,7 +162,8 @@ open refinement is a tighter/​cost-aware (or fail-closed) limit for the Scrape
     **unreachable break-out** ("Y failed (Z unreachable)"), **not** per-item toasts; the interactive
     single-lookups already carry the per-call broke-vs-absent signal.
 
-  (End-to-end UI smoke + the §9 gap #3 closure land in **P3 S6.5**.)
+  (Verified end-to-end by the **P3 S6.5** UI smoke: a broke failure → one deduped "couldn't reach" toast;
+  `not_found`/`not_configured` → quiet; a malformed ID → skipped before the call. §9 gap #3 closed.)
 - ✅ **The BrickLink scrape fallback + no-op block were removed (P3 S3)** — a primary-API auth/parse/network
   failure now returns a clean ad-hoc error (upstream status / `502` invalid JSON / `500`) instead of a dead
   `{format:"html"}` the client discarded. See the V4 gating answer in [§8](#8-the-v4-gating-answer-bricklink).
@@ -270,7 +271,7 @@ The ranked gaps from the STEP-0 map, each tagged to the phase that closes it. **
 |---|---|---|
 | 1 | No BrickLink contract test (+ dead fallback) — the V4 blocker | **P2** (test, *blocked: gated on BrickLink API connection; pin when connected*) + **P3** (dead-code removal ✅ done S3) |
 | 2 | ✅ **CLOSED (P3 S4+S5)** — every handler + `sync.js` route upstream fetches through `fetchWithTimeout`; locked by `api-no-bare-fetch.test.js`. | ~~P3~~ done |
-| 3 | ⏳ **Proxy half done (P3 S5)** — every data-source proxy emits the typed envelope; the client still swallows it (`!res.ok → null`). The client UI signal is **P3 S6**. | **P3 S6** (client) |
+| 3 | ✅ **CLOSED (P3 S5 proxies + S6 client)** — proxies emit the typed envelope; the client funnel (`readSource`/`classifyFailure`/`reportSourceFailure`) surfaces "broke" kinds as a deduped signal and keeps `not_found`/`not_configured` quiet. UI-smoke-verified (S6.5): broke→1 deduped toast, not_found→quiet, malformed ID→skipped. | ~~P3 S6~~ done |
 | 4 | Schema-drift blind spots (passthrough propagates; field-select masks) | **P2** (BE ✅) / **P4** (Brickset) |
 | 5 | Modeled value frozen into synced records without an `asOf` write-guard | **Parked** |
 | 6 | ✅ **CLOSED (P2)** — BE value-field shape now pinned (`beSetValueFields.contract.test.js`) | ~~P2~~ done |
@@ -300,13 +301,16 @@ The ranked gaps from the STEP-0 map, each tagged to the phase that closes it. **
   error surface so client failures are visible — **no silent `null`**. (c) Resolve the dead BL fallback
   — **decision: remove vs wire, lean REMOVE** — and clear the §9 #7 dead code. Closes gaps #2, #3, #7,
   #1(fallback).
-  - **Status (2026-05-31): S2–S5 done; S6 remains.** S2 removed the dead BE `/collection` proxy (gap #8);
-    S3 removed the dead BL scrape fallback + no-op (gaps #1-fallback, #7); S4 built `fetchWithTimeout` +
-    the `sendSourceError` envelope (Brick Fanatics reference); S5 migrated every proxy + `sync.js` onto the
-    wrapper and the envelope, landing the no-bare-`fetch` lock (`api-no-bare-fetch.test.js`) — closing
-    gap #2 and the proxy half of gap #3. **S6 (client typed-error surface)** is the only open item:
-    consume the envelope in the UI (a real "fetch failed" signal; `not_found` quiet) + the client-side
-    Brickset number validation.
+  - **Status (2026-05-31): ✅ P3 COMPLETE (S2–S6 done).** S2 removed the dead BE `/collection` proxy
+    (gap #8); S3 removed the dead BL scrape fallback + no-op (gaps #1-fallback, #7); S4 built
+    `fetchWithTimeout` + the `sendSourceError` envelope (Brick Fanatics reference); S5 migrated every proxy +
+    `sync.js` onto the wrapper and the envelope, landing the no-bare-`fetch` lock
+    (`api-no-bare-fetch.test.js`) — closing gap #2 and the proxy half of gap #3; S6 wired the client
+    typed-error surface (`readSource`/`classifyFailure`/`reportSourceFailure` — deduped "couldn't reach"
+    signal, quiet `not_found`/`not_configured`) + the client-side Brickset number validation, UI-smoke-verified
+    (S6.5), closing the client half of gap #3. **All P3 gaps (#1-fallback, #2, #3, #7, #8) are closed; the
+    only remaining backlog items are the connection-gated BrickLink contract test (gap #1-test, P2) and the
+    parked `asOf` sync-write guard (gap #5).**
   - **S4 wrapper scope (RATIFIED 2026-05-31).** `fetchWithTimeout` (`api/_fetch.js`) splits two jobs:
     its **universal** part — apply the timeout + map an abort/network throw to a typed failure — is what
     the **bare-`fetch` ban enforces everywhere, `sync.js` included** (a hung Upstash call is the same hang
