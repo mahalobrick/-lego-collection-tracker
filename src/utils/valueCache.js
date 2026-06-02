@@ -106,6 +106,27 @@ export async function fetchValues(setNumbers, { force = false } = {}) {
   return result;
 }
 
+/**
+ * SYNCHRONOUS peek at the cached value map — fresh (non-expired) entries only, no network.
+ * Used to seed a component's initial render from the device cache so a warm load shows BL
+ * values from the first paint (no BE→BL flash); pair it with an async {@link fetchValues}
+ * refresh. Returns only the requested numbers that are present AND fresh.
+ *
+ * @param {string[]} setNumbers
+ * @returns {Object<string, ({new, used}|null)>}
+ */
+export function peekValueCache(setNumbers) {
+  const want = [...new Set((setNumbers || []).map((n) => String(n).trim()).filter(Boolean))];
+  if (want.length === 0) return {};
+  const store = loadStore();
+  const out = {};
+  for (const num of want) {
+    const entry = memo.get(num) || store[num];
+    if (isFresh(entry)) out[num] = entry.record;
+  }
+  return out;
+}
+
 /** Drop the in-memory + localStorage value cache (used by tests / a manual refresh). */
 export function clearValueCache() {
   memo.clear();

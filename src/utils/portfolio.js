@@ -42,20 +42,131 @@ function rawSetValue(s) {
   return perUnit === null ? null : perUnit * (asNumber(s.qty) || 1);
 }
 
+// ── BrickLink value overlay (app-read Step 2) ────────────────────────────────
+// A read-time projection that PREFERS the BrickLink value cache (value:SET:{number}, fetched via
+// src/utils/valueCache.js) over the stored BrickEconomy provenance, BE as fallback for cache-misses
+// (e.g. deferred CMF) and basis:"unknown". NON-DESTRUCTIVE — nothing here is persisted; the BE
+// fields stay in storage as the fallback (decision doc: demote-don't-delete). Per docs/value-source-
+// decision.md §3 the cache is condition-matched: a new copy reads `.new`, a used copy `.used`.
+
+const BL_SOURCE = "bricklink";
+const blCondition = (c) => (String(c ?? "").startsWith("used") ? "used" : "new");
+
 /**
- * Read-time {@link import("./value").Value} for a set's portfolio contribution.
- * Derived, never persisted. `basis` flips retail→market on retirement (toValue);
- * `amount` is `null` for a set with no value data (unknown ≠ 0, V2b).
+ * The set's per-copy value groups: one entry per owned copy (BE sets carry `entries[]`, each a copy
+ * with its own condition); a manual set (no entries) is a single group of `qty` same-condition units.
+ * `be` is that copy's stored BE per-unit value (the fallback) — null when BE has none either.
+ */
+function valueGroups(s) {
+  if (Array.isArray(s.entries) && s.entries.length) {
+    return s.entries.map((e) => ({
+      cond: blCondition(e.condition),
+      units: 1,
+      be: valueAmount(e.current_value ?? e.Value ?? e.value),
+    }));
+  }
+  return [{ cond: blCondition(s.condition), units: asNumber(s.qty) || 1, be: valueAmount(s.currentValue) }];
+}
+
+/**
+ * BL-preferred {@link import("./value").Value} for a set, resolved per-copy against the cache, or
+ * `null` when BL covers NONE of the set's value (→ caller falls back to the BE path, byte-identical
+ * to pre-overlay). A copy uses its condition-matched BL amount when non-null; otherwise that copy
+ * falls back to its stored BE value. Because Σ entries.current_value === totalValue, an all-BE
+ * outcome equals the old `rawSetValue` exactly — so only BL-covered sets change.
  *
  * @param {Object} s
+ * @param {Object<string, ({new?:Object, used?:Object}|null)>} valueMap  setNumber → cache record.
+ * @returns {import("./value").Value | null}
+ */
+function blOverlayValue(s, valueMap) {
+  const rec = valueMap && valueMap[s.setNumber];
+  if (!rec) return null; // cache miss (e.g. deferred CMF) → BE fallback
+
+  let total = 0;
+  let anyBL = false;
+  let anyKnown = false;
+  const bases = new Set();
+  let lots = null;
+  let asOf = null;
+
+  for (const g of valueGroups(s)) {
+    const blc = rec[g.cond];
+    const blAmt = blc && typeof blc.amount === "number" ? blc.amount : null; // amount != null wins
+    let per;
+    if (blAmt !== null) {
+      per = blAmt;
+      anyBL = true;
+      if (blc.basis) bases.add(blc.basis);
+      if (typeof blc.lots === "number") lots = blc.lots;
+      if (blc.asOf) asOf = blc.asOf;
+    } else {
+      per = g.be; // basis:"unknown"/null → fall back to this copy's BE value
+    }
+    if (per !== null) {
+      total += per * g.units;
+      anyKnown = true;
+    }
+  }
+
+  if (!anyBL) return null; // BL covered nothing here → full BE fallback (identical numbers)
+  const uniform = bases.size === 1;
+  return {
+    amount: anyKnown ? total : null,
+    source: BL_SOURCE,
+    condition: s.condition ?? null,
+    basis: uniform ? [...bases][0] : "market", // mixed-condition set → coarse market tag (Step 3 refines per-copy)
+    asOf,
+    lots: uniform ? lots : null,
+  };
+}
+
+/**
+ * Read-time {@link import("./value").Value} for a set's portfolio contribution.
+ * Derived, never persisted. With a `valueMap` it PREFERS the BrickLink cache (condition-matched),
+ * BE as fallback; without one it is byte-identical to today's BE-provenance behavior — `basis`
+ * flips retail→market on retirement (toValue), `amount` is `null` for a set with no value data.
+ *
+ * @param {Object} s
+ * @param {Object} [valueMap]  Optional BrickLink value cache (setNumber → record); omitted → BE only.
  * @returns {import("./value").Value}
  */
-export function setValueProvenance(s) {
+export function setValueProvenance(s, valueMap) {
+  if (valueMap) {
+    const bl = blOverlayValue(s, valueMap);
+    if (bl) return bl;
+  }
   return toValue(rawSetValue(s), {
     source: s.source === "BrickEconomy" ? "brickeconomy" : null,
     condition: s.condition ?? null,
     retired: !!s.retired,
   });
+}
+
+/**
+ * Per-COPY BL-preferred {@link import("./value").Value} — the SetDetailPanel per-copy path. Prefers
+ * the condition-matched BL cache amount (carrying basis/source/asOf/lots); on a cache-miss or
+ * basis:"unknown" it falls back to the copy's stored BE value via {@link import("./value").valueAmount}
+ * + {@link import("./value").toValue} — byte-identical to the pre-overlay per-copy behavior.
+ *
+ * @param {*} rawValue            The copy's stored value field (current_value/Value/value).
+ * @param {Object} opts           { setNumber, condition, retired }.
+ * @param {Object} [valueMap]     BrickLink value cache (setNumber → record); omitted → BE only.
+ * @returns {import("./value").Value}
+ */
+export function copyValueProvenance(rawValue, { setNumber, condition, retired } = {}, valueMap) {
+  const blc = valueMap && valueMap[setNumber] && valueMap[setNumber][blCondition(condition)];
+  if (blc && typeof blc.amount === "number") {
+    return {
+      amount: blc.amount,
+      source: BL_SOURCE,
+      condition: condition ?? null,
+      basis: blc.basis ?? null,
+      asOf: blc.asOf ?? null,
+      lots: typeof blc.lots === "number" ? blc.lots : null,
+    };
+  }
+  return toValue(valueAmount(rawValue), { condition, retired });
 }
 
 /**
@@ -68,8 +179,8 @@ export function setValueProvenance(s) {
  * @param {Array<Object>} sets
  * @returns {number}
  */
-export function portfolioValue(sets) {
-  return sets.reduce((sum, s) => sum + (setValueProvenance(s).amount ?? 0), 0);
+export function portfolioValue(sets, valueMap) {
+  return sets.reduce((sum, s) => sum + (setValueProvenance(s, valueMap).amount ?? 0), 0);
 }
 
 /**
@@ -80,8 +191,8 @@ export function portfolioValue(sets) {
  * @param {Array<Object>} sets
  * @returns {number}
  */
-export function knownValueCount(sets) {
-  return sets.reduce((n, s) => n + (setValueProvenance(s).amount === null ? 0 : 1), 0);
+export function knownValueCount(sets, valueMap) {
+  return sets.reduce((n, s) => n + (setValueProvenance(s, valueMap).amount === null ? 0 : 1), 0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -116,8 +227,8 @@ export function setCost(s) {
  * @param {Object} s
  * @returns {boolean}
  */
-function roiEligible(s) {
-  return setValueProvenance(s).amount !== null && setCost(s) > 0;
+function roiEligible(s, valueMap) {
+  return setValueProvenance(s, valueMap).amount !== null && setCost(s) > 0;
 }
 
 /**
@@ -127,9 +238,9 @@ function roiEligible(s) {
  * @param {Object} s
  * @returns {number|null}
  */
-export function setROI(s) {
-  if (!roiEligible(s)) return null;
-  const amount = setValueProvenance(s).amount;
+export function setROI(s, valueMap) {
+  if (!roiEligible(s, valueMap)) return null;
+  const amount = setValueProvenance(s, valueMap).amount;
   const cost = setCost(s);
   return ((amount - cost) / cost) * 100;
 }
@@ -154,9 +265,9 @@ export function totalSpent(sets) {
  * @param {Array<Object>} sets
  * @returns {number}
  */
-export function portfolioGain(sets) {
+export function portfolioGain(sets, valueMap) {
   return sets.reduce((sum, s) => {
-    const amount = setValueProvenance(s).amount;
+    const amount = setValueProvenance(s, valueMap).amount;
     return amount === null ? sum : sum + (amount - setCost(s));
   }, 0);
 }
@@ -170,11 +281,11 @@ export function portfolioGain(sets) {
  * @param {Array<Object>} sets
  * @returns {number|null}
  */
-export function portfolioROI(sets) {
+export function portfolioROI(sets, valueMap) {
   let value = 0, cost = 0, n = 0;
   for (const s of sets) {
-    if (!roiEligible(s)) continue;
-    value += setValueProvenance(s).amount;
+    if (!roiEligible(s, valueMap)) continue;
+    value += setValueProvenance(s, valueMap).amount;
     cost += setCost(s);
     n++;
   }
@@ -189,8 +300,8 @@ export function portfolioROI(sets) {
  * @param {Array<Object>} sets
  * @returns {number}
  */
-export function roiExcludedCount(sets) {
-  return sets.reduce((n, s) => n + (roiEligible(s) ? 0 : 1), 0);
+export function roiExcludedCount(sets, valueMap) {
+  return sets.reduce((n, s) => n + (roiEligible(s, valueMap) ? 0 : 1), 0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -210,8 +321,8 @@ export function roiExcludedCount(sets) {
  * @param {Object} s
  * @returns {number|null}
  */
-export function setGain(s) {
-  const amount = setValueProvenance(s).amount;
+export function setGain(s, valueMap) {
+  const amount = setValueProvenance(s, valueMap).amount;
   return amount === null ? null : amount - setCost(s);
 }
 
@@ -228,7 +339,7 @@ export function setGain(s) {
  * @param {(s: Object) => (string|null|undefined)} keyFn  Group key; falsy → "Other".
  * @returns {Array<{key:string,count:number,qty:number,value:number,spent:number,gain:number,roi:number|null,knownValueCount:number,unknownValueCount:number}>}
  */
-export function groupRollup(sets, keyFn) {
+export function groupRollup(sets, keyFn, valueMap) {
   const groups = new Map();
   for (const s of sets) {
     const key = keyFn(s) || "Other";
@@ -236,15 +347,15 @@ export function groupRollup(sets, keyFn) {
     groups.get(key).push(s);
   }
   return [...groups.entries()].map(([key, gsets]) => {
-    const known = knownValueCount(gsets);
+    const known = knownValueCount(gsets, valueMap);
     return {
       key,
       count: gsets.length,
       qty: gsets.reduce((n, s) => n + (asNumber(s.qty) || 1), 0),
-      value: portfolioValue(gsets),
+      value: portfolioValue(gsets, valueMap),
       spent: totalSpent(gsets),
-      gain: portfolioGain(gsets),
-      roi: portfolioROI(gsets),
+      gain: portfolioGain(gsets, valueMap),
+      roi: portfolioROI(gsets, valueMap),
       knownValueCount: known,
       unknownValueCount: gsets.length - known,
     };

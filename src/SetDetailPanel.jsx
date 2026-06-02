@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { asNumber, money, setImageUrl, conditionLabel, conditionColor, daysUntilRetirement } from "./utils/formatting";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
-import { setValueProvenance, setGain, setROI } from "./utils/portfolio";
-import { toValue, valueAmount } from "./utils/value";
+import { setValueProvenance, setGain, setROI, copyValueProvenance } from "./utils/portfolio";
 import { formatValueCell } from "./utils/valueDisplay";
 
 function entryPaid(e) {
@@ -32,7 +31,7 @@ export function openSetDetail(setNumber) {
   return col.find(n => n.setNumber === setNumber) || null;
 }
 
-export default function SetDetailPanel({ item, onClose, onEdit }) {
+export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
   const [blPrice, setBlPrice] = useState(null);
   useEffect(() => {
     if (!item?.setNumber || !hasBrickLinkAuth()) { setBlPrice(null); return; }
@@ -48,11 +47,11 @@ export default function SetDetailPanel({ item, onClose, onEdit }) {
   const totalPaid = asNumber(item.totalPaid);
   // Null-aware value/gain/roi: unknown value → "—", never $0 / phantom −cost / −100%.
   // (unknown≠0 sweep)
-  const prov = setValueProvenance(item);
+  const prov = setValueProvenance(item, valueMap);
   const valueKnown = prov.amount !== null;
   const totalValue = prov.amount ?? 0;
-  const gain = setGain(item);   // null when value unknown
-  const roi = setROI(item);     // null when value unknown OR cost ≤ 0
+  const gain = setGain(item, valueMap);   // null when value unknown
+  const roi = setROI(item, valueMap);     // null when value unknown OR cost ≤ 0
   const avgPaid = qty > 0 ? totalPaid / qty : 0;
 
   // Enrich with cached BrickEconomy set data
@@ -220,11 +219,14 @@ export default function SetDetailPanel({ item, onClose, onEdit }) {
             <div style={{ display: "grid", gap: 8 }}>
               {entries.map((entry, i) => {
                 const paid = entryPaid(entry);
-                // Null-aware per copy: unknown value → "—", never $0 / phantom −cost.
-                // valueAmount applies the shared VALUE-only 0→unknown rule (same source as
-                // rawSetValue), so a stored current_value of 0 reads as unknown, not $0.
-                // (unknown≠0 sweep)
-                const entryProv = toValue(valueAmount(entry.current_value ?? entry.Value ?? entry.value), { condition: entry.condition, retired: item.retired });
+                // Per-copy BL-preferred value (condition-matched), BE fallback on cache-miss/unknown.
+                // copyValueProvenance keeps the shared VALUE-only 0→unknown rule for the BE fallback,
+                // so a stored current_value of 0 reads as unknown, not $0. (unknown≠0 sweep)
+                const entryProv = copyValueProvenance(
+                  entry.current_value ?? entry.Value ?? entry.value,
+                  { setNumber: item.setNumber, condition: entry.condition, retired: item.retired },
+                  valueMap,
+                );
                 const val = entryProv.amount;
                 const g = val === null ? null : val - paid;
                 const r = (val === null || paid <= 0) ? null : (g / paid) * 100;

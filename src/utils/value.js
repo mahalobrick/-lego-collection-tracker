@@ -47,8 +47,11 @@ export function valueAmount(raw) {
  * @property {number|null} amount    Numeric value, or null when unknown (never 0-for-unknown).
  * @property {string|null} source    Where it came from: 'brickeconomy' | 'bricklink' | 'brickset' | null.
  * @property {string|null} condition The set's tracked condition (e.g. 'new', 'used', 'used_good').
- * @property {'retail'|'market'|'unknown'} basis How to read the figure (see module header).
+ * @property {string} basis          How to read the figure: 'retail'|'market'|'unknown' for stored
+ *                                   provenance; a BrickLink basis ('sold'|'sold_thin'|'modeled'|
+ *                                   'asking'|'unknown') when overlaid from the BL value cache.
  * @property {string|null} asOf      ISO timestamp the figure is as-of, or null.
+ * @property {number|null} lots      BL sample size behind the amount (overlay only), else null.
  */
 
 /**
@@ -100,7 +103,7 @@ function deriveBasis(amount, source, retired) {
  * @returns {Value}
  */
 export function toValue(raw, opts = {}) {
-  const { source = null, condition = null, retired = false, asOf } = opts;
+  const { source = null, condition = null, retired = false, asOf, lots = null } = opts;
   const amount = normalizeAmount(raw);
   return {
     amount,
@@ -108,5 +111,6 @@ export function toValue(raw, opts = {}) {
     condition: condition ?? null,
     basis: deriveBasis(amount, source ?? null, !!retired),
     asOf: asOf ?? new Date().toISOString(),
+    lots: lots ?? null,
   };
 }
