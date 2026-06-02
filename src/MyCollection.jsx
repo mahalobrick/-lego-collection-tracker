@@ -5,6 +5,7 @@ import { DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, AreaChart, Area, CartesianGrid } from "recharts";
 import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
 import TriValueCell from "./TriValueCell";
+import RowHoverCard from "./RowHoverCard";
 import { asNumber, money, setImageUrl, CONDITION_LABELS, conditionColor, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./utils/brickset";
@@ -86,6 +87,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   const [filterCondition, setFilterCondition] = useState("");
   const [sortColumn, setSortColumn] = useState(() => localStorage.getItem("blOwnedSort") || "setNumber");
   const [sortDirection, setSortDirection] = useState(() => localStorage.getItem("blOwnedSortDir") || "asc");
+  // Row density (blOwnedRowDensity): "compact" = Market-only row + Retail/Paid in the hover card;
+  // "full" = the TriValueCell three-up stack in the row. Default compact.
+  const [rowDensity, setRowDensity] = useState(() => localStorage.getItem("blOwnedRowDensity") || "compact");
   const [checkedSets, setCheckedSets] = useState([]);
 
   const [selectedSetIndex, setSelectedSetIndex] = useState(null);
@@ -358,6 +362,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     setItemSafe("blOwnedSort", sortColumn);
     setItemSafe("blOwnedSortDir", sortDirection);
   }, [sortColumn, sortDirection]);
+
+  useEffect(() => {
+    setItemSafe("blOwnedRowDensity", rowDensity);
+  }, [rowDensity]);
 
   // ── Rebrickable — load local catalog in background on mount ─────────────
   useEffect(() => { loadRebrickable(); }, []);
@@ -984,7 +992,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       //   Paid   → setCost; $0 / unrecorded → null → "—" (a genuine GWP $0 is indistinguishable here)
       //   Market → setValueProvenance (the prior cell's value — pinned by TriValueCell's Market line)
       const cost = setCost(set);
-      return <TriValueCell retail={retailFor(set)} paid={cost > 0 ? cost : null} market={setValueProvenance(set, valueMap)} />;
+      return <TriValueCell density={rowDensity} retail={retailFor(set)} paid={cost > 0 ? cost : null} market={setValueProvenance(set, valueMap)} />;
     }
     if (column.key === "gain") return gain === null ? "—" : money(gain);
     if (column.key === "roi") return roi !== null ? `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%` : "—";
@@ -1959,26 +1967,12 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       />
 
       {hoveredSet && (
-        <div style={{ position: "fixed", left: tipPos.x > window.innerWidth - 280 ? tipPos.x - 256 : tipPos.x + 16, top: tipPos.y > window.innerHeight - 230 ? tipPos.y - 215 : tipPos.y - 8, zIndex: 9999, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "10px 14px", pointerEvents: "none", boxShadow: "0 8px 32px rgba(0,0,0,0.55)", minWidth: 240 }}>
-          <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-            <img src={setImageUrl(hoveredSet.setNumber)} alt="" onError={e => { e.currentTarget.style.display = "none"; }}
-              style={{ width: 72, height: 72, objectFit: "contain", borderRadius: 8, background: "#111d2e", border: "1px solid rgba(255,255,255,0.07)", flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, color: "#e8e2d5", marginBottom: 6, fontSize: 13 }}>{hoveredSet.name || hoveredSet.setNumber || "Set"}</div>
-              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "3px 12px", fontSize: 12 }}>
-                {hoveredSet.setNumber && <><span style={{ color: "#5d6f80" }}>Set #</span><span style={{ color: "#e8e2d5" }}>{hoveredSet.setNumber}</span></>}
-                {hoveredSet.theme && <><span style={{ color: "#5d6f80" }}>Theme</span><span style={{ color: "#e8e2d5" }}>{hoveredSet.theme}</span></>}
-                {hoveredSet.condition && <><span style={{ color: "#5d6f80" }}>Condition</span><span style={{ color: "#e8e2d5", textTransform: "capitalize" }}>{hoveredSet.condition}</span></>}
-                <span style={{ color: "#5d6f80" }}>Qty</span><span style={{ color: "#e8e2d5" }}>{hoveredSet.qty || 1}</span>
-                <span style={{ color: "#5d6f80" }}>Paid</span><span style={{ color: "#e8e2d5" }}>{money(hoveredSet.totalPaid || (asNumber(hoveredSet.paidPrice) * (hoveredSet.qty || 1)))}</span>
-                <span style={{ color: "#5d6f80" }}>Value</span><span style={{ color: "#c9a84c", fontWeight: 700 }}>{formatValue(setValueProvenance(hoveredSet, valueMap).amount)}</span>
-                {hoveredSet.roiPct != null && <><span style={{ color: "#5d6f80" }}>ROI</span><span style={{ color: hoveredSet.roiPct >= 0 ? "#5aa832" : "#ff8b8b", fontWeight: 700 }}>{hoveredSet.roiPct >= 0 ? "+" : ""}{Number(hoveredSet.roiPct).toFixed(1)}%</span></>}
-                {hoveredSet.retired != null && <><span style={{ color: "#5d6f80" }}>Status</span><span style={{ color: hoveredSet.retired ? "#f59e0b" : "#5aa832" }}>{hoveredSet.retired ? "Retired" : "Active"}</span></>}
-              </div>
-            </div>
-          </div>
-          <div style={{ marginTop: 8, fontSize: 11, color: "#5d6f80", borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 6 }}>click for details</div>
-        </div>
+        <RowHoverCard
+          set={hoveredSet}
+          retail={retailFor(hoveredSet)}
+          market={setValueProvenance(hoveredSet, valueMap)}
+          tipPos={tipPos}
+        />
       )}
 
       {hoveredWatchItem && (
@@ -2130,6 +2124,17 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               {rbEnriching ? "…" : rbEnrichResult !== null ? `✓ RB (${rbEnrichResult})` : "RB Fill"}
             </button>
             <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.1)", alignSelf: "center", margin: "0 2px", flexShrink: 0 }} />
+            <div style={{ display: "flex", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden", flexShrink: 0 }} title="Row density — compact shows Market only (Retail / Paid on hover); full shows all three">
+              {[["compact", "Compact"], ["full", "Full"]].map(([val, label]) => (
+                <button
+                  key={val}
+                  onClick={() => setRowDensity(val)}
+                  style={{ background: rowDensity === val ? "rgba(201,168,76,0.15)" : "transparent", color: rowDensity === val ? "#c9a84c" : "#8a9bb0", border: "none", padding: "5px 9px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <div style={{ position: "relative" }}>
               <button
                 onClick={() => setOwnedColumnsOpen(prev => !prev)}

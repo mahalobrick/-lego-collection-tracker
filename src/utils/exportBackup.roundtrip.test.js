@@ -65,12 +65,13 @@ function makeFullBackup() {
       dashboardWidgets: { a: 1 },
       collectionItems: [{ a: 1 }],
       ownedColWidths: { a: 1 },
+      ownedRowDensity: "full",
     },
   };
 }
 
 describe("characterization — buildBackup <-> apply (Phase C)", () => {
-  it("round-trip: state in == state out for all 17 user-data keys (incl nested settings.*)", async () => {
+  it("round-trip: state in == state out for all 18 user-data keys (incl nested settings.*)", async () => {
     const fixture = {
       blOwnedSets: [{ setNumber: "10497", qty: 1 }],
       brickEconomyNormalizedCollection: [{ setNumber: "75192" }],
@@ -89,6 +90,7 @@ describe("characterization — buildBackup <-> apply (Phase C)", () => {
       blDashboardWidgetSettings: { spend: true },
       blCollectionItems: [{ key: "value", visible: true }],
       blOwnedColWidths: { name: 150 },
+      blOwnedRowDensity: "full",
     };
     for (const [k, v] of Object.entries(fixture)) localStorage.setItem(k, ser(v));
 
@@ -101,7 +103,7 @@ describe("characterization — buildBackup <-> apply (Phase C)", () => {
     }
   });
 
-  it("apply's setItem key-set == BACKUP_KEYS (17) exactly", () => {
+  it("apply's setItem key-set == BACKUP_KEYS (18) exactly", () => {
     const keys = captureApplyKeys(makeFullBackup());
     expect(keys.sort()).toEqual(BACKUP_KEYS.map((k) => k.key).sort());
   });
@@ -155,6 +157,7 @@ describe("characterization — edge cases: absent / empty / falsy (Phase D net)"
     expect(localStorage.getItem("blStoreBudgets")).toBe("{}");
     expect(localStorage.getItem("blAnnualBudget")).toBe("10320"); // DEFAULT_ANNUAL_BUDGET
     expect(localStorage.getItem("blDisplayCurrency")).toBe("USD");
+    expect(localStorage.getItem("blOwnedRowDensity")).toBe("compact"); // scalar-with-default, like currency: always restored
 
     // The 6 nested view-config keys build to null → apply's truthy settings.* guard skips them.
     for (const k of ["blOwnedColumns", "blAcquisitionColumns", "blPurchaseColumns",

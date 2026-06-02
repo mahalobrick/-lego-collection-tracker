@@ -144,6 +144,7 @@ export const BACKUP_KEYS = [
   { key: "blDashboardWidgetSettings", field: "dashboardWidgets",   kind: "object", census: false, settings: true },
   { key: "blCollectionItems",         field: "collectionItems",    kind: "array",  census: false, settings: true },
   { key: "blOwnedColWidths",          field: "ownedColWidths",     kind: "object", census: false, settings: true },
+  { key: "blOwnedRowDensity",         field: "ownedRowDensity",    kind: "scalar", census: false, settings: true, default: "compact" },
 ];
 
 /**

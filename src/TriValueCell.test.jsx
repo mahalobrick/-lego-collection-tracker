@@ -95,3 +95,21 @@ describe("TriValueCell — three-up smoke (DOM-leaf)", () => {
     expect(r.querySelector("[title]").getAttribute("title")).toMatch(/deprecated BrickEconomy/);
   });
 });
+
+describe("TriValueCell — compact density (Market only; pins pre-Step-2 cell)", () => {
+  it("renders Market only — no Retail / Paid leaves", () => {
+    const retail = setRetailProvenance({ brickset: { amount: 99.99 } });
+    const { retail: r, paid: p, market: m } = render({ retail, paid: 80, market: MODELED_MARKET, density: "compact" });
+    expect(r).toBeNull();
+    expect(p).toBeNull();
+    // Market figure + confidence badge + tooltip — byte-identical to the old inline cell (title on the span).
+    expect(m.textContent).toBe(`${money(120)}est.`);
+    expect(m.getAttribute("title")).toBe("Estimated from new sold price");
+  });
+
+  it("unknown market → '—'", () => {
+    const { market: m } = render({ retail: null, paid: null, market: { amount: null, basis: "unknown" }, density: "compact" });
+    expect(m.textContent).toBe("—");
+    expect(m.getAttribute("title")).toBeNull();
+  });
+});

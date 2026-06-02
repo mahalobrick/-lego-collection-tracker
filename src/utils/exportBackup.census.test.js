@@ -97,11 +97,11 @@ describe("BACKUP_KEYS registry — one shared list", () => {
     );
   });
 
-  it("deferred = the 6 view-config keys (tracked in Step 5)", () => {
+  it("deferred = the 7 view-config keys (tracked in Step 5)", () => {
     expect(deferred).toEqual(
       [
         "blAcquisitionColumns", "blCollectionItems", "blDashboardWidgetSettings",
-        "blOwnedColWidths", "blOwnedColumns", "blPurchaseColumns",
+        "blOwnedColWidths", "blOwnedColumns", "blPurchaseColumns", "blOwnedRowDensity",
       ].sort(),
     );
   });
@@ -112,7 +112,7 @@ describe("BACKUP_KEYS registry — one shared list", () => {
       "blSoldSets", "blPortfolioHistory", "blWantedList", "blPurchases", "blStores",
       "blStoreBudgets", "blAnnualBudget", "blDisplayCurrency", "blOwnedColumns",
       "blAcquisitionColumns", "blPurchaseColumns", "blDashboardWidgetSettings",
-      "blCollectionItems", "blOwnedColWidths",
+      "blCollectionItems", "blOwnedColWidths", "blOwnedRowDensity",
     ].sort();
     expect(BACKUP_KEYS.map((k) => k.key).sort()).toEqual(overwriteSet);
   });

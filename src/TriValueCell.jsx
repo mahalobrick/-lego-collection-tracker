@@ -2,47 +2,55 @@ import { formatValue, formatValueCell, retailTooltip, valueConfidence } from "./
 import { confidenceBadge } from "./uiStyles";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MSRP Step 2 — reusable three-up value display: Retail / Paid / Market, stacked.
+// MSRP Step 2 — the Collection row's value cell, density-aware.
 //
-// One compact unit so a reader sees a set's three money figures together (the
-// sticker price it shipped at, what they paid, what it's worth now). Built here
-// once; the Collection rows wire it in first, Budget / Wanted reuse it later
-// (Wanted has no "Paid" — it just passes paid={null}, which renders "—").
+//   density="full"    → three-up stack: Retail / Paid / Market, one figure per line.
+//   density="compact" → Market only — byte-identical to the pre-Step-2 cell
+//                       (formatValueCell + confidence marker + retail/confidence tooltip).
+//                       Retail + Paid surface in the row hover card instead (RowHoverCard).
 //
-// Each line shows its figure or "—" when unknown (docs/valuation.md rule 6 — never
-// a phantom $0). The Market line PINS the prior value-cell behavior exactly:
-// confidence marker (est./thin/ask) + retail/confidence tooltip. Retail carries its
-// own at-retail caveat via retailTooltip, and a quiet "be" tag when it is still
-// leaning on the deprecated BrickEconomy source so BE's footprint stays visible.
+// Built once so Budget / Wanted can reuse it later (Wanted has no "Paid" → paid={null} → "—").
+// Each line shows its figure or "—" when unknown (docs/valuation.md rule 6 — never a phantom $0).
+// Retail carries its at-retail caveat via retailTooltip and a quiet "be" tag when still leaning on
+// the deprecated BrickEconomy source.
 //
-// Prominence is intentionally flat-and-subtle by default (Market a touch brighter);
-// Sam tunes prominence after. Pure presentational — no localStorage, no derivation.
+// TYPE: one font size for the whole cell (inherited from the table cell). Hierarchy is expressed
+// through WEIGHT and COLOR only — labels are muted + light, the Market figure is bright + heavy,
+// Retail/Paid sit dim in between. No ad-hoc per-line sizes (the shared confidence badge keeps its
+// own size). Sam tunes prominence after.
 //
-// Props (all already derived by the caller — see setRetailProvenance / setCost /
-// setValueProvenance):
+// Props (all already derived by the caller — setRetailProvenance / setCost / setValueProvenance):
 //   retail  {import("./utils/value").Value | null}  Brickset-canonical MSRP, BE fallback.
 //   paid    {number | null}                          per-set cost basis; null → "—".
 //   market  {import("./utils/value").Value | null}   the existing Market value.
+//   density {"full" | "compact"}                      defaults to "full".
 // ─────────────────────────────────────────────────────────────────────────────
 
-const labelStyle = {
-  color: "#5d6f80",
-  fontSize: 9,
-  fontWeight: 700,
-  letterSpacing: 0.5,
-  textTransform: "uppercase",
-};
-const rowStyle = { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6, lineHeight: 1.4 };
+const labelStyle = { color: "#5d6f80", fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase" };
+const rowStyle = { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6, lineHeight: 1.45 };
 const dimFigure = { color: "#8a9bb0", fontWeight: 600 };
 const marketFigure = { color: "#e8e2d5", fontWeight: 800 };
 
-export default function TriValueCell({ retail, paid, market }) {
+export default function TriValueCell({ retail, paid, market, density = "full" }) {
   const conf = valueConfidence(market);
   const marketTip = conf?.tooltip || retailTooltip(market) || undefined;
-  const retailIsBE = retail?.amount != null && retail?.source === "brickeconomy";
 
+  const marketFigureEl = (
+    <>
+      {formatValueCell(market)}
+      {conf && <span style={confidenceBadge}>{conf.marker}</span>}
+    </>
+  );
+
+  // Compact: the prior single Market cell, unchanged (net-first pin). Same testid so the row's
+  // Market figure is found the same way in both modes.
+  if (density === "compact") {
+    return <span title={marketTip} data-testid="tri-market">{marketFigureEl}</span>;
+  }
+
+  const retailIsBE = retail?.amount != null && retail?.source === "brickeconomy";
   return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
+    <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
       <div style={rowStyle} title={retailTooltip(retail) || undefined}>
         <span style={labelStyle}>Retail</span>
         <span style={dimFigure} data-testid="tri-retail">
@@ -63,10 +71,7 @@ export default function TriValueCell({ retail, paid, market }) {
       </div>
       <div style={rowStyle} title={marketTip}>
         <span style={labelStyle}>Market</span>
-        <span style={marketFigure} data-testid="tri-market">
-          {formatValueCell(market)}
-          {conf && <span style={confidenceBadge}>{conf.marker}</span>}
-        </span>
+        <span style={marketFigure} data-testid="tri-market">{marketFigureEl}</span>
       </div>
     </div>
   );
