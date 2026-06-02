@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { asNumber, money, setImageUrl, conditionLabel, conditionColor, daysUntilRetirement } from "./utils/formatting";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
-import { setValueProvenance, setGain, setROI, copyValueProvenance } from "./utils/portfolio";
-import { formatValueCell, valueConfidence, lotsLabel } from "./utils/valueDisplay";
+import { setValueProvenance, setGain, setROI, copyValueProvenance, setRetailProvenance } from "./utils/portfolio";
+import { formatValueCell, formatValue, valueConfidence, lotsLabel, retailTooltip } from "./utils/valueDisplay";
 import { confidenceBadge } from "./uiStyles";
 
 function entryPaid(e) {
@@ -64,17 +64,29 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
   const cached = cacheEntry.data || {};
   const pieces = cached.pieces_count || null;
   const releaseYear = cached.year || Number(String(cached.released_date || "").slice(0, 4)) || null;
-  const retailPrice = asNumber(cached.retail_price_us) || null;
   const forecast2yr = asNumber(cached.forecast_value_new_2_years) || null;
   const forecast5yr = asNumber(cached.forecast_value_new_5_years) || null;
 
-  // Enrich with cached Brickset data (retirement, details)
+  // Enrich with cached Brickset data (retirement, details). NOTE: the cache is keyed `brickset_${n}`
+  // (src/utils/brickset.js) — the bare-key lookup this replaced never matched, so Brickset enrichment
+  // (and the canonical MSRP below) silently fell through to BrickEconomy. Resolve the real keys.
   const bsCache = (() => {
     try { return JSON.parse(localStorage.getItem("bricksetSetCache") || "{}"); } catch { return {}; }
   })();
-  const bsKey = item.setNumber || "";
-  const bsEntry = bsCache[bsKey] || bsCache[String(bsKey).replace(/-1$/, "")] || bsCache[`${String(bsKey).replace(/-1$/, "")}-1`] || {};
+  const bsStripped = String(item.setNumber || "").replace(/-1$/, "");
+  const bsEntry = bsCache[`brickset_${item.setNumber}`] || bsCache[`brickset_${bsStripped}`] || bsCache[`brickset_${bsStripped}-1`] || {};
   const bs = bsEntry.data || {};
+
+  // Canonical retail (MSRP): Brickset (LEGO sticker price) leads; BrickEconomy is the deprecated
+  // fallback. Was the wrong cache (BrickEconomy only) — see setRetailProvenance / RETAIL_SOURCE_ORDER.
+  const retailProv = setRetailProvenance(
+    {
+      brickset: { amount: bs.retail_price_us, asOf: bsEntry.fetchedAt },
+      brickeconomy: { amount: cached.retail_price_us, asOf: cacheEntry.fetchedAt },
+    },
+    { condition: item.condition }
+  );
+  const retailPrice = retailProv?.amount ?? null;
   const subtheme = bs.subtheme || null;
   const minifigs = bs.minifigs != null ? bs.minifigs : null;
   const rating = bs.rating ? Number(bs.rating) : null;
@@ -149,13 +161,12 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
           style={{ width: "100%", maxHeight: 180, objectFit: "contain", background: "#0b1520", borderRadius: 10, border: "1px solid rgba(255,255,255,0.07)", padding: 8 }}
         />
 
-        {(pieces || releaseYear || retailPrice) && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {releaseYear && <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{releaseYear}</span>}
-            {pieces && <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{pieces.toLocaleString()} pcs</span>}
-            {retailPrice && <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>MSRP {money(retailPrice)}</span>}
-          </div>
-        )}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {releaseYear && <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{releaseYear}</span>}
+          {pieces && <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{pieces.toLocaleString()} pcs</span>}
+          {/* Canonical MSRP — always shown (unknown → "—", never hidden-as-absent). Tooltip flags it as sticker price. */}
+          <span data-testid="msrp-chip" title={retailTooltip(retailProv) || undefined} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>MSRP {formatValue(retailPrice)}</span>
+        </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <StatBox label="Cost Basis" value={money(totalPaid)} />

@@ -158,6 +158,41 @@ export function setValueProvenance(s, valueMap) {
   });
 }
 
+// ── Retail (MSRP) provenance — parallel to the value path, NOT part of the market waterfall ──
+// Source order settled EMPIRICALLY (MSRP Step 1, scripts/bl-catalog-probe): BrickLink's catalog item
+// endpoint exposes NO retail/MSRP field (no/name/type/category_id/year_released/… — it is market-price
+// only), so it cannot lead. Brickset is the canonical MSRP (the LEGO.com sticker price it publishes).
+// BrickEconomy is the DEPRECATED last-resort fallback — that source is being phased out, so it only
+// covers sets Brickset can't. First source carrying a real figure wins.
+export const RETAIL_SOURCE_ORDER = ["brickset", "brickeconomy"];
+
+/**
+ * Read-time retail (MSRP) {@link import("./value").Value} for a set — the sticker price, never a
+ * market value. Walks {@link RETAIL_SOURCE_ORDER} and returns the first source carrying a real figure
+ * (Brickset canonical, BrickEconomy deprecated fallback), tagged `basis:'retail'`. A stored 0 / blank /
+ * missing is "unknown" (no set has a $0 MSRP — VALUE-style {@link import("./value").valueAmount}
+ * coalescing), so it is skipped, not taken. Returns `null` when NO source carries a figure → the
+ * caller renders "—". Parallel to {@link setValueProvenance}; deliberately does NOT touch the
+ * BrickLink→BE market overlay.
+ *
+ * @param {{brickset?:{amount?:*, asOf?:string|null}, brickeconomy?:{amount?:*, asOf?:string|null}}} sources
+ *        Raw retail candidates by source (amount may be a number / string / blank).
+ * @param {Object} [opts]
+ * @param {string|null} [opts.condition]
+ * @returns {import("./value").Value | null}
+ */
+export function setRetailProvenance(sources, { condition = null } = {}) {
+  for (const source of RETAIL_SOURCE_ORDER) {
+    const cand = sources && sources[source];
+    const amount = valueAmount(cand && cand.amount); // 0 / blank / missing → null → skip this source
+    if (amount === null) continue;
+    // retired:false → deriveBasis (via toValue) keeps brickset AND brickeconomy at 'retail': the MSRP
+    // field IS the sticker price, so — unlike the market path — it never flips to 'market' on retirement.
+    return toValue(amount, { source, condition, retired: false, asOf: (cand && cand.asOf) ?? null });
+  }
+  return null;
+}
+
 /**
  * Per-COPY BL-preferred {@link import("./value").Value} — the SetDetailPanel per-copy path. Prefers
  * the condition-matched BL cache amount (carrying basis/source/asOf/lots); on a cache-miss or
