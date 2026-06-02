@@ -5,6 +5,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "jsdom",
-    include: ["src/**/*.test.{js,jsx}"],
+    // src/ = app/data-layer tests; scripts/ = maintained dev-tooling tests (e.g. the
+    // pure deriveValue ladder behind scripts/refresh-values.mjs).
+    include: ["src/**/*.test.{js,jsx}", "scripts/**/*.test.mjs"],
   },
 });
