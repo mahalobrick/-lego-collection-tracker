@@ -1,0 +1,17 @@
+# Weekly trigger for the BrickLedger value-refresh batch. Enable with:
+#   systemctl enable --now brickledger-refresh.timer
+# (the value cache refreshes ~weekly; the app's client cache TTL is 24h, so weekly server data is safe.)
+
+[Unit]
+Description=Weekly BrickLedger value-refresh (Sun 03:00)
+Documentation=https://github.com/mahalobrick/-lego-collection-tracker/blob/main/docs/deploy-batch.md
+
+[Timer]
+# Sunday 03:00 in the box's local time.
+OnCalendar=Sun *-*-* 03:00:00
+# If the box was off/asleep at 03:00, run as soon as it's back (catch-up).
+Persistent=true
+Unit=brickledger-refresh.service
+
+[Install]
+WantedBy=timers.target

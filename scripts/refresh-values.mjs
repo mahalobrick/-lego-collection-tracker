@@ -186,4 +186,4 @@ for (const s of samples) {
   console.log(`  value:SET:${s.number} = ${JSON.stringify(v)}`);
   console.log(`  history:SET:${s.number}[0] = ${JSON.stringify(h[0] ?? null)}`);
 }
-console.log(`\nDone. Keyspace value:SET:* / history:SET:* is additive — the live app does not read it yet.`);
+console.log(`\nDone. Wrote the value:SET:* / history:SET:* cache the app-read overlay serves (api/values.js → valueCache.js).`);

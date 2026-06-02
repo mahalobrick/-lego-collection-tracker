@@ -1,0 +1,28 @@
+# BrickLedger value-refresh batch — systemd oneshot unit (triggered by the .timer, not at boot).
+# Pulls BrickLink 6-mo sold data for the live collection and writes the value:SET / history:SET cache
+# to Upstash. Reproduce/install per docs/deploy-batch.md. No [Install] section here — the *timer* is
+# what gets enabled; this unit is started on the timer's schedule.
+
+[Unit]
+Description=BrickLedger value-refresh batch (BrickLink sold -> Upstash value cache)
+Documentation=https://github.com/mahalobrick/-lego-collection-tracker/blob/main/docs/deploy-batch.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=brickledger
+Group=brickledger
+# Repo root on the box — cloned into a hyphen-free path (the GitHub repo name starts with "-").
+WorkingDirectory=/opt/brickledger/app
+# The script loads its six secrets from ./.env.local (chmod 600, uncommitted) at WorkingDirectory —
+# no EnvironmentFile needed. Use an absolute node path (NodeSource installs to /usr/bin/node).
+ExecStart=/usr/bin/node scripts/refresh-values.mjs
+# CRITICAL: a full run is ~6-10 min (≈461 sets x 2+ calls x 300ms). The systemd default
+# TimeoutStartSec (90s) would KILL a oneshot mid-run — raise it well past the worst case.
+TimeoutStartSec=1800
+# Light hardening (the batch only needs outbound HTTPS + its repo dir).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/brickledger/app
