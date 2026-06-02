@@ -145,18 +145,26 @@ Of the 27 ratio extremes (`<0.2` or `>2.5`):
 
 ---
 
-## 8. Open items for the build (list, not solved here)
+## 8. Open items for the build — STATUS (built 2026-06-02)
 
-1. **Static egress IP** for BrickLink API access — lean: a **self-hosted VPS** (warranted given the BrickLink *store* relationship), terminating the proxy there.
-2. **Batch refresh + cache** — schedule, TTL, and per-set throttle (the pilot ran ~300 ms/call; 600 sets × 2 calls ≈ 6–10 min).
-3. **Funnel wiring (Workstream A)** — route BL values through `setValueProvenance` → `formatValue`/`formatAggregateValue`; BE demoted to fallback.
-4. **Provenance basis tags + confidence tiers in the UI** — surface `sold` / `modeled` / `sold-thin` / `asking` / `msrp` / `unknown` and high/estimate/low.
-5. **`asOf` sync-write guard** — deferred gap #5 (stale-display): stamp value reads with an as-of and don't let a refresh silently overwrite a newer one.
-6. **The trend decision from §6** — pick option 1/2/3 before the source switch ships.
-7. **Properly add the BL tooling deps** — `oauth-1.0a` is currently `--no-save`; add to `package.json` when the batch-refresh module lands; promote the throwaway `scripts/bl-*.mjs` into maintained tooling or fold into the proxy.
+The value layer **shipped** as a read-time overlay (status detail in [`docs/valuation.md`](valuation.md) / [`docs/roadmap.md`](roadmap.md)). Where each build item landed:
+
+1. ⏳ **Static egress IP / VPS** — **STILL OPEN.** The one batch run was manual from a dev machine; productionizing a scheduled run on a static-egress VPS is the main remaining item.
+2. ✅ **Batch refresh + cache** — [`scripts/refresh-values.mjs`](../scripts/refresh-values.mjs) (~300 ms/call throttle) writes `value:SET:{n}` + `history:SET:{n}` to Upstash. Pure ladder in [`scripts/lib/deriveValue.mjs`](../scripts/lib/deriveValue.mjs). *Schedule/automation = item 1.*
+3. ✅ **Funnel wiring** — `setValueProvenance`/`blOverlayValue` ([`src/utils/portfolio.js`](../src/utils/portfolio.js)) prefer the BL cache, BE fallback; read via [`api/values.js`](../api/values.js) → [`src/utils/valueCache.js`](../src/utils/valueCache.js). Non-destructive (read-time only).
+4. ✅ **Provenance basis tags + confidence in the UI** — `valueConfidence`/`lotsLabel` ([`src/utils/valueDisplay.js`](../src/utils/valueDisplay.js)): `sold` (clean) / `sold_thin` / `modeled` / `asking` / `unknown` + the "% estimated" aggregate. (`msrp`/rung-5 not wired — item below.)
+5. ➖ **`asOf` sync-write guard** — **N/A for the overlay**: values are a read-time projection, never written back to the synced record, so there's no stale cross-device overwrite to guard. (`asOf` is carried on each value for display/freshness.)
+6. ⏳ **Trend decision (§6)** — **STILL OPEN.** Trend still reads BE `price_events_*`; `history:SET:{n}` snapshots now accrue toward option 2 (owned BL history).
+7. ✅ **BL tooling deps** — `oauth-1.0a` + `@upstash/redis` are in `package.json` (no more `--no-save`); `scripts/refresh-values.mjs` is maintained tooling.
+
+**Also still open:** **CMF Phase 2** (§5) — the 139 minifig/promo sets are skipped and render as unmarked BE-fallback; **Brickset MSRP rung 5** (brand-new/no-sold stays `unknown`).
 
 ---
 
-## Deferral — explicit
+## Deferral — RESOLVED (2026-06-02)
 
-This record decides the **source**. It does **not** rewrite the BrickEconomy-as-value-source prose in [`docs/valuation.md`](valuation.md) (e.g. "Canonical current-value source") or [`docs/value-layer-plan.md`](value-layer-plan.md). Both carry a one-line forward-pointer to this doc; **full reconciliation of their BE-based descriptions happens during the build**, alongside the funnel wiring and the §6 trend decision. Until then, treat this record as authoritative on the source question and those docs as authoritative on everything else.
+This record decided the **source**; the build-time reconciliation it deferred is **done**.
+[`docs/valuation.md`](valuation.md) and [`docs/value-layer-plan.md`](value-layer-plan.md) have been
+rewritten to describe the shipped read-time overlay (BrickLink preferred, BE demoted to fallback) and
+now point at the code that backs each claim — see §8 above for the build-item status. This record stays
+authoritative on **why** BrickLink (the investigation, §1–§7); the live spec is `valuation.md`.

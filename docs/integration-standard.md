@@ -44,7 +44,7 @@ setCors  →  requireAuth  →  rateLimitAllow  →  fetch(upstream, { timeout }
 
 ### Current conformance
 
-- ✅ **Pipeline order** is uniform across all nine handlers (`setCors → requireAuth → rateLimitAllow →
+- ✅ **Pipeline order** is uniform across all ten handlers (9 proxies — incl. the `values` value-cache reader — + `sync.js`) (`setCors → requireAuth → rateLimitAllow →
   fetch`). Verified by reading every `api/*.js`.
 - ✅ **Field-select**: Brickset (`brickset-set.js`, `brickset-search.js`, `brickset-themes.js`) and
   BrickLink (`bricklink-priceguide.js`) map to a curated shape.
@@ -83,7 +83,7 @@ open refinement is a tighter/​cost-aware (or fail-closed) limit for the Scrape
 
 ### Current conformance
 
-- ✅ **All nine proxies + `sync.js` gate on `requireAuth`**; locked by `api-auth.test.js`.
+- ✅ **All 9 proxies + `sync.js` gate on `requireAuth`** (the `values` reader auto-discovered; guard now `>=10`); locked by `api-auth.test.js`.
 - ✅ **No client-bundle key leakage** — zero `import.meta.env`/`VITE_` reads in `src/`; the publishable
   Clerk key is consumed inside `@clerk/react`; all server keys are `process.env`-only in `api/`.
 - ✅ **AUTH-1 closed** — `authorizedParties` enforced in `_auth.js`.
@@ -142,7 +142,7 @@ open refinement is a tighter/​cost-aware (or fail-closed) limit for the Scrape
 
 ### Current conformance
 
-- ✅ **Timeouts: every proxy upstream fetch carries one (P3 S5).** All nine handlers **and `sync.js`** route
+- ✅ **Timeouts: every proxy upstream fetch carries one (P3 S5).** All proxies **and `sync.js`** (10 handlers, incl. `values`) route
   through `fetchWithTimeout` ([`api/_fetch.js`](../api/_fetch.js)) — a slow upstream returns a typed error
   instead of hanging. **Locked by construction:** [`src/api-no-bare-fetch.test.js`](../src/api-no-bare-fetch.test.js)
   (sibling to `api-auth.test.js`) fails CI on any bare `fetch(` in a handler. Per-source timeouts:
@@ -222,8 +222,9 @@ only `price_events` is locked today.
 
 | Source | Proxy endpoint(s) | Client util | Proxy pattern | Cache key | Precedence (value layer) |
 |---|---|---|---|---|---|
-| **BrickEconomy** | `brickeconomy-set` | `beSyncValues.js` | raw passthrough ⚠️ | `brickEconomySetCache` | **canonical current value** + price history |
-| **BrickLink** | `bricklink-auth`, `bricklink-priceguide` | `bricklink-client.js` | field-select | `blPriceGuideCache` | sold sample — **display-only today; value-layer = V4** |
+| **BrickLink (value cache)** | `values` (POST, MGET `value:SET:{n}`) | `valueCache.js` | field-select | `blValueCache` (24h) | **✅ CANONICAL current value** — read-time overlay (`blOverlayValue`/`setValueProvenance`, `portfolio.js`); cache written by `scripts/refresh-values.mjs` (ladder: `scripts/lib/deriveValue.mjs`) |
+| **BrickLink (on-demand)** | `bricklink-auth`, `bricklink-priceguide` | `bricklink-client.js` | field-select | `blPriceGuideCache` | live sold price **columns** (distinct from the value rollup) |
+| **BrickEconomy** | `brickeconomy-set` | `beSyncValues.js` | raw passthrough ⚠️ | `brickEconomySetCache` | **fallback** for a BL cache-miss/`unknown` (demoted, non-destructive) + price history (`price_events_*`) |
 | **Brickset** | `brickset-set/search/themes` | `brickset.js` | field-select | `bricksetSetCache`/`bricksetThemesCache` | MSRP **label** + retirement (not in rollup) |
 | **LEGO.com** | `lego-last-chance` | `legoLastChance.js` | field-select | `legoLastChanceCache` | buy layer (last-chance) |
 | **Brick Fanatics** | `brickfanatics-retiring` | (`blBFRetirementCache` reader) | field-select | `blBFRetirementCache` | buy layer (retirement) |
@@ -254,9 +255,15 @@ precedence rules and the BE-vs-Brickset `retail_price_us` source-tag (G1) live i
 
 ---
 
-## 8. The V4 gating answer (BrickLink)
+## 8. The V4 gating answer (BrickLink) — ✅ SHIPPED
 
-`docs/valuation.md` gates V4 (BrickLink as a primary *value* source) on confirming BrickLink runs on
+> **BrickLink IS the primary value source as of 2026-06-02** — shipped as a read-time overlay (not a
+> persisted waterfall). Real sold data is captured by the [`scripts/refresh-values.mjs`](../scripts/refresh-values.mjs)
+> batch into `value:SET:{n}` (Upstash) and read at display time via [`api/values.js`](../api/values.js) →
+> [`src/utils/valueCache.js`](../src/utils/valueCache.js) → `setValueProvenance` ([`src/utils/portfolio.js`](../src/utils/portfolio.js)),
+> preferred over BE. The gating premise below (real API auth, no scrape) is what made this safe to ship.
+
+`docs/valuation.md` gated V4 (BrickLink as a primary *value* source) on confirming BrickLink runs on
 real API auth, not the scrape fallback. **Answer, from reading the code:**
 
 > **BrickLink is API-authed; the scrape fallback was dead and is now removed (P3 S3).** The proxy
@@ -270,8 +277,9 @@ real API auth, not the scrape fallback. **Answer, from reading the code:**
 > UI **only** via the real API session — and a failure is now an honest non-2xx, not a discarded blob.
 
 So: V4's premise (real API auth) holds in practice, and the scrape fallback — the dead code P3 was to
-resolve — is **removed (P3 S3, lean-remove decision executed)**. This is the fact V4 depends on; the V4
-build is a separate arc.
+resolve — is **removed (P3 S3, lean-remove decision executed)**. That premise is now load-bearing: the
+value overlay (above) ships on it. The one open productionization item is **batch automation on a
+static-egress VPS** (the run was manual) — tracked in [`docs/roadmap.md`](roadmap.md) and the decision doc §8.1.
 
 ---
 

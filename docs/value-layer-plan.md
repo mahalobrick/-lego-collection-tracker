@@ -6,9 +6,23 @@
 > missing `data-sources.md`; see Blocker 0). This doc is the build plan against it; treat its
 > "Target" column as the proposal shaped to that spec.
 > **Value SOURCE — decided 2026-06-01:** [`docs/value-source-decision.md`](value-source-decision.md).
-> BrickLink 6-mo *sold* is now the canonical current-value source; **BrickEconomy is superseded** as the
-> value source (demoted to fallback). This plan's BE-as-value-source framing is **not yet rewritten** —
-> build-time reconciliation, flagged in that record.
+> BrickLink 6-mo *sold* is the canonical current-value source; **BrickEconomy is demoted to fallback** (not deleted).
+>
+> **✅ BUILT & SHIPPED (app-read overlay, 2026-06-02).** This was a diagnostic/plan; the value source switch is
+> now LIVE. The current-state spec is [`docs/valuation.md`](valuation.md); below is a **status map** of this
+> plan's proposals against the shipped code (this doc is no longer the build target — it's a historical plan +
+> pointers). Anything in §3–§5 framing BrickEconomy as *the value source* is superseded by the overlay:
+>
+> | Shipped | Code |
+> |---|---|
+> | BL sold cache + ladder (sold/modeled/sold_thin/asking/unknown) | [`scripts/lib/deriveValue.mjs`](../scripts/lib/deriveValue.mjs), batch [`scripts/refresh-values.mjs`](../scripts/refresh-values.mjs) → `value:SET:{n}` + `history:SET:{n}` (Upstash) |
+> | Read path (cache → client → overlay) | [`api/values.js`](../api/values.js) → [`src/utils/valueCache.js`](../src/utils/valueCache.js) → `blOverlayValue`/`setValueProvenance` ([`src/utils/portfolio.js`](../src/utils/portfolio.js)) |
+> | Confidence display + "% estimated" | [`src/utils/valueDisplay.js`](../src/utils/valueDisplay.js) (`valueConfidence`/`lotsLabel`), `estimatedValueShare` |
+> | BE demoted to non-destructive fallback | overlay is read-time only — BE fields untouched in storage |
+>
+> **Live numbers:** BE $31,206 → BL $26,228.52 (−16%); 8.1% estimated; 461 BL-covered / 139 CMF→BE-fallback.
+> **Still open** (tracked in [`docs/roadmap.md`](roadmap.md)): CMF Phase 2 (incl. marking the 139 BE-fallback values),
+> batch automation (one manual run so far), Brickset MSRP rung 5, the BE-trend/`price_events` decision.
 
 ---
 

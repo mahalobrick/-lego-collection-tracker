@@ -20,7 +20,7 @@ Budget spans all three. Each stage is driven by a different layer below.
 
 | Layer | Answers | Sources | Surfaces in |
 |---|---|---|---|
-| **Valuation** | What is it worth now? | BrickEconomy (market), BrickLink (sold), Brickset (MSRP label) | My Collection: value, ROI, forecasts |
+| **Valuation** | What is it worth now? | **BrickLink sold** (primary, via the `value:SET` cache → read-time overlay), BrickEconomy (fallback + forecasts/history), Brickset (MSRP label) | My Collection: value, ROI, forecasts |
 | **Buy / decision** | Should I buy, and when? | Brick Fanatics (retirement), LEGO.com (last chance), deals trackers (Brickhawk/Brickhound), release notifications, personal want algorithm, budget | Want: urgency badges, deal alerts, wishlist scoring |
 | **Metadata** | What is this set? | Brickset, Rebrickable | All stages: images, pieces, minifigs, themes |
 | **Budget** | What can I spend? | Excel "All Buys" import, manual entry | Want + Purchased |
@@ -69,7 +69,8 @@ curl abuse of the key-bearing proxies. See [`docs/security.md`](security.md) (`A
 
 | Feature | Trigger | Source | Cached as (TTL) | Shows up in |
 |---|---|---|---|---|
-| Set value + forecasts | App open (daily batch of 50) / Sync Values | BrickEconomy | `brickEconomySetCache` (24h) | Collection value, ROI, forecast boxes |
+| **Set current value** | My Collection load (`fetchValues`) | **BrickLink sold** (`value:SET` cache, batch-written) | `blValueCache` (24h, device-local) | Collection value, ROI, gain — overlaid via `setValueProvenance` |
+| Forecasts + price history | App open (daily batch of 50) / Sync Values | BrickEconomy (also the value **fallback**) | `brickEconomySetCache` (24h) | Forecast boxes, price-history chart |
 | Set facts + MSRP + retirement | Add/look up a set | Brickset | `bricksetSetCache` (7d) | Add forms, retirement urgency |
 | Theme list | Theme dropdowns render | Brickset | `bricksetThemesCache` (30d) | Theme filter/select dropdowns |
 | Catalog search | Typing in Wanted List search | Brickset | (uncached — transient) | Search result lists |
@@ -103,5 +104,9 @@ Runtime ships to users; build/test/lint are dev-only. Full list lives in `packag
 
 - The **price-drop feature** is a buy/decision-layer feature (deal-watch in Want); it *consumes*
   the valuation layer and is a separate arc, after valuation is correct.
-- BrickLink's proxy is live for on-demand price columns; wiring it into the *value* layer is V4
-  (see `valuation.md`), gated on confirming API-auth vs scrape.
+- BrickLink is now the **primary value source** (shipped 2026-06-02): a batch
+  (`scripts/refresh-values.mjs`) writes the `value:SET` cache to Upstash, read at display time via
+  `api/values.js` → `valueCache.js` → `setValueProvenance`/`blOverlayValue` (`portfolio.js`),
+  preferred over BE (fallback, non-destructive). See `valuation.md`. The separate on-demand
+  `bricklink-priceguide` proxy still backs the live price columns. Remaining: batch automation,
+  CMF Phase 2, Brickset MSRP rung, BE-trend decision (`roadmap.md`).

@@ -6,10 +6,20 @@ worth. One layer of the app; the buy/decision layer and order of operations live
 the value sources must plug in (proxy contract, caching, contract-test lock) and the V4
 BrickLink gating answer, see `docs/integration-standard.md`.
 
-> **Value SOURCE superseded — see [`docs/value-source-decision.md`](value-source-decision.md) (2026-06-01).**
-> The "Canonical current-value source" below is now **BrickLink 6-mo sold**, not BrickEconomy; BE is demoted
-> to historical/fallback provenance. The BE-as-value-source prose in this spec is **intentionally left intact
-> for now** — full reconciliation happens during the build (deferral flagged in the decision record).
+> **✅ SHIPPED (app-read overlay, 2026-06-02) — this spec now describes live behavior.** Current market value is
+> **BrickLink 6-mo sold**, resolved at READ time and preferred over BrickEconomy; **BE is demoted to a fallback,
+> not deleted** (non-destructive — nothing is written back to stored collection records). The decision (why
+> BrickLink) is [`docs/value-source-decision.md`](value-source-decision.md); this doc is the *what-the-code-does* spec.
+>
+> **Pipeline (every claim points at the code):**
+> - **Cache read** — [`api/values.js`](../api/values.js) (POST, MGET `value:SET:{n}`) → [`src/utils/valueCache.js`](../src/utils/valueCache.js) (`fetchValues`/`peekValueCache`, 24h device cache, `blValueCache`).
+> - **Resolution** — `blOverlayValue` / `setValueProvenance` in [`src/utils/portfolio.js`](../src/utils/portfolio.js): condition-matched (new→`.new`, used→`.used`), BL preferred, BE fallback on cache-miss/`unknown`; per-copy then summed.
+> - **Ladder** (how each `value:SET` figure is derived) — [`scripts/lib/deriveValue.mjs`](../scripts/lib/deriveValue.mjs): `sold` (≥10 lots) → `modeled` (0.75×new) → `sold_thin` (1–9) → `asking` (stock lowest) → `unknown`. Batch [`scripts/refresh-values.mjs`](../scripts/refresh-values.mjs) writes `value:SET:{n}` + `history:SET:{n}` to Upstash.
+> - **Confidence display** — [`src/utils/valueDisplay.js`](../src/utils/valueDisplay.js) `valueConfidence`/`lotsLabel`; set-level estimates/thin/clean rule in `blOverlayValue`; "% estimated" aggregate `estimatedValueShare`.
+>
+> **Real current numbers** (run `asOf 2026-06-02`, source collection 600 sets): portfolio **BE $31,206 → BL $26,228.52 (−16%)**; **8.1%** of value estimated (modeled+asking); **461** sets BL-covered / **139** CMF → BE-fallback.
+>
+> **Known gaps (the spec must not overclaim):** (a) the **139 CMF/BE-fallback** values render **unmarked** and are **not** in the "% estimated" figure — pending **CMF Phase 2** (§5 of the decision doc); (b) values come from **one manual batch run** — no automation yet; (c) the **Brickset MSRP rung (rung 5)** is still deferred (brand-new/no-sold stays `unknown`); (d) **BE trend / `price_events`** has **no BrickLink equivalent** yet (kept for the history chart). Tracked in [`docs/roadmap.md`](roadmap.md).
 
 ## What this layer answers
 
@@ -18,17 +28,19 @@ BrickLink gating answer, see `docs/integration-standard.md`.
 
 ## The value sources
 
-- **BrickEconomy — aggregate market value.** Modeled value (new/used), 2/5yr forecasts,
-  price history, retail. Aggregates eBay/StockX/BrickLink, so **not independent** of
-  BrickLink. Cache: `brickEconomySetCache` (24h). **Canonical current-value source.**
-- **BrickLink — raw global sold (~6-month).** Real resale **sold** prices, new & used,
-  avg/min/max/qty. **Live and working today** via the `bricklink-priceguide` proxy (real API
-  calls, HTML-scrape fallback on auth failure) — but currently feeds on-demand **price
-  columns only**, NOT the value rollup. Client cache 6h (12h bulk). **Not monthly-limited**;
-  the only throttle on our side is the generic 1000 req/60s rate limit. Wiring it into the
-  value layer is V4.
+- **BrickLink — raw global sold (~6-month). ✅ CANONICAL current-value source (live).** Real resale
+  **sold** prices, new & used. The value layer reads a pre-computed cache (`value:SET:{n}`, written by
+  [`scripts/refresh-values.mjs`](../scripts/refresh-values.mjs)) at read time and overlays it onto the
+  collection, preferring it over BE — see `setValueProvenance`/`blOverlayValue` in
+  [`src/utils/portfolio.js`](../src/utils/portfolio.js). (The separate on-demand `bricklink-priceguide`
+  proxy still backs the live price columns; the *value rollup* now uses the cache.)
+- **BrickEconomy — fallback only (demoted, not deleted).** Modeled value, 2/5yr forecasts, price
+  history, retail. Used as the value fallback for a BL cache-miss (e.g. the 139 deferred CMF) or a
+  BL `unknown` basis. Cache: `brickEconomySetCache` (24h). Also still the **only** source of dated
+  price history (`price_events_*`) — no BrickLink equivalent yet (gap (d) above).
 - **Brickset — original MSRP (static).** Catalog MSRP/retail + retirement dates. Kept as a
-  separate, static "original retail" label — does NOT feed the value rollup.
+  separate, static "original retail" label — does NOT feed the value rollup. (The decision doc's
+  rung 5 — MSRP as the brand-new/no-sold fallback — is **not yet wired**; gap (c).)
 
 *(Brickset & Rebrickable also supply metadata/images/pieces/minifigs — not value.)*
 
@@ -50,10 +62,12 @@ BrickLink gating answer, see `docs/integration-standard.md`.
 2. **At-retail = retail, tagged as retail-basis.** When the figure is the sticker price
    (at-retail), the value type carries a `basis: retail` tag so the UI labels it as retail/MSRP
    and ROI reads 0 (not a loss or appreciation). Once retired, basis flips to `market`. *(G2)*
-3. **Waterfall** (V4, when BrickLink is wired into value): BrickLink ~6mo sold (genuine sample)
-   → BrickEconomy fallback. **Fair value** (BrickLink avg/median) — never an acquisition floor.
-   *Gating: confirm BrickLink is API-authed, not scrape-derived, before it becomes the primary
-   value source.*
+3. **Waterfall ✅ SHIPPED (read-time overlay).** Per owned copy, condition-matched: BrickLink cache
+   value (when amount ≠ null) → BrickEconomy fallback → `unknown`. Implemented in `blOverlayValue`
+   ([`src/utils/portfolio.js`](../src/utils/portfolio.js)); the per-rung derivation (sold / modeled /
+   sold_thin / asking / unknown) is [`scripts/lib/deriveValue.mjs`](../scripts/lib/deriveValue.mjs).
+   **Fair value** (BrickLink sold avg) — never an acquisition floor. Non-destructive: the overlay is a
+   read-time projection, never persisted onto the stored record.
 4. **By condition per set; combined at the portfolio.** Each set is valued at its tracked
    condition — collection tracks new vs used (use it), purchases assume **new/sealed** — and a
    single set's new and used figures are **never averaged into a synthetic per-set blend**.
@@ -61,9 +75,11 @@ BrickLink gating answer, see `docs/integration-standard.md`.
    contributes its own condition's value, summed into one mixed new+used total. That total
    exists today and is preserved. (The provenance type makes condition-split subtotals available
    as a bonus, but the combined total stays the headline number.)
-5. **Provenance.** Store `{ amount, source, condition, basis, asOf }` — never a bare number,
-   never a silent cross-source overwrite. (Resolves the current `msrp` (Brickset) vs
-   `currentValue` (BE) divergence by tagging source explicitly.) *(G1)*
+5. **Provenance.** Each value carries `{ amount, source, condition, basis, asOf, lots, confidence }`
+   ([`src/utils/value.js`](../src/utils/value.js)) — never a bare number, never a silent cross-source
+   overwrite. For a BL-overlay value, `source:"bricklink"`, `basis` is the ladder rung
+   (`sold`/`sold_thin`/`modeled`/`asking`, or `"mixed"` at the set level), `lots` is the BL sample
+   size, and `confidence` (set-level) is `estimates`/`thin`/`clean`. *(G1)*
 6. **Unknown ≠ 0.** First-class unknown state, rendered "—", **excluded from the combined total**
    (which still sums all known-value sets, new + used) with a "N sets have no value data" note —
    never silently counted as $0. *(falsy-zero)* Two parts, both true today:
@@ -88,8 +104,16 @@ BrickLink gating answer, see `docs/integration-standard.md`.
      `asNumber(value) || 0` or `value − paid`. (Sold-tab realized gains are computed from a known
      sale price; CSV import/export and the wanted-list ROI are separate surfaces, tracked as
      follow-ups.)
-7. **Confidence = a genuine recent sold sample exists** (derived). Not source divergence — the
-   sources aren't independent.
+7. **Confidence is DISPLAYED, per basis ✅ SHIPPED.** A modeled estimate must not read like a hard
+   sold figure, so each value's basis surfaces a subtle marker + tooltip
+   ([`src/utils/valueDisplay.js`](../src/utils/valueDisplay.js) `valueConfidence`): `sold` → no marker
+   (clean default); `sold_thin` → "thin" / "based on few recent sales (N)"; `modeled` → "est." /
+   "estimated from new sold price" (N is the new-sample size, **not** shown as this copy's sales —
+   `lotsLabel`); `asking` → "ask" / "current listings, not completed sales". A mixed-condition set
+   flags "contains estimates" / "thin" via the set-level `confidence` rule. A quiet
+   **"X% of value estimated"** (modeled + asking by value; `estimatedValueShare`) sits beside the
+   headline — **8.1%** of the live portfolio. (`sold_thin` is real-but-thin sold data — flagged per
+   row, not counted as estimated.)
 
 ## Cost basis & ROI
 
