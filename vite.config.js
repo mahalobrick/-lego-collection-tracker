@@ -40,6 +40,7 @@ const API_ROUTES = {
   '/api/lego-last-chance':          require('./api/lego-last-chance'),
   '/api/brickfanatics-retiring':    require('./api/brickfanatics-retiring'),
   '/api/sync':                      require('./api/sync'),
+  '/api/values':                    require('./api/values'),
 }
 
 export default defineConfig({
