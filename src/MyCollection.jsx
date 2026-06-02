@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { searchInput, filterSelect, clearFilterButton, filterBar } from "./uiStyles";
+import { searchInput, filterSelect, clearFilterButton, filterBar, confidenceBadge } from "./uiStyles";
 import { DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, AreaChart, Area, CartesianGrid } from "recharts";
 import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
@@ -10,8 +10,8 @@ import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./util
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition } from "./utils/beSyncValues";
-import { portfolioValue, knownValueCount, setValueProvenance, totalSpent, portfolioGain, portfolioROI, roiExcludedCount, setROI, setGain, groupRollup } from "./utils/portfolio";
-import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailTooltip, roiExclusionNote } from "./utils/valueDisplay";
+import { portfolioValue, knownValueCount, setValueProvenance, totalSpent, portfolioGain, portfolioROI, roiExcludedCount, setROI, setGain, groupRollup, estimatedValueShare } from "./utils/portfolio";
+import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailTooltip, roiExclusionNote, valueConfidence, estimatedValueNote } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
@@ -474,7 +474,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       // when none qualify → "—"). roiExcluded drives the exclusion note. (V2 cleanup)
       gainLoss: portfolioGain(sets, valueMap),
       roi: portfolioROI(sets, valueMap),
-      roiExcluded: roiExcludedCount(sets, valueMap)
+      roiExcluded: roiExcludedCount(sets, valueMap),
+      // Quiet disclosure: share of value that is estimated (modeled + asking). (Step 3)
+      estimatedShare: estimatedValueShare(sets, valueMap)
     };
   }, [sets, valueMap]);
 
@@ -954,9 +956,11 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     if (column.key === "paid") return money(paid);
     if (column.key === "value") {
       // Derive provenance at read: unknown → "—" (not $0), at-retail → retail tooltip.
+      // A BL estimate/thin/asking value carries a subtle confidence marker + tooltip (Step 3).
       const prov = setValueProvenance(set, valueMap);
-      const tip = retailTooltip(prov);
-      return <span title={tip || undefined}>{formatValueCell(prov)}</span>;
+      const conf = valueConfidence(prov);
+      const tip = conf?.tooltip || retailTooltip(prov) || undefined;
+      return <span title={tip}>{formatValueCell(prov)}{conf && <span style={confidenceBadge}>{conf.marker}</span>}</span>;
     }
     if (column.key === "gain") return gain === null ? "—" : money(gain);
     if (column.key === "roi") return roi !== null ? `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%` : "—";
@@ -1206,7 +1210,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                     style={{ opacity: draggedCollItem === item.key ? 0.4 : 1, cursor: "grab" }}
                   >
                     {item.key === "qty"          ? <Card title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} /> :
-                     item.key === "value"        ? <Card title="Collection Value" value={fmtAgg(stats.value, stats.valuedSets)} sub={unknownValueNote(stats.valuedSets, sets.length)} /> :
+                     item.key === "value"        ? <Card title="Collection Value" value={fmtAgg(stats.value, stats.valuedSets)} sub={valuesReady ? [unknownValueNote(stats.valuedSets, sets.length), estimatedValueNote(stats.estimatedShare)].filter(Boolean).join(" · ") || null : null} /> :
                      item.key === "cost"         ? <Card title="Cost Basis"       value={money(stats.costBasis)} /> :
                      item.key === "gain"         ? <Card title="Net Gain / Loss"  value={fmtAgg(stats.gainLoss, stats.valuedSets)} good={stats.valuedSets > 0 ? stats.gainLoss >= 0 : undefined} /> :
                      item.key === "roi"          ? <Card title="ROI"              value={!valuesReady ? "…" : stats.roi === null ? "—" : `${stats.roi.toFixed(1)}%`} good={stats.roi === null ? undefined : stats.roi >= 0} sub={roiExclusionNote(stats.roiExcluded)} /> :

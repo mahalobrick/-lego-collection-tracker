@@ -96,6 +96,78 @@ export function retailTooltip(value) {
   return RETAIL_TOOLTIP;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Confidence display (app-read Step 3). Surfaces a value's BrickLink basis so an
+// ESTIMATE reads as an estimate, not a hard sold figure. Pure — marker text + tooltip
+// only. Only BL-sourced values carry a marker; BE/retail/unknown get none (a clean
+// "sold" figure also gets none — that's the default). docs/value-source-decision.md §3.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Confidence marker for a value cell, or `null` for the clean default (a hard `sold` figure,
+ * or any non-BrickLink / unknown value). For a mixed-basis set the marker comes from the
+ * set-level `confidence` flag; for a single basis it comes from the basis itself.
+ *
+ * @param {import("./value").Value} value
+ * @returns {{marker:string, tooltip:string}|null}
+ */
+export function valueConfidence(value) {
+  if (!value || value.source !== "bricklink" || value.amount == null) return null;
+  if (value.basis === "mixed") {
+    if (value.confidence === "estimates") return { marker: "est.", tooltip: "Contains estimated values" };
+    if (value.confidence === "thin") return { marker: "thin", tooltip: "Contains thin sold data" };
+    return null; // a mixed set of only clean sold copies needs no marker
+  }
+  switch (value.basis) {
+    case "sold_thin":
+      return { marker: "thin", tooltip: `Based on few recent sales${value.lots != null ? ` (${value.lots})` : ""}` };
+    case "modeled":
+      return { marker: "est.", tooltip: "Estimated from new sold price" };
+    case "asking":
+      return { marker: "ask", tooltip: "Based on current listings, not completed sales" };
+    case "sold":
+    default:
+      return null; // clean sold figure → no marker
+  }
+}
+
+/**
+ * How a value's `lots` should be READ, per basis: sold/sold_thin are completed SALES; modeled is
+ * derived from the new sold price (NOT a sales count, so no number is surfaced); asking is current
+ * LISTINGS. Returns null when there's nothing meaningful to label.
+ *
+ * @param {import("./value").Value} value
+ * @returns {string|null}
+ */
+export function lotsLabel(value) {
+  if (!value || value.source !== "bricklink") return null;
+  switch (value.basis) {
+    case "sold":
+    case "sold_thin":
+      return value.lots != null ? `${value.lots} sales` : null;
+    case "modeled":
+      return "from new price"; // lots is the NEW sample size — never shown as this copy's sales
+    case "asking":
+      return value.lots != null ? `${value.lots} listings` : null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Quiet aggregate disclosure: "X% of value estimated" (modeled + asking dollars). Returns null
+ * when the share rounds to 0% so the caller omits it. (sold_thin is flagged per-row, not here.)
+ *
+ * @param {number} share  fraction in [0, 1] (estimatedValueShare).
+ * @returns {string|null}
+ */
+export function estimatedValueNote(share) {
+  if (!share || share <= 0) return null;
+  const pct = share * 100;
+  const shown = pct < 1 ? pct.toFixed(1) : Math.round(pct).toString();
+  return `${shown}% of value estimated`;
+}
+
 /**
  * Note for how many sets are excluded from % ROI — unknown value OR no cost
  * (cost ≤ 0). A % return isn't meaningful without both a known value and a

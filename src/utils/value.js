@@ -52,6 +52,8 @@ export function valueAmount(raw) {
  *                                   'asking'|'unknown') when overlaid from the BL value cache.
  * @property {string|null} asOf      ISO timestamp the figure is as-of, or null.
  * @property {number|null} lots      BL sample size behind the amount (overlay only), else null.
+ * @property {string|null} [confidence] Set-level overlay flag for the row badge when basis is
+ *                                   "mixed": 'estimates'|'thin'|'clean'. Absent/null otherwise.
  */
 
 /**

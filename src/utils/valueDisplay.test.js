@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { formatValueCell, unknownValueNote, retailTooltip, roiExclusionNote } from "./valueDisplay";
+import { formatValueCell, unknownValueNote, retailTooltip, roiExclusionNote, valueConfidence, lotsLabel, estimatedValueNote } from "./valueDisplay";
 import { money } from "./formatting";
 import { toValue } from "./value";
+
+// A BL-overlay Value (what setValueProvenance returns with a value map) for the Step-3 helpers.
+const bl = (basis, { lots = null, confidence, amount = 50 } = {}) =>
+  ({ amount, source: "bricklink", condition: "new", basis, asOf: "2026-06-02T00:00:00.000Z", lots, confidence });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // V2c value-surfacing display helpers. These pin the three display rules:
@@ -102,5 +106,78 @@ describe("roiExclusionNote()", () => {
 
   it("uses the plural for several", () => {
     expect(roiExclusionNote(3)).toBe("3 sets excluded from ROI (no value or no cost)");
+  });
+});
+
+describe("valueConfidence() — basis → subtle marker + tooltip (Step 3)", () => {
+  it("sold → NO marker (clean default)", () => {
+    expect(valueConfidence(bl("sold", { lots: 53 }))).toBeNull();
+  });
+
+  it("sold_thin → 'thin' marker, tooltip names the (few) sales count", () => {
+    expect(valueConfidence(bl("sold_thin", { lots: 4 }))).toEqual({ marker: "thin", tooltip: "Based on few recent sales (4)" });
+  });
+
+  it("modeled → 'est.' marker, tooltip says estimated from new sold price (no sales count)", () => {
+    const c = valueConfidence(bl("modeled", { lots: 50 }));
+    expect(c).toEqual({ marker: "est.", tooltip: "Estimated from new sold price" });
+    expect(c.tooltip).not.toMatch(/\d/); // lots (new-sample size) is NOT surfaced as a count
+  });
+
+  it("asking → 'ask' marker, tooltip says current listings not completed sales", () => {
+    expect(valueConfidence(bl("asking", { lots: 7 }))).toEqual({ marker: "ask", tooltip: "Based on current listings, not completed sales" });
+  });
+
+  it("mixed set with an estimate → 'est.' / 'Contains estimated values'", () => {
+    expect(valueConfidence(bl("mixed", { confidence: "estimates" }))).toEqual({ marker: "est.", tooltip: "Contains estimated values" });
+  });
+
+  it("mixed set, thin only → 'thin' / 'Contains thin sold data'", () => {
+    expect(valueConfidence(bl("mixed", { confidence: "thin" }))).toEqual({ marker: "thin", tooltip: "Contains thin sold data" });
+  });
+
+  it("mixed set of only clean sold copies → no marker", () => {
+    expect(valueConfidence(bl("mixed", { confidence: "clean" }))).toBeNull();
+  });
+
+  it("non-BrickLink (BE) value and unknown value → no marker (Step 3 is BL-basis only)", () => {
+    expect(valueConfidence(toValue(50, { source: "brickeconomy", retired: true }))).toBeNull();
+    expect(valueConfidence({ amount: null, source: "bricklink", basis: "unknown" })).toBeNull();
+    expect(valueConfidence(null)).toBeNull();
+  });
+});
+
+describe("lotsLabel() — per-basis interpretation of `lots`", () => {
+  it("sold / sold_thin → 'N sales'", () => {
+    expect(lotsLabel(bl("sold", { lots: 53 }))).toBe("53 sales");
+    expect(lotsLabel(bl("sold_thin", { lots: 4 }))).toBe("4 sales");
+  });
+
+  it("modeled → 'from new price' (NOT a sales count)", () => {
+    expect(lotsLabel(bl("modeled", { lots: 50 }))).toBe("from new price");
+  });
+
+  it("asking → 'N listings'", () => {
+    expect(lotsLabel(bl("asking", { lots: 7 }))).toBe("7 listings");
+  });
+
+  it("non-BrickLink value → null", () => {
+    expect(lotsLabel(toValue(50, { source: "brickeconomy" }))).toBeNull();
+  });
+});
+
+describe("estimatedValueNote() — quiet aggregate disclosure", () => {
+  it("omitted (null) at 0%", () => {
+    expect(estimatedValueNote(0)).toBeNull();
+    expect(estimatedValueNote(undefined)).toBeNull();
+  });
+
+  it("rounds to whole percent ≥1%", () => {
+    expect(estimatedValueNote(0.123)).toBe("12% of value estimated");
+    expect(estimatedValueNote(0.5)).toBe("50% of value estimated");
+  });
+
+  it("shows one decimal for a sub-1% share (honest about a small share)", () => {
+    expect(estimatedValueNote(0.004)).toBe("0.4% of value estimated");
   });
 });

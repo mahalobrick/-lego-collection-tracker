@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { asNumber, money, setImageUrl, conditionLabel, conditionColor, daysUntilRetirement } from "./utils/formatting";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { setValueProvenance, setGain, setROI, copyValueProvenance } from "./utils/portfolio";
-import { formatValueCell } from "./utils/valueDisplay";
+import { formatValueCell, valueConfidence, lotsLabel } from "./utils/valueDisplay";
+import { confidenceBadge } from "./uiStyles";
 
 function entryPaid(e) {
   return asNumber(e.paid_price ?? e.Paid ?? e.paid ?? 0);
@@ -15,9 +16,9 @@ function shortDate(iso) {
   return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
-function StatBox({ label, value, color }) {
+function StatBox({ label, value, color, tip }) {
   return (
-    <div style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 12px" }}>
+    <div title={tip || undefined} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 12px" }}>
       <div style={{ color: "#8a9bb0", fontSize: 11, marginBottom: 4 }}>{label}</div>
       <div style={{ fontWeight: 900, fontSize: 15, color: color || "#e8e2d5" }}>{value}</div>
     </div>
@@ -48,6 +49,7 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
   // Null-aware value/gain/roi: unknown value → "—", never $0 / phantom −cost / −100%.
   // (unknown≠0 sweep)
   const prov = setValueProvenance(item, valueMap);
+  const provConf = valueConfidence(prov); // BL confidence marker (est./thin/ask) or null
   const valueKnown = prov.amount !== null;
   const totalValue = prov.amount ?? 0;
   const gain = setGain(item, valueMap);   // null when value unknown
@@ -157,7 +159,8 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <StatBox label="Cost Basis" value={money(totalPaid)} />
-          <StatBox label="Market Value" value={formatValueCell(prov)} />
+          <StatBox label="Market Value" tip={provConf?.tooltip}
+            value={<>{formatValueCell(prov)}{provConf && <span style={confidenceBadge}>{provConf.marker}</span>}</>} />
           <StatBox label="Net Gain" value={gain === null ? "—" : money(gain)} color={gain === null ? undefined : gain >= 0 ? "#5aa832" : "#ff8b8b"} />
           <StatBox label="ROI" value={roi === null ? "—" : `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%`} color={roi === null ? undefined : roi >= 0 ? "#5aa832" : "#ff8b8b"} />
           <StatBox label="Avg Paid / Copy" value={money(avgPaid)} />
@@ -227,6 +230,8 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
                   { setNumber: item.setNumber, condition: entry.condition, retired: item.retired },
                   valueMap,
                 );
+                const entryConf = valueConfidence(entryProv); // est./thin/ask marker or null
+                const entryLots = lotsLabel(entryProv);        // "N sales" / "from new price" / "N listings"
                 const val = entryProv.amount;
                 const g = val === null ? null : val - paid;
                 const r = (val === null || paid <= 0) ? null : (g / paid) * 100;
@@ -255,7 +260,10 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
                       </div>
                       <div>
                         <div style={{ color: "#5d6f80", fontSize: 11 }}>Value</div>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: "#e8e2d5" }}>{formatValueCell(entryProv)}</div>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: "#e8e2d5" }} title={entryConf?.tooltip || undefined}>
+                          {formatValueCell(entryProv)}{entryConf && <span style={confidenceBadge}>{entryConf.marker}</span>}
+                        </div>
+                        {entryLots && <div style={{ color: "#5d6f80", fontSize: 10, marginTop: 2 }}>{entryLots}</div>}
                       </div>
                       <div>
                         <div style={{ color: "#5d6f80", fontSize: 11 }}>Gain</div>

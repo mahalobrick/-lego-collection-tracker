@@ -68,56 +68,71 @@ function valueGroups(s) {
   return [{ cond: blCondition(s.condition), units: asNumber(s.qty) || 1, be: valueAmount(s.currentValue) }];
 }
 
+// "estimated" value (decision doc / Step 3) = modeled OR asking — a figure NOT backed by a
+// completed sale of that condition. sold_thin is real-but-thin sold data (flagged, not estimated).
+const isEstimateBasis = (b) => b === "modeled" || b === "asking";
+
+/**
+ * Resolve a set into per-copy value contributions, condition-matched against the BL cache. Each
+ * returned copy is `{ amount, basis, source, lots, asOf }` — `source:"bricklink"` with the BL basis
+ * when the cache covers that copy's condition (amount != null), else `source:"be"` with the copy's
+ * stored BE value (basis null). The single source of truth for both the set-level overlay and the
+ * estimated-share aggregate, so they can't drift.
+ *
+ * @param {Object} s
+ * @param {Object} [valueMap]
+ * @returns {Array<{amount:number|null, basis:string|null, source:string, lots:number|null, asOf:string|null}>}
+ */
+function resolveCopies(s, valueMap) {
+  const rec = valueMap && valueMap[s.setNumber];
+  const out = [];
+  for (const g of valueGroups(s)) {
+    const blc = rec && rec[g.cond];
+    const blAmt = blc && typeof blc.amount === "number" ? blc.amount : null; // amount != null wins
+    const copy = blAmt !== null
+      ? { amount: blAmt, basis: blc.basis ?? null, source: BL_SOURCE, lots: typeof blc.lots === "number" ? blc.lots : null, asOf: blc.asOf ?? null }
+      : { amount: g.be, basis: null, source: "be", lots: null, asOf: null }; // basis:"unknown"/miss → BE fallback
+    for (let i = 0; i < g.units; i++) out.push(copy);
+  }
+  return out;
+}
+
 /**
  * BL-preferred {@link import("./value").Value} for a set, resolved per-copy against the cache, or
  * `null` when BL covers NONE of the set's value (→ caller falls back to the BE path, byte-identical
- * to pre-overlay). A copy uses its condition-matched BL amount when non-null; otherwise that copy
- * falls back to its stored BE value. Because Σ entries.current_value === totalValue, an all-BE
- * outcome equals the old `rawSetValue` exactly — so only BL-covered sets change.
+ * to pre-overlay). Because Σ entries.current_value === totalValue, an all-BE outcome equals the old
+ * `rawSetValue` exactly — so only BL-covered sets change.
+ *
+ * Set-level `basis` is the exact BL basis when every copy shares one (`sold`/`sold_thin`/`modeled`/
+ * `asking`), else `"mixed"`. `confidence` resolves the coarse mixed case for the row badge:
+ * `"estimates"` if any BL copy is modeled/asking, else `"thin"` if any is sold_thin, else `"clean"`.
+ * The per-copy panel keeps each copy's exact basis (copyValueProvenance).
  *
  * @param {Object} s
  * @param {Object<string, ({new?:Object, used?:Object}|null)>} valueMap  setNumber → cache record.
  * @returns {import("./value").Value | null}
  */
 function blOverlayValue(s, valueMap) {
-  const rec = valueMap && valueMap[s.setNumber];
-  if (!rec) return null; // cache miss (e.g. deferred CMF) → BE fallback
+  if (!(valueMap && valueMap[s.setNumber])) return null; // cache miss (e.g. deferred CMF) → BE fallback
+  const copies = resolveCopies(s, valueMap);
+  const blCopies = copies.filter((c) => c.source === BL_SOURCE);
+  if (!blCopies.length) return null; // BL covered nothing here → full BE fallback (identical numbers)
 
-  let total = 0;
-  let anyBL = false;
-  let anyKnown = false;
-  const bases = new Set();
-  let lots = null;
-  let asOf = null;
-
-  for (const g of valueGroups(s)) {
-    const blc = rec[g.cond];
-    const blAmt = blc && typeof blc.amount === "number" ? blc.amount : null; // amount != null wins
-    let per;
-    if (blAmt !== null) {
-      per = blAmt;
-      anyBL = true;
-      if (blc.basis) bases.add(blc.basis);
-      if (typeof blc.lots === "number") lots = blc.lots;
-      if (blc.asOf) asOf = blc.asOf;
-    } else {
-      per = g.be; // basis:"unknown"/null → fall back to this copy's BE value
-    }
-    if (per !== null) {
-      total += per * g.units;
-      anyKnown = true;
-    }
-  }
-
-  if (!anyBL) return null; // BL covered nothing here → full BE fallback (identical numbers)
-  const uniform = bases.size === 1;
+  const known = copies.filter((c) => c.amount !== null);
+  const total = known.reduce((sum, c) => sum + c.amount, 0);
+  const blBases = new Set(blCopies.map((c) => c.basis));
+  const uniform = blBases.size === 1 && copies.every((c) => c.source === BL_SOURCE);
+  const confidence = blCopies.some((c) => isEstimateBasis(c.basis)) ? "estimates"
+    : blCopies.some((c) => c.basis === "sold_thin") ? "thin"
+      : "clean";
   return {
-    amount: anyKnown ? total : null,
+    amount: known.length ? total : null,
     source: BL_SOURCE,
     condition: s.condition ?? null,
-    basis: uniform ? [...bases][0] : "market", // mixed-condition set → coarse market tag (Step 3 refines per-copy)
-    asOf,
-    lots: uniform ? lots : null,
+    basis: uniform ? [...blBases][0] : "mixed",
+    asOf: blCopies[0].asOf ?? null,
+    lots: uniform ? (blCopies[0].lots ?? null) : null,
+    confidence,
   };
 }
 
@@ -181,6 +196,30 @@ export function copyValueProvenance(rawValue, { setNumber, condition, retired } 
  */
 export function portfolioValue(sets, valueMap) {
   return sets.reduce((sum, s) => sum + (setValueProvenance(s, valueMap).amount ?? 0), 0);
+}
+
+/**
+ * Share of portfolio value that is ESTIMATED (modeled + asking BL copies) ÷ total known value —
+ * for the quiet "X% of value estimated" disclosure beside the headline. Resolved per-copy (the same
+ * resolveCopies the overlay uses), so a mixed set counts only its estimated copies' dollars.
+ * sold_thin is real-but-thin sold data — flagged at the row, NOT counted as estimated. Returns 0
+ * when nothing is known or no map is loaded.
+ *
+ * @param {Array<Object>} sets
+ * @param {Object} [valueMap]
+ * @returns {number}  fraction in [0, 1].
+ */
+export function estimatedValueShare(sets, valueMap) {
+  if (!valueMap) return 0;
+  let total = 0, estimated = 0;
+  for (const s of sets) {
+    for (const c of resolveCopies(s, valueMap)) {
+      if (c.amount === null) continue;
+      total += c.amount;
+      if (c.source === BL_SOURCE && isEstimateBasis(c.basis)) estimated += c.amount;
+    }
+  }
+  return total > 0 ? estimated / total : 0;
 }
 
 /**

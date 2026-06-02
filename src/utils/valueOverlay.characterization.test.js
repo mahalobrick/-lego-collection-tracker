@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { setValueProvenance, portfolioValue, knownValueCount } from "./portfolio";
+import { setValueProvenance, portfolioValue, knownValueCount, estimatedValueShare } from "./portfolio";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CHARACTERIZATION — app-read Step 2 (BrickLink value overlay).
@@ -98,11 +98,12 @@ describe("BL-PREFERENCE behavior — overlay (with value map)", () => {
     expect(v.lots).toBe(45);
   });
 
-  it("mixed set → per-copy sum (33.66 new + 25.37 used = 59.03); mixed basis → 'market', lots null", () => {
+  it("mixed set → per-copy sum (33.66 new + 25.37 used = 59.03); basis 'mixed', confidence 'estimates', lots null", () => {
     const v = setValueProvenance(MIXED_BE, MAP);
     expect(v.amount).toBeCloseTo(59.03, 2); // moved 90 (BE) → 59.03 (BL per-copy)
     expect(v.source).toBe("bricklink");
-    expect(v.basis).toBe("market");
+    expect(v.basis).toBe("mixed");          // sold_thin (new) + modeled (used) → not uniform
+    expect(v.confidence).toBe("estimates"); // a modeled copy present → "contains estimates"
     expect(v.lots).toBeNull();
   });
 
@@ -137,5 +138,38 @@ describe("BL-PREFERENCE behavior — overlay (with value map)", () => {
   it("NON-DESTRUCTIVE: with no map, resolution stays BE (byte-identical)", () => {
     expect(setValueProvenance(NEW_BE).amount).toBe(50);
     expect(setValueProvenance(NEW_BE).source).toBe("brickeconomy");
+  });
+});
+
+describe("CONFIDENCE flag — set-level basis/confidence (Step 3)", () => {
+  it("single sold set → basis 'sold', confidence 'clean'", () => {
+    const v = setValueProvenance(NEW_BE, MAP);
+    expect(v.basis).toBe("sold");
+    expect(v.confidence).toBe("clean");
+  });
+
+  it("single modeled set → basis 'modeled', confidence 'estimates'", () => {
+    expect(setValueProvenance(USED_BE, MAP).confidence).toBe("estimates");
+  });
+
+  it("BE-fallback set carries no BL confidence (source brickeconomy)", () => {
+    const v = setValueProvenance(CMF_BE, MAP);
+    expect(v.source).toBe("brickeconomy");
+    expect(v.confidence).toBeUndefined();
+  });
+});
+
+describe("estimatedValueShare — modeled + asking ÷ total (sold_thin NOT counted)", () => {
+  it("counts only modeled/asking dollars over the BL-realizable total", () => {
+    // sets: NEW_BE 22.09 sold | USED_BE 5.16 modeled | MIXED_BE 33.66 sold_thin + 25.37 modeled |
+    //       MANUAL 900 sold | CMF 13 BE-fallback | UNKNOWN 0
+    const sets = [NEW_BE, USED_BE, MIXED_BE, MANUAL, CMF_BE, UNKNOWN];
+    const total = 22.09 + 5.16 + 33.66 + 25.37 + 900 + 13;        // 999.28
+    const estimated = 5.16 + 25.37;                                // modeled copies only
+    expect(estimatedValueShare(sets, MAP)).toBeCloseTo(estimated / total, 6);
+  });
+
+  it("is 0 without a value map (nothing estimated yet)", () => {
+    expect(estimatedValueShare([NEW_BE, USED_BE], undefined)).toBe(0);
   });
 });
