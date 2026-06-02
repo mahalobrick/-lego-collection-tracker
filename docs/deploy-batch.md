@@ -9,10 +9,15 @@ owned-set list from Upstash, pulls BrickLink 6-mo sold data, and writes the `val
 **Why a dedicated box:** the BrickLink Store API authorizes calls by a **fixed IP** bound to an Access
 Token. A static-egress host is the supported way to give the batch a stable, whitelisted source IP.
 
+> **Live deployment (today):** DigitalOcean droplet `159.223.113.147`, Ubuntu, running **as root** from
+> `/root/brickledger`, weekly **Sun 03:00 UTC**. Running under a dedicated non-login user (e.g.
+> `/opt/brickledger/app`) is noted as **optional future hardening** — not what the box runs now.
+
 ---
 
-## 0. Prerequisites
-- A host with a **static public IPv4** and root/sudo.
+## 0. Provision the box
+- A host with a **static public IPv4** and root. Note its public IPv4 (you'll whitelist it in §1, and
+  the live box is `159.223.113.147`).
 - The Upstash REST creds (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) — same store the app + sync use.
 - BrickLink Store API **consumer key/secret** (account-level, reused from home).
 
@@ -24,84 +29,96 @@ BrickLink tokens are **bound to a source IP**, and an account may hold **multipl
 new token for the box's IP — do NOT edit/replace the home token** (that would break local runs).
 
 1. BrickLink → **My Account → API → Access Tokens → Register/Add**.
-2. **IP address:** the box's static IPv4 (see §6 to confirm it). **IP mask:** `255.255.255.255` (exact
+2. **IP address:** the box's static IPv4 (confirm it in §5). **IP mask:** `255.255.255.255` (exact
    single-host match — not a range).
-3. Save. You now get a **token + token-secret for the droplet** — these are the `BL_TOKEN` /
+3. Save. You now get a **token + token-secret for the box** — these are the `BL_TOKEN` /
    `BL_TOKEN_SECRET` that go in the box's `.env.local` (§4). The consumer key/secret are shared with home.
-
-> **IPv6 red herring.** BrickLink whitelisting is **IPv4-only**. If calls 401/403 with a correct-looking
-> token, the box may be egressing over IPv6. Confirm the **IPv4** egress matches the whitelisted IP:
-> ```
-> curl -4 https://api.ipify.org   # must equal the IP you whitelisted in step 2
-> curl -6 https://api.ipify.org   # informational only — BL ignores this
-> ```
-> If `-4` differs from the whitelist (or the box has no stable IPv4 egress), fix that before anything else.
 
 ---
 
 ## 2. Node (NodeSource)
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt-get install -y nodejs
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt-get install -y nodejs
 node -v   # v22.x ; installs to /usr/bin/node (matches ExecStart in the .service)
 ```
 
 ## 3. Clone into a hyphen-free path ⚠️
 
-The GitHub repo name **starts with a hyphen** (`-lego-collection-tracker`), which many tools parse as a
-flag. Clone into a clean directory and work from there (this is the `WorkingDirectory` in the unit):
+The GitHub repo name **starts with a hyphen** (`-lego-collection-tracker`), which `cd` and many tools
+parse as a flag. Clone into an explicit, hyphen-free directory name and work from there (this is the
+`WorkingDirectory` in the unit):
 
 ```bash
-sudo useradd -r -m -d /opt/brickledger -s /usr/sbin/nologin brickledger   # dedicated non-login user
-sudo -u brickledger git clone https://github.com/mahalobrick/-lego-collection-tracker.git /opt/brickledger/app
-cd /opt/brickledger/app
-sudo -u brickledger npm ci --omit=dev   # only runtime deps (oauth-1.0a, @upstash/redis); skips devDeps
+cd /root
+git clone https://github.com/mahalobrick/-lego-collection-tracker.git brickledger
+cd /root/brickledger
+npm ci --omit=dev   # only runtime deps (oauth-1.0a, @upstash/redis); skips devDeps
 ```
 
 ## 4. Secrets — `.env.local` (uncommitted, chmod 600)
 
-The script reads its six vars from `./.env.local` at the repo root (via `loadEnvKey`) — it is **gitignored
-and never committed**. Create it with the **droplet's** BL token (not home's):
+The script reads its six vars from `./.env.local` via `loadEnvKey`, which resolves the path **relative to
+the current working directory** — which is exactly why the `.service` pins `WorkingDirectory=/root/brickledger`.
+The file is **gitignored and never committed**. Create it with the **box's** BL token (not home's):
 
 ```bash
-sudo -u brickledger tee /opt/brickledger/app/.env.local >/dev/null <<'EOF'
+tee /root/brickledger/.env.local >/dev/null <<'EOF'
 BL_CONSUMER_KEY="…"
 BL_CONSUMER_SECRET="…"
-BL_TOKEN="…"          # the DROPLET token from §1 — NOT the home token
-BL_TOKEN_SECRET="…"   # the DROPLET token-secret from §1
+BL_TOKEN="…"          # the BOX token from §1 — NOT the home token
+BL_TOKEN_SECRET="…"   # the BOX token-secret from §1
 KV_REST_API_URL="https://…upstash.io"
 KV_REST_API_TOKEN="…"
 EOF
-sudo chmod 600 /opt/brickledger/app/.env.local
-sudo chown brickledger:brickledger /opt/brickledger/app/.env.local
+chmod 600 /root/brickledger/.env.local
 ```
 
 The six vars are documented in [`.env.example`](../.env.example) (BL_* + KV_REST_API_*).
 
-## 5. Install + enable the timer
+> **⚠️ Paste each token value as one unbroken line — no trailing space, no wrap.** This is the actual
+> auth failure we hit (it was **not** IPv6): a token pasted with a line-wrap or stray trailing space is
+> silently malformed, so OAuth signing fails and **every** BrickLink call 401/403s with a token that
+> *looks* correct. If auth fails, re-paste the token and token-secret first.
+
+## 5. Pre-flight + manual proof run
+
+Confirm the box egresses from the whitelisted IPv4, then prove the batch end-to-end **by hand** before
+handing it to the timer:
 
 ```bash
-sudo cp deploy/brickledger-refresh.service deploy/brickledger-refresh.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now brickledger-refresh.timer
+curl -4 -s https://api.ipify.org   # must equal the box IP you whitelisted in §1 (and 159.223.113.147 today)
+cd /root/brickledger && node scripts/refresh-values.mjs
 ```
 
-Verify the schedule, then do a real test run and watch the log:
+A healthy run ends with a `RUN SUMMARY` — expect **`461 written, 0 errors`** (sets processed = value:SET
+written, BL errors = 0) plus basis counts and a sample read-back. If it 401/403s on BrickLink, recheck the
+§4 token-paste caution, then the IPv4 below.
+
+> **IPv6 red herring.** BrickLink whitelisting is **IPv4-only**. If calls fail *after* the token paste is
+> confirmed clean, check the box isn't egressing over IPv6:
+> ```
+> curl -4 -s https://api.ipify.org   # must equal the whitelisted IP
+> curl -6 -s https://api.ipify.org   # informational only — BL ignores this
+> ```
+> If `-4` differs from the whitelist (or the box has no stable IPv4 egress), fix that. But in practice the
+> real culprit was the wrapped token paste (§4), not IPv6.
+
+## 6. Install + enable the weekly timer
+
+```bash
+cp deploy/brickledger-refresh.service deploy/brickledger-refresh.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now brickledger-refresh.timer
+```
+
+Verify the schedule, then do a one-off service run and watch the log:
 
 ```bash
 systemctl list-timers brickledger-refresh.timer   # shows NEXT (Sun 03:00) + LAST
-sudo systemctl start brickledger-refresh.service   # one-off run now (don't wait for Sunday)
+systemctl start brickledger-refresh.service        # one-off run now (don't wait for Sunday)
 journalctl -u brickledger-refresh.service -f       # follow: "Source: Upstash …", per-set lines, RUN SUMMARY
-```
-
-A healthy run ends with a `RUN SUMMARY` (sets written, basis counts) and a sample read-back. If it 401/403s
-on BrickLink, recheck §1 + the §6 IPv4 confirmation.
-
-## 6. Confirm the box's whitelisted IP
-
-```bash
-curl -4 https://api.ipify.org   # the IPv4 the batch egresses from — must match the BL whitelist (§1)
 ```
 
 ---
@@ -120,7 +137,7 @@ curl -4 https://api.ipify.org   # the IPv4 the batch egresses from — must matc
 
 ## Updating the box
 ```bash
-cd /opt/brickledger/app && sudo -u brickledger git pull && sudo -u brickledger npm ci --omit=dev
+cd /root/brickledger && git pull && npm ci --omit=dev
 ```
 The timer keeps the new code on the next schedule; no unit changes needed unless `deploy/*` changed (then
 re-copy + `daemon-reload`).

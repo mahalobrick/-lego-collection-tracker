@@ -13,11 +13,11 @@
 // Each record aligns with the Workstream A provenance model so the later app-read step is a
 // clean map: { amount, source:"BrickLink", condition, basis, asOf, lots }.
 //
-// SAFETY/FOOTPRINT: creds come from .env.local only and are NEVER logged. The NEW keyspace
-// (value:SET:* / history:SET:*) is disjoint from the per-user collection keys (brickledger:user:*),
-// so this write is purely additive — the app does NOT read this keyspace yet, so it cannot
-// affect the live app. Reuses the proven OAuth 1.0a signing + loadEnvKey loader from
-// bl-coverage-check.mjs / bl-price-test.mjs.
+// SAFETY/FOOTPRINT: creds come from .env.local only and are NEVER logged. The value:SET:* /
+// history:SET:* keyspace this writes is disjoint from the per-user collection keys
+// (brickledger:user:*), so the write can never corrupt a collection — it only refreshes the value
+// cache the app-read overlay serves (api/values.js → valueCache.js). Reuses the proven OAuth 1.0a
+// signing + loadEnvKey loader from bl-coverage-check.mjs / bl-price-test.mjs.
 
 import crypto from "node:crypto";
 import OAuth from "oauth-1.0a";
