@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { searchInput, filterSelect, clearFilterButton, filterBar, confidenceBadge } from "./uiStyles";
+import { searchInput, filterSelect, clearFilterButton, filterBar } from "./uiStyles";
 import { DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, AreaChart, Area, CartesianGrid } from "recharts";
 import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
+import TriValueCell from "./TriValueCell";
 import { asNumber, money, setImageUrl, CONDITION_LABELS, conditionColor, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./utils/brickset";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition } from "./utils/beSyncValues";
-import { portfolioValue, knownValueCount, setValueProvenance, totalSpent, portfolioGain, portfolioROI, roiExcludedCount, setROI, setGain, groupRollup, estimatedValueShare } from "./utils/portfolio";
-import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailTooltip, roiExclusionNote, valueConfidence, estimatedValueNote } from "./utils/valueDisplay";
+import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, setCost, totalSpent, portfolioGain, portfolioROI, roiExcludedCount, setROI, setGain, groupRollup, estimatedValueShare } from "./utils/portfolio";
+import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, roiExclusionNote, estimatedValueNote } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
@@ -59,7 +60,7 @@ const OWNED_COL_WIDTHS = {
   condition:    84,
   qty:          66,
   paid:         82,
-  value:        86,
+  value:       132,  // three-up: Retail / Paid / Market labels + figures (MSRP Step 2)
   gain:         82,
   roi:          62,
   minifigs:     68,
@@ -226,6 +227,29 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   const [blPriceCache] = useState(() => {
     try { return JSON.parse(localStorage.getItem("blPriceGuideCache") || "{}"); } catch { return {}; }
   });
+
+  // ── Retail (MSRP) source caches — read once, same caches SetDetailPanel reads ──
+  // Brickset is keyed `brickset_${n}` (canonical); BrickEconomy by bare set number
+  // (deprecated fallback). retailFor() builds the per-set sources for setRetailProvenance.
+  const [retailCaches] = useState(() => {
+    let bs = {}, be = {};
+    try { bs = JSON.parse(localStorage.getItem("bricksetSetCache")     || "{}"); } catch {}
+    try { be = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}"); } catch {}
+    return { bs, be };
+  });
+  function retailFor(set) {
+    const n = set.setNumber;
+    const stripped = String(n || "").replace(/-1$/, "");
+    const bsEntry = retailCaches.bs[`brickset_${n}`] || retailCaches.bs[`brickset_${stripped}`] || retailCaches.bs[`brickset_${stripped}-1`] || {};
+    const beEntry = retailCaches.be[n] || retailCaches.be[stripped] || {};
+    return setRetailProvenance(
+      {
+        brickset:     { amount: bsEntry.data?.retail_price_us, asOf: bsEntry.fetchedAt },
+        brickeconomy: { amount: beEntry.data?.retail_price_us, asOf: beEntry.fetchedAt },
+      },
+      { condition: set.condition }
+    );
+  }
 
   // ── Sold / realized gains ────────────────────────────────────────────────
   const [soldSets, setSoldSets] = useState(() => {
@@ -955,12 +979,12 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     if (column.key === "qty") return qty;
     if (column.key === "paid") return money(paid);
     if (column.key === "value") {
-      // Derive provenance at read: unknown → "—" (not $0), at-retail → retail tooltip.
-      // A BL estimate/thin/asking value carries a subtle confidence marker + tooltip (Step 3).
-      const prov = setValueProvenance(set, valueMap);
-      const conf = valueConfidence(prov);
-      const tip = conf?.tooltip || retailTooltip(prov) || undefined;
-      return <span title={tip}>{formatValueCell(prov)}{conf && <span style={confidenceBadge}>{conf.marker}</span>}</span>;
+      // Three-up (MSRP Step 2): Retail / Paid / Market in one compact cell.
+      //   Retail → setRetailProvenance (Brickset canonical, BE deprecated fallback, "—" when none)
+      //   Paid   → setCost; $0 / unrecorded → null → "—" (a genuine GWP $0 is indistinguishable here)
+      //   Market → setValueProvenance (the prior cell's value — pinned by TriValueCell's Market line)
+      const cost = setCost(set);
+      return <TriValueCell retail={retailFor(set)} paid={cost > 0 ? cost : null} market={setValueProvenance(set, valueMap)} />;
     }
     if (column.key === "gain") return gain === null ? "—" : money(gain);
     if (column.key === "roi") return roi !== null ? `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%` : "—";

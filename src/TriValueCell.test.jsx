@@ -1,0 +1,97 @@
+import { afterEach, beforeEach, describe, it, expect } from "vitest";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import TriValueCell from "./TriValueCell";
+import { setRetailProvenance, setValueProvenance } from "./utils/portfolio";
+import { money } from "./utils/formatting";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MSRP Step 2 — the reusable three-up value display: Retail / Paid / Market.
+//
+// NET-FIRST: the "Market line pins prior cell behavior" block reproduces the value
+// cell as it rendered BEFORE this change — `formatValueCell(prov)` + a confidence
+// marker (est./thin/ask) + the retail/confidence tooltip. Those assertions are the
+// characterization: the Market figure, its badge, and its tooltip must be byte-for-byte
+// what MyCollection's inline value cell produced for the same provenance.
+//
+// SMOKE (DOM-leaf): three rows — all three present; a row missing Paid → "—"; a
+// BE-only retail row (shows the deprecated BrickEconomy figure + a quiet "be" tag).
+// ─────────────────────────────────────────────────────────────────────────────
+
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+let container, root;
+
+beforeEach(() => {
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  root = createRoot(container);
+});
+
+afterEach(() => {
+  act(() => root.unmount());
+  container.remove();
+});
+
+function render(props) {
+  act(() => root.render(<TriValueCell {...props} />));
+  const leaf = id => container.querySelector(`[data-testid="${id}"]`);
+  return {
+    retail: leaf("tri-retail"),
+    paid: leaf("tri-paid"),
+    market: leaf("tri-market"),
+  };
+}
+
+// A BrickLink "modeled" value — the prior cell rendered this with an "est." badge.
+const MODELED_MARKET = { amount: 120, source: "bricklink", basis: "modeled", condition: "new", asOf: null, lots: 4 };
+
+describe("TriValueCell — Market line pins prior value-cell behavior (characterization)", () => {
+  it("modeled BL value → figure + 'est.' marker (same as old inline cell)", () => {
+    const { market } = render({ retail: null, paid: null, market: MODELED_MARKET });
+    expect(market.textContent).toBe(`${money(120)}est.`);
+    // tooltip lives on the Market row wrapper (old: title on the figure span)
+    expect(market.closest("[title]").getAttribute("title")).toBe("Estimated from new sold price");
+  });
+
+  it("at-retail market value → retail caveat tooltip, no marker", () => {
+    // setValueProvenance on a non-retired BE set yields basis:'retail' (the at-retail trap).
+    const market = setValueProvenance({ source: "BrickEconomy", currentValue: 60, condition: "new", retired: false });
+    const leaves = render({ retail: null, paid: null, market });
+    expect(leaves.market.textContent).toBe(money(60)); // no confidence marker
+    expect(leaves.market.closest("[title]").getAttribute("title")).toMatch(/sticker.*price/i);
+  });
+
+  it("unknown market value → '—', no tooltip", () => {
+    const { market } = render({ retail: null, paid: null, market: { amount: null, source: null, basis: "unknown" } });
+    expect(market.textContent).toBe("—");
+    expect(market.closest("[title]")).toBeNull();
+  });
+});
+
+describe("TriValueCell — three-up smoke (DOM-leaf)", () => {
+  it("all three present: Retail / Paid / Market each show their figure", () => {
+    const retail = setRetailProvenance({ brickset: { amount: 99.99 } });
+    const { retail: r, paid: p, market: m } = render({ retail, paid: 80, market: MODELED_MARKET });
+    expect(r.textContent).toBe(money(99.99));
+    expect(p.textContent).toBe(money(80));
+    expect(m.textContent).toBe(`${money(120)}est.`);
+  });
+
+  it("missing Paid (paid=null) → Paid line shows '—'", () => {
+    const retail = setRetailProvenance({ brickset: { amount: 99.99 } });
+    const { retail: r, paid: p, market: m } = render({ retail, paid: null, market: MODELED_MARKET });
+    expect(r.textContent).toBe(money(99.99));
+    expect(p.textContent).toBe("—");
+    expect(m.textContent).toBe(`${money(120)}est.`);
+  });
+
+  it("BE-only retail (polybag): shows the BrickEconomy figure + a quiet 'be' tag", () => {
+    // No Brickset MSRP → setRetailProvenance falls back to the deprecated BrickEconomy source.
+    const retail = setRetailProvenance({ brickset: { amount: null }, brickeconomy: { amount: 4.99 } });
+    expect(retail.source).toBe("brickeconomy");
+    const { retail: r } = render({ retail, paid: null, market: { amount: null, basis: "unknown" } });
+    expect(r.textContent).toBe(`${money(4.99)}be`);
+    expect(r.querySelector("[title]").getAttribute("title")).toMatch(/deprecated BrickEconomy/);
+  });
+});
