@@ -45,7 +45,7 @@ Each owned **copy** is valued at its own condition by walking this ladder top-do
 
 | # | Rung (condition / situation) | Resolution | Basis | Confidence |
 |---|---|---|---|---|
-| 1 | **Healthy sold** (lots ≥10) | BL `sold/new` or `sold/used` **`qty_avg_price`** — the quantity-weighted average, which better reflects what a single copy actually sold for (`avg_price`, the simple per-lot mean, noted for reference) | `sold` | **high** |
+| 1 | **Healthy sold** (lots ≥10) | Direct BL `sold/new` or `sold/used` **`avg_price`** (the conventional 6-mo price-guide average; matches the §4 evidence) | `sold` | **high** |
 | 2 | **Used copy; used sold thin but new healthy** | **0.75 × BL new sold** (global multiplier; optional per-theme refinement below) | `modeled` | **estimate** |
 | 3 | **Sparse sold** (lots 1–9) | BL sold average, **flagged thin** | `sold-thin` | **low** |
 | 4 | **Both sold thin/absent** | BL **stock _lowest_** (US, `guide_type=stock&country_code=US`) — *never* the stock *average* (that's an asking price and overstates) | `asking` | **low** |
@@ -140,7 +140,6 @@ Of the 27 ratio extremes (`<0.2` or `>2.5`):
 - **Modeled used inherits BL new as ground truth** (rung 2 is `0.75 × BL new`). That leans on the new side being healthy — which it is (**88.8%**) — so the dependency is sound, but errors in a set's new average propagate to its modeled used.
 - **Stock values are *asking* prices and overstate market.** Rung 4 uses the **lowest** US listing and treats it as a **floor**, not a fair value, and is tagged `asking`/low-confidence.
 - **Region/currency basis:** all figures are **USD**; sold is BrickLink **global** sold (deepest sample); the stock rung is scoped **US** (`country_code=US`). Mixing global-sold with US-stock is acceptable for a low-confidence floor but should be noted in the UI provenance.
-- **Measurement basis vs production field:** the evidence here — the coverage CSV's `bl_sold_*_avg` columns and every §4 figure including the **0.746 multiplier** — was captured from BrickLink's `avg_price` (simple per-lot mean). Rung 1 specifies `qty_avg_price` (quantity-weighted) as the production "value"; the two are close but not identical, so re-confirm the multiplier on `qty_avg_price` when the batch-refresh lands.
 
 ---
 
