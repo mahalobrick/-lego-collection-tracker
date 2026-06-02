@@ -116,9 +116,11 @@ Of the 27 ratio extremes (`<0.2` or `>2.5`):
 
 ## 5. CMF scope — defer to Phase 2
 
-- **Phase 1** values the **~490 boxed sets** on the ladder in §3.
+- **Phase 1** values the **461 boxed sets** on the ladder in §3.
 - **Phase 2** adds minifigure valuation: map the BrickLedger/Rebrickable CMF identity (e.g. `71045-12` → BrickLink `col###` minifig id) and value via the **BrickLink MINIFIG endpoint**, not SET.
-- **Rationale:** CMFs are ~**18% of item count** (110/600) but a small share of portfolio *dollars*, and correct valuation needs an **ID-mapping sub-project** (Rebrickable minifig IDs ↔ BL `col` ids). Not worth blocking Phase 1.
+- **CMF skip rule (precise).** The refresh batch (`scripts/refresh-values.mjs`) defers a set to Phase 2 iff `theme === "Minifigure Series"` (**137** entries) **or** it is one of the **2 long-numeric promo IDs** (`6490363-1`, `6550806-1`) — **139 deferred**, leaving **461 Phase-1 boxed sets** (600 − 139). The theme signal is data-driven and generalises to future runs (no fragile per-series suffix ranges); the 2 promo IDs are themed `Seasonal`, so they're skipped by explicit id.
+- **§4 ↔ §5 reconciliation.** The **461** (not the earlier loose "~490", which was just 600 − the 110 SET-endpoint errors) reflects that the **27** minifig-series sets which *do* resolve on the SET endpoint are deferred too — per §4 their SET price is the **wrong full-box price** for a minifig and must never be used as a set value.
+- **Rationale:** CMFs are ~**23% of item count** (139/600) but a small share of portfolio *dollars*, and correct valuation needs an **ID-mapping sub-project** (Rebrickable minifig IDs ↔ BL `col` ids). Not worth blocking Phase 1.
 
 ---
 
