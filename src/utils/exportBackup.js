@@ -64,7 +64,7 @@ export async function pushToCloudAuth(getToken) {
 // regeneratable set cache, and device-local prefs (settings.autoExportDays) — none are
 // registry keys — so a freshly-built local backup and a pulled cloud backup hash identically
 // when their synced data matches, regardless of caches or per-device export schedules (A11).
-function dedupHash(backup) {
+export function dedupHash(backup) {
   const projection = {};
   for (const k of BACKUP_KEYS) {
     const src = k.settings ? backup.settings : backup;

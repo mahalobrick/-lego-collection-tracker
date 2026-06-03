@@ -323,6 +323,34 @@ export function reconcilePaidEdit(s) {
 }
 
 /**
+ * Patch for a condition edit — the condition twin of {@link reconcilePaidEdit}. `bucket`
+ * is a binary 'new'|'used'. Multi-copy sets carry `entries[]` (one per copy):
+ *   - bulk (no copyIndex): every copy's condition := bucket;
+ *   - per-copy (copyIndex given): only that copy's condition changes — letting a set become
+ *     Mixed when copies disagree.
+ * A manual set (no entries[]) has no per-copy data → patch the set-level `condition`.
+ *
+ * "mixed" is NEVER stored — it falls out of setConditionDisplay() from disagreeing entries.
+ * Returns a patch to merge onto the set (and, for entries-bearing sets, to persist into the
+ * BE blob via persistBESetEdit — `entries[].condition` shares its name across both shapes).
+ *
+ * @param {Object} set                       owned set (may carry entries[])
+ * @param {'new'|'used'} bucket              target bucket
+ * @param {number} [copyIndex]               which copy to change; omit for a bulk edit
+ * @returns {{ entries: Array } | { condition: string }}
+ */
+export function reconcileConditionEdit(set, bucket, copyIndex) {
+  const entries = set?.entries;
+  if (!Array.isArray(entries) || !entries.length) {
+    return { condition: bucket }; // manual set — no per-copy data to reconcile
+  }
+  if (copyIndex == null) {
+    return { entries: entries.map((e) => ({ ...e, condition: bucket })) };
+  }
+  return { entries: entries.map((e, i) => (i === copyIndex ? { ...e, condition: bucket } : e)) };
+}
+
+/**
  * Is a set eligible for the PERCENTAGE ROI? Only when its value is known AND it
  * has a positive cost. Unknown-value and cost ≤ 0 (incl. $0/GWP) are excluded.
  *

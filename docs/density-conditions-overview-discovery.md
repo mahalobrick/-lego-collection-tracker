@@ -117,9 +117,28 @@ richer per-copy UI must keep tolerating (or normalize once — see §3 caveat).
 > `usedasnew` + manual `used_good` merged) / Mixed 1 — clean labels, semantic colours, no raw token.
 >
 > **Phase 1 is closed: display, column, sort, per-copy badges, filter, AND the condition pie all read
-> through the one `condition.js` bucket.** Still pending (Phase 2): an `entries[]`-aware **editor** (the
-> inline/panel condition write is still binary New/Used and per-set only — §3.4 #1), and the BE-ingest
-> token cleanup. The taxonomy recommendation that follows is kept for history but is **not** the plan of record.
+> through the one `condition.js` bucket.**
+>
+> **Phase 2, Step 1 (persistence mechanism + `reconcileConditionEdit`).** BE-set edits never persisted:
+> the `blOwnedSets` effect skips `source:"BrickEconomy"` and nothing else wrote the blob on edit, so an
+> in-memory edit reverted on reload (this latent gap also affected the Phase-1 paid true-up — it landed
+> in-session but didn't survive reload). Added:
+> - **`persistBESetEdit(setNumber, patch)`** (`MyCollection.jsx`): surgical blob patch mirroring
+>   `applyCache` — `{ ...s, ...patch }` on the matching set, `setItemSafe` (auto-pushes via
+>   `brickledger:datachange`), and a matching `setSets` for immediate UI. Field-agnostic (spread
+>   preserves every other normalized field — no lossy reverse-map).
+> - **`reconcileConditionEdit(set, bucket, copyIndex?)`** (`portfolio.js`, beside `reconcilePaidEdit`):
+>   pure. Bulk → all `entries[].condition := bucket`; per-copy → just that copy; manual (no entries) →
+>   `{ condition: bucket }`. Never stores "mixed".
+> - **Paid gap closed (first use):** BE-set `paidPrice` edits now route through `persistBESetEdit`
+>   (`paidPrice↔averagePaid` alias included so reload derives correctly); manual sets keep the
+>   `blOwnedSets` path — branched, no double-write. Exported `dedupHash` for the guard test.
+>
+> Guard test (`conditionEdit.test.js`): per-copy edit → `entries[]` updated + `setConditionDisplay` →
+> mixed, and the blob projection's `dedupHash` flips (proves it would push). **Reload smoke (incognito
+> prod build):** edited a BE set's paid 100→200, reloaded — blob persisted (`averagePaid 200`,
+> `totalPaid 400`), Cost Basis `$400`. Still pending: wire the New/Used + per-copy condition editor to
+> `reconcileConditionEdit` + `persistBESetEdit` (Step 2), and the BE-ingest token cleanup.
 
 ### What actually exists
 

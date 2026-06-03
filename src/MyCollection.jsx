@@ -1104,29 +1104,46 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       return sortDirection === "asc" ? result : -result;
     });
 
+  // Persist an edit to a BrickEconomy set. BE data lives in the brickEconomyNormalizedCollection
+  // blob, which the blOwnedSets persist effect deliberately skips — so a BE-set edit would
+  // otherwise revert on reload. Patch the blob surgically (spread preserves every other normalized
+  // field — no lossy in-memory→normalized reverse-map) via setItemSafe, which auto-pushes to the
+  // cloud through brickledger:datachange; then mirror the patch into state for immediate UI.
+  // Field-agnostic: callers pass whatever keys changed (paid today, per-copy condition next).
+  function persistBESetEdit(setNumber, patch) {
+    try {
+      const blob = JSON.parse(localStorage.getItem("brickEconomyNormalizedCollection") || "[]");
+      setItemSafe("brickEconomyNormalizedCollection", JSON.stringify(
+        blob.map(s => (s.setNumber === setNumber ? { ...s, ...patch } : s)),
+      ));
+    } catch { /* blob unreadable — still update state so the UI reflects the edit */ }
+    setSets(prev => prev.map(s => (s.setNumber === setNumber && s.source === "BrickEconomy" ? { ...s, ...patch } : s)));
+  }
+
   function updateSet(index, field, value) {
-    setSets(prev => {
-      const next = [...prev];
+    const cur = sets[index];
+    if (!cur) return;
+    const coerced = field === "qty" || field === "paidPrice" || field === "currentValue" ? asNumber(value) : value;
 
-      const rec = {
-        ...next[index],
-        [field]: field === "qty" || field === "paidPrice" || field === "currentValue"
-          ? asNumber(value)
-          : value
-      };
+    // Paid is a per-unit field, but setCost() reads the precomputed `totalPaid` FIRST — so editing
+    // paidPrice (or qty) alone is a silent no-op on gain/ROI/Cost-Basis for any set carrying
+    // totalPaid (every BE import). reconcilePaidEdit re-derives the canonical (totalPaid +
+    // entries[].paid_price) so the edit lands and paid provenance reclassifies (msrp → manual).
+    const rec = { ...cur, [field]: coerced };
+    if (field === "paidPrice" || field === "qty") Object.assign(rec, reconcilePaidEdit(rec));
 
-      // Paid is a per-unit field, but setCost() reads the precomputed `totalPaid` FIRST —
-      // so editing paidPrice (or qty) alone is a silent no-op on gain/ROI/Cost-Basis/tri-value
-      // PAID for any set carrying totalPaid (every BE import). reconcilePaidEdit re-derives the
-      // canonical (totalPaid + entries[].paid_price) so the edit actually moves and the paid
-      // provenance reclassifies (msrp → manual) for free.
-      if (field === "paidPrice" || field === "qty") {
-        Object.assign(rec, reconcilePaidEdit(rec));
-      }
-
-      next[index] = rec;
-      return next;
-    });
+    // A BE-set paid true-up must write the blob (the effect skips BE sets); manual sets persist via
+    // the effect — branch so there's no double-write. paidPrice↔averagePaid is the in-memory↔blob
+    // alias, so include both names: the one patch derives paidPrice from averagePaid on reload and
+    // updates state. (Other BE-set fields, incl. qty and condition, keep the in-memory path for now.)
+    if (cur.source === "BrickEconomy" && field === "paidPrice") {
+      const perUnit = asNumber(rec.paidPrice);
+      const patch = { paidPrice: perUnit, averagePaid: perUnit, totalPaid: rec.totalPaid };
+      if (Array.isArray(rec.entries)) patch.entries = rec.entries;
+      persistBESetEdit(cur.setNumber, patch);
+    } else {
+      setSets(prev => prev.map((s, i) => (i === index ? rec : s)));
+    }
   }
 
   function toggleChecked(index) {
