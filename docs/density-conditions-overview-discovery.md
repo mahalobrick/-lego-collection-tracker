@@ -87,9 +87,20 @@ richer per-copy UI must keep tolerating (or normalize once — see §3 caveat).
 > - `setConditionDisplay(set) → 'new'|'used'|'mixed'` — buckets each `entries[]` copy, then uniform → that bucket, new+used → mixed. Manual sets (no entries) are never mixed. Bucketing-before-compare means used-grade variance (`usedasnew`+`usedcomplete`) reads as uniform **Used**, never false-Mixed.
 > - `conditionDisplayLabel(display)` → New/Used/Mixed and `conditionDisplayColor(display)` (green / amber / **indigo `#6366f1`** for Mixed — fills the §3.4 color gap). These are **distinct from** formatting.js's granular `conditionLabel(raw)`/`conditionColor(raw)`, which still serve the per-copy panel.
 >
-> Still pending (later steps): wiring the column/filter/panel to these utils, an `entries[]`-aware
-> editor (replacing the destructive binary write, §3.4 #1), and the BE-ingest token cleanup. The
-> taxonomy recommendation that follows is kept for history but is **not** the plan of record.
+> **Step 2 (wired).** The set-level derivation (`MyCollection.jsx` ~173) now calls
+> `setConditionDisplay(set)` — one bucketed source. The **condition column** renders a New /
+> Used / **indigo Mixed** pill via `conditionDisplay{Color,Label}` (replacing the old
+> `isUsed = startsWith("used")` two-color logic that painted Mixed green-New); the dead shadowed
+> `renderOwnedCell` condition text branch was removed. **Sort** on condition uses
+> `setConditionDisplay` (New→Used→Mixed). The **SetDetailPanel per-copy badges** now route
+> through `conditionDisplay{Label,Color}`, so a `usedasnew` copy reads a clean "Used" (the raw-token
+> bug surfaced there too). Filter options inherit the bucketed values for free (now New/Used/Mixed).
+> Smoke (DOM-leaf, reversible seed): `usedasnew` → Used amber pill, a Mixed set → indigo Mixed pill
+> (not green-New), per-copy badges read New/Used with no raw token.
+>
+> Still pending (later steps): an `entries[]`-aware **editor** (the inline/panel condition write is
+> still binary New/Used and per-set only — §3.4 #1), and the BE-ingest token cleanup. The taxonomy
+> recommendation that follows is kept for history but is **not** the plan of record.
 
 ### What actually exists
 

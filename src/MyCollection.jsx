@@ -7,6 +7,7 @@ import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
 import TriValueCell from "./TriValueCell";
 import RowHoverCard from "./RowHoverCard";
 import { asNumber, money, setImageUrl, CONDITION_LABELS, conditionColor, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
+import { setConditionDisplay, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./utils/brickset";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
@@ -171,8 +172,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
         beItems = JSON.parse(brickEconomySaved).map(item => {
           const entries = item.entries || [];
-          const entryConditions = [...new Set(entries.map(e => e.condition).filter(Boolean))];
-          const condition = entryConditions.length === 1 ? entryConditions[0] : entryConditions.length > 1 ? "mixed" : null;
+          // One bucketed derivation (Phase 1): per-copy entries collapse to New / Used / Mixed.
+          const condition = setConditionDisplay(item);
           // Pull per-entry fields — same across copies for set attributes; pick latest acquired
           const acquiredDates = entries.map(e => e.aquired_date || e.acquired_date).filter(Boolean).sort();
 
@@ -1003,7 +1004,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     if (column.key === "setNumber") return <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{set.setNumber || "—"}</span>;
     if (column.key === "name") return set.name || "—";
     if (column.key === "theme") return set.theme || "—";
-    if (column.key === "condition") return set.condition ? (CONDITION_LABELS[set.condition] || set.condition) : "—";
     if (column.key === "qty") return qty;
     if (column.key === "value") {
       // Three-up (MSRP Step 2): Retail / Paid / Market in one compact cell.
@@ -1092,6 +1092,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       } else if (sortColumn === "gain") {
         // Null-aware: unknown-value sets (no computable gain) sort as 0. (unknown≠0 sweep)
         result = (setGain(a, valueMap) ?? 0) - (setGain(b, valueMap) ?? 0);
+      } else if (sortColumn === "condition") {
+        // New / Used / Mixed, consistent order — bucketed display, never raw tokens.
+        const rank = { new: 0, used: 1, mixed: 2 };
+        result = (rank[setConditionDisplay(a)] ?? 0) - (rank[setConditionDisplay(b)] ?? 0);
       } else if (sortColumn === "addedAt") {
         result = String(a.addedAt || "").localeCompare(String(b.addedAt || ""));
       } else {
@@ -2347,23 +2351,24 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                           );
                         }
 
-                        // Condition — double-click to edit (New / Used only)
+                        // Condition — New / Used / Mixed pill (double-click to edit)
                         if (col.key === "condition") {
                           const isEditing = inlineEdit?.index === index && inlineEdit?.key === "condition";
-                          const cond = set.condition || "new";
-                          const isUsed = String(cond).startsWith("used");
-                          const displayVal = isUsed ? "used" : "new";
-                          const color = isUsed ? "#f59e0b" : "#5aa832";
+                          const display = setConditionDisplay(set);            // 'new' | 'used' | 'mixed'
+                          const color = conditionDisplayColor(display);        // green / amber / indigo
+                          // Inline editor is still binary New/Used (the entries[]-aware edit is a later step).
+                          const editVal = display === "used" ? "used" : "new";
+                          const editColor = conditionDisplayColor(editVal);
                           if (isEditing) {
                             return (
                               <td key="condition" style={td} onClick={e => e.stopPropagation()}>
                                 <select
                                   autoFocus
-                                  value={displayVal}
+                                  value={editVal}
                                   onChange={e => { updateSet(index, "condition", e.target.value); setInlineEdit(null); }}
                                   onBlur={() => setInlineEdit(null)}
                                   onKeyDown={e => { if (e.key === "Escape") setInlineEdit(null); }}
-                                  style={{ background: `${color}18`, color, border: `1px solid ${color}50`, borderRadius: 10, padding: "2px 6px", fontSize: 11, fontWeight: 700, cursor: "pointer", outline: "none" }}
+                                  style={{ background: `${editColor}18`, color: editColor, border: `1px solid ${editColor}50`, borderRadius: 10, padding: "2px 6px", fontSize: 11, fontWeight: 700, cursor: "pointer", outline: "none" }}
                                 >
                                   <option value="new">New</option>
                                   <option value="used">Used</option>
@@ -2374,11 +2379,11 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                           return (
                             <td key="condition" style={{ ...td, cursor: "default" }}
                               onClick={e => e.stopPropagation()}
-                              onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ index, key: "condition", value: displayVal }); }}
+                              onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ index, key: "condition", value: editVal }); }}
                             >
                               <span style={{ background: `${color}18`, color, border: `1px solid ${color}50`, borderRadius: 10, padding: "2px 9px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 5 }}>
-                                {!isUsed && <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0, animation: "pulse-dot 2s ease-in-out infinite" }} />}
-                                {isUsed ? "Used" : "New"}
+                                {display === "new" && <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0, animation: "pulse-dot 2s ease-in-out infinite" }} />}
+                                {conditionDisplayLabel(display)}
                               </span>
                             </td>
                           );

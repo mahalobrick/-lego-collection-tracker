@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { asNumber, money, setImageUrl, conditionLabel, conditionColor, daysUntilRetirement } from "./utils/formatting";
+import { asNumber, money, setImageUrl, daysUntilRetirement } from "./utils/formatting";
+import { conditionDisplayLabel, conditionDisplayColor } from "./utils/condition";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { setValueProvenance, setGain, setROI, copyValueProvenance, setRetailProvenance } from "./utils/portfolio";
 import { formatValueCell, formatValue, valueConfidence, lotsLabel, retailTooltip } from "./utils/valueDisplay";
@@ -246,14 +247,15 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
                 const val = entryProv.amount;
                 const g = val === null ? null : val - paid;
                 const r = (val === null || paid <= 0) ? null : (g / paid) * 100;
-                const cond = conditionLabel(entry.condition);
+                // Bucketed per-copy badge: clean New / Used, never a raw token (usedasnew → "Used").
+                const cond = entry.condition ? conditionDisplayLabel(entry.condition) : null;
                 const acquired = shortDate(entry.aquired_date || entry.acquired_date);
                 return (
                   <div key={i} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 14px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         {cond && (
-                          <span style={{ background: "#0b1520", border: `1px solid ${conditionColor(entry.condition)}`, color: conditionColor(entry.condition), borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>
+                          <span style={{ background: "#0b1520", border: `1px solid ${conditionDisplayColor(entry.condition)}`, color: conditionDisplayColor(entry.condition), borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>
                             {cond}
                           </span>
                         )}
