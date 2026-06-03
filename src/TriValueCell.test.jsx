@@ -114,13 +114,16 @@ describe("TriValueCell — compact density (Market only; pins pre-Step-2 cell)",
   });
 });
 
-describe("TriValueCell — PAID-line provenance marker (DOM-leaf)", () => {
+describe("TriValueCell — PAID line shows NO provenance marker (row markers removed)", () => {
   const noMarket = { amount: null, basis: "unknown" };
 
-  it("MSRP-placeholder paid → quiet 'MSRP?' marker + tooltip", () => {
+  it("MSRP-placeholder paid → figure only, NO marker, no tooltip", () => {
+    // Even with an msrp paidProv (the placeholder source that used to draw "MSRP?"),
+    // the PAID row now shows the bare figure — markers live only in the Overview disclosure.
     const { paid } = render({ retail: null, paid: 99.99, paidProv: { amount: 99.99, source: "msrp" }, market: noMarket });
-    expect(paid.textContent).toBe(`${money(99.99)}MSRP?`);
-    expect(paid.closest("[title]").getAttribute("title")).toBe("estimated at retail, no purchase record");
+    expect(paid.textContent).toBe(money(99.99));
+    expect(paid.querySelector("span")).toBeNull(); // no badge span
+    expect(paid.closest("[title]")).toBeNull();    // no MSRP tooltip on the row
   });
 
   it("real paid (ledger / manual) → figure only, NO marker", () => {
@@ -131,8 +134,9 @@ describe("TriValueCell — PAID-line provenance marker (DOM-leaf)", () => {
     }
   });
 
-  it("no paidProv passed → no marker (backward compatible)", () => {
+  it("no paidProv passed → figure only", () => {
     const { paid } = render({ retail: null, paid: 50, market: noMarket });
     expect(paid.textContent).toBe(money(50));
+    expect(paid.querySelector("span")).toBeNull();
   });
 });

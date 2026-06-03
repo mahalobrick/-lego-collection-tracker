@@ -12,7 +12,7 @@ import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./util
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition } from "./utils/beSyncValues";
-import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, setCost, totalSpent, portfolioGain, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, setPaidProvenance, costBasisBreakdown, reconcilePaidEdit } from "./utils/portfolio";
+import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, setCost, totalSpent, portfolioGain, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit } from "./utils/portfolio";
 import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, estimatedValueNote, estimatedCostNote, totalRoiNote } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { apiFetch } from "./utils/apiFetch";
@@ -1010,9 +1010,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       //   Retail → setRetailProvenance (Brickset canonical, BE deprecated fallback, "—" when none)
       //   Paid   → setCost; $0 / unrecorded → null → "—" (a genuine GWP $0 is indistinguishable here)
       //   Market → setValueProvenance (the prior cell's value — pinned by TriValueCell's Market line)
-      //   paidProv → setPaidProvenance drives the PAID line's "MSRP?" marker (Step 2)
       const cost = setCost(set);
-      return <TriValueCell density={rowDensity} retail={retailFor(set)} paid={cost > 0 ? cost : null} paidProv={setPaidProvenance(set, purchaseMap)} market={setValueProvenance(set, valueMap)} />;
+      return <TriValueCell density={rowDensity} retail={retailFor(set)} paid={cost > 0 ? cost : null} market={setValueProvenance(set, valueMap)} />;
     }
     if (column.key === "gain") return gain === null ? "—" : money(gain);
     if (column.key === "roi") return roi !== null ? `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%` : "—";

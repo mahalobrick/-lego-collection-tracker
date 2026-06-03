@@ -1,4 +1,4 @@
-import { formatValue, formatValueCell, retailTooltip, valueConfidence, paidConfidence } from "./utils/valueDisplay";
+import { formatValue, formatValueCell, retailTooltip, valueConfidence } from "./utils/valueDisplay";
 import { confidenceBadge } from "./uiStyles";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,10 +31,9 @@ const rowStyle = { display: "flex", justifyContent: "space-between", alignItems:
 const dimFigure = { color: "#8a9bb0", fontWeight: 600 };
 const marketFigure = { color: "#e8e2d5", fontWeight: 800 };
 
-export default function TriValueCell({ retail, paid, paidProv, market, density = "full" }) {
+export default function TriValueCell({ retail, paid, market, density = "full" }) {
   const conf = valueConfidence(market);
   const marketTip = conf?.tooltip || retailTooltip(market) || undefined;
-  const paidConf = paidConfidence(paidProv); // quiet "MSRP?" when paid is a retail placeholder
 
   const marketFigureEl = (
     <>
@@ -66,11 +65,10 @@ export default function TriValueCell({ retail, paid, paidProv, market, density =
           )}
         </span>
       </div>
-      <div style={rowStyle} title={paidConf?.tooltip || undefined}>
+      <div style={rowStyle}>
         <span style={labelStyle}>Paid</span>
         <span style={dimFigure} data-testid="tri-paid">
           {formatValue(paid)}
-          {paidConf && <span style={confidenceBadge}>{paidConf.marker}</span>}
         </span>
       </div>
       <div style={rowStyle} title={marketTip}>
