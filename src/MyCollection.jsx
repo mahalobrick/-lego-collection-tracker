@@ -12,8 +12,8 @@ import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-cl
 import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./utils/brickset";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
-import { beValueForCondition } from "./utils/beSyncValues";
-import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, setCost, totalSpent, portfolioGain, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit } from "./utils/portfolio";
+import { beValueForCondition, beValueForSet } from "./utils/beSyncValues";
+import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, setCost, totalSpent, portfolioGain, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
 import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, estimatedValueNote, estimatedCostNote, totalRoiNote } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { apiFetch } from "./utils/apiFetch";
@@ -1120,6 +1120,22 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     setSets(prev => prev.map(s => (s.setNumber === setNumber && s.source === "BrickEconomy" ? { ...s, ...patch } : s)));
   }
 
+  // Re-value a BE set from the cached BrickEconomy figures — each copy at its OWN (now-edited)
+  // condition, mirroring beSyncValues' applyCache. Returns { currentValue, totalValue } or null
+  // when the cache has no figure for this set (→ caller leaves value to the next value-sync, which
+  // preserves entries[] and re-values). currentValue is the per-copy average so currentValue × qty
+  // == totalValue.
+  function revalueFromCache(s) {
+    let cache = {};
+    try { cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}"); } catch { /* no cache */ }
+    const d = cache[String(s.setNumber || "").replace(/-1$/, "")]?.data;
+    if (!d) return null;
+    const total = beValueForSet(d, s);
+    if (!total) return null;
+    const qty = asNumber(s.qty) || asNumber(s.quantity) || 1;
+    return { currentValue: total / qty, totalValue: total };
+  }
+
   function updateSet(index, field, value) {
     const cur = sets[index];
     if (!cur) return;
@@ -1132,15 +1148,24 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     const rec = { ...cur, [field]: coerced };
     if (field === "paidPrice" || field === "qty") Object.assign(rec, reconcilePaidEdit(rec));
 
-    // A BE-set paid true-up must write the blob (the effect skips BE sets); manual sets persist via
-    // the effect — branch so there's no double-write. paidPrice↔averagePaid is the in-memory↔blob
-    // alias, so include both names: the one patch derives paidPrice from averagePaid on reload and
-    // updates state. (Other BE-set fields, incl. qty and condition, keep the in-memory path for now.)
+    // BE sets are excluded from the blOwnedSets effect, so blob-relevant edits must persist via the
+    // blob (persistBESetEdit auto-pushes); manual sets persist via the effect — branch so there's no
+    // double-write.
     if (cur.source === "BrickEconomy" && field === "paidPrice") {
+      // paidPrice↔averagePaid is the in-memory↔blob alias, so include both names: the one patch
+      // derives paidPrice from averagePaid on reload and updates state.
       const perUnit = asNumber(rec.paidPrice);
       const patch = { paidPrice: perUnit, averagePaid: perUnit, totalPaid: rec.totalPaid };
       if (Array.isArray(rec.entries)) patch.entries = rec.entries;
       persistBESetEdit(cur.setNumber, patch);
+    } else if (cur.source === "BrickEconomy" && field === "condition") {
+      // Bulk: every copy → the chosen bucket. reconcileConditionEdit rewrites entries[].condition;
+      // condition drives value (new vs used), so re-value immediately (from the BE cache) so
+      // gain/ROI/tri-value move at edit time. entries[].condition shares its name across both shapes.
+      const condPatch = reconcileConditionEdit(cur, value); // { entries: all := bucket }
+      const edited = { ...cur, ...condPatch, condition: value };
+      const rev = revalueFromCache(edited); // { currentValue, totalValue } | null (→ next value-sync)
+      persistBESetEdit(cur.setNumber, { ...condPatch, condition: value, ...(rev || {}) });
     } else {
       setSets(prev => prev.map((s, i) => (i === index ? rec : s)));
     }

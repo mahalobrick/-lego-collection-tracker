@@ -137,8 +137,18 @@ richer per-copy UI must keep tolerating (or normalize once — see §3 caveat).
 > Guard test (`conditionEdit.test.js`): per-copy edit → `entries[]` updated + `setConditionDisplay` →
 > mixed, and the blob projection's `dedupHash` flips (proves it would push). **Reload smoke (incognito
 > prod build):** edited a BE set's paid 100→200, reloaded — blob persisted (`averagePaid 200`,
-> `totalPaid 400`), Cost Basis `$400`. Still pending: wire the New/Used + per-copy condition editor to
-> `reconcileConditionEdit` + `persistBESetEdit` (Step 2), and the BE-ingest token cleanup.
+> `totalPaid 400`), Cost Basis `$400`.
+>
+> **Phase 2, Step 2 (bulk condition editing).** The inline-column select and side-panel New/Used toggle
+> now persist for BE sets: `updateSet(i,"condition",bucket)` routes BE sets through
+> `reconcileConditionEdit(set, bucket)` (all `entries[].condition := bucket`) → `persistBESetEdit`.
+> Value is recomputed **immediately** from the BE cache (`revalueFromCache` → `beValueForSet`, mirroring
+> `applyCache`) and included in the patch, so gain/ROI/tri-value move at edit time; if the cache has no
+> figure it falls back to the next value-sync. Manual sets keep the `blOwnedSets` path (their condition
+> already persists) — branched, no double-write. Reload smoke (incognito prod build), BOTH surfaces +
+> BOTH directions: side-panel New→Used → reload → `entries:[used,used]`, value 320→200, "Used" pill;
+> inline-column Used→New → reload → `entries:[new,new]`, value→320, "New" pill. Still pending: per-copy
+> condition editing (move one copy → Mixed) and the BE-ingest token cleanup.
 
 ### What actually exists
 
