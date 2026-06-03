@@ -47,3 +47,6 @@ Thumbs.db
 # Vercel
 .vercel/
 .env*
+
+# Local data exports & full-collection backups — NEVER commit (private collection + cloud Upstash blob)
+outputs/
