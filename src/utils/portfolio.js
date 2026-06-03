@@ -330,6 +330,88 @@ export function totalSpent(sets) {
   return sets.reduce((sum, s) => sum + setCost(s), 0);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Paid provenance (Provenance Step 1). The PAID analog of setValueProvenance:
+// a read-time, null-aware projection that says WHERE a set's cost basis comes
+// from. Derived, never persisted — same discipline as the value layer.
+//
+//   amount = setCost(s)  — wraps the bare per-set paid reader (the rawSetValue analog).
+//   source one of:
+//     'ledger' — the set's BASE number has a matching budget/BL purchase (real, receipt-backed).
+//                Joined on the base number (strip the -N variant) so every CMF figure (71052-5)
+//                matches its series purchase (71052).
+//     'manual' — no purchase, and paid ≠ retail → a real cost entered without a receipt.
+//     'msrp'   — no purchase, and paid == retail → a BrickEconomy import default, NOT real money.
+//     'none'   — no paid at all (cost ≤ 0).
+//
+// paid-vs-retail is compared in CENTS because the stored retail carries float noise
+// (e.g. retailPrice 59.9899999…). Unknown retail (≤ 0) can't equal a positive paid, so
+// it falls to 'manual' — there is no separate unknown-retail bucket (mirrors the 4-bucket
+// model in docs/density-conditions-overview-discovery.md §2). No display wiring here.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Base (variant-stripped) set number for the ledger join: "71052-5" → "71052". */
+const baseSetNumber = (n) => String(n ?? "").replace(/-\d+$/, "");
+
+/**
+ * Index purchases by base set number for the ledger join — first occurrence wins.
+ * The base strip lets a single CMF series purchase (e.g. "71052") match every owned
+ * figure of that series ("71052-1" … "71052-12").
+ *
+ * @param {Array<Object>} purchases  budget/BL purchase records (blPurchases / budgetPurchases).
+ * @returns {Map<string, Object>}    base number → purchase.
+ */
+export function buildPurchaseMap(purchases) {
+  const map = new Map();
+  for (const p of purchases || []) {
+    const base = baseSetNumber(p.setNumber);
+    if (base && !map.has(base)) map.set(base, p);
+  }
+  return map;
+}
+
+// Cents rounding — the float-noise-proof comparison unit for paid vs retail.
+const paidCents = (n) => Math.round(asNumber(n) * 100);
+
+/**
+ * Does this set's paid equal its retail (the BrickEconomy MSRP-default signature)?
+ * True when total paid == total retail OR per-unit paid == unit retail, compared in
+ * cents. A set with unknown retail (≤ 0) returns false (→ classified 'manual').
+ *
+ * @param {Object} s
+ * @returns {boolean}
+ */
+function paidEqualsRetail(s) {
+  const paidTotal = setCost(s);
+  const retailTotal = asNumber(s.totalRetailPrice);
+  if (retailTotal > 0 && paidCents(paidTotal) === paidCents(retailTotal)) return true;
+  const retailUnit = asNumber(s.retailPrice);
+  if (retailUnit > 0) {
+    const ents = (s.entries || []).map((e) => asNumber(e.paid_price)).filter((x) => x > 0);
+    const qty = asNumber(s.qty) || asNumber(s.quantity) || (s.entries || []).length || 1;
+    const unitPaid = ents.length ? ents[0] : paidTotal / qty;
+    if (paidCents(unitPaid) === paidCents(retailUnit)) return true;
+  }
+  return false;
+}
+
+/**
+ * Read-time paid (cost-basis) provenance for a set — the PAID analog of
+ * {@link setValueProvenance}. Single coalescing point: every consumer reads `.source`
+ * from here rather than re-deriving the ledger join or the paid==retail test. Pure,
+ * null-aware (cost ≤ 0 → 'none'), nothing persisted.
+ *
+ * @param {Object} s
+ * @param {Map<string, Object>} [purchaseMap]  from {@link buildPurchaseMap}; omitted → no set is 'ledger'.
+ * @returns {{ amount: number, source: 'ledger'|'manual'|'msrp'|'none' }}
+ */
+export function setPaidProvenance(s, purchaseMap) {
+  const amount = setCost(s);
+  if (!(amount > 0)) return { amount, source: "none" };
+  if (purchaseMap && purchaseMap.has(baseSetNumber(s.setNumber))) return { amount, source: "ledger" };
+  return { amount, source: paidEqualsRetail(s) ? "msrp" : "manual" };
+}
+
 /**
  * Combined net gain — Σ(value − cost) over sets whose value is KNOWN. A $0-cost
  * set with a known value contributes its full value as gain. Unknown-value sets

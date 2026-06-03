@@ -132,6 +132,20 @@ export function valueConfidence(value) {
 }
 
 /**
+ * Confidence marker for a PAID (cost-basis) cell — the paid analog of {@link valueConfidence}.
+ * Only an 'msrp' provenance (paid defaulted to retail, no purchase record) carries a quiet
+ * marker so a placeholder cost reads as estimated, not entered. 'ledger' / 'manual' / 'none'
+ * get none (a real or absent paid needs no caveat). Pure — marker text + tooltip only.
+ *
+ * @param {{source?: string}} prov  from {@link import("./portfolio").setPaidProvenance}.
+ * @returns {{marker: string, tooltip: string}|null}
+ */
+export function paidConfidence(prov) {
+  if (!prov || prov.source !== "msrp") return null;
+  return { marker: "MSRP?", tooltip: "estimated at retail, no purchase record" };
+}
+
+/**
  * How a value's `lots` should be READ, per basis: sold/sold_thin are completed SALES; modeled is
  * derived from the new sold price (NOT a sales count, so no number is surfaced); asking is current
  * LISTINGS. Returns null when there's nothing meaningful to label.
