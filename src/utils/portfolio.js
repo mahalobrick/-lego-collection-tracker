@@ -51,8 +51,11 @@ function rawSetValue(s) {
 // decision.md §3 the cache is condition-matched: a new copy reads `.new`, a used copy `.used`.
 
 const BL_SOURCE = "bricklink";
-// One source of truth for the new/used split — delegates to the condition normalizer.
-const blCondition = conditionBucket;
+// One source of truth for the new/used split. Call-time delegation (not an eval-time
+// `= conditionBucket` binding) so it's immune to module import order — it dereferences
+// conditionBucket only when invoked, long after all modules have initialized. Behavior-
+// identical, and stays correct even if condition.js ever gains an import that forms a cycle.
+const blCondition = (raw) => conditionBucket(raw);
 
 /**
  * The set's per-copy value groups: one entry per owned copy (BE sets carry `entries[]`, each a copy
