@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { searchInput, filterSelect, clearFilterButton, filterBar } from "./uiStyles";
+import { searchInput, filterSelect, clearFilterButton, filterBar, confidenceBadge } from "./uiStyles";
 import { DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, AreaChart, Area, CartesianGrid } from "recharts";
 import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
@@ -12,8 +12,8 @@ import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./util
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition } from "./utils/beSyncValues";
-import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, setCost, totalSpent, portfolioGain, portfolioROI, roiExcludedCount, setROI, setGain, groupRollup, estimatedValueShare } from "./utils/portfolio";
-import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, roiExclusionNote, estimatedValueNote } from "./utils/valueDisplay";
+import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, setCost, totalSpent, portfolioGain, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, setPaidProvenance, costBasisBreakdown, realCostROI } from "./utils/portfolio";
+import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, estimatedValueNote, estimatedCostNote, realRoiScopeNote, paidConfidence } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
@@ -190,6 +190,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             currentValue: item.totalValue,
             totalPaid:    item.totalPaid,
             totalValue:   item.totalValue,
+            // Carry retail through so setPaidProvenance can test paid-vs-retail (msrp classification)
+            // and the Retail Value card reads a real figure rather than undefined. (Provenance Step 2)
+            retailPrice:      item.retailPrice,
+            totalRetailPrice: item.totalRetailPrice,
             roiPct:       item.roiPct,
             retired:      item.retired,
             condition,
@@ -231,6 +235,15 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   const [blPriceCache] = useState(() => {
     try { return JSON.parse(localStorage.getItem("blPriceGuideCache") || "{}"); } catch { return {}; }
   });
+
+  // ── Purchase ledger → paid provenance (Provenance Step 2) ──────────────────
+  // Read blPurchases once; buildPurchaseMap indexes by base set-number so a CMF series
+  // purchase joins every owned figure. Drives setPaidProvenance (ledger/manual/msrp/none)
+  // for the Cost Basis split, real-cost ROI, and the row "MSRP?" markers.
+  const [purchases] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("blPurchases") || "[]"); } catch { return []; }
+  });
+  const purchaseMap = useMemo(() => buildPurchaseMap(purchases), [purchases]);
 
   // ── Retail (MSRP) source caches — read once, same caches SetDetailPanel reads ──
   // Brickset is keyed `brickset_${n}` (canonical); BrickEconomy by bare set number
@@ -461,6 +474,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     // Prefer pre-computed totals for BE items (totalValue/totalPaid already account for qty).
     // Fall back to per-unit × qty for manually added sets that don't have those fields.
     const costBasis = totalSpent(sets);
+    // Cost-basis split by paid provenance (Step 2): headline real spend (ledger + manual),
+    // disclose the MSRP-default placeholder portion. ROI computed on the real-cost subset only.
+    const costSplit = costBasisBreakdown(sets, purchaseMap);
+    const realRoi = realCostROI(sets, valueMap, purchaseMap);
     const value = portfolioValue(sets, valueMap);
     const themes = new Set(sets.map(s => s.theme).filter(Boolean)).size;
     const duplicates = sets.filter(s => (asNumber(s.qty) || 1) > 1).length;
@@ -502,15 +519,17 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       retiredSets, newSets, usedSets, avgValue, avgPaid,
       pieces, retailValue, retailValueKnown, minifigs, newEntries, usedEntries,
       newSetsValue, usedSetsValue, newValueKnown, usedValueKnown,
-      // Gain over value-known sets; % ROI over {value known, cost > 0} only (null
-      // when none qualify → "—"). roiExcluded drives the exclusion note. (V2 cleanup)
+      // Paid-provenance split (Step 2): realCost/realCount headline; msrpCost/msrpCount disclosed.
+      realCost: costSplit.realCost, realCount: costSplit.realCount,
+      msrpCost: costSplit.msrpCost, msrpCount: costSplit.msrpCount,
+      // Gain over value-known sets; % ROI now over the REAL-COST subset only (real market
+      // vs real cost — MSRP-placeholder cost excluded; null when none qualify → "—").
       gainLoss: portfolioGain(sets, valueMap),
-      roi: portfolioROI(sets, valueMap),
-      roiExcluded: roiExcludedCount(sets, valueMap),
+      realRoi,
       // Quiet disclosure: share of value that is estimated (modeled + asking). (Step 3)
       estimatedShare: estimatedValueShare(sets, valueMap)
     };
-  }, [sets, valueMap]);
+  }, [sets, valueMap, purchaseMap]);
 
   const themeChartData = useMemo(() => {
     // groupRollup sums KNOWN values per theme (unknown excluded, not counted as $0).
@@ -985,14 +1004,15 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     if (column.key === "theme") return set.theme || "—";
     if (column.key === "condition") return set.condition ? (CONDITION_LABELS[set.condition] || set.condition) : "—";
     if (column.key === "qty") return qty;
-    if (column.key === "paid") return money(paid);
+    if (column.key === "paid") return money(paid); // standalone paid column is special-cased in the table body (inline-edit + MSRP? marker)
     if (column.key === "value") {
       // Three-up (MSRP Step 2): Retail / Paid / Market in one compact cell.
       //   Retail → setRetailProvenance (Brickset canonical, BE deprecated fallback, "—" when none)
       //   Paid   → setCost; $0 / unrecorded → null → "—" (a genuine GWP $0 is indistinguishable here)
       //   Market → setValueProvenance (the prior cell's value — pinned by TriValueCell's Market line)
+      //   paidProv → setPaidProvenance drives the PAID line's "MSRP?" marker (Step 2)
       const cost = setCost(set);
-      return <TriValueCell density={rowDensity} retail={retailFor(set)} paid={cost > 0 ? cost : null} market={setValueProvenance(set, valueMap)} />;
+      return <TriValueCell density={rowDensity} retail={retailFor(set)} paid={cost > 0 ? cost : null} paidProv={setPaidProvenance(set, purchaseMap)} market={setValueProvenance(set, valueMap)} />;
     }
     if (column.key === "gain") return gain === null ? "—" : money(gain);
     if (column.key === "roi") return roi !== null ? `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%` : "—";
@@ -1243,9 +1263,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                   >
                     {item.key === "qty"          ? <Card title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} /> :
                      item.key === "value"        ? <Card title="Collection Value" value={fmtAgg(stats.value, stats.valuedSets)} sub={valuesReady ? [unknownValueNote(stats.valuedSets, sets.length), estimatedValueNote(stats.estimatedShare)].filter(Boolean).join(" · ") || null : null} /> :
-                     item.key === "cost"         ? <Card title="Cost Basis"       value={money(stats.costBasis)} /> :
+                     item.key === "cost"         ? <Card title="Cost Basis"       value={fmtAgg(stats.realCost, stats.realCount)} sub={estimatedCostNote(stats.msrpCount, stats.msrpCost)} /> :
                      item.key === "gain"         ? <Card title="Net Gain / Loss"  value={fmtAgg(stats.gainLoss, stats.valuedSets)} good={stats.valuedSets > 0 ? stats.gainLoss >= 0 : undefined} /> :
-                     item.key === "roi"          ? <Card title="ROI"              value={!valuesReady ? "…" : stats.roi === null ? "—" : `${stats.roi.toFixed(1)}%`} good={stats.roi === null ? undefined : stats.roi >= 0} sub={roiExclusionNote(stats.roiExcluded)} /> :
+                     item.key === "roi"          ? <Card title="ROI"              value={!valuesReady ? "…" : stats.realRoi === null ? "—" : `${stats.realRoi.toFixed(1)}%`} good={stats.realRoi === null ? undefined : stats.realRoi >= 0} sub={realRoiScopeNote(stats.msrpCount)} /> :
                      item.key === "themes"       ? <Card title="Themes"           value={stats.themes} /> :
                      item.key === "duplicates"   ? <Card title="Multi-Copy Sets"  value={stats.duplicates} /> :
                      item.key === "retired"      ? <Card title="Retired Sets"     value={stats.retiredSets} sub={sets.length ? `${((stats.retiredSets / sets.length) * 100).toFixed(1)}% of unique sets` : null} /> :
@@ -2397,6 +2417,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         if (col.key === "paid") {
                           const isEditing = inlineEdit?.index === index && inlineEdit?.key === "paid";
                           const paid = asNumber(set.paidPrice);
+                          // Quiet "MSRP?" when the cost basis is a retail placeholder (no purchase record).
+                          const paidConf = paidConfidence(setPaidProvenance(set, purchaseMap));
                           if (isEditing) {
                             return (
                               <td key="paid" style={tdRight} onClick={e => e.stopPropagation()}>
@@ -2419,10 +2441,12 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                           }
                           return (
                             <td key="paid" style={{ ...tdRight, cursor: "default" }}
+                              title={paidConf?.tooltip || undefined}
                               onClick={e => e.stopPropagation()}
                               onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ index, key: "paid", value: paid ? String(paid) : "" }); }}
                             >
                               {paid ? money(paid * (asNumber(set.qty) || 1)) : "—"}
+                              {paidConf && <span style={confidenceBadge}>{paidConf.marker}</span>}
                             </td>
                           );
                         }

@@ -113,3 +113,26 @@ describe("TriValueCell — compact density (Market only; pins pre-Step-2 cell)",
     expect(m.getAttribute("title")).toBeNull();
   });
 });
+
+describe("TriValueCell — PAID-line provenance marker (DOM-leaf)", () => {
+  const noMarket = { amount: null, basis: "unknown" };
+
+  it("MSRP-placeholder paid → quiet 'MSRP?' marker + tooltip", () => {
+    const { paid } = render({ retail: null, paid: 99.99, paidProv: { amount: 99.99, source: "msrp" }, market: noMarket });
+    expect(paid.textContent).toBe(`${money(99.99)}MSRP?`);
+    expect(paid.closest("[title]").getAttribute("title")).toBe("estimated at retail, no purchase record");
+  });
+
+  it("real paid (ledger / manual) → figure only, NO marker", () => {
+    for (const source of ["ledger", "manual"]) {
+      const { paid } = render({ retail: null, paid: 50, paidProv: { amount: 50, source }, market: noMarket });
+      expect(paid.textContent).toBe(money(50));
+      expect(paid.querySelector("span")).toBeNull(); // no badge span
+    }
+  });
+
+  it("no paidProv passed → no marker (backward compatible)", () => {
+    const { paid } = render({ retail: null, paid: 50, market: noMarket });
+    expect(paid.textContent).toBe(money(50));
+  });
+});

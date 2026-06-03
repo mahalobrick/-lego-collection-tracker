@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { buildPurchaseMap, setPaidProvenance } from "./portfolio";
-import { paidConfidence } from "./valueDisplay";
+import { buildPurchaseMap, setPaidProvenance, costBasisBreakdown, realCostROI } from "./portfolio";
+import { paidConfidence, estimatedCostNote, realRoiScopeNote } from "./valueDisplay";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Provenance Step 1 — setPaidProvenance / paidConfidence, the PAID analog of
@@ -97,6 +97,57 @@ describe("paidConfidence — mirrors valueConfidence", () => {
   it("ledger / manual / none / null → no marker", () => {
     for (const source of ["ledger", "manual", "none"]) expect(paidConfidence({ source })).toBeNull();
     expect(paidConfidence(null)).toBeNull();
+  });
+});
+
+describe("costBasisBreakdown — Overview split (real vs MSRP-estimated)", () => {
+  const map = buildPurchaseMap([{ setNumber: "75192" }]);
+  const sets = [
+    { setNumber: "75192-1", totalPaid: 753.42, retailPrice: 849.99, totalRetailPrice: 849.99 }, // ledger (real)
+    { setNumber: "10698-1", totalPaid: 82.8, retailPrice: 59.99, totalRetailPrice: 299.95, quantity: 5 }, // manual (real)
+    { setNumber: "7498-1", totalPaid: 99.99, retailPrice: 99.99, totalRetailPrice: 99.99 }, // msrp
+    { setNumber: "40272-1", totalPaid: 9.99, retailPrice: 9.99, totalRetailPrice: 9.99 }, // msrp
+    { setNumber: "30700-1", totalPaid: 0, retailPrice: 4.99, totalRetailPrice: 4.99 }, // none
+  ];
+
+  it("headline real cost = ledger+manual; msrp + none disclosed separately; counts partition", () => {
+    const b = costBasisBreakdown(sets, map);
+    expect(b.realCount).toBe(2);
+    expect(b.msrpCount).toBe(2);
+    expect(b.noneCount).toBe(1);
+    expect(b.realCost).toBeCloseTo(753.42 + 82.8, 2);
+    expect(b.msrpCost).toBeCloseTo(99.99 + 9.99, 2);
+    expect(b.totalCost).toBeCloseTo(b.realCost + b.msrpCost, 2);
+    expect(b.realCount + b.msrpCount + b.noneCount).toBe(sets.length); // partition
+  });
+});
+
+describe("realCostROI — real market vs real cost only", () => {
+  const map = buildPurchaseMap([{ setNumber: "75192" }]);
+
+  it("computes on the real-cost subset; MSRP-placeholder cost is excluded", () => {
+    const sets = [
+      { setNumber: "75192-1", totalPaid: 100, retailPrice: 849.99, totalRetailPrice: 849.99, totalValue: 150 }, // ledger: (150-100)/100 = 50%
+      { setNumber: "7498-1", totalPaid: 99.99, retailPrice: 99.99, totalRetailPrice: 99.99, totalValue: 9999 }, // msrp → excluded (would skew ROI)
+    ];
+    expect(realCostROI(sets, undefined, map)).toBeCloseTo(50, 5);
+  });
+
+  it("null when no real-cost set qualifies (all MSRP / no value)", () => {
+    const sets = [{ setNumber: "7498-1", totalPaid: 99.99, retailPrice: 99.99, totalRetailPrice: 99.99, totalValue: 200 }];
+    expect(realCostROI(sets, undefined, map)).toBeNull();
+  });
+});
+
+describe("Overview disclosure notes", () => {
+  it("estimatedCostNote: count + amount; null when none", () => {
+    expect(estimatedCostNote(431, 12345.6)).toMatch(/^431 sets estimated at MSRP \(/);
+    expect(estimatedCostNote(1, 9.99)).toMatch(/^1 set estimated at MSRP/);
+    expect(estimatedCostNote(0, 0)).toBeNull();
+  });
+  it("realRoiScopeNote: states scope + excluded count", () => {
+    expect(realRoiScopeNote(431)).toBe("vs real cost · excludes 431 estimated at MSRP");
+    expect(realRoiScopeNote(0)).toBe("vs real cost");
   });
 });
 

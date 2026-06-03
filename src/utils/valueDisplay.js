@@ -132,6 +132,32 @@ export function valueConfidence(value) {
 }
 
 /**
+ * Disclosure for the MSRP-estimated portion of the cost basis: "N sets estimated at MSRP ($X)".
+ * The cost-side twin of {@link estimatedValueNote} — surfaces how much of the headline-excluded
+ * cost is a retail placeholder. Returns null when none (count 0) so the caller omits it.
+ *
+ * @param {number} msrpCount  sets whose paid is an MSRP default (no purchase record).
+ * @param {number} msrpCost   summed placeholder dollars.
+ * @returns {string|null}
+ */
+export function estimatedCostNote(msrpCount, msrpCost) {
+  if (!msrpCount || msrpCount <= 0) return null;
+  return `${msrpCount} set${msrpCount === 1 ? "" : "s"} estimated at MSRP (${money(msrpCost)})`;
+}
+
+/**
+ * Scope label for the real-cost ROI: states it's real-market-vs-real-cost and how many sets are
+ * excluded because their cost is an MSRP placeholder (ROI against a retail default is meaningless).
+ * Always returns a string (the scope is always worth stating).
+ *
+ * @param {number} msrpCount  sets excluded from the ROI for being MSRP-estimated.
+ * @returns {string}
+ */
+export function realRoiScopeNote(msrpCount) {
+  return !msrpCount || msrpCount <= 0 ? "vs real cost" : `vs real cost · excludes ${msrpCount} estimated at MSRP`;
+}
+
+/**
  * Confidence marker for a PAID (cost-basis) cell — the paid analog of {@link valueConfidence}.
  * Only an 'msrp' provenance (paid defaulted to retail, no purchase record) carries a quiet
  * marker so a placeholder cost reads as estimated, not entered. 'ledger' / 'manual' / 'none'

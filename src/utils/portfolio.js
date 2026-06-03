@@ -413,6 +413,52 @@ export function setPaidProvenance(s, purchaseMap) {
 }
 
 /**
+ * Cost-basis split by paid provenance — the PAID analog of {@link portfolioValue} +
+ * {@link knownValueCount}. `realCost` (ledger + manual) is money actually spent — the
+ * figure to headline; `msrpCost` is the BrickEconomy MSRP-default placeholder portion to
+ * DISCLOSE, not headline (it isn't real spend). `noneCount` = sets with no paid. One pass,
+ * read-time, nothing persisted.
+ *
+ * @param {Array<Object>} sets
+ * @param {Map<string, Object>} [purchaseMap]  from {@link buildPurchaseMap}.
+ * @returns {{ realCost:number, realCount:number, msrpCost:number, msrpCount:number, noneCount:number, totalCost:number }}
+ */
+export function costBasisBreakdown(sets, purchaseMap) {
+  let realCost = 0, realCount = 0, msrpCost = 0, msrpCount = 0, noneCount = 0;
+  for (const s of sets) {
+    const { amount, source } = setPaidProvenance(s, purchaseMap);
+    if (source === "ledger" || source === "manual") { realCost += amount; realCount++; }
+    else if (source === "msrp") { msrpCost += amount; msrpCount++; }
+    else noneCount++; // 'none' — no paid
+  }
+  return { realCost, realCount, msrpCost, msrpCount, noneCount, totalCost: realCost + msrpCost };
+}
+
+/**
+ * Portfolio % ROI over the KNOWN-REAL subset only — real market value vs real cost:
+ * sets whose paid is 'ledger'/'manual' (real spend, cost > 0) AND whose value is known.
+ * MSRP-placeholder cost is EXCLUDED — an ROI against a retail-default basis is meaningless.
+ * Returns `null` when none qualify (UI reads "—"). The paid analog scoping of
+ * {@link portfolioROI}.
+ *
+ * @param {Array<Object>} sets
+ * @param {Object} [valueMap]
+ * @param {Map<string, Object>} [purchaseMap]
+ * @returns {number|null}
+ */
+export function realCostROI(sets, valueMap, purchaseMap) {
+  let value = 0, cost = 0, n = 0;
+  for (const s of sets) {
+    const prov = setPaidProvenance(s, purchaseMap);
+    if ((prov.source !== "ledger" && prov.source !== "manual") || prov.amount <= 0) continue;
+    const amount = setValueProvenance(s, valueMap).amount;
+    if (amount === null) continue; // value must be known — real market vs real cost
+    value += amount; cost += prov.amount; n++;
+  }
+  return n === 0 || cost <= 0 ? null : ((value - cost) / cost) * 100;
+}
+
+/**
  * Combined net gain — Σ(value − cost) over sets whose value is KNOWN. A $0-cost
  * set with a known value contributes its full value as gain. Unknown-value sets
  * are excluded (no value → no computable gain), so their recorded cost no longer
