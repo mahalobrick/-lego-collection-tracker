@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { searchInput, filterSelect, clearFilterButton, filterBar, confidenceBadge } from "./uiStyles";
+import { searchInput, filterSelect, clearFilterButton, filterBar } from "./uiStyles";
 import { DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, AreaChart, Area, CartesianGrid } from "recharts";
 import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
@@ -12,8 +12,8 @@ import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./util
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition } from "./utils/beSyncValues";
-import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, setCost, totalSpent, portfolioGain, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, setPaidProvenance, costBasisBreakdown } from "./utils/portfolio";
-import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, estimatedValueNote, estimatedCostNote, totalRoiNote, paidConfidence } from "./utils/valueDisplay";
+import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, setCost, totalSpent, portfolioGain, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, setPaidProvenance, costBasisBreakdown, reconcilePaidEdit } from "./utils/portfolio";
+import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, estimatedValueNote, estimatedCostNote, totalRoiNote } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
@@ -60,7 +60,6 @@ const OWNED_COL_WIDTHS = {
   theme:        84,
   condition:    84,
   qty:          66,
-  paid:         82,
   value:       132,  // three-up: Retail / Paid / Market labels + figures (MSRP Step 2)
   gain:         82,
   roi:          62,
@@ -142,7 +141,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     if (!saved) return DEFAULT_OWNED_COLUMNS;
     const parsed = JSON.parse(saved);
     const labelMap = Object.fromEntries(DEFAULT_OWNED_COLUMNS.map(c => [c.key, c.label]));
-    const merged = parsed.map(c => ({ ...c, label: labelMap[c.key] ?? c.label }));
+    // Drop keys no longer in defaults (e.g. the removed "paid" column) so a stale saved
+    // config can't render a headerless, rendererless ghost column.
+    const defaultKeys = new Set(DEFAULT_OWNED_COLUMNS.map(c => c.key));
+    const merged = parsed.filter(c => defaultKeys.has(c.key)).map(c => ({ ...c, label: labelMap[c.key] ?? c.label }));
     const savedKeys = new Set(merged.map(c => c.key));
     const missing = DEFAULT_OWNED_COLUMNS.filter(c => !savedKeys.has(c.key));
     return missing.length ? [...merged, ...missing] : merged;
@@ -990,7 +992,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
   function renderOwnedCell(set, column) {
     const qty = asNumber(set.qty) || 1;
-    const paid = asNumber(set.totalPaid) || asNumber(set.paidPrice) * qty;
     // null when value is unknown → "—", never a phantom −cost loss. (unknown≠0 sweep)
     const gain = setGain(set, valueMap);
     // null when excluded from %ROI (unknown value OR cost ≤ 0) → cell reads "—".
@@ -1004,7 +1005,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     if (column.key === "theme") return set.theme || "—";
     if (column.key === "condition") return set.condition ? (CONDITION_LABELS[set.condition] || set.condition) : "—";
     if (column.key === "qty") return qty;
-    if (column.key === "paid") return money(paid); // standalone paid column is special-cased in the table body (inline-edit + MSRP? marker)
     if (column.key === "value") {
       // Three-up (MSRP Step 2): Retail / Paid / Market in one compact cell.
       //   Retail → setRetailProvenance (Brickset canonical, BE deprecated fallback, "—" when none)
@@ -1087,10 +1087,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
       if (sortColumn === "qty") {
         result = asNumber(a.qty) - asNumber(b.qty);
-      } else if (sortColumn === "paid") {
-        const aPaid = asNumber(a.totalPaid) || asNumber(a.paidPrice) * (asNumber(a.qty) || 1);
-        const bPaid = asNumber(b.totalPaid) || asNumber(b.paidPrice) * (asNumber(b.qty) || 1);
-        result = aPaid - bPaid;
       } else if (sortColumn === "value") {
         // Null-aware: unknown value sorts as 0. (unknown≠0 sweep)
         result = (setValueProvenance(a, valueMap).amount ?? 0) - (setValueProvenance(b, valueMap).amount ?? 0);
@@ -1110,13 +1106,23 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     setSets(prev => {
       const next = [...prev];
 
-      next[index] = {
+      const rec = {
         ...next[index],
         [field]: field === "qty" || field === "paidPrice" || field === "currentValue"
           ? asNumber(value)
           : value
       };
 
+      // Paid is a per-unit field, but setCost() reads the precomputed `totalPaid` FIRST —
+      // so editing paidPrice (or qty) alone is a silent no-op on gain/ROI/Cost-Basis/tri-value
+      // PAID for any set carrying totalPaid (every BE import). reconcilePaidEdit re-derives the
+      // canonical (totalPaid + entries[].paid_price) so the edit actually moves and the paid
+      // provenance reclassifies (msrp → manual) for free.
+      if (field === "paidPrice" || field === "qty") {
+        Object.assign(rec, reconcilePaidEdit(rec));
+      }
+
+      next[index] = rec;
       return next;
     });
   }
@@ -2125,7 +2131,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               <option value="name:asc">Name (A–Z)</option>
               <option value="value:desc">Value (↓)</option>
               <option value="gain:desc">Gain (↓)</option>
-              <option value="paid:desc">Paid (↓)</option>
             </select>
             <button
               onClick={enrichFromRebrickable}
@@ -2409,44 +2414,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                               onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ index, key: "qty", value: String(qty) }); }}
                             >
                               {qty}
-                            </td>
-                          );
-                        }
-
-                        // Paid — double-click to edit inline
-                        if (col.key === "paid") {
-                          const isEditing = inlineEdit?.index === index && inlineEdit?.key === "paid";
-                          const paid = asNumber(set.paidPrice);
-                          // Quiet "MSRP?" when the cost basis is a retail placeholder (no purchase record).
-                          const paidConf = paidConfidence(setPaidProvenance(set, purchaseMap));
-                          if (isEditing) {
-                            return (
-                              <td key="paid" style={tdRight} onClick={e => e.stopPropagation()}>
-                                <input
-                                  autoFocus
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={inlineEdit.value}
-                                  onChange={e => setInlineEdit(v => ({ ...v, value: e.target.value }))}
-                                  onBlur={() => { updateSet(index, "paidPrice", inlineEdit.value); setInlineEdit(null); }}
-                                  onKeyDown={e => {
-                                    if (e.key === "Enter")  { updateSet(index, "paidPrice", inlineEdit.value); setInlineEdit(null); }
-                                    if (e.key === "Escape") setInlineEdit(null);
-                                  }}
-                                  style={{ width: 70, background: "#0d1a2a", border: "1px solid rgba(201,168,76,0.5)", borderRadius: 6, color: "#e8e2d5", fontSize: 13, padding: "2px 6px", outline: "none", textAlign: "right" }}
-                                />
-                              </td>
-                            );
-                          }
-                          return (
-                            <td key="paid" style={{ ...tdRight, cursor: "default" }}
-                              title={paidConf?.tooltip || undefined}
-                              onClick={e => e.stopPropagation()}
-                              onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ index, key: "paid", value: paid ? String(paid) : "" }); }}
-                            >
-                              {paid ? money(paid * (asNumber(set.qty) || 1)) : "—"}
-                              {paidConf && <span style={confidenceBadge}>{paidConf.marker}</span>}
                             </td>
                           );
                         }

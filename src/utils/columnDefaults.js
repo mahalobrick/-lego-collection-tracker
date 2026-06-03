@@ -11,7 +11,6 @@ export const DEFAULT_OWNED_COLUMNS = [
   { key: "theme",        label: "Theme",         visible: true  },
   { key: "condition",    label: "Condition",     visible: false },
   { key: "qty",          label: "Qty",           visible: true  },
-  { key: "paid",         label: "Paid",          visible: true  },
   { key: "value",        label: "Value",         visible: true  },
   { key: "gain",         label: "Gain",          visible: true  },
   { key: "roi",          label: "ROI",           visible: true  },

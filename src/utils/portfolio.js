@@ -295,6 +295,29 @@ export function setCost(s) {
 }
 
 /**
+ * Canonical-cost patch for a per-unit paid (or qty) edit. `paidPrice` is per-unit,
+ * but setCost() reads the precomputed `totalPaid` FIRST — so editing paidPrice alone
+ * is a silent no-op on cost/gain/ROI for any set that carries totalPaid (every BE
+ * import). This re-derives the canonical from the (already-updated) per-unit fields:
+ *   - totalPaid = perUnit × qty  → setCost now reflects the edit
+ *   - entries[].paid_price = perUnit (when present) → keeps setPaidProvenance's
+ *     msrp↔manual classification and the SetDetailPanel per-copy rows in sync.
+ * Returns a patch to merge onto the set; `entries` is omitted when the set has none.
+ *
+ * @param {Object} s  set with its NEW paidPrice/qty already applied
+ * @returns {{ totalPaid: number, entries?: Array }}
+ */
+export function reconcilePaidEdit(s) {
+  const perUnit = asNumber(s.paidPrice);
+  const qty = asNumber(s.qty) || 1;
+  const patch = { totalPaid: perUnit * qty };
+  if (Array.isArray(s.entries) && s.entries.length) {
+    patch.entries = s.entries.map((e) => ({ ...e, paid_price: perUnit }));
+  }
+  return patch;
+}
+
+/**
  * Is a set eligible for the PERCENTAGE ROI? Only when its value is known AND it
  * has a positive cost. Unknown-value and cost ≤ 0 (incl. $0/GWP) are excluded.
  *

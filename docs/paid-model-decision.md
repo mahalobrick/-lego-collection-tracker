@@ -87,7 +87,8 @@ Mirrors the value layer ("headline the total, flag the estimated portion"), **no
 - **Cost Basis card** headlines the **total** cost (all sets, `totalSpent` / `costBasis`). The provenance split is a **quality disclosure** sub-note: **`estimatedCostNote`** → `"N estimated at MSRP (~$Y)"` (the `~` signals placeholder, not real spend) — the cost twin of `estimatedValueNote`'s `"% of value estimated"`.
 - **ROI card** computes on the **total cost basis** (`portfolioROI` — total market vs total cost), with **`totalRoiNote`** → `"incl. N estimated at MSRP"` flagging that the denominator includes the placeholder portion.
 - **`realCostROI`** (real market vs real cost, MSRP-placeholder excluded) and **`realRoiScopeNote`** are **kept in the code** (exported + tested) for a future real-only view, but are **not** headlined.
-- **Rows:** the `paidConfidence` **"MSRP?"** marker appears on placeholder rows in both the standalone **Paid** column (its inline-edit special case in [`MyCollection.jsx`](../src/MyCollection.jsx)) and the **TriValueCell PAID line** ([`src/TriValueCell.jsx`](../src/TriValueCell.jsx), `tri-paid`).
+- **Rows:** the `paidConfidence` **"MSRP?"** marker appears on placeholder rows via the **TriValueCell PAID line** ([`src/TriValueCell.jsx`](../src/TriValueCell.jsx), `tri-paid`). (The standalone, inline-editable **Paid** column was removed — it duplicated the tri-value PAID line and its edit wrote only the per-unit `paidPrice`, a silent no-op on the `totalPaid`-first `setCost`.)
+- **Editing paid:** the **detail-panel** "Paid" input ([`MyCollection.jsx`](../src/MyCollection.jsx) `updateSet`) is the edit affordance. It writes the **canonical**: a paid (or qty) edit reconciles `totalPaid = perUnit × qty` and propagates `perUnit` into `entries[].paid_price`, so `setCost` — and gain/ROI/Cost-Basis/tri-value PAID — move, and the provenance tag reclassifies (`msrp` → `manual`) for free. A logged ledger purchase remains the way to record *all-in* cash (§3).
 
 ---
 
@@ -103,7 +104,8 @@ Mirrors the value layer ("headline the total, flag the estimated portion"), **no
 | Real-cost ROI (kept, not headlined) | `realCostROI` | `src/utils/portfolio.js:449` |
 | Row marker | `paidConfidence` | `src/utils/valueDisplay.js:182` |
 | Quality disclosures | `estimatedCostNote`, `totalRoiNote`, `realRoiScopeNote` | `src/utils/valueDisplay.js:144/157/169` |
-| Overview wiring + row markers | Cost / ROI cards, Paid cell, TriValueCell PAID line | `src/MyCollection.jsx`, `src/TriValueCell.jsx` |
+| Overview wiring + row markers | Cost / ROI cards, TriValueCell PAID line | `src/MyCollection.jsx`, `src/TriValueCell.jsx` |
+| Canonical paid edit | `reconcilePaidEdit` (called by `updateSet`) | `src/utils/portfolio.js`, `src/MyCollection.jsx` |
 | Tests | provenance, breakdown, ROI, notes, DOM-leaf markers | `src/utils/paidProvenance.test.js`, `src/TriValueCell.test.jsx` |
 
 ---
