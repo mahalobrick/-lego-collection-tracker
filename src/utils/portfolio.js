@@ -1,5 +1,6 @@
 import { asNumber } from "./formatting";
 import { toValue, valueAmount } from "./value";
+import { conditionBucket } from "./condition";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Portfolio rollup (V2a). Pure, no React, no localStorage.
@@ -50,7 +51,8 @@ function rawSetValue(s) {
 // decision.md §3 the cache is condition-matched: a new copy reads `.new`, a used copy `.used`.
 
 const BL_SOURCE = "bricklink";
-const blCondition = (c) => (String(c ?? "").startsWith("used") ? "used" : "new");
+// One source of truth for the new/used split — delegates to the condition normalizer.
+const blCondition = conditionBucket;
 
 /**
  * The set's per-copy value groups: one entry per owned copy (BE sets carry `entries[]`, each a copy

@@ -75,6 +75,22 @@ richer per-copy UI must keep tolerating (or normalize once — see §3 caveat).
 
 ## 3. Conditions — the messiest area, needs a decision
 
+> **Update — Phase 1, Step 1 (decision + normalizer built).** The direction below
+> ("two-layer model: keep granular grades durable") is **superseded**. The decision is a
+> **binary New / Used + derived Mixed** model: grades collapse to the valuation bucket for
+> display, rather than being preserved. Live data confirmed the simplification — the stored
+> vocabulary is `new` and used-variants (`usedasnew` dominates) with **no `sealed`**, and all
+> differing-copy sets are genuine new-vs-used Mixed (not used-grade variance).
+>
+> Step 1 added the canonical read-time coalescing point in **[`src/utils/condition.js`](../src/utils/condition.js)** (guard test `src/utils/condition.test.js`):
+> - `conditionBucket(raw) → 'new'|'used'` — new/sealed/null → new, any `used*` → used. **`blCondition` (`portfolio.js:53`) now delegates to it**, so the new/used split has one source of truth (valuation byte-identical).
+> - `setConditionDisplay(set) → 'new'|'used'|'mixed'` — buckets each `entries[]` copy, then uniform → that bucket, new+used → mixed. Manual sets (no entries) are never mixed. Bucketing-before-compare means used-grade variance (`usedasnew`+`usedcomplete`) reads as uniform **Used**, never false-Mixed.
+> - `conditionDisplayLabel(display)` → New/Used/Mixed and `conditionDisplayColor(display)` (green / amber / **indigo `#6366f1`** for Mixed — fills the §3.4 color gap). These are **distinct from** formatting.js's granular `conditionLabel(raw)`/`conditionColor(raw)`, which still serve the per-copy panel.
+>
+> Still pending (later steps): wiring the column/filter/panel to these utils, an `entries[]`-aware
+> editor (replacing the destructive binary write, §3.4 #1), and the BE-ingest token cleanup. The
+> taxonomy recommendation that follows is kept for history but is **not** the plan of record.
+
 ### What actually exists
 
 **Canonical labels** (`formatting.js:48-56`): `new, sealed, used_as_new, used_good, used_acceptable,
