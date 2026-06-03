@@ -6,7 +6,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis
 import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
 import TriValueCell from "./TriValueCell";
 import RowHoverCard from "./RowHoverCard";
-import { asNumber, money, setImageUrl, CONDITION_LABELS, conditionColor, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
+import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
 import { setConditionDisplay, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./utils/brickset";
@@ -1348,22 +1348,21 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         {sets.length === 0 ? (
                           <div style={{ color: "#5d6f80", fontSize: 13 }}>No sets yet.</div>
                         ) : (() => {
-                          const counts = {};
-                          sets.forEach(s => {
-                            const entries = s.entries || [s];
-                            entries.forEach(e => {
-                              const cond = CONDITION_LABELS[e.condition || s.condition] || e.condition || s.condition || "Unknown";
-                              counts[cond] = (counts[cond] || 0) + (Number(e.quantity) || Number(s.qty) || 1);
-                            });
-                          });
-                          const data = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
+                          // Bucketed to New / Used / Mixed per SET (matches the column + filter),
+                          // labelled + coloured via the one condition normalizer — no raw tokens,
+                          // no split used-grades, and Mixed gets its own slice.
+                          const counts = { new: 0, used: 0, mixed: 0 };
+                          sets.forEach(s => { counts[setConditionDisplay(s)] += 1; });
+                          const data = ["new", "used", "mixed"]
+                            .filter(b => counts[b] > 0)
+                            .map(b => ({ name: conditionDisplayLabel(b), value: counts[b], color: conditionDisplayColor(b) }));
                           const total = data.reduce((s, d) => s + d.value, 0);
                           return (
                             <>
                               <ResponsiveContainer width="100%" height={160}>
                                 <PieChart>
                                   <Pie data={data} cx="50%" cy="50%" innerRadius={44} outerRadius={70} dataKey="value" paddingAngle={2}>
-                                    {data.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                                    {data.map((d, i) => <Cell key={i} fill={d.color} />)}
                                   </Pie>
                                   <Tooltip formatter={v => [v, "Sets"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
                                 </PieChart>
@@ -1371,7 +1370,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: 4 }}>
                                 {data.map((d, i) => (
                                   <span key={d.name} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#8a9bb0" }}>
-                                    <span style={{ width: 10, height: 10, borderRadius: 2, background: PIE_COLORS[i % PIE_COLORS.length], display: "inline-block" }} />
+                                    <span style={{ width: 10, height: 10, borderRadius: 2, background: d.color, display: "inline-block" }} />
                                     {d.name} <strong style={{ color: "#e8e2d5" }}>{d.value}</strong>
                                     <span style={{ color: "#5d6f80" }}>({((d.value / total) * 100).toFixed(0)}%)</span>
                                   </span>

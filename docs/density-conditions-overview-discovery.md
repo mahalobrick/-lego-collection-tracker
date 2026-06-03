@@ -106,10 +106,20 @@ richer per-copy UI must keep tolerating (or normalize once — see §3 caveat).
 > raw `usedasnew` option. Smoke (incognito production build, DOM-leaf): New → {new BE set}, Used →
 > {BE `usedasnew` set **and** the manual `used_good` set}, Mixed → {the new+used set}.
 >
-> **Phase 1 is closed: display, column, sort, per-copy badges, and filter all read through the one
-> `condition.js` bucket.** Still pending (Phase 2): an `entries[]`-aware **editor** (the inline/panel
-> condition write is still binary New/Used and per-set only — §3.4 #1), and the BE-ingest token
-> cleanup. The taxonomy recommendation that follows is kept for history but is **not** the plan of record.
+> **Step 4 (wired) — Condition Breakdown pie.** The pie (`MyCollection.jsx` ~1351) bucketed each set
+> via `setConditionDisplay` instead of grouping per-copy by `CONDITION_LABELS[raw]`. The old version
+> showed raw `usedasnew` slices, split the used-grades into separate slices, had **no** Mixed slice
+> (per-copy iteration never saw a set as Mixed), and used a generic palette while labelling the
+> tooltip "Sets". Now it renders at most three slices — New / Used / Mixed — labelled by
+> `conditionDisplayLabel` and coloured by `conditionDisplayColor` (green / amber / indigo), counted
+> per set (so the "Sets" tooltip is accurate). Dropped the now-dead `CONDITION_LABELS` import (and the
+> long-unused `conditionColor` import) from MyCollection. Smoke: three slices — New 1 / Used 2 (BE
+> `usedasnew` + manual `used_good` merged) / Mixed 1 — clean labels, semantic colours, no raw token.
+>
+> **Phase 1 is closed: display, column, sort, per-copy badges, filter, AND the condition pie all read
+> through the one `condition.js` bucket.** Still pending (Phase 2): an `entries[]`-aware **editor** (the
+> inline/panel condition write is still binary New/Used and per-set only — §3.4 #1), and the BE-ingest
+> token cleanup. The taxonomy recommendation that follows is kept for history but is **not** the plan of record.
 
 ### What actually exists
 
