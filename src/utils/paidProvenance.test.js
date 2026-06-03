@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildPurchaseMap, setPaidProvenance, costBasisBreakdown, realCostROI } from "./portfolio";
-import { paidConfidence, estimatedCostNote, realRoiScopeNote } from "./valueDisplay";
+import { paidConfidence, estimatedCostNote, totalRoiNote, realRoiScopeNote } from "./valueDisplay";
+import { money } from "./formatting";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Provenance Step 1 — setPaidProvenance / paidConfidence, the PAID analog of
@@ -139,13 +140,17 @@ describe("realCostROI — real market vs real cost only", () => {
   });
 });
 
-describe("Overview disclosure notes", () => {
-  it("estimatedCostNote: count + amount; null when none", () => {
-    expect(estimatedCostNote(431, 12345.6)).toMatch(/^431 sets estimated at MSRP \(/);
-    expect(estimatedCostNote(1, 9.99)).toMatch(/^1 set estimated at MSRP/);
+describe("Overview disclosure notes (revised — total headline, provenance as disclosure)", () => {
+  it("estimatedCostNote: quality disclosure 'N estimated at MSRP (~$Y)'; null when none", () => {
+    expect(estimatedCostNote(431, 12345.6)).toBe(`431 estimated at MSRP (~${money(12345.6)})`);
+    expect(estimatedCostNote(1, 9.99)).toBe(`1 estimated at MSRP (~${money(9.99)})`);
     expect(estimatedCostNote(0, 0)).toBeNull();
   });
-  it("realRoiScopeNote: states scope + excluded count", () => {
+  it("totalRoiNote: flags the total-cost ROI includes the MSRP-estimated portion; null when none", () => {
+    expect(totalRoiNote(431)).toBe("incl. 431 estimated at MSRP");
+    expect(totalRoiNote(0)).toBeNull();
+  });
+  it("realRoiScopeNote: kept for realCostROI (not headlined)", () => {
     expect(realRoiScopeNote(431)).toBe("vs real cost · excludes 431 estimated at MSRP");
     expect(realRoiScopeNote(0)).toBe("vs real cost");
   });

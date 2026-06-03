@@ -132,9 +132,10 @@ export function valueConfidence(value) {
 }
 
 /**
- * Disclosure for the MSRP-estimated portion of the cost basis: "N sets estimated at MSRP ($X)".
- * The cost-side twin of {@link estimatedValueNote} — surfaces how much of the headline-excluded
- * cost is a retail placeholder. Returns null when none (count 0) so the caller omits it.
+ * QUALITY disclosure for the cost-basis headline: "N estimated at MSRP (~$Y)". The headline is the
+ * TOTAL cost (real + estimated); this note flags how much of it is an MSRP placeholder rather than
+ * recorded spend — the cost-side twin of {@link estimatedValueNote}'s "% estimated". The `~` signals
+ * the figure is an estimate, not real money. Returns null when none (count 0) so the caller omits it.
  *
  * @param {number} msrpCount  sets whose paid is an MSRP default (no purchase record).
  * @param {number} msrpCost   summed placeholder dollars.
@@ -142,15 +143,27 @@ export function valueConfidence(value) {
  */
 export function estimatedCostNote(msrpCount, msrpCost) {
   if (!msrpCount || msrpCount <= 0) return null;
-  return `${msrpCount} set${msrpCount === 1 ? "" : "s"} estimated at MSRP (${money(msrpCost)})`;
+  return `${msrpCount} estimated at MSRP (~${money(msrpCost)})`;
 }
 
 /**
- * Scope label for the real-cost ROI: states it's real-market-vs-real-cost and how many sets are
- * excluded because their cost is an MSRP placeholder (ROI against a retail default is meaningless).
- * Always returns a string (the scope is always worth stating).
+ * Disclosure for the TOTAL-cost ROI: notes that the cost denominator INCLUDES the MSRP-estimated
+ * portion (so the ROI is approximate where cost is a placeholder). Returns null when none are
+ * estimated (the ROI is then fully real and needs no caveat).
  *
- * @param {number} msrpCount  sets excluded from the ROI for being MSRP-estimated.
+ * @param {number} msrpCount  sets whose cost is an MSRP placeholder.
+ * @returns {string|null}
+ */
+export function totalRoiNote(msrpCount) {
+  return !msrpCount || msrpCount <= 0 ? null : `incl. ${msrpCount} estimated at MSRP`;
+}
+
+/**
+ * Scope label for the REAL-cost ROI (kept for {@link import("./portfolio").realCostROI}, not the
+ * headline): real-market-vs-real-cost, noting how many sets are excluded for MSRP-placeholder cost.
+ * Always returns a string.
+ *
+ * @param {number} msrpCount  sets excluded from the real-cost ROI for being MSRP-estimated.
  * @returns {string}
  */
 export function realRoiScopeNote(msrpCount) {
