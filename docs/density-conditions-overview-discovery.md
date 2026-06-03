@@ -94,13 +94,22 @@ richer per-copy UI must keep tolerating (or normalize once — see §3 caveat).
 > `renderOwnedCell` condition text branch was removed. **Sort** on condition uses
 > `setConditionDisplay` (New→Used→Mixed). The **SetDetailPanel per-copy badges** now route
 > through `conditionDisplay{Label,Color}`, so a `usedasnew` copy reads a clean "Used" (the raw-token
-> bug surfaced there too). Filter options inherit the bucketed values for free (now New/Used/Mixed).
+> bug surfaced there too).
 > Smoke (DOM-leaf, reversible seed): `usedasnew` → Used amber pill, a Mixed set → indigo Mixed pill
 > (not green-New), per-copy badges read New/Used with no raw token.
 >
-> Still pending (later steps): an `entries[]`-aware **editor** (the inline/panel condition write is
-> still binary New/Used and per-set only — §3.4 #1), and the BE-ingest token cleanup. The taxonomy
-> recommendation that follows is kept for history but is **not** the plan of record.
+> **Step 3 (wired) — filter; Phase 1 closed.** The condition filter predicate
+> (`MyCollection.jsx` ~1081) now matches on `setConditionDisplay(set)`, not exact-string on the raw
+> `set.condition` — so a manual set carrying a raw grade (e.g. `used_good` from the add-form) matches
+> **Used**, and Mixed sets match **Mixed**. The dropdown is a fixed `[All, New, Used, Mixed]` built from
+> `conditionDisplayLabel` (the data-derived raw-value option list was removed), so it can never show a
+> raw `usedasnew` option. Smoke (incognito production build, DOM-leaf): New → {new BE set}, Used →
+> {BE `usedasnew` set **and** the manual `used_good` set}, Mixed → {the new+used set}.
+>
+> **Phase 1 is closed: display, column, sort, per-copy badges, and filter all read through the one
+> `condition.js` bucket.** Still pending (Phase 2): an `entries[]`-aware **editor** (the inline/panel
+> condition write is still binary New/Used and per-set only — §3.4 #1), and the BE-ingest token
+> cleanup. The taxonomy recommendation that follows is kept for history but is **not** the plan of record.
 
 ### What actually exists
 

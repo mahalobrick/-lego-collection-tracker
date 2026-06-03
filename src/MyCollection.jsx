@@ -1047,7 +1047,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   const themes = legoThemes.length
     ? Array.from(new Set([...legoThemes, ...localThemes])).sort()
     : localThemes;
-  const conditions = Array.from(new Set(sets.map(s => s.condition).filter(Boolean))).sort();
 
   function sortHeader(column) {
     if (sortColumn === column) {
@@ -1078,7 +1077,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     : sets
   ).filter(set => {
       const matchesTheme = !filterTheme || set.theme === filterTheme;
-      const matchesCondition = !filterCondition || set.condition === filterCondition;
+      const matchesCondition = !filterCondition || setConditionDisplay(set) === filterCondition;
       return matchesTheme && matchesCondition;
     })
     .sort((a, b) => {
@@ -2109,10 +2108,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               <option value="">All Themes</option>
               {themes.map(theme => <option key={theme}>{theme}</option>)}
             </select>
-            {conditions.length > 0 && (
+            {sets.length > 0 && (
               <select value={filterCondition} onChange={e => setFilterCondition(e.target.value)} style={filterSelect}>
                 <option value="">All Conditions</option>
-                {conditions.map(c => <option key={c} value={c}>{CONDITION_LABELS[c] || c}</option>)}
+                {["new", "used", "mixed"].map(b => <option key={b} value={b}>{conditionDisplayLabel(b)}</option>)}
               </select>
             )}
             {(searchText || filterTheme || filterCondition) && (
