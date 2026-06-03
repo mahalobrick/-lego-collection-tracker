@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { reconcileConditionEdit, reconcilePaidEdit } from "./portfolio";
 import { setConditionDisplay } from "./condition";
+import { revalueBESet } from "./beSyncValues";
 import { dedupHash } from "./exportBackup";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -68,5 +69,34 @@ describe("round-trip — a persisted edit would push (dedupHash flips)", () => {
     });
     expect(after[0].totalPaid).toBe(300);
     expect(dedupHash(wrap(after))).not.toBe(dedupHash(wrap(before)));
+  });
+});
+
+describe("revalueBESet — per-copy re-value math (locks the edit-time recompute)", () => {
+  const d = { current_value_new: 160, current_value_used: 100, retired: true };
+
+  it("uniform New → new figure × qty", () => {
+    const s = { setNumber: "10300-1", qty: 2, entries: [{ condition: "new" }, { condition: "new" }] };
+    expect(revalueBESet(s, d)).toEqual({ currentValue: 160, totalValue: 320 });
+  });
+
+  it("one copy flipped to Used → mixed sum (one used + rest new), avg per copy", () => {
+    const s = { setNumber: "10300-1", qty: 2, entries: [{ condition: "new" }, { condition: "used" }] };
+    // 160 + 100 = 260 total; 260 / 2 = 130 avg
+    expect(revalueBESet(s, d)).toEqual({ currentValue: 130, totalValue: 260 });
+  });
+
+  it("uniform Used → used figure × qty", () => {
+    const s = { setNumber: "10300-1", qty: 2, entries: [{ condition: "used" }, { condition: "used" }] };
+    expect(revalueBESet(s, d)).toEqual({ currentValue: 100, totalValue: 200 });
+  });
+
+  it("no cache data → null (caller leaves value to the next value-sync)", () => {
+    expect(revalueBESet({ setNumber: "x", qty: 1, entries: [{ condition: "new" }] }, undefined)).toBeNull();
+  });
+
+  it("cache with no usable figure → null", () => {
+    const s = { setNumber: "x", qty: 1, entries: [{ condition: "new" }] };
+    expect(revalueBESet(s, { current_value_new: 0, current_value_used: 0, retail_price_us: 0 })).toBeNull();
   });
 });

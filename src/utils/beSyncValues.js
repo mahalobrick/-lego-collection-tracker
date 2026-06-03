@@ -49,6 +49,25 @@ export function beValueForSet(d, s) {
   return beValueForCondition(d, s?.condition) * qty;
 }
 
+/**
+ * Per-set value patch from cached BE data — each copy at its OWN condition (mirrors the per-set
+ * math in applyCache). Pure: takes the cache `data` directly (no localStorage). Returns
+ * `{ currentValue, totalValue }` (currentValue is the per-copy average so currentValue × qty ==
+ * totalValue), or `null` when there's no usable figure (no cache data, or the figure is 0/unknown)
+ * — the caller then leaves the value to the next value-sync.
+ *
+ * @param {Object} s  owned set (may carry entries[], condition, qty/quantity)
+ * @param {Object} [d]  BrickEconomy cache data for the set (new/used/retail figures)
+ * @returns {{ currentValue: number, totalValue: number } | null}
+ */
+export function revalueBESet(s, d) {
+  if (!d) return null;
+  const total = beValueForSet(d, s);
+  if (!total) return null;
+  const qty = asNumber(s?.qty) || asNumber(s?.quantity) || 1;
+  return { currentValue: total / qty, totalValue: total };
+}
+
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 /** Collect all unique set numbers across both stores. */

@@ -12,7 +12,7 @@ import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-cl
 import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./utils/brickset";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
-import { beValueForCondition, beValueForSet } from "./utils/beSyncValues";
+import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
 import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, setCost, totalSpent, portfolioGain, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
 import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, estimatedValueNote, estimatedCostNote, totalRoiNote } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
@@ -1113,10 +1113,16 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   function persistBESetEdit(setNumber, patch) {
     try {
       const blob = JSON.parse(localStorage.getItem("brickEconomyNormalizedCollection") || "[]");
+      // Never persist a derived per-set `condition` to the blob: it's recomputed from entries[] on
+      // load and may be "mixed" (which must not be stored). entries[]/value fields persist as given.
+      const blobPatch = { ...patch };
+      delete blobPatch.condition;
       setItemSafe("brickEconomyNormalizedCollection", JSON.stringify(
-        blob.map(s => (s.setNumber === setNumber ? { ...s, ...patch } : s)),
+        blob.map(s => (s.setNumber === setNumber ? { ...s, ...blobPatch } : s)),
       ));
     } catch { /* blob unreadable — still update state so the UI reflects the edit */ }
+    // State keeps the full patch (incl. the fresh derived condition) so the column pill + stats are
+    // consistent in-session without a reload.
     setSets(prev => prev.map(s => (s.setNumber === setNumber && s.source === "BrickEconomy" ? { ...s, ...patch } : s)));
   }
 
@@ -1129,11 +1135,24 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     let cache = {};
     try { cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}"); } catch { /* no cache */ }
     const d = cache[String(s.setNumber || "").replace(/-1$/, "")]?.data;
-    if (!d) return null;
-    const total = beValueForSet(d, s);
-    if (!total) return null;
-    const qty = asNumber(s.qty) || asNumber(s.quantity) || 1;
-    return { currentValue: total / qty, totalValue: total };
+    return revalueBESet(s, d); // { currentValue, totalValue } | null (pure; mirrors applyCache)
+  }
+
+  // Per-copy condition edit (SetDetailPanel's per-copy control). Only entries[copyIndex] changes →
+  // the set becomes Mixed when copies disagree (setConditionDisplay derives it; nothing "mixed" is
+  // stored). Same rails as the bulk edit: reconcileConditionEdit → re-value → persistBESetEdit, plus
+  // a detailSet refresh so the open panel's per-copy rows + value update live. BE sets only — manual
+  // sets have no entries[] (and no per-copy rows); materializing entries[] for a manual Mixed set is
+  // a separate, unbuilt feature.
+  function editCopyCondition(index, copyIndex, bucket) {
+    const cur = sets[index];
+    if (!cur || cur.source !== "BrickEconomy") return;
+    const condPatch = reconcileConditionEdit(cur, bucket, copyIndex); // { entries: only copyIndex changed }
+    const edited = { ...cur, ...condPatch };
+    const rev = revalueFromCache(edited); // { currentValue, totalValue } | null
+    persistBESetEdit(cur.setNumber, { ...condPatch, condition: setConditionDisplay(edited), ...(rev || {}) });
+    // Refresh the open panel (its item is the blob shape — no per-set condition; entries + value only).
+    setDetailSet(prev => (prev ? { ...prev, ...condPatch, ...(rev || {}) } : prev));
   }
 
   function updateSet(index, field, value) {
@@ -2028,6 +2047,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         valueMap={valueMap}
         onClose={() => { setDetailSet(null); setDetailSetIndex(null); }}
         onEdit={detailSetIndex !== null ? () => { setDetailSet(null); setDetailSetIndex(null); setSelectedSetIndex(detailSetIndex); } : undefined}
+        onEditCopyCondition={detailSetIndex !== null && Array.isArray(detailSet?.entries) && detailSet.entries.length
+          ? (copyIndex, bucket) => editCopyCondition(detailSetIndex, copyIndex, bucket)
+          : undefined}
       />
       <WatchDetailPanel
         item={detailWatchItem}

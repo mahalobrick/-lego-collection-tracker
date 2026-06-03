@@ -147,8 +147,24 @@ richer per-copy UI must keep tolerating (or normalize once — see §3 caveat).
 > figure it falls back to the next value-sync. Manual sets keep the `blOwnedSets` path (their condition
 > already persists) — branched, no double-write. Reload smoke (incognito prod build), BOTH surfaces +
 > BOTH directions: side-panel New→Used → reload → `entries:[used,used]`, value 320→200, "Used" pill;
-> inline-column Used→New → reload → `entries:[new,new]`, value→320, "New" pill. Still pending: per-copy
-> condition editing (move one copy → Mixed) and the BE-ingest token cleanup.
+> inline-column Used→New → reload → `entries:[new,new]`, value→320, "New" pill.
+>
+> **Phase 2, Step 3 (per-copy condition editing) — Phase 2 CLOSED.** SetDetailPanel's per-copy rows now
+> carry a New/Used control (`onEditCopyCondition` prop). On change → `editCopyCondition` (MyCollection)
+> calls `reconcileConditionEdit(set, bucket, copyIndex)` (only that copy) → re-value → `persistBESetEdit`,
+> plus a `detailSet` refresh so the open panel updates live. Flipping one copy of a uniform set makes it
+> **Mixed** — derived by `setConditionDisplay`; **`persistBESetEdit` now strips a derived `condition` from
+> the blob patch** (entries[] is the blob's source of truth, recomputed on load), so "mixed" is never
+> stored. Re-value math extracted to a pure **`revalueBESet(s, d)`** (beSyncValues) and unit-tested
+> (`conditionEdit.test.js`). Per-copy editing is **BE-only** (sets with `entries[]`); a manual set has no
+> per-copy rows — making one Mixed would need a separate "materialize entries[]" feature (not built;
+> parked). Reload smoke (incognito prod build), both directions on a 3-copy uniform-New set: flip copy 1
+> New→Used → reload → `entries:[new,used,new]`, value 480→420 (mixed sum), **indigo "Mixed" pill**, no
+> `condition` stored in the blob; flip back Used→New → reload → `entries:[new,new,new]`, value→480,
+> green "New" pill.
+>
+> **Conditions arc COMPLETE through Phase 2.** Remaining cleanup (parked, see `docs/backlog.md`): the
+> BE-ingest token normalization (display already buckets the raw tokens; this tidies the source).
 
 ### What actually exists
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { asNumber, money, setImageUrl, daysUntilRetirement } from "./utils/formatting";
-import { conditionDisplayLabel, conditionDisplayColor } from "./utils/condition";
+import { conditionDisplayLabel, conditionDisplayColor, conditionBucket } from "./utils/condition";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { setValueProvenance, setGain, setROI, copyValueProvenance, setRetailProvenance } from "./utils/portfolio";
 import { formatValueCell, formatValue, valueConfidence, lotsLabel, retailTooltip } from "./utils/valueDisplay";
@@ -33,7 +33,7 @@ export function openSetDetail(setNumber) {
   return col.find(n => n.setNumber === setNumber) || null;
 }
 
-export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
+export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEditCopyCondition }) {
   const [blPrice, setBlPrice] = useState(null);
   useEffect(() => {
     if (!item?.setNumber || !hasBrickLinkAuth()) { setBlPrice(null); return; }
@@ -254,13 +254,28 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
                   <div key={i} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 14px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        {cond && (
+                        {onEditCopyCondition ? (
+                          // Editable per-copy condition — flipping one copy of a uniform set makes the
+                          // set Mixed (derived by setConditionDisplay; nothing "mixed" is stored).
+                          <div style={{ display: "inline-flex", gap: 4 }} data-testid="copy-cond-edit">
+                            {["new", "used"].map(b => {
+                              const active = conditionBucket(entry.condition) === b;
+                              const c = conditionDisplayColor(b);
+                              return (
+                                <button key={b}
+                                  onClick={() => onEditCopyCondition(i, b)}
+                                  style={{ border: `1px solid ${active ? c : "rgba(255,255,255,0.12)"}`, background: active ? `${c}22` : "transparent", color: active ? c : "#5d6f80", borderRadius: 999, padding: "2px 9px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                                >{conditionDisplayLabel(b)}</button>
+                              );
+                            })}
+                          </div>
+                        ) : cond ? (
                           <span style={{ background: "#0b1520", border: `1px solid ${conditionDisplayColor(entry.condition)}`, color: conditionDisplayColor(entry.condition), borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>
                             {cond}
                           </span>
-                        )}
+                        ) : null}
                         {acquired && <span style={{ color: "#5d6f80", fontSize: 12 }}>{acquired}</span>}
-                        {!cond && !acquired && <span style={{ color: "#5d6f80", fontSize: 13 }}>Copy {i + 1}</span>}
+                        {!onEditCopyCondition && !cond && !acquired && <span style={{ color: "#5d6f80", fontSize: 13 }}>Copy {i + 1}</span>}
                       </div>
                       <span style={{ color: r === null ? "#5d6f80" : r >= 0 ? "#5aa832" : "#ff8b8b", fontWeight: 900, fontSize: 13 }}>
                         {r === null ? "—" : `${r >= 0 ? "+" : ""}${r.toFixed(1)}%`}
