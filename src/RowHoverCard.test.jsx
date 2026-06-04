@@ -52,10 +52,12 @@ describe("RowHoverCard — compact-density three-up (DOM-leaf)", () => {
     expect(p.textContent).toBe(money(0));
   });
 
-  it("BE-only retail still shows its figure in the card", () => {
+  it("former BE-only retail now renders \"—\" (BE removed from the retail ladder in 3c)", () => {
     const set = { setNumber: "30654-1", paidPrice: 3, qty: 1 };
+    // No Brickset MSRP, no manual → null (a brickeconomy key is ignored by the ladder).
     const retail = setRetailProvenance({ brickset: { amount: null }, brickeconomy: { amount: 4.99 } });
+    expect(retail).toBeNull();
     const { retail: r } = render({ set, retail, market: { amount: 6 }, tipPos: { x: 0, y: 0 } });
-    expect(r.textContent).toBe(money(4.99));
+    expect(r.textContent).toBe("—");
   });
 });

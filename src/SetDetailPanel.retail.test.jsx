@@ -5,14 +5,14 @@ import SetDetailPanel from "./SetDetailPanel";
 import { money } from "./utils/formatting";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MSRP Step 1 — DOM-leaf smoke for the detail-panel MSRP chip after repointing it
-// to setRetailProvenance (Brickset → BrickEconomy). Renders the REAL SetDetailPanel
-// against seeded localStorage caches and reads the chip's leaf text:
-//   1. Brickset ≠ BrickEconomy → chip shows the BRICKSET figure (canonical leads).
-//   2. BrickEconomy only       → chip falls back to the BE figure (deprecated source).
+// MSRP Step 1 / 3c — DOM-leaf smoke for the detail-panel MSRP chip, reading
+// setRetailProvenance (Brickset → manual; BE removed from retail in 3c). Renders the
+// REAL SetDetailPanel against seeded localStorage caches and reads the chip's leaf text:
+//   1. Brickset present        → chip shows the BRICKSET figure (canonical leads).
+//   2. BrickEconomy only       → chip shows "—" (BE is no longer a retail source — 3c).
 //   3. No retail anywhere      → chip shows "—" (unknown, never $0 / never hidden).
 // Also pins the cache-key fix: Brickset is keyed `brickset_${n}` — a bare-key lookup
-// (the old bug) would never match, so scenario 1 would wrongly read BE.
+// (the old bug) would never match, so scenario 1 would wrongly miss the Brickset figure.
 // ─────────────────────────────────────────────────────────────────────────────
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -66,10 +66,10 @@ describe("SetDetailPanel retail chip — browser-observable (DOM-leaf)", () => {
     expect(renderPanel("10300-1")).toBe(`Retail ${money(100)}`);
   });
 
-  it("scenario 2 — BrickEconomy only: chip falls back to the BE figure", () => {
+  it("scenario 2 — BrickEconomy only: chip shows \"—\" (BE removed from retail in 3c)", () => {
     seedBE("75192-1", 60);
-    // no Brickset entry seeded
-    expect(renderPanel("75192-1")).toBe(`Retail ${money(60)}`);
+    // no Brickset entry seeded; the BE cache no longer feeds the retail ladder → unknown.
+    expect(renderPanel("75192-1")).toBe("Retail —");
   });
 
   it("scenario 3 — no retail anywhere: chip shows \"—\"", () => {

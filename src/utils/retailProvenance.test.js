@@ -5,24 +5,21 @@ import { retailTooltip } from "./valueDisplay";
 // ─────────────────────────────────────────────────────────────────────────────
 // MSRP Step 1 — setRetailProvenance: ordered-source retail (MSRP) read.
 //
-// NET-FIRST: the detail-panel MSRP chip USED to read only `retail_price_us` from the
-// BrickEconomy set cache: `asNumber(be.retail_price_us) || null`. The "BE-only" cases below
-// PIN that prior behavior — when Brickset has no figure, the result amount is byte-identical to
-// the old BE read (incl. the 0 → unknown coalescing). The "Brickset leads" cases document the
-// intended CHANGE: a Brickset figure now wins over BE.
-//
 // Source order is settled empirically (BrickLink catalog has no MSRP — scripts/bl-catalog-probe):
-// brickset (canonical) → brickeconomy (deprecated fallback).
+// brickset (canonical) → manual (hand-entered, Phase 3a). BrickEconomy was REMOVED from retail in
+// Phase 3c — a `brickeconomy` source key is now IGNORED by the ladder (BE stays a VALUE fallback
+// only). The cases below pin that: a former-BE-only set resolves to "—" (or manual/promo), never a
+// BE figure. The "Brickset leads" cases keep documenting that a real Brickset figure wins.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const AS_OF = "2026-06-02T00:00:00.000Z";
 
 describe("setRetailProvenance — ordered-source retail read", () => {
-  it("order is brickset → manual → brickeconomy (BrickLink excluded — no catalog MSRP)", () => {
-    expect(RETAIL_SOURCE_ORDER).toEqual(["brickset", "manual", "brickeconomy"]);
+  it("order is brickset → manual (BrickLink has no catalog MSRP; BE removed from retail in 3c)", () => {
+    expect(RETAIL_SOURCE_ORDER).toEqual(["brickset", "manual"]);
   });
 
-  it("Brickset leads: a Brickset figure wins over a different BrickEconomy figure", () => {
+  it("Brickset leads: a Brickset figure wins; a brickeconomy key is ignored", () => {
     const v = setRetailProvenance({
       brickset: { amount: 849.99, asOf: AS_OF },
       brickeconomy: { amount: 799.99, asOf: AS_OF },
@@ -30,19 +27,22 @@ describe("setRetailProvenance — ordered-source retail read", () => {
     expect(v).toMatchObject({ amount: 849.99, source: "brickset", basis: "retail", asOf: AS_OF });
   });
 
-  it("BE-only fallback (pins old chip behavior): no Brickset → BrickEconomy figure, byte-identical amount", () => {
-    const beFigure = 59.99;
+  it("former BE-only set → \"—\": no Brickset, no manual, a brickeconomy key is ignored (3c)", () => {
+    // Pre-3c this fell back to the BE figure; the BE rung is gone, so the ladder returns null.
     const v = setRetailProvenance({
       brickset: { amount: null },
-      brickeconomy: { amount: beFigure, asOf: AS_OF },
+      brickeconomy: { amount: 59.99, asOf: AS_OF },
     });
-    // Old chip: asNumber(be.retail_price_us) || null === 59.99. New fallback matches exactly.
-    expect(v).toMatchObject({ amount: beFigure, source: "brickeconomy", basis: "retail" });
+    expect(v).toBeNull();
   });
 
-  it("missing Brickset source object → still falls back to BrickEconomy", () => {
-    const v = setRetailProvenance({ brickeconomy: { amount: 120 } });
-    expect(v).toMatchObject({ amount: 120, source: "brickeconomy", basis: "retail" });
+  it("former BE-only set with a manual figure → manual wins (the reclaim path)", () => {
+    const v = setRetailProvenance({ brickset: { amount: null }, manual: { amount: 4.99 }, brickeconomy: { amount: 8.99 } });
+    expect(v).toMatchObject({ amount: 4.99, source: "manual", basis: "retail" });
+  });
+
+  it("only a brickeconomy key present → null (it is not a ladder source)", () => {
+    expect(setRetailProvenance({ brickeconomy: { amount: 120 } })).toBeNull();
   });
 
   it("no retail anywhere → null (caller renders \"—\")", () => {
@@ -52,13 +52,13 @@ describe("setRetailProvenance — ordered-source retail read", () => {
   });
 
   it("0 / blank / unparseable is unknown (no set has a $0 MSRP) → skips that source", () => {
-    // Brickset 0 must NOT win — it's unknown; fall through to a real BE figure.
-    expect(setRetailProvenance({ brickset: { amount: 0 }, brickeconomy: { amount: 49.99 } }))
-      .toMatchObject({ amount: 49.99, source: "brickeconomy" });
-    expect(setRetailProvenance({ brickset: { amount: "" }, brickeconomy: { amount: 49.99 } }))
-      .toMatchObject({ amount: 49.99, source: "brickeconomy" });
+    // Brickset 0 must NOT win — it's unknown; fall through to the real manual figure (BE is ignored).
+    expect(setRetailProvenance({ brickset: { amount: 0 }, manual: { amount: 49.99 } }))
+      .toMatchObject({ amount: 49.99, source: "manual" });
+    expect(setRetailProvenance({ brickset: { amount: "" }, manual: { amount: 49.99 } }))
+      .toMatchObject({ amount: 49.99, source: "manual" });
     // 0 in both → unknown overall.
-    expect(setRetailProvenance({ brickset: { amount: 0 }, brickeconomy: { amount: 0 } })).toBeNull();
+    expect(setRetailProvenance({ brickset: { amount: 0 }, manual: { amount: 0 } })).toBeNull();
   });
 
   it("parses string amounts the same way value reads do ($/commas tolerated)", () => {

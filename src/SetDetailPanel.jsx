@@ -79,23 +79,22 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
   const bsEntry = bsCache[`brickset_${item.setNumber}`] || bsCache[`brickset_${bsStripped}`] || bsCache[`brickset_${bsStripped}-1`] || {};
   const bs = bsEntry.data || {};
 
-  // Canonical retail (MSRP): Brickset (LEGO sticker price) leads; BrickEconomy is the deprecated
-  // fallback. Retail resolves via the SHARED resolver so the panel matches the main table — for a
-  // CMF figure it reaches the series -0 entry (71052-0 → $4.99), which the per-figure entry lacks.
+  // Canonical retail (MSRP): Brickset (LEGO sticker price) leads, then the hand-entered manual rung.
+  // BrickEconomy was removed from the retail ladder in Phase 3c (BE stays a VALUE fallback only).
+  // Retail resolves via the SHARED resolver so the panel matches the main table — for a CMF figure it
+  // reaches the series -0 entry (71052-0 → $4.99), which the per-figure entry lacks.
   const bsRetailEntry = bricksetRetailEntry(bsCache, item.setNumber) || {};
   const bsRetail = bsRetailEntry.data || {};
   const retailProv = setRetailProvenance(
     {
       brickset: { amount: bsRetail.retail_price_us, asOf: bsRetailEntry.fetchedAt },
       manual: { amount: item.msrp }, // hand-entered MSRP (Phase 3a rung); 0/absent → skipped
-      brickeconomy: { amount: cached.retail_price_us, asOf: cacheEntry.fetchedAt },
     },
     { condition: item.condition, promo: isPromoNoRetail(item) }
   );
   const retailPrice = retailProv?.amount ?? null;
-  // Mark a hand-entered MSRP so it's distinguishable from a sourced Brickset figure (Phase 3a). Scoped
-  // to 'manual' here — the panel intentionally does NOT carry the row's 'be' chip (BE shows as a clean
-  // figure in the panel, per the DOM-leaf test); only the new manual rung gets a panel marker.
+  // Mark a hand-entered MSRP so it's distinguishable from a sourced Brickset figure (Phase 3a) — the
+  // only non-canonical retail source left after BE was removed from the ladder (3c).
   const retailManualMark = retailProv?.source === "manual" ? retailSourceMarker(retailProv) : null;
   const subtheme = bs.subtheme || null;
   const minifigs = bs.minifigs != null ? bs.minifigs : null;

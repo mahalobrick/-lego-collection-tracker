@@ -251,29 +251,24 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   });
   const purchaseMap = useMemo(() => buildPurchaseMap(purchases), [purchases]);
 
-  // ── Retail (MSRP) source caches — read once, same caches SetDetailPanel reads ──
-  // Brickset is keyed `brickset_${n}` (canonical); BrickEconomy by bare set number
-  // (deprecated fallback). retailFor() builds the per-set sources for setRetailProvenance.
+  // ── Retail (MSRP) source cache — read once, same cache SetDetailPanel reads ──
+  // Brickset is keyed `brickset_${n}` (canonical). retailFor() builds the per-set sources
+  // for setRetailProvenance. (BrickEconomy was removed from the retail ladder in Phase 3c.)
   const [retailCaches, setRetailCaches] = useState(() => {
-    let bs = {}, be = {};
-    try { bs = JSON.parse(localStorage.getItem("bricksetSetCache")     || "{}"); } catch {}
-    try { be = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}"); } catch {}
-    return { bs, be };
+    let bs = {};
+    try { bs = JSON.parse(localStorage.getItem("bricksetSetCache") || "{}"); } catch {}
+    return { bs };
   });
   function retailFor(set) {
     const n = set.setNumber;
-    // Base join matches the paid side (baseSetNumber, /-\d+$/): a CMF figure 71052-5 → series 71052.
     // The Brickset rung walks figure→base→series-0→-1 and takes the first with a real retail
     // (CMF series retail lives on the -0 variant; the figure's own entry has none) — see
-    // bricksetRetailEntry. The BE rung keeps its base fallback for the same CMF reason.
-    const base = String(n || "").replace(/-\d+$/, "");
+    // bricksetRetailEntry.
     const bsEntry = bricksetRetailEntry(retailCaches.bs, n) || {};
-    const beEntry = retailCaches.be[n] || retailCaches.be[base] || {};
     return setRetailProvenance(
       {
-        brickset:     { amount: bsEntry.data?.retail_price_us, asOf: bsEntry.fetchedAt },
-        manual:       { amount: set.msrp }, // hand-entered MSRP (Phase 3a rung); 0/absent → skipped
-        brickeconomy: { amount: beEntry.data?.retail_price_us, asOf: beEntry.fetchedAt },
+        brickset: { amount: bsEntry.data?.retail_price_us, asOf: bsEntry.fetchedAt },
+        manual:   { amount: set.msrp }, // hand-entered MSRP (Phase 3a rung); 0/absent → skipped
       },
       { condition: set.condition, promo: isPromoNoRetail(set) }
     );

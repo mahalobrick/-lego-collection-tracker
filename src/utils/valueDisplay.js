@@ -155,10 +155,11 @@ export function retailCellTooltip(value) {
 /**
  * Source marker for a retail cell — distinguishes a NON-canonical RRP from a clean Brickset-sourced
  * one (which gets no marker). Mirrors the value/paid confidence markers:
- *   - source 'manual'       → "manual"  (hand-entered MSRP, not a sourced retail — Phase 3a rung)
- *   - source 'brickeconomy' → "be"      (still leaning on the deprecated BE source — removed in 3c)
+ *   - source 'manual'            → "manual"  (hand-entered MSRP, not a sourced retail — Phase 3a rung)
  *   - Brickset / promo / unknown → null (no marker)
  * Returns null when there's no amount (a "—" / promo cell carries no source chip).
+ * (BrickEconomy was removed from the retail ladder in Phase 3c, so no retail can be BE-sourced — its
+ * "be" marker branch was unreachable and is gone. BE remains a VALUE fallback only.)
  *
  * @param {import("./value").Value | null} value
  * @returns {{marker:string, tooltip:string}|null}
@@ -167,9 +168,6 @@ export function retailSourceMarker(value) {
   if (!value || value.amount == null) return null;
   if (value.source === "manual") {
     return { marker: "manual", tooltip: "Hand-entered MSRP — not a sourced retail price" };
-  }
-  if (value.source === "brickeconomy") {
-    return { marker: "be", tooltip: "Retail is still from the deprecated BrickEconomy source (no Brickset MSRP yet)" };
   }
   return null;
 }

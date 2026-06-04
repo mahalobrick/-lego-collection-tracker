@@ -15,7 +15,7 @@ import { money } from "./utils/formatting";
 // what MyCollection's inline value cell produced for the same provenance.
 //
 // SMOKE (DOM-leaf): three rows — all three present; a row missing Paid → "—"; a
-// BE-only retail row (shows the deprecated BrickEconomy figure + a quiet "be" tag).
+// former-BE-only retail row now renders "—" (BE removed from the retail ladder in 3c).
 // ─────────────────────────────────────────────────────────────────────────────
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -86,13 +86,12 @@ describe("TriValueCell — three-up smoke (DOM-leaf)", () => {
     expect(m.textContent).toBe(`${money(120)}est.`);
   });
 
-  it("BE-only retail (polybag): shows the BrickEconomy figure + a quiet 'be' tag", () => {
-    // No Brickset MSRP → setRetailProvenance falls back to the deprecated BrickEconomy source.
+  it("former BE-only retail (polybag): now renders \"—\" (BE removed from the ladder in 3c)", () => {
+    // No Brickset MSRP, no manual → setRetailProvenance returns null (a brickeconomy key is ignored).
     const retail = setRetailProvenance({ brickset: { amount: null }, brickeconomy: { amount: 4.99 } });
-    expect(retail.source).toBe("brickeconomy");
+    expect(retail).toBeNull();
     const { retail: r } = render({ retail, paid: null, market: { amount: null, basis: "unknown" } });
-    expect(r.textContent).toBe(`${money(4.99)}be`);
-    expect(r.querySelector("[title]").getAttribute("title")).toMatch(/deprecated BrickEconomy/);
+    expect(r.textContent).toBe("—");
   });
 });
 

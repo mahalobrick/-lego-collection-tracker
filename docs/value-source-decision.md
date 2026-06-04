@@ -127,6 +127,7 @@ Of the 27 ratio extremes (`<0.2` or `>2.5`):
 ## 6. What's out (and what we keep)
 
 - **BrickEconomy — out as the value source.** Existing `source:"BrickEconomy"` values are **DEMOTED to historical/fallback provenance, NOT deleted.** The funnel prefers BL; BE remains a last-resort/historical reading so nothing regresses to "unknown" that previously had a number.
+- **BrickEconomy — also out as a RETAIL source (Retail Phase 3c).** The retail/MSRP ladder (`RETAIL_SOURCE_ORDER` / `setRetailProvenance` in [`src/utils/portfolio.js`](../src/utils/portfolio.js)) is now **Brickset → manual only** — BE was removed because it overvalues polybags ~2.6× (§4) and is not a trustworthy sticker price. The residual Brickset's API has no RRP for (the 71034 CMF series + ~50 polybags + occasional gaps) resolves to **"—"**, hand-fillable via the edit-form MSRP rung now, and reclaimable wholesale by a future Brickset site-scrape source (see [`backlog.md`](backlog.md)). BE keeps its VALUE-fallback role untouched.
 - **OPEN DECISION — BE trend / `price_events`.** BE's dated `price_events_*` / forecast trend has **no BrickLink equivalent**; dropping BE silently loses it. This is a **build-time decision, not a silent loss.** Three options on record:
   1. **Keep BE solely for `price_events`/trend** (value comes from BL; BE used only for the history chart).
   2. **Build our own history** by snapshotting BL sold averages on each refresh (owned data, no BE dependency; starts empty, accrues forward).

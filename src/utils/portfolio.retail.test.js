@@ -10,8 +10,9 @@ import { retailPricedNote } from "./valueDisplay";
 // and reads "—" (via formatAggregateValue on known === 0) when nothing is priced.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// A realistic resolver mirroring MyCollection's retailFor: build the ladder sources
-// from per-set fields, walk Brickset → manual → BrickEconomy, tag promo.
+// A realistic resolver mirroring MyCollection's retailFor: build the ladder sources from
+// per-set fields, walk Brickset → manual, tag promo. (A `brickeconomy` field is passed to
+// prove the ladder IGNORES it after 3c — BE is no longer a retail source.)
 const retailOf = (s) =>
   setRetailProvenance(
     { brickset: { amount: s.bs }, manual: { amount: s.msrp }, brickeconomy: { amount: s.be } },
@@ -19,13 +20,13 @@ const retailOf = (s) =>
   );
 
 describe("portfolioRetail — sums the ladder, not the BE blob", () => {
-  it("sums resolved per-unit retail × qty over priced sets", () => {
+  it("sums resolved per-unit retail × qty over priced sets; a former-BE-only set is now unpriced", () => {
     const sets = [
-      { setNumber: "10300-1", bs: 100, qty: 2 },   // 200 (Brickset × 2)
+      { setNumber: "10300-1", bs: 100, qty: 2 },    // 200 (Brickset × 2)
       { setNumber: "33333-1", msrp: 4.99, qty: 1 }, // 4.99 (manual rung)
-      { setNumber: "75192-1", be: 60, qty: 1 },     // 60 (BE fallback)
+      { setNumber: "75192-1", be: 60, qty: 1 },     // former BE-only → "—" after 3c, not counted
     ];
-    expect(portfolioRetail(sets, retailOf)).toEqual({ total: 264.99, known: 3 });
+    expect(portfolioRetail(sets, retailOf)).toEqual({ total: 204.99, known: 2 });
   });
 
   it("Brickset wins over a divergent raw retailPrice blob — ladder, not the stored field", () => {

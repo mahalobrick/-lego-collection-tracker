@@ -42,8 +42,8 @@ scoring is per-user.
 
 | Source | Type | What it does | /api proxy | Client module (`src/`) | Auth / key | Cost / limits |
 |---|---|---|---|---|---|---|
-| BrickEconomy | External API | Set values (new/used), 2/5yr forecasts, price history, retail | `brickeconomy-set`, `brickeconomy-collection` | `beSyncValues.js` | `BRICKECONOMY_API_KEY` (`x-apikey` header) | Paid; per-key quota → 429 on overuse |
-| Brickset | External API | Catalog facts: MSRP, retirement dates, pieces, minifigs, images, themes | `brickset-set`, `brickset-search`, `brickset-themes` | `brickset.js` | `BRICKSET_API_KEY` | Free tier w/ key; v3.asmx API |
+| BrickEconomy | External API | Set values (new/used), 2/5yr forecasts, price history — **value fallback only** (out of retail as of Retail 3c) | `brickeconomy-set`, `brickeconomy-collection` | `beSyncValues.js` | `BRICKECONOMY_API_KEY` (`x-apikey` header) | Paid; per-key quota → 429 on overuse |
+| Brickset | External API | Catalog facts: MSRP/retail (sole source), retirement dates, pieces, minifigs, images, themes | `brickset-set`, `brickset-search`, `brickset-themes` | `brickset.js` | `BRICKSET_API_KEY` | Free tier w/ key; v3.asmx API |
 | BrickLink | External API | Resale sold prices (new & used, avg/min/max) | `bricklink-auth`, `bricklink-priceguide` | `bricklink-client.js` | User `blBrickLinkAccessToken` → session token; hardcoded `CLIENT_ID` | Per-user token; 50-min session, 6h price cache |
 | LEGO.com | Scraper | "Last Chance to Buy" list → urgency badges | `lego-last-chance` | `legoLastChance.js` | none (direct fetch) | Free; CDN 24h / client 23h |
 | Brick Fanatics | Scraper | Retiring-sets list + waves/dates | `brickfanatics-retiring` | (`blBFRetirementCache` reader) | `SCRAPERAPI_KEY` | via ScraperAPI; CDN-cached 7d |

@@ -86,6 +86,28 @@ Cost Basis / Net Gain card rendering. The funcs live in `src/utils/portfolio.js`
 
 ---
 
+## 5. Brickset retail gap — site-scrape source (the post-3c residual)
+
+**What:** Retail Phase 3c removed BrickEconomy from the retail ladder, so retail is now **Brickset
+API → manual** only (`RETAIL_SOURCE_ORDER` / `setRetailProvenance` in `src/utils/portfolio.js`). The
+sets Brickset's `/getSets` API carries **no `retail_price_us`** for — the 71034 CMF series, the ~50
+polybags Brickset's API leaves sparse, plus occasional regular gaps — now resolve to **"—"** instead
+of falling back to a BE figure. They are hand-fillable today via the edit-form MSRP rung (`set.msrp`,
+the `manual` source), but that is one set at a time.
+
+**Why parked:** BE removal was the correct call (BE overvalues polybags ~2.6×; see
+[`value-source-decision.md`](value-source-decision.md) §4/§6) and the manual rung covers the reclaim
+path. A bulk source is a nice-to-have, not a blocker — most of the collection is Brickset-covered.
+
+**Start at:** the Brickset **site** (brickset.com set pages publish RRP that the API omits for these
+sparse entries) behind the existing ScraperAPI proxy pattern (`api/brickfanatics-retiring.js` +
+`scrape` rate-limit bucket). Land it as a third retail source feeding `setRetailProvenance` **below
+Brickset-API, above/around manual** — slotting into the same ladder, no consumer changes. Cross-check
+coverage against the known residual (`71034-*`, the polybag set list, `bricksetRetailEntry`'s CMF `-0`
+walk in `src/utils/brickset.js`).
+
+---
+
 ## Conditions arc — remaining cleanup (not blocking)
 
 - **BE-ingest token normalization.** The BrickEconomy import stores raw condition tokens
