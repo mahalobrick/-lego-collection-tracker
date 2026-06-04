@@ -58,6 +58,34 @@ paid-editing surfaces are added.
 
 ---
 
+## 4. Headline tile reconciliation — partial-coverage Net Gain  *(next priority)*
+
+**What:** The My Collection Overview headline tiles don't reconcile as `Net Gain = Value − Cost`
+when the collection holds sets with a known **cost** but an **unknown value**. Value and Net Gain
+are computed on the value-known subset (`portfolioValue` / `portfolioGain` exclude unknown-value
+sets); Cost Basis is inclusive (`totalSpent` counts every set). Worked example: one valued set
+(value $777, cost $200) plus unvalued-but-paid sets (cost $260) → Value **$777**, Cost **$460**,
+Net Gain **$577**; but $777 − $460 = $317 ≠ $577. The $260 gap is exactly the cost of the
+unvalued sets — in Cost, excluded from Gain/Value.
+
+**Why parked / not a bug in this work:** pre-existing behavior of the null-aware portfolio layer
+(`src/utils/portfolio.js`). `portfolioGain` deliberately drops unknown-value sets so their cost
+doesn't read as a phantom loss. The promotion-value-laundering fix did **not** introduce it — it
+made promoted sets carry honestly-unknown value (instead of laundering paid→value), which grew the
+unknown-value population and so made the pre-existing non-reconciliation visible in the headline.
+
+**Decision needed:** how the three tiles should present partial coverage. Options: (a) a coverage
+note on Net Gain ("over N of M sets with known value"); (b) scope the displayed Cost to the
+value-known subset in the gain context; (c) a "cost of unvalued sets" disclosure. Settle the
+intended reconciliation contract before changing any number — it is a presentation decision, not a
+math bug.
+
+**Start at:** the `stats` useMemo in `src/MyCollection.jsx` (`costBasis = totalSpent(sets)` vs
+`value = portfolioValue(...)` / `gainLoss = portfolioGain(...)`), and the Collection Value /
+Cost Basis / Net Gain card rendering. The funcs live in `src/utils/portfolio.js`.
+
+---
+
 ## Conditions arc — remaining cleanup (not blocking)
 
 - **BE-ingest token normalization.** The BrickEconomy import stores raw condition tokens
