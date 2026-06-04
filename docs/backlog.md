@@ -91,4 +91,4 @@ Cost Basis / Net Gain card rendering. The funcs live in `src/utils/portfolio.js`
 - **BE-ingest token normalization.** The BrickEconomy import stores raw condition tokens
   (`usedasnew`, `usedcomplete`, `usedincomplete`, underscored `used_*`). The display layer already
   buckets every token to New/Used/Mixed via `src/utils/condition.js`, so this is cosmetic-at-source
-  cleanup, not a correctness gap. Start at `normalizeBrickEconomyCollection` (`AppSettings.jsx`).
+  cleanup, not a correctness gap. Start at `normalizeBrickEconomyCollection` (`src/utils/beCollection.js`).
