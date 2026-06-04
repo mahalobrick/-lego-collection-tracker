@@ -38,6 +38,34 @@ export function bricksetRetailEntry(bsCache, setNumber) {
 }
 
 /**
+ * The bounded list of CMF series `-0` Brickset numbers to fetch so the series retail (RRP) lands in
+ * cache for {@link bricksetRetailEntry} to read. CMF retail lives on the `-0` SERIES variant
+ * (`71052-0` → US $4.99, per-bag = already per-figure), NOT on the per-figure `-N` entries — so this
+ * yields ONE `-0` per owned series (theme "Minifigure Series"), deduped (~11 calls, not per-figure),
+ * skipping any series whose `-0` is already cached. Pure — the fetch/throttle is the caller's.
+ *
+ * (Of the owned series, ~10/11 carry a real `-0` US retail; `71034-0` is null on Brickset and stays
+ * "—" — reclaimed later via manual msrp. We still cache its `-0` so it isn't re-fetched every load.)
+ *
+ * @param {Array<{setNumber?:string, theme?:string}>} sets  owned sets.
+ * @param {Object<string, *>} [bsCache]  the bricksetSetCache object (skip already-cached `-0`).
+ * @returns {string[]}  series numbers to fetch, e.g. ["71052-0", "71045-0"].
+ */
+export function cmfSeriesRetailTargets(sets, bsCache = {}) {
+  const seen = new Set();
+  const out = [];
+  for (const s of sets || []) {
+    if (!/minifigure series/i.test(s?.theme || "")) continue;
+    const base = String(s?.setNumber || "").replace(/-\d+$/, "");
+    if (!base || seen.has(base)) continue;
+    seen.add(base);
+    if (bsCache && bsCache[`brickset_${base}-0`]) continue; // already have the series entry
+    out.push(`${base}-0`);
+  }
+  return out;
+}
+
+/**
  * Fetch all LEGO themes from Brickset, cached in localStorage for 30 days.
  * Returns a sorted string array, or [] if the API key isn't configured.
  */

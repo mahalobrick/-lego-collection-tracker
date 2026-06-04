@@ -3,6 +3,7 @@ import { asNumber, money, setImageUrl, daysUntilRetirement } from "./utils/forma
 import { conditionDisplayLabel, conditionDisplayColor, conditionBucket } from "./utils/condition";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { setValueProvenance, setGain, setROI, copyValueProvenance, setRetailProvenance } from "./utils/portfolio";
+import { bricksetRetailEntry } from "./utils/brickset";
 import { formatValueCell, formatValue, valueConfidence, lotsLabel, retailTooltip } from "./utils/valueDisplay";
 import { confidenceBadge } from "./uiStyles";
 
@@ -79,10 +80,13 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
   const bs = bsEntry.data || {};
 
   // Canonical retail (MSRP): Brickset (LEGO sticker price) leads; BrickEconomy is the deprecated
-  // fallback. Was the wrong cache (BrickEconomy only) — see setRetailProvenance / RETAIL_SOURCE_ORDER.
+  // fallback. Retail resolves via the SHARED resolver so the panel matches the main table — for a
+  // CMF figure it reaches the series -0 entry (71052-0 → $4.99), which the per-figure entry lacks.
+  const bsRetailEntry = bricksetRetailEntry(bsCache, item.setNumber) || {};
+  const bsRetail = bsRetailEntry.data || {};
   const retailProv = setRetailProvenance(
     {
-      brickset: { amount: bs.retail_price_us, asOf: bsEntry.fetchedAt },
+      brickset: { amount: bsRetail.retail_price_us, asOf: bsRetailEntry.fetchedAt },
       brickeconomy: { amount: cached.retail_price_us, asOf: cacheEntry.fetchedAt },
     },
     { condition: item.condition }

@@ -9,7 +9,7 @@ import RowHoverCard from "./RowHoverCard";
 import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
 import { setConditionDisplay, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
-import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, bricksetRetailEntry } from "./utils/brickset";
+import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, bricksetRetailEntry, cmfSeriesRetailTargets } from "./utils/brickset";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
@@ -251,7 +251,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   // ── Retail (MSRP) source caches — read once, same caches SetDetailPanel reads ──
   // Brickset is keyed `brickset_${n}` (canonical); BrickEconomy by bare set number
   // (deprecated fallback). retailFor() builds the per-set sources for setRetailProvenance.
-  const [retailCaches] = useState(() => {
+  const [retailCaches, setRetailCaches] = useState(() => {
     let bs = {}, be = {};
     try { bs = JSON.parse(localStorage.getItem("bricksetSetCache")     || "{}"); } catch {}
     try { be = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}"); } catch {}
@@ -434,9 +434,37 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     }
   }
 
-  // Silent enrichment on mount — fills gaps for BE-synced sets missing pieces/minifigs
+  // Bounded one-pass: fetch each owned CMF series' -0 Brickset entry (71052-0 → $4.99 per-bag =
+  // per-figure) so bricksetRetailEntry can resolve CMF retail off the series, not the null per-figure
+  // entries. ~one call per series (deduped), skips already-cached -0. Returns how many were fetched.
+  async function fetchCmfSeriesRetail(currentSets) {
+    let bsCache = {};
+    try { bsCache = JSON.parse(localStorage.getItem("bricksetSetCache") || "{}"); } catch {}
+    const targets = cmfSeriesRetailTargets(currentSets, bsCache);
+    if (!targets.length) return 0;
+    let fetched = 0;
+    for (const num of targets) {
+      // fetchBricksetSet caches under brickset_${num} via setItemSafe (and skips if fresh-cached).
+      if (await fetchBricksetSet(num)) fetched++;
+      await new Promise(r => setTimeout(r, 400));
+    }
+    return fetched;
+  }
+
+  // Silent enrichment on mount — fills gaps for BE-synced sets missing pieces/minifigs, then fetches
+  // the CMF series -0 retail entries (sequential, so the two cache writers don't race). Refresh the
+  // Brickset snapshot afterward so newly-cached retail renders without a reload.
   useEffect(() => {
-    runBricksetEnrichment(sets, false);
+    (async () => {
+      await runBricksetEnrichment(sets, false);
+      const fetched = await fetchCmfSeriesRetail(sets);
+      if (fetched > 0) {
+        try {
+          const bs = JSON.parse(localStorage.getItem("bricksetSetCache") || "{}");
+          setRetailCaches(prev => ({ ...prev, bs }));
+        } catch {}
+      }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally runs once on mount
 
