@@ -4,7 +4,7 @@ import { conditionDisplayLabel, conditionDisplayColor, conditionBucket } from ".
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { setValueProvenance, setGain, setROI, copyValueProvenance, setRetailProvenance, isPromoNoRetail } from "./utils/portfolio";
 import { bricksetRetailEntry } from "./utils/brickset";
-import { formatValueCell, formatValue, valueConfidence, lotsLabel, isPromoNoRrp, retailCellTooltip, PROMO_NO_RRP_LABEL } from "./utils/valueDisplay";
+import { formatValueCell, formatValue, valueConfidence, lotsLabel, isPromoNoRrp, retailCellTooltip, retailSourceMarker, PROMO_NO_RRP_LABEL } from "./utils/valueDisplay";
 import { confidenceBadge } from "./uiStyles";
 
 function entryPaid(e) {
@@ -87,11 +87,16 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
   const retailProv = setRetailProvenance(
     {
       brickset: { amount: bsRetail.retail_price_us, asOf: bsRetailEntry.fetchedAt },
+      manual: { amount: item.msrp }, // hand-entered MSRP (Phase 3a rung); 0/absent → skipped
       brickeconomy: { amount: cached.retail_price_us, asOf: cacheEntry.fetchedAt },
     },
     { condition: item.condition, promo: isPromoNoRetail(item) }
   );
   const retailPrice = retailProv?.amount ?? null;
+  // Mark a hand-entered MSRP so it's distinguishable from a sourced Brickset figure (Phase 3a). Scoped
+  // to 'manual' here — the panel intentionally does NOT carry the row's 'be' chip (BE shows as a clean
+  // figure in the panel, per the DOM-leaf test); only the new manual rung gets a panel marker.
+  const retailManualMark = retailProv?.source === "manual" ? retailSourceMarker(retailProv) : null;
   const subtheme = bs.subtheme || null;
   const minifigs = bs.minifigs != null ? bs.minifigs : null;
   const rating = bs.rating ? Number(bs.rating) : null;
@@ -170,7 +175,7 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
           {releaseYear && <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{releaseYear}</span>}
           {pieces && <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{pieces.toLocaleString()} pcs</span>}
           {/* Canonical MSRP — always shown (unknown → "—", never hidden-as-absent). Tooltip flags it as sticker price. */}
-          <span data-testid="msrp-chip" title={retailCellTooltip(retailProv) || undefined} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{isPromoNoRrp(retailProv) ? PROMO_NO_RRP_LABEL : <>MSRP {formatValue(retailPrice)}</>}</span>
+          <span data-testid="msrp-chip" title={retailCellTooltip(retailProv) || undefined} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{isPromoNoRrp(retailProv) ? PROMO_NO_RRP_LABEL : <>MSRP {formatValue(retailPrice)}{retailManualMark && <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }} title={retailManualMark.tooltip}>{retailManualMark.marker}</span>}</>}</span>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>

@@ -43,8 +43,8 @@ function seedBrickset(setNumber, retail) {
   localStorage.setItem("bricksetSetCache", JSON.stringify(cache));
 }
 
-function renderPanel(setNumber) {
-  const item = { setNumber, condition: "new", quantity: 1, totalPaid: 0, entries: [] };
+function renderPanel(setNumber, extra = {}) {
+  const item = { setNumber, condition: "new", quantity: 1, totalPaid: 0, entries: [], ...extra };
   act(() => root.render(<SetDetailPanel item={item} onClose={() => {}} />));
   const chip = container.querySelector('[data-testid="msrp-chip"]');
   return chip ? chip.textContent : null;
@@ -65,5 +65,15 @@ describe("SetDetailPanel MSRP chip — browser-observable (DOM-leaf)", () => {
 
   it("scenario 3 — no retail anywhere: chip shows \"—\"", () => {
     expect(renderPanel("11111-1")).toBe("MSRP —");
+  });
+
+  it("scenario 4 — manual msrp only (no caches): chip shows the figure, tagged 'manual' (Phase 3a)", () => {
+    // item.msrp is the hand-entered rung; below Brickset, above BE.
+    expect(renderPanel("33333-1", { msrp: 4.99 })).toBe(`MSRP ${money(4.99)}manual`);
+  });
+
+  it("scenario 5 — Brickset present + manual msrp: Brickset wins, no manual tag", () => {
+    seedBrickset("10300-1", 199.99);
+    expect(renderPanel("10300-1", { msrp: 4.99 })).toBe(`MSRP ${money(199.99)}`);
   });
 });

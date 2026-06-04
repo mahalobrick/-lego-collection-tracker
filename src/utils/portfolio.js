@@ -167,23 +167,27 @@ export function setValueProvenance(s, valueMap) {
 // Source order settled EMPIRICALLY (MSRP Step 1, scripts/bl-catalog-probe): BrickLink's catalog item
 // endpoint exposes NO retail/MSRP field (no/name/type/category_id/year_released/… — it is market-price
 // only), so it cannot lead. Brickset is the canonical MSRP (the LEGO.com sticker price it publishes).
-// BrickEconomy is the DEPRECATED last-resort fallback — that source is being phased out, so it only
-// covers sets Brickset can't. First source carrying a real figure wins.
-export const RETAIL_SOURCE_ORDER = ["brickset", "brickeconomy"];
+// 'manual' is the user-entered msrp rung (Phase 3a): below Brickset (a real sourced RRP still wins),
+// above BE — the reclaim path for the genuine residual Brickset has no RRP for (the 71034 CMF series,
+// ~50 polybags). BrickEconomy is the DEPRECATED last-resort fallback (phased out in 3c). First source
+// carrying a real figure wins.
+export const RETAIL_SOURCE_ORDER = ["brickset", "manual", "brickeconomy"];
 
 /**
  * Read-time retail (MSRP) {@link import("./value").Value} for a set — the sticker price, never a
  * market value. Walks {@link RETAIL_SOURCE_ORDER} and returns the first source carrying a real figure
- * (Brickset canonical, BrickEconomy deprecated fallback), tagged `basis:'retail'`. A stored 0 / blank /
- * missing is "unknown" (no set has a $0 MSRP — VALUE-style {@link import("./value").valueAmount}
- * coalescing), so it is skipped, not taken. Returns `null` when NO source carries a figure → the
- * caller renders "—". Parallel to {@link setValueProvenance}; deliberately does NOT touch the
- * BrickLink→BE market overlay.
+ * (Brickset canonical → user-entered `manual` msrp → BrickEconomy deprecated fallback), tagged
+ * `basis:'retail'` with `source` = the winning rung (so a hand-entered MSRP is distinguishable). A
+ * stored 0 / blank / missing is "unknown" (no set has a $0 MSRP — VALUE-style
+ * {@link import("./value").valueAmount} coalescing), so it is skipped, not taken. When NO source
+ * carries a figure: a `promo` set returns the first-class basis:"promo" no-RRP state, else `null` →
+ * the caller renders "—". Parallel to {@link setValueProvenance}; does NOT touch the BL→BE market overlay.
  *
- * @param {{brickset?:{amount?:*, asOf?:string|null}, brickeconomy?:{amount?:*, asOf?:string|null}}} sources
+ * @param {{brickset?:{amount?:*, asOf?:string|null}, manual?:{amount?:*}, brickeconomy?:{amount?:*, asOf?:string|null}}} sources
  *        Raw retail candidates by source (amount may be a number / string / blank).
  * @param {Object} [opts]
  * @param {string|null} [opts.condition]
+ * @param {boolean} [opts.promo]  set is a GWP/no-RRP promo (see {@link isPromoNoRetail}).
  * @returns {import("./value").Value | null}
  */
 export function setRetailProvenance(sources, { condition = null, promo = false } = {}) {

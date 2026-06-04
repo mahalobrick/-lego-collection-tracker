@@ -1,4 +1,4 @@
-import { formatValue, formatValueCell, formatRetailCell, retailTooltip, retailCellTooltip, valueConfidence } from "./utils/valueDisplay";
+import { formatValue, formatValueCell, formatRetailCell, retailTooltip, retailCellTooltip, retailSourceMarker, valueConfidence } from "./utils/valueDisplay";
 import { confidenceBadge } from "./uiStyles";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -48,20 +48,15 @@ export default function TriValueCell({ retail, paid, market, density = "full" })
     return <span title={marketTip} data-testid="tri-market">{marketFigureEl}</span>;
   }
 
-  const retailIsBE = retail?.amount != null && retail?.source === "brickeconomy";
+  const retailMark = retailSourceMarker(retail);
   return (
     <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
       <div style={rowStyle} title={retailCellTooltip(retail) || undefined}>
         <span style={labelStyle}>Retail</span>
         <span style={dimFigure} data-testid="tri-retail">
           {formatRetailCell(retail)}
-          {retailIsBE && (
-            <span
-              style={confidenceBadge}
-              title="Retail is still from the deprecated BrickEconomy source (no Brickset MSRP yet)"
-            >
-              be
-            </span>
+          {retailMark && (
+            <span style={confidenceBadge} title={retailMark.tooltip}>{retailMark.marker}</span>
           )}
         </span>
       </div>

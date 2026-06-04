@@ -18,8 +18,8 @@ import { retailTooltip } from "./valueDisplay";
 const AS_OF = "2026-06-02T00:00:00.000Z";
 
 describe("setRetailProvenance — ordered-source retail read", () => {
-  it("order is brickset → brickeconomy (BrickLink excluded — no catalog MSRP)", () => {
-    expect(RETAIL_SOURCE_ORDER).toEqual(["brickset", "brickeconomy"]);
+  it("order is brickset → manual → brickeconomy (BrickLink excluded — no catalog MSRP)", () => {
+    expect(RETAIL_SOURCE_ORDER).toEqual(["brickset", "manual", "brickeconomy"]);
   });
 
   it("Brickset leads: a Brickset figure wins over a different BrickEconomy figure", () => {

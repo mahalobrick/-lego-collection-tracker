@@ -269,6 +269,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     return setRetailProvenance(
       {
         brickset:     { amount: bsEntry.data?.retail_price_us, asOf: bsEntry.fetchedAt },
+        manual:       { amount: set.msrp }, // hand-entered MSRP (Phase 3a rung); 0/absent → skipped
         brickeconomy: { amount: beEntry.data?.retail_price_us, asOf: beEntry.fetchedAt },
       },
       { condition: set.condition, promo: isPromoNoRetail(set) }

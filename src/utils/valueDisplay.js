@@ -137,6 +137,28 @@ export function retailCellTooltip(value) {
   return isPromoNoRrp(value) ? PROMO_NO_RRP_TOOLTIP : retailTooltip(value);
 }
 
+/**
+ * Source marker for a retail cell — distinguishes a NON-canonical RRP from a clean Brickset-sourced
+ * one (which gets no marker). Mirrors the value/paid confidence markers:
+ *   - source 'manual'       → "manual"  (hand-entered MSRP, not a sourced retail — Phase 3a rung)
+ *   - source 'brickeconomy' → "be"      (still leaning on the deprecated BE source — removed in 3c)
+ *   - Brickset / promo / unknown → null (no marker)
+ * Returns null when there's no amount (a "—" / promo cell carries no source chip).
+ *
+ * @param {import("./value").Value | null} value
+ * @returns {{marker:string, tooltip:string}|null}
+ */
+export function retailSourceMarker(value) {
+  if (!value || value.amount == null) return null;
+  if (value.source === "manual") {
+    return { marker: "manual", tooltip: "Hand-entered MSRP — not a sourced retail price" };
+  }
+  if (value.source === "brickeconomy") {
+    return { marker: "be", tooltip: "Retail is still from the deprecated BrickEconomy source (no Brickset MSRP yet)" };
+  }
+  return null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Confidence display (app-read Step 3). Surfaces a value's BrickLink basis so an
 // ESTIMATE reads as an estimate, not a hard sold figure. Pure — marker text + tooltip
