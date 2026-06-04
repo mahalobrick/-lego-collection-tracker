@@ -13,7 +13,7 @@ import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, bricksetRetai
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
-import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, isPromoNoRetail, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
+import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, isPromoNoRetail, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
 import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, estimatedValueNote, estimatedCostNote, totalRoiNote, netGainBasisNote } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { apiFetch } from "./utils/apiFetch";
@@ -197,6 +197,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             // and the Retail Value card reads a real figure rather than undefined. (Provenance Step 2)
             retailPrice:      item.retailPrice,
             totalRetailPrice: item.totalRetailPrice,
+            // Hand-entered MSRP override (Phase 3a.1) — an app-level field persisted onto the BE blob
+            // via persistBESetEdit; read back here so the manual retail rung survives reload.
+            msrp:             item.msrp ?? null,
             roiPct:       item.roiPct,
             retired:      item.retired,
             condition,
@@ -860,7 +863,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
     const qty       = asNumber(form.qty) || 1;
     const paidPrice = asNumber(form.paidPrice);
-    const msrp      = asNumber(form.msrp);
 
     setSets(prev => [
       ...prev,
@@ -869,8 +871,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         ...form,
         qty,
         paidPrice,
-        msrp,
-        retailPrice: msrp,
+        ...manualMsrpPatch(form.msrp), // { msrp, retailPrice } — same contract the edit form uses
         currentValue: asNumber(form.currentValue),
         addedAt: new Date().toISOString()
       }
@@ -1194,7 +1195,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   function updateSet(index, field, value) {
     const cur = sets[index];
     if (!cur) return;
-    const coerced = field === "qty" || field === "paidPrice" || field === "currentValue" ? asNumber(value) : value;
+    const coerced = field === "qty" || field === "paidPrice" || field === "currentValue" || field === "msrp" ? asNumber(value) : value;
 
     // Paid is a per-unit field, but setCost() reads the precomputed `totalPaid` FIRST — so editing
     // paidPrice (or qty) alone is a silent no-op on gain/ROI/Cost-Basis for any set carrying
@@ -1202,6 +1203,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     // entries[].paid_price) so the edit lands and paid provenance reclassifies (msrp → manual).
     const rec = { ...cur, [field]: coerced };
     if (field === "paidPrice" || field === "qty") Object.assign(rec, reconcilePaidEdit(rec));
+    // Hand-entered MSRP mirrors to retailPrice (the shared Add-Set contract) so the manual rung +
+    // the headline card stay in lockstep. (Phase 3a.1)
+    if (field === "msrp") Object.assign(rec, manualMsrpPatch(value));
 
     // BE sets are excluded from the blOwnedSets effect, so blob-relevant edits must persist via the
     // blob (persistBESetEdit auto-pushes); manual sets persist via the effect — branch so there's no
@@ -1221,6 +1225,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       const edited = { ...cur, ...condPatch, condition: value };
       const rev = revalueFromCache(edited); // { currentValue, totalValue } | null (→ next value-sync)
       persistBESetEdit(cur.setNumber, { ...condPatch, condition: value, ...(rev || {}) });
+    } else if (cur.source === "BrickEconomy" && field === "msrp") {
+      // msrp is an app-level override, NOT a native BE blob field — persist it (+ its retailPrice
+      // mirror) onto the blob so a hand-entered MSRP for an existing (BE-imported) set survives reload.
+      persistBESetEdit(cur.setNumber, manualMsrpPatch(value));
     } else {
       setSets(prev => prev.map((s, i) => (i === index ? rec : s)));
     }
@@ -2605,11 +2613,12 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         </label>
                       </div>
 
-                      {/* Row 3: Qty + Paid + Current Value */}
-                      <div style={{ ...row, gridTemplateColumns: "1fr 1fr 1fr" }}>
+                      {/* Row 3: Qty + Paid + Current Value + MSRP */}
+                      <div style={{ ...row, gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
                         <label><span style={lbl}>Qty</span><input style={inp} type="number" min="1" value={s.qty || 1} onChange={e => updateSet(selectedSetIndex, "qty", e.target.value)} /></label>
                         <label><span style={lbl}>Paid</span><input style={inp} type="number" step="0.01" value={s.paidPrice || ""} onChange={e => updateSet(selectedSetIndex, "paidPrice", e.target.value)} /></label>
                         <label><span style={lbl}>Value</span><input style={inp} type="number" step="0.01" value={s.currentValue || ""} onChange={e => updateSet(selectedSetIndex, "currentValue", e.target.value)} /></label>
+                        <label><span style={lbl}>MSRP</span><input style={inp} type="number" min="0" step="0.01" value={s.msrp || ""} onChange={e => updateSet(selectedSetIndex, "msrp", e.target.value)} /></label>
                       </div>
 
                       {/* Row 4: Acquired Date + Notes */}

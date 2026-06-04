@@ -226,6 +226,22 @@ export function isPromoNoRetail(s) {
 }
 
 /**
+ * The patch a hand-entered MSRP writes — the SHARED Add-Set / edit-form contract, so both store a
+ * manual sticker price identically. Per-unit, mirrored to `retailPrice`: the ladder's manual rung
+ * reads `msrp`, while the headline card (`retailPrice || msrp`) and `paidEqualsRetail` read
+ * `retailPrice` — mirroring keeps them in lockstep, exactly how Add-Set has always stored a
+ * manually-added set's MSRP. A blank / 0 → `{msrp:0, retailPrice:0}`, which the value-only
+ * coalescing reads as "no MSRP" (so clearing the field removes the manual rung).
+ *
+ * @param {*} raw  entered MSRP (string from the form, or a number).
+ * @returns {{ msrp: number, retailPrice: number }}
+ */
+export function manualMsrpPatch(raw) {
+  const msrp = asNumber(raw);
+  return { msrp, retailPrice: msrp };
+}
+
+/**
  * Per-COPY BL-preferred {@link import("./value").Value} — the SetDetailPanel per-copy path. Prefers
  * the condition-matched BL cache amount (carrying basis/source/asOf/lots); on a cache-miss or
  * basis:"unknown" it falls back to the copy's stored BE value via {@link import("./value").valueAmount}
