@@ -186,7 +186,7 @@ export const RETAIL_SOURCE_ORDER = ["brickset", "brickeconomy"];
  * @param {string|null} [opts.condition]
  * @returns {import("./value").Value | null}
  */
-export function setRetailProvenance(sources, { condition = null } = {}) {
+export function setRetailProvenance(sources, { condition = null, promo = false } = {}) {
   for (const source of RETAIL_SOURCE_ORDER) {
     const cand = sources && sources[source];
     const amount = valueAmount(cand && cand.amount); // 0 / blank / missing → null → skip this source
@@ -195,7 +195,30 @@ export function setRetailProvenance(sources, { condition = null } = {}) {
     // field IS the sticker price, so — unlike the market path — it never flips to 'market' on retirement.
     return toValue(amount, { source, condition, retired: false, asOf: (cand && cand.asOf) ?? null });
   }
+  // No sourced RRP. A GWP/promo set has none at ANY source (it was never sold) — return a FIRST-CLASS
+  // "no retail exists" Value (basis:"promo", amount null), DISTINCT from an unsourced null ("retail
+  // exists somewhere, just not obtained"). A real sourced figure above always wins over the promo tag.
+  if (promo) return { amount: null, source: null, condition, basis: "promo", asOf: null, lots: null };
   return null;
+}
+
+/**
+ * Is this set a gift-with-purchase / promo with NO retail price (RRP) at any source? GWP/promo sets
+ * were never sold, so no source carries an RRP — confirmed: of 41 owned promo sets, zero carried a
+ * Brickset or BE retail (Phase-0 blast-radius measurement). Identified by theme "Promotional", the
+ * long-numeric promo-ID pattern (≥7-digit base, e.g. 6490363-1 / 5007428-1), or gift/promo wording in
+ * theme/subtheme/name. Drives the first-class "no RRP" retail state ({@link setRetailProvenance}
+ * basis:"promo") so a GWP reads "no retail exists" instead of collapsing into the same "—" as an
+ * unsourced set. Membership matches the Phase-0 heuristic exactly.
+ *
+ * @param {{setNumber?:string, theme?:string, subtheme?:string, name?:string}} s
+ * @returns {boolean}
+ */
+export function isPromoNoRetail(s) {
+  if (!s) return false;
+  const base = String(s.setNumber ?? "").replace(/-\d+$/, "");
+  if (/^\d{7,}$/.test(base)) return true;
+  return /gift with purchase|\bGWP\b|promotion(al)?\b/i.test(`${s.theme || ""} ${s.subtheme || ""} ${s.name || ""}`);
 }
 
 /**

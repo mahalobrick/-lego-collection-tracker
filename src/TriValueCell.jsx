@@ -1,4 +1,4 @@
-import { formatValue, formatValueCell, retailTooltip, valueConfidence } from "./utils/valueDisplay";
+import { formatValue, formatValueCell, formatRetailCell, retailTooltip, retailCellTooltip, valueConfidence } from "./utils/valueDisplay";
 import { confidenceBadge } from "./uiStyles";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -51,10 +51,10 @@ export default function TriValueCell({ retail, paid, market, density = "full" })
   const retailIsBE = retail?.amount != null && retail?.source === "brickeconomy";
   return (
     <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
-      <div style={rowStyle} title={retailTooltip(retail) || undefined}>
+      <div style={rowStyle} title={retailCellTooltip(retail) || undefined}>
         <span style={labelStyle}>Retail</span>
         <span style={dimFigure} data-testid="tri-retail">
-          {formatValueCell(retail)}
+          {formatRetailCell(retail)}
           {retailIsBE && (
             <span
               style={confidenceBadge}

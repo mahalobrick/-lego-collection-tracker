@@ -13,7 +13,7 @@ import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, bricksetRetai
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
-import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
+import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, isPromoNoRetail, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
 import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, estimatedValueNote, estimatedCostNote, totalRoiNote, netGainBasisNote } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { apiFetch } from "./utils/apiFetch";
@@ -271,7 +271,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         brickset:     { amount: bsEntry.data?.retail_price_us, asOf: bsEntry.fetchedAt },
         brickeconomy: { amount: beEntry.data?.retail_price_us, asOf: beEntry.fetchedAt },
       },
-      { condition: set.condition }
+      { condition: set.condition, promo: isPromoNoRetail(set) }
     );
   }
 

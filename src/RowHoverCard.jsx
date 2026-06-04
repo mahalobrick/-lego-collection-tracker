@@ -1,5 +1,5 @@
 import { setImageUrl, money, asNumber } from "./utils/formatting";
-import { formatValue } from "./utils/valueDisplay";
+import { formatValue, formatRetailCell } from "./utils/valueDisplay";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Floating summary card shown when a Collection row is hovered. In COMPACT density
@@ -38,7 +38,7 @@ export default function RowHoverCard({ set, retail, market, tipPos }) {
             {set.theme && <><span style={label}>Theme</span><span style={{ color: "#e8e2d5" }}>{set.theme}</span></>}
             {set.condition && <><span style={label}>Condition</span><span style={{ color: "#e8e2d5", textTransform: "capitalize" }}>{set.condition}</span></>}
             <span style={label}>Qty</span><span style={{ color: "#e8e2d5" }}>{set.qty || 1}</span>
-            <span style={label}>Retail</span><span style={{ color: "#8a9bb0" }} data-testid="hover-retail">{formatValue(retail?.amount)}</span>
+            <span style={label}>Retail</span><span style={{ color: "#8a9bb0" }} data-testid="hover-retail">{formatRetailCell(retail)}</span>
             <span style={label}>Paid</span><span style={{ color: "#8a9bb0" }} data-testid="hover-paid">{money(paid)}</span>
             <span style={label}>Market</span><span style={{ color: "#c9a84c", fontWeight: 700 }} data-testid="hover-market">{formatValue(market?.amount)}</span>
             {set.roiPct != null && <><span style={label}>ROI</span><span style={{ color: set.roiPct >= 0 ? "#5aa832" : "#ff8b8b", fontWeight: 700 }}>{set.roiPct >= 0 ? "+" : ""}{Number(set.roiPct).toFixed(1)}%</span></>}

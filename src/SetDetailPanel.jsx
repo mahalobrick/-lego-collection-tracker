@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import { asNumber, money, setImageUrl, daysUntilRetirement } from "./utils/formatting";
 import { conditionDisplayLabel, conditionDisplayColor, conditionBucket } from "./utils/condition";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
-import { setValueProvenance, setGain, setROI, copyValueProvenance, setRetailProvenance } from "./utils/portfolio";
+import { setValueProvenance, setGain, setROI, copyValueProvenance, setRetailProvenance, isPromoNoRetail } from "./utils/portfolio";
 import { bricksetRetailEntry } from "./utils/brickset";
-import { formatValueCell, formatValue, valueConfidence, lotsLabel, retailTooltip } from "./utils/valueDisplay";
+import { formatValueCell, formatValue, valueConfidence, lotsLabel, isPromoNoRrp, retailCellTooltip, PROMO_NO_RRP_LABEL } from "./utils/valueDisplay";
 import { confidenceBadge } from "./uiStyles";
 
 function entryPaid(e) {
@@ -89,7 +89,7 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
       brickset: { amount: bsRetail.retail_price_us, asOf: bsRetailEntry.fetchedAt },
       brickeconomy: { amount: cached.retail_price_us, asOf: cacheEntry.fetchedAt },
     },
-    { condition: item.condition }
+    { condition: item.condition, promo: isPromoNoRetail(item) }
   );
   const retailPrice = retailProv?.amount ?? null;
   const subtheme = bs.subtheme || null;
@@ -170,7 +170,7 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
           {releaseYear && <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{releaseYear}</span>}
           {pieces && <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{pieces.toLocaleString()} pcs</span>}
           {/* Canonical MSRP — always shown (unknown → "—", never hidden-as-absent). Tooltip flags it as sticker price. */}
-          <span data-testid="msrp-chip" title={retailTooltip(retailProv) || undefined} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>MSRP {formatValue(retailPrice)}</span>
+          <span data-testid="msrp-chip" title={retailCellTooltip(retailProv) || undefined} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{isPromoNoRrp(retailProv) ? PROMO_NO_RRP_LABEL : <>MSRP {formatValue(retailPrice)}</>}</span>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>

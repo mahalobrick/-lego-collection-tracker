@@ -96,6 +96,47 @@ export function retailTooltip(value) {
   return RETAIL_TOOLTIP;
 }
 
+// ── Promo / no-RRP retail state (Retail Phase 2) ──────────────────────────────
+// A THIRD retail outcome beside "a sourced number" and unsourced "—": a GWP/promo set that was never
+// sold, so NO RRP exists at any source. setRetailProvenance tags it basis:"promo" (amount null); these
+// helpers render it as a DELIBERATE state ("no retail exists"), so it never reads as "not yet sourced".
+// vs-Retail% suppresses itself for free — the amount is null, so the consumers' retail gate is falsy.
+
+export const PROMO_NO_RRP_LABEL = "Promo · no RRP";
+const PROMO_NO_RRP_TOOLTIP =
+  "Gift-with-purchase / promo set — never sold at retail, so it has no RRP. " +
+  "A known 'no retail' state, not a price we failed to source.";
+
+/**
+ * Is this a promo/no-RRP retail Value (basis:"promo")? The discriminator for the third retail state.
+ * @param {import("./value").Value | null} value
+ * @returns {boolean}
+ */
+export function isPromoNoRrp(value) {
+  return value?.basis === "promo";
+}
+
+/**
+ * Retail cell text across the three states: promo → the no-RRP tag (a real "no retail exists" state);
+ * a sourced figure → money(); unsourced → "—". The retail twin of {@link formatValueCell} that keeps
+ * promo DISTINCT from unknown.
+ * @param {import("./value").Value | null} value
+ * @returns {string}
+ */
+export function formatRetailCell(value) {
+  return isPromoNoRrp(value) ? PROMO_NO_RRP_LABEL : formatValueCell(value);
+}
+
+/**
+ * Tooltip for a retail cell: the promo explanation for a no-RRP set, else the at-retail sticker-price
+ * caveat ({@link retailTooltip}), else null.
+ * @param {import("./value").Value | null} value
+ * @returns {string|null}
+ */
+export function retailCellTooltip(value) {
+  return isPromoNoRrp(value) ? PROMO_NO_RRP_TOOLTIP : retailTooltip(value);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Confidence display (app-read Step 3). Surfaces a value's BrickLink basis so an
 // ESTIMATE reads as an estimate, not a hard sold figure. Pure — marker text + tooltip
