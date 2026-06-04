@@ -13,8 +13,8 @@ import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./util
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
-import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, setCost, totalSpent, portfolioGain, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
-import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, estimatedValueNote, estimatedCostNote, totalRoiNote } from "./utils/valueDisplay";
+import { portfolioValue, knownValueCount, setValueProvenance, setRetailProvenance, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
+import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, estimatedValueNote, estimatedCostNote, totalRoiNote, netGainBasisNote } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
@@ -528,6 +528,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       // Gain over value-known sets; % ROI over the TOTAL cost basis {value known, cost > 0} —
       // includes the MSRP-estimated portion (disclosed via totalRoiNote). (Step 2 revised)
       gainLoss: portfolioGain(sets, valueMap),
+      // Cost over the value-known subset — the denominator gainLoss is actually computed
+      // against. Drives the Net Gain tile's reconciling breakdown (value − valuedCost === gain).
+      valuedCost: portfolioValuedCost(sets, valueMap),
       roi: portfolioROI(sets, valueMap),
       // Quiet disclosure: share of value that is estimated (modeled + asking). (Step 3)
       estimatedShare: estimatedValueShare(sets, valueMap)
@@ -1333,7 +1336,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                     {item.key === "qty"          ? <Card title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} /> :
                      item.key === "value"        ? <Card title="Collection Value" value={fmtAgg(stats.value, stats.valuedSets)} sub={valuesReady ? [unknownValueNote(stats.valuedSets, sets.length), estimatedValueNote(stats.estimatedShare)].filter(Boolean).join(" · ") || null : null} /> :
                      item.key === "cost"         ? <Card title="Cost Basis"       value={money(stats.costBasis)} sub={estimatedCostNote(stats.msrpCount, stats.msrpCost)} /> :
-                     item.key === "gain"         ? <Card title="Net Gain / Loss"  value={fmtAgg(stats.gainLoss, stats.valuedSets)} good={stats.valuedSets > 0 ? stats.gainLoss >= 0 : undefined} /> :
+                     item.key === "gain"         ? <Card title="Net Gain / Loss"  value={fmtAgg(stats.gainLoss, stats.valuedSets)} good={stats.valuedSets > 0 ? stats.gainLoss >= 0 : undefined} sub={valuesReady ? netGainBasisNote(stats.value, stats.valuedCost, stats.valuedSets, stats.costBasis) : null} /> :
                      item.key === "roi"          ? <Card title="ROI"              value={!valuesReady ? "…" : stats.roi === null ? "—" : `${stats.roi.toFixed(1)}%`} good={stats.roi === null ? undefined : stats.roi >= 0} sub={totalRoiNote(stats.msrpCount)} /> :
                      item.key === "themes"       ? <Card title="Themes"           value={stats.themes} /> :
                      item.key === "duplicates"   ? <Card title="Multi-Copy Sets"  value={stats.duplicates} /> :

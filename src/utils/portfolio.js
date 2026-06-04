@@ -239,6 +239,22 @@ export function portfolioValue(sets, valueMap) {
 }
 
 /**
+ * The value-known membership test — is a set's value KNOWN (amount !== null)? This is
+ * THE definition of the "value-known subset" the headline value/gain/valued-cost all
+ * iterate. Single-sourced here so {@link portfolioGain}, {@link knownValueCount}, and
+ * {@link portfolioValuedCost} can't drift apart: because all three filter on this exact
+ * predicate, `portfolioValue − portfolioValuedCost === portfolioGain` holds BY
+ * CONSTRUCTION (Σ amount − Σ cost = Σ(amount − cost) over the same membership).
+ *
+ * @param {Object} s
+ * @param {Object} [valueMap]
+ * @returns {boolean}
+ */
+export function valueKnown(s, valueMap) {
+  return setValueProvenance(s, valueMap).amount !== null;
+}
+
+/**
  * Share of portfolio value that is ESTIMATED (modeled + asking BL copies) ÷ total known value —
  * for the quiet "X% of value estimated" disclosure beside the headline. Resolved per-copy (the same
  * resolveCopies the overlay uses), so a mixed set counts only its estimated copies' dollars.
@@ -271,7 +287,7 @@ export function estimatedValueShare(sets, valueMap) {
  * @returns {number}
  */
 export function knownValueCount(sets, valueMap) {
-  return sets.reduce((n, s) => n + (setValueProvenance(s, valueMap).amount === null ? 0 : 1), 0);
+  return sets.reduce((n, s) => n + (valueKnown(s, valueMap) ? 1 : 0), 0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -525,9 +541,26 @@ export function realCostROI(sets, valueMap, purchaseMap) {
  */
 export function portfolioGain(sets, valueMap) {
   return sets.reduce((sum, s) => {
-    const amount = setValueProvenance(s, valueMap).amount;
-    return amount === null ? sum : sum + (amount - setCost(s));
+    if (!valueKnown(s, valueMap)) return sum;
+    return sum + (setValueProvenance(s, valueMap).amount - setCost(s));
   }, 0);
+}
+
+/**
+ * Cost basis over the VALUE-KNOWN subset — the denominator the headline Net Gain is
+ * actually computed against ({@link portfolioGain} sums value − cost over exactly these
+ * sets). Distinct from {@link totalSpent}'s INCLUSIVE figure (every set's cost): this
+ * EXCLUDES sets whose value is unknown, so by construction
+ *   {@link portfolioValue} − portfolioValuedCost === {@link portfolioGain}
+ * (same {@link valueKnown} predicate). Lets the Net Gain tile show its own subset cost so
+ * the Value / Net Gain tiles reconcile in place under partial value coverage (backlog #4).
+ *
+ * @param {Array<Object>} sets
+ * @param {Object} [valueMap]
+ * @returns {number}
+ */
+export function portfolioValuedCost(sets, valueMap) {
+  return sets.reduce((sum, s) => (valueKnown(s, valueMap) ? sum + setCost(s) : sum), 0);
 }
 
 /**

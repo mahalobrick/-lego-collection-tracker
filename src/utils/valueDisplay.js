@@ -222,6 +222,29 @@ export function estimatedValueNote(share) {
 }
 
 /**
+ * Breakdown sub-line for the Net Gain tile under PARTIAL value coverage:
+ * "$value − $valuedCost · N valued sets". Net Gain is computed over the value-known subset, so it
+ * equals `value − the valued-subset cost` — NOT `value − the Cost Basis tile's inclusive total`.
+ * This line shows that subset arithmetic in place so the headline reconciles; the "valued sets"
+ * qualifier scopes BOTH figures to the subset, marking this cost as distinct from total spend.
+ *
+ * Returns null when `valuedCost === costBasis` — i.e. no unvalued set carries any cost, so the
+ * Value/Cost/Gain tiles already reconcile on their own (`value − costBasis === gain`) and the
+ * steady-state tile stays clean. Also null when nothing is valued (valuedSets ≤ 0 → tile reads "—").
+ * (backlog #4 / B1)
+ *
+ * @param {number} value       portfolioValue — value-known total.
+ * @param {number} valuedCost  portfolioValuedCost — cost over the value-known subset.
+ * @param {number} valuedSets  knownValueCount — sets in the subset.
+ * @param {number} costBasis   totalSpent — inclusive cost (the Cost Basis tile's figure).
+ * @returns {string|null}
+ */
+export function netGainBasisNote(value, valuedCost, valuedSets, costBasis) {
+  if (valuedSets <= 0 || valuedCost === costBasis) return null;
+  return `${money(value)} − ${money(valuedCost)} · ${valuedSets} valued set${valuedSets === 1 ? "" : "s"}`;
+}
+
+/**
  * Note for how many sets are excluded from % ROI — unknown value OR no cost
  * (cost ≤ 0). A % return isn't meaningful without both a known value and a
  * positive cost, so those sets read "—"; this note tells the reader how many.
