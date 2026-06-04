@@ -9,6 +9,8 @@ import { asNumber, money, setImageUrl, lineTotal, lineCashPaid } from "./utils/f
 import PurchaseDetailPanel from "./PurchaseDetailPanel";
 import { fetchLegoThemes } from "./utils/brickset";
 import { apiFetch } from "./utils/apiFetch";
+import { conditionBucket } from "./utils/condition";
+import { buildCopyEntries, promoteToCollection } from "./utils/beCollection";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
 
@@ -1117,13 +1119,6 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
     setCheckedRows(allChecked ? checkedRows.filter(i => !indexes.includes(i)) : Array.from(new Set([...checkedRows, ...indexes])));
   }
 
-  function collectionKey(item) {
-    return [
-      item.setNumber || "",
-      item.name || ""
-    ].join("|").toLowerCase();
-  }
-
   function isInCollection(purchase) {
     if (purchase.inCollection) return true;
     if (!purchase.setNumber) return false;
@@ -1167,58 +1162,28 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
     });
   }
 
-  function makeCollectionEntry(purchase, qty, paidPerUnit) {
-    return {
-      setNumber:         purchase.setNumber || "",
-      name:              purchase.name      || "",
-      theme:             purchase.theme     || "",
-      condition:         "new",
-      qty,
-      paidPrice:         paidPerUnit,
-      currentValue:      paidPerUnit,
-      notes:             purchase.notes     || "",
-      sourcePurchaseKey: collectionKey(purchase),
-    };
-  }
-
   function addPurchaseToCollection(purchase, purchaseIndex) {
-    const existing    = JSON.parse(localStorage.getItem("blOwnedSets") || "[]");
     const qty         = asNumber(purchase.qty) || 1;
     const paidPerUnit = asNumber(purchase.faceValue ?? purchase.amount);
     const label       = purchase.setNumber
       ? `Set ${purchase.setNumber}${purchase.name ? " – " + purchase.name : ""}`
       : (purchase.name || "this purchase");
 
-    // Find an existing collection entry with the same set number
-    const pNum     = String(purchase.setNumber || "").replace(/-1$/, "").toLowerCase().trim();
-    const matchIdx = pNum
-      ? existing.findIndex(item => {
-          const iNum = String(item.setNumber || "").replace(/-1$/, "").toLowerCase().trim();
-          return iNum && iNum === pNum;
-        })
-      : -1;
+    // Promote into the BrickEconomy blob (the per-copy store) — value left UNKNOWN (lazy), never
+    // seeded from the price paid; the BL overlay / BE value-sync fill it. A1: a repeat buy appends
+    // a copy to the existing row. A legacy manual-only match is skipped-and-surfaced (warning).
+    const { warnings } = promoteToCollection(buildCopyEntries({
+      setNumber:   purchase.setNumber,
+      name:        purchase.name,
+      theme:       purchase.theme,
+      condition:   conditionBucket(purchase.condition), // purchases carry no condition today → "new"
+      paidPerUnit,
+      retail:      asNumber(purchase.msrp) || null,      // unknown MSRP → null, never a fake $0
+      qty,
+      date:        purchase.date,
+    }));
 
-    if (matchIdx >= 0) {
-      const match      = existing[matchIdx];
-      const currentQty = asNumber(match.qty) || 1;
-      const copyWord   = qty === 1 ? "copy" : `${qty} copies`;
-      const addMore    = window.confirm(
-        `${label} is already in your collection (${currentQty} cop${currentQty === 1 ? "y" : "ies"}).\n\n` +
-        `OK → add ${copyWord} to the existing entry (qty ${currentQty} → ${currentQty + qty})\n` +
-        `Cancel → create a separate collection entry`
-      );
-      if (addMore) {
-        existing[matchIdx] = { ...match, qty: currentQty + qty };
-      } else {
-        existing.push(makeCollectionEntry(purchase, qty, paidPerUnit));
-      }
-    } else {
-      existing.push(makeCollectionEntry(purchase, qty, paidPerUnit));
-    }
-
-    setItemSafe("blOwnedSets", JSON.stringify(existing));
-
-    // Persist inCollection flag on the purchase row
+    // The set is now represented in the collection (added, or already owned) — flag the purchase.
     if (purchaseIndex != null) {
       setPurchases(prev => {
         const next = [...prev];
@@ -1227,7 +1192,8 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
       });
     }
 
-    toast.success(`Added ${label} to My Collection.`);
+    if (warnings.length) warnings.forEach(w => toast(w));
+    else toast.success(`Added ${label} to My Collection.`);
   }
 
   function deleteCheckedPurchases() {
@@ -1239,42 +1205,45 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
 
   function addCheckedToCollection() {
     if (!checkedRows.length) return;
-    const existing = JSON.parse(localStorage.getItem("blOwnedSets") || "[]");
-    let added = 0, skipped = 0, merged = 0;
 
     const updatedPurchases = [...purchases];
+    const copyItems = [];
+    const flagged   = [];
 
+    // Skip only purchases ALREADY promoted (their own inCollection flag); a set owned elsewhere is
+    // not pre-skipped — promoteIntoBlob decides (A1 append on a blob match, skip-and-surface on a
+    // legacy manual-only match).
     checkedRows.forEach(idx => {
       const purchase = purchases[idx];
-      if (!purchase) return;
-      if (isInCollection(purchase)) { skipped++; return; }
-
+      if (!purchase || purchase.inCollection) return;
       const qty         = asNumber(purchase.qty) || 1;
       const paidPerUnit = asNumber(purchase.faceValue ?? purchase.amount);
-      const pNum        = String(purchase.setNumber || "").replace(/-1$/, "").toLowerCase().trim();
-      const matchIdx    = pNum
-        ? existing.findIndex(item => String(item.setNumber || "").replace(/-1$/, "").toLowerCase().trim() === pNum)
-        : -1;
-
-      if (matchIdx >= 0) {
-        existing[matchIdx].qty = (asNumber(existing[matchIdx].qty) || 1) + qty;
-        merged++;
-      } else {
-        existing.push(makeCollectionEntry(purchase, qty, paidPerUnit));
-        added++;
-      }
-      updatedPurchases[idx] = { ...updatedPurchases[idx], inCollection: true };
+      copyItems.push(...buildCopyEntries({
+        setNumber:   purchase.setNumber,
+        name:        purchase.name,
+        theme:       purchase.theme,
+        condition:   conditionBucket(purchase.condition),
+        paidPerUnit,
+        retail:      asNumber(purchase.msrp) || null,
+        qty,
+        date:        purchase.date,
+      }));
+      flagged.push(idx);
     });
 
-    setItemSafe("blOwnedSets", JSON.stringify(existing));
+    if (!copyItems.length) { setCheckedRows([]); toast("Selected purchases are already in your collection."); return; }
+
+    const { warnings } = promoteToCollection(copyItems);
+    flagged.forEach(idx => { updatedPurchases[idx] = { ...updatedPurchases[idx], inCollection: true }; });
     setPurchases(updatedPurchases);
     setCheckedRows([]);
 
+    const distinctSets = new Set(copyItems.map(i => String(i.set_number).replace(/-\d+$/, ""))).size;
+    const addedSets    = distinctSets - warnings.length;
     const parts = [];
-    if (added)   parts.push(`${added} added`);
-    if (merged)  parts.push(`${merged} merged into existing`);
-    if (skipped) parts.push(`${skipped} already in collection`);
-    toast.success(`→ Collection: ${parts.join(", ")}.`);
+    if (addedSets > 0)   parts.push(`${addedSets} set${addedSets === 1 ? "" : "s"} added`);
+    if (warnings.length) parts.push(`${warnings.length} already owned manually (skipped)`);
+    toast.success(`→ Collection: ${parts.join(", ") || "done"}.`);
   }
 
   return (

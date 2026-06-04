@@ -15,6 +15,7 @@ import { getLastChanceCodes, isLastChanceSet, getCachedLastChanceCodes } from ".
 import WatchDetailPanel from "./WatchDetailPanel";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
+import { buildCopyEntries, promoteToCollection } from "./utils/beCollection";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
 
@@ -195,28 +196,23 @@ export default function WantedList({ onBuyNow }) {
     const existing = JSON.parse(localStorage.getItem("blPurchases") || "[]");
     setItemSafe("blPurchases", JSON.stringify([...existing, purchase]));
 
-    // Optionally add to My Collection
+    // Optionally add to My Collection — promote into the BrickEconomy blob with value left UNKNOWN
+    // (lazy; the BL overlay / BE value-sync fill it), never the price paid or the MSRP. A legacy
+    // manual-only match is skipped-and-surfaced.
+    let addedToCollection = false;
     if (buyAddToCollection) {
-      const ownedSets = JSON.parse(localStorage.getItem("blOwnedSets") || "[]");
-      const newSet = {
+      const { warnings } = promoteToCollection(buildCopyEntries({
         setNumber:   buyModal.setNumber,
         name:        buyModal.name,
         theme:       buyModal.theme,
-        subtheme:    buyModal.subtheme || "",
-        pieces:      buyModal.pieces || "",
-        minifigs:    buyModal.minifigs || "",
-        condition:   "new",
+        condition:   buyModal.condition ?? "new",
+        paidPerUnit: faceValue,
+        retail:      asNumber(buyModal.msrp) || null,   // unknown MSRP → null, never a fake $0
         qty,
-        paidPrice:   faceValue,
-        msrp:        asNumber(buyModal.msrp) || 0,
-        retailPrice: asNumber(buyModal.msrp) || 0,
-        currentValue: asNumber(buyModal.currentValue) || asNumber(buyModal.msrp) || 0,
-        releasedDate: buyModal.releasedDate || "",
-        retiredDate:  buyModal.retiredDate || "",
-        notes:        buyModal.notes || "",
-        addedAt:      new Date().toISOString(),
-      };
-      setItemSafe("blOwnedSets", JSON.stringify([...ownedSets, newSet]));
+        date,
+      }));
+      addedToCollection = warnings.length === 0;
+      warnings.forEach(w => toast(w));
     }
 
     // Remove from Wanted List
@@ -227,7 +223,7 @@ export default function WantedList({ onBuyNow }) {
     });
 
     setBuyModal(null);
-    toast.success(`Purchased: ${buyModal.name || buyModal.setNumber}${buyAddToCollection ? " · added to collection" : ""}`);
+    toast.success(`Purchased: ${buyModal.name || buyModal.setNumber}${addedToCollection ? " · added to collection" : ""}`);
   }
 
   // Custom fields schema: [{id, label, type}]
