@@ -547,10 +547,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       // %ROI rule: value known AND cost > 0. Excludes $0-cost (÷0) and unknown-value
       // sets (would otherwise rank as a false −100%). (V2 cleanup)
       .filter(s => asNumber(s.paidPrice) > 0 && setValueProvenance(s, valueMap).amount !== null)
-      .map(s => ({
-        ...s,
-        _roi: asNumber(s.roiPct) || ((asNumber(s.currentValue) - asNumber(s.paidPrice)) / asNumber(s.paidPrice)) * 100
-      }))
+      // _roi from the LIVE overlay-aware setROI, not the stored roiPct snapshot: a lazily-promoted
+      // set stores roiPct from its promote-time 0 value (a false −100%) that the value-sync never
+      // refreshes. The filter guarantees value-known + cost > 0, so setROI is non-null here.
+      .map(s => ({ ...s, _roi: setROI(s, valueMap) }))
       .sort((a, b) => b._roi - a._roi);
   }, [sets, valueMap]);
 
