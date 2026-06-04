@@ -8,6 +8,7 @@ import { exportFullBackup as runExportBackup, applyBackupToLocalStorage, pushToC
 import { getBrickLinkAccessToken, hasBrickLinkAuth, getBrickLinkSession, bulkSyncPrices } from "./utils/bricklink-client";
 import { DEFAULT_WANTED_COLUMNS } from "./utils/columnDefaults";
 import { syncBEValues } from "./utils/beSyncValues";
+import { normalizeBrickEconomyCollection } from "./utils/beCollection";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import { notificationsSupported, notificationPermission, requestNotificationPermission } from "./utils/notifications";
 import { apiFetch } from "./utils/apiFetch";
@@ -104,53 +105,6 @@ function parseBricksetMySetCSV(text) {
     }];
   });
 }
-
-function normalizeBrickEconomyCollection(collection) {
-  const bySet = {};
-
-  collection.forEach(item => {
-    const setNumber = item.set_number || item.Number || item.number;
-    if (!setNumber) return;
-
-    if (!bySet[setNumber]) {
-      bySet[setNumber] = {
-        setNumber,
-        name: item.name || item.Name || "",
-        theme: item.theme || item.Theme || "",
-        subtheme: item.subtheme || item.Subtheme || "",
-        year: Number(item.year || item.Year || 0) || 0,
-        pieces: Number(item.pieces_count || item.Pieces || 0) || 0,
-        quantity: 0,
-        totalPaid: 0,
-        totalValue: 0,
-        totalRetailPrice: 0,
-        retired: !!item.retired,
-        entries: []
-      };
-    }
-
-    const paid        = Number(item.paid_price    ?? item.Paid    ?? item.paid    ?? 0) || 0;
-    const value       = Number(item.current_value ?? item.Value   ?? item.value   ?? 0) || 0;
-    const retailPrice = Number(item.retail_price  ?? item.Retail  ?? 0) || 0;
-
-    bySet[setNumber].quantity         += 1;
-    bySet[setNumber].totalPaid        += paid;
-    bySet[setNumber].totalValue       += value;
-    bySet[setNumber].totalRetailPrice += retailPrice;
-    bySet[setNumber].entries.push(item);
-  });
-
-  const normalized = Object.values(bySet).map(item => ({
-    ...item,
-    averagePaid:   item.quantity ? item.totalPaid  / item.quantity : 0,
-    retailPrice:   item.quantity ? item.totalRetailPrice / item.quantity : 0,
-    unrealizedGain: item.totalValue - item.totalPaid,
-    roiPct: item.totalPaid ? ((item.totalValue - item.totalPaid) / item.totalPaid) * 100 : null
-  }));
-
-  return normalized;
-}
-
 
 function getMonthLabel(date) {
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
