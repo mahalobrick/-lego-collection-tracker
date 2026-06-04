@@ -1,12 +1,41 @@
 import { apiFetch } from "./apiFetch";
 import { setItemSafe } from "./safeStorage";
 import { readSource, reportSourceFailure, classifyFailure } from "./readSource";
+import { asNumber } from "./formatting";
 
 const CACHE_KEY = "bricksetSetCache";
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const THEMES_CACHE_KEY = "bricksetThemesCache";
 const THEMES_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+/**
+ * Resolve the Brickset cache entry that carries a set's RETAIL (MSRP), walking from the exact
+ * figure number up to its series base — the retail twin of the paid base-join (`baseSetNumber`,
+ * `/-\d+$/`). For a CMF figure (`71052-5`) this matters: Brickset puts the per-bag retail on the
+ * **`-0` series variant** (`71052-0` → $4.99 US, already per-figure — NOT a case total), while the
+ * figure's own `-N` entry carries none. So we pick the FIRST candidate that actually has a retail
+ * (`figure → base → series-0 → -1`), not merely the first that exists — otherwise a cached
+ * null-retail figure entry would shadow the series price. Returns the chosen `{data, fetchedAt}`
+ * entry, or the bare figure entry (for `asOf`), or null.
+ *
+ * NOTE (Retail Phase 1, backlog #1): the `-0` series entries are NOT fetched anywhere yet — nothing
+ * requests `71052-0`. This resolver is the read side; it reclaims CMF retail the moment a `-0` fetch
+ * populates the cache. Coverage where it lands: 10 of 11 owned series carry a `-0` US retail (only
+ * `71034-0` is null). Wiring the `-0` fetch (or a bag-price table / manual) is the held decision.
+ *
+ * @param {Object<string, {data?:Object, fetchedAt?:string}>} bsCache  the `bricksetSetCache` object.
+ * @param {string} setNumber  owned set number, e.g. "71052-5" or "10300-1".
+ * @returns {{data?:Object, fetchedAt?:string} | null}
+ */
+export function bricksetRetailEntry(bsCache, setNumber) {
+  if (!bsCache) return null;
+  const base = String(setNumber || "").replace(/-\d+$/, "");
+  const hit = [`brickset_${setNumber}`, `brickset_${base}`, `brickset_${base}-0`, `brickset_${base}-1`]
+    .map((k) => bsCache[k])
+    .find((e) => asNumber(e?.data?.retail_price_us) > 0);
+  return hit || bsCache[`brickset_${setNumber}`] || null;
+}
 
 /**
  * Fetch all LEGO themes from Brickset, cached in localStorage for 30 days.

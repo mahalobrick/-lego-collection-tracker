@@ -9,7 +9,7 @@ import RowHoverCard from "./RowHoverCard";
 import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
 import { setConditionDisplay, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
-import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes } from "./utils/brickset";
+import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, bricksetRetailEntry } from "./utils/brickset";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
@@ -259,9 +259,13 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   });
   function retailFor(set) {
     const n = set.setNumber;
-    const stripped = String(n || "").replace(/-1$/, "");
-    const bsEntry = retailCaches.bs[`brickset_${n}`] || retailCaches.bs[`brickset_${stripped}`] || retailCaches.bs[`brickset_${stripped}-1`] || {};
-    const beEntry = retailCaches.be[n] || retailCaches.be[stripped] || {};
+    // Base join matches the paid side (baseSetNumber, /-\d+$/): a CMF figure 71052-5 → series 71052.
+    // The Brickset rung walks figure→base→series-0→-1 and takes the first with a real retail
+    // (CMF series retail lives on the -0 variant; the figure's own entry has none) — see
+    // bricksetRetailEntry. The BE rung keeps its base fallback for the same CMF reason.
+    const base = String(n || "").replace(/-\d+$/, "");
+    const bsEntry = bricksetRetailEntry(retailCaches.bs, n) || {};
+    const beEntry = retailCaches.be[n] || retailCaches.be[base] || {};
     return setRetailProvenance(
       {
         brickset:     { amount: bsEntry.data?.retail_price_us, asOf: bsEntry.fetchedAt },
