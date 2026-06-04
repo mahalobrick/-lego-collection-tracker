@@ -333,6 +333,35 @@ export function knownValueCount(sets, valueMap) {
   return sets.reduce((n, s) => n + (valueKnown(s, valueMap) ? 1 : 0), 0);
 }
 
+/**
+ * Headline retail (MSRP) total + priced-set count over the SHARED retail ladder — the same
+ * source the per-set Retail column and detail-panel chip read (so the card can't drift from
+ * the row). Sums resolved per-unit retail × qty for every set whose ladder resolves to a real
+ * figure; a promo (no-RRP) or unsourced set resolves to amount null and contributes 0 — so the
+ * total is the retail of PRICED sets only, and `known` (the priced count) drives
+ * {@link import("./valueDisplay").formatAggregateValue} ("—" when 0, never a phantom $0).
+ *
+ * Twin of {@link portfolioValue}, but retail's sources live in component-held caches, so the
+ * per-set ladder read is INJECTED as `retailOf` (MyCollection's `retailFor` closure;
+ * {@link setRetailProvenance} underneath) rather than read from a map here. (Retail Phase 3b —
+ * replaces the BE-import blob `totalRetailPrice || (retailPrice || msrp) × qty`.)
+ *
+ * @param {Array<Object>} sets
+ * @param {(set:Object) => (import("./value").Value | null)} retailOf  per-set ladder resolver
+ * @returns {{ total:number, known:number }}
+ */
+export function portfolioRetail(sets, retailOf) {
+  let total = 0, known = 0;
+  for (const s of sets) {
+    const r = retailOf(s);
+    if (r && r.amount != null) {        // null/undefined = promo or unsourced → contributes 0
+      total += r.amount * (asNumber(s.qty) || 1);
+      known += 1;
+    }
+  }
+  return { total, known };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Cost basis & ROI (V2 cleanup). Pure, read-time/derived — nothing persisted.
 //

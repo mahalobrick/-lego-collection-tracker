@@ -77,6 +77,21 @@ export function unknownValueNote(knownCount, totalCount) {
   return `${unknown} of ${totalCount} sets have no value data`;
 }
 
+/**
+ * Disclosure for the Retail Value card: the headline sums only sets with a sourced RRP
+ * (promo/unsourced contribute 0), so when some are unpriced say how many counted —
+ * "N of M sets priced". Returns null when ALL sets are priced (nothing hidden) so the
+ * caller omits the note, matching {@link unknownValueNote}'s omit-when-zero contract.
+ *
+ * @param {number} pricedCount  Sets with a resolved retail (portfolioRetail.known).
+ * @param {number} totalCount   Total sets (sets.length).
+ * @returns {string|null}
+ */
+export function retailPricedNote(pricedCount, totalCount) {
+  if (totalCount <= 0 || pricedCount >= totalCount) return null;
+  return `${pricedCount} of ${totalCount} sets priced`;
+}
+
 // The retail caveat covers BOTH halves of the at-retail trap: the figure is the
 // sticker price (not a secondary-market valuation), AND any ROI beside it is the
 // buyer's discount vs retail, not market appreciation. (docs/valuation.md rule 2)
