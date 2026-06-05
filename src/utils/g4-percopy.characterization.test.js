@@ -14,6 +14,7 @@ import {
   reconcilePaidEdit,
 } from "./portfolio";
 import { setConditionDisplay } from "./condition";
+import { materializeEntries } from "./percopy";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // G4 / PER-COPY UNIFICATION — PHASE 0 CHARACTERIZATION NET
@@ -121,17 +122,22 @@ describe("§1 headline aggregates — money-neutrality baseline (WITH BL overlay
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. PER-COPY VIEW ASYMMETRY — the gap Phase 2 closes.
-//    The exact gate SetDetailPanel.jsx:217 (`entries.length > 0`) and
-//    MyCollection.jsx:2076 (`Array.isArray(detailSet?.entries) && detailSet.entries.length`)
-//    use to decide whether a per-copy breakdown / per-copy editing is available.
+// 2. PER-COPY VIEW ASYMMETRY — CLOSED by Phase 2 (pin flipped red→green).
+//    The panel's per-copy DISPLAY gate (SetDetailPanel.jsx) now reads its rows through
+//    materializeEntries(item), so every set renders a breakdown. (The separate EDIT gate
+//    MyCollection.jsx:2076 stays storage-shape-based — manual sets stay read-only until
+//    Phase 3 persists real entries[]; that asymmetry is intentional, not closed here.)
 // ─────────────────────────────────────────────────────────────────────────────
-const hasPerCopyView = (s) => Array.isArray(s.entries) && s.entries.length > 0;
+// OLD gate (storage shape): a per-copy view existed only when the set carried a real entries[].
+const hasStoredEntries = (s) => Array.isArray(s.entries) && s.entries.length > 0;
+// NEW gate (Phase 2): the panel reads its rows through the funnel — manual sets included.
+const hasPerCopyView = (s) => materializeEntries(s).length > 0;
 
-describe("§2 per-copy view asymmetry (Phase 2 will close this)", () => {
-  it("a manual set has NO per-copy breakdown available; an entries[] set does", () => {
-    expect(hasPerCopyView(MANUAL_2X)).toBe(false);   // Phase 2 flips → true (materialized)
-    expect(hasPerCopyView(BE_2X)).toBe(true);
+describe("§2 per-copy view asymmetry — CLOSED by Phase 2 (pin flipped)", () => {
+  it("a manual set NOW HAS a per-copy breakdown via the funnel (was: none)", () => {
+    expect(hasStoredEntries(MANUAL_2X)).toBe(false);  // OLD: manual carried no stored entries[]
+    expect(hasPerCopyView(MANUAL_2X)).toBe(true);      // FIXED: materialized rows now render
+    expect(hasPerCopyView(BE_2X)).toBe(true);          // imported unchanged
   });
 
   it("only an entries[]-backed set can read 'mixed'; a manual set never does", () => {
