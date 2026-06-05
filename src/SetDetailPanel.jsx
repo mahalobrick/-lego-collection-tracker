@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { asNumber, money, setImageUrl, daysUntilRetirement } from "./utils/formatting";
 import { conditionDisplayLabel, conditionDisplayColor, conditionBucket } from "./utils/condition";
+import { materializeEntries } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { setValueProvenance, setGain, setROI, copyValueProvenance, setRetailProvenance, isPromoNoRetail } from "./utils/portfolio";
 import { bricksetRetailEntry } from "./utils/brickset";
@@ -45,7 +46,12 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
 
   if (!item) return null;
 
-  const entries = item.entries || [];
+  // Per-copy rows via the G4 read funnel: an entries[]-backed set passes through faithfully;
+  // a manual (line-level) set is materialized into `qty` read-only copies (Phase 2 — display
+  // only; editing is gated separately by `onEditCopyCondition`, off for manual sets until
+  // Phase 3 persists real entries). The money StatBoxes below are untouched — value/gain/ROI
+  // still come from setValueProvenance(item), not from these rows.
+  const entries = materializeEntries(item);
   const qty = item.quantity || entries.length || 1;
   const totalPaid = asNumber(item.totalPaid);
   // Null-aware value/gain/roi: unknown value → "—", never $0 / phantom −cost / −100%.
