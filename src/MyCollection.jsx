@@ -2207,20 +2207,18 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                 Clear
               </button>
             )}
+            {/* Sort control trimmed (MC-Browse polish F4) to its one non-redundant option, "Recently
+                Added" (addedAt has no column, so it can't be header-sorted). Every other sort is reached
+                by clicking a column header; when one is active the select reflects that with a disabled
+                placeholder instead of falsely reading "Recently Added". */}
             <select
-              value={`${sortColumn}:${sortDirection}`}
-              onChange={e => {
-                const [col, dir] = e.target.value.split(":");
-                setSortColumn(col);
-                setSortDirection(dir);
-              }}
+              value={sortColumn === "addedAt" ? "addedAt:desc" : ""}
+              onChange={e => { if (e.target.value === "addedAt:desc") { setSortColumn("addedAt"); setSortDirection("desc"); } }}
               style={filterSelect}
+              title="Sort by most recently added — for any other column, click its header"
             >
+              <option value="" disabled>Sorted by column ↑↓</option>
               <option value="addedAt:desc">Recently Added</option>
-              <option value="setNumber:asc">Set # (↑)</option>
-              <option value="name:asc">Name (A–Z)</option>
-              <option value="value:desc">Value (↓)</option>
-              <option value="gain:desc">Gain (↓)</option>
             </select>
             <button
               onClick={enrichFromRebrickable}
