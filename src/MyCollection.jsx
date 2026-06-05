@@ -2592,8 +2592,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         </label>
                       </div>
 
-                      {/* Row 3: Qty + Paid + Current Value + MSRP */}
-                      <div style={{ ...row, gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
+                      {/* Row 3: Qty + Paid + Current Value + MSRP. Auto-fit so the four number inputs
+                          wrap to 2×2 on a narrow / mobile panel instead of squeezing MSRP off (F1). */}
+                      <div style={{ ...row, gridTemplateColumns: "repeat(auto-fit, minmax(76px, 1fr))" }}>
                         <label><span style={lbl}>Qty</span><input style={inp} type="number" min="1" value={s.qty || 1} onChange={e => updateSet(selectedSetIndex, "qty", e.target.value)} /></label>
                         <label><span style={lbl}>Paid</span><input style={inp} type="number" step="0.01" value={s.paidPrice || ""} onChange={e => updateSet(selectedSetIndex, "paidPrice", e.target.value)} /></label>
                         <label><span style={lbl}>Value</span><input style={inp} type="number" step="0.01" value={s.currentValue || ""} onChange={e => updateSet(selectedSetIndex, "currentValue", e.target.value)} /></label>
