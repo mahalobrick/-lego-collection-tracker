@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
+<title>BrickLedger — Build Progress</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f3f1ec;
+    --card:#ffffff;
+    --ink:#1f2733;
+    --ink-soft:#5b6675;
+    --ink-faint:#8b95a4;
+    --line:#e7e3da;
+    --done:#15924f;
+    --done-soft:#e6f4ec;
+    --prog:#e08a16;
+    --prog-soft:#fbf0db;
+    --pend:#c4cad4;
+    --pend-soft:#eef0f3;
+    --block:#d8443c;
+    --block-soft:#fbe9e8;
+    --hdr-done:#15924f;
+    --hdr-prog:#4f46c9;
+    --hdr-pend:#48515f;
+    --chip:#eef1f6;
+    --chip-ink:#46506a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Hanken Grotesk',-apple-system,system-ui,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    padding:38px 22px 80px;
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+
+  h1{font-size:31px;font-weight:800;letter-spacing:-0.02em;margin-bottom:6px}
+  .sub{font-size:14.5px;color:var(--ink-soft);font-weight:500;margin-bottom:22px}
+  .sub b{color:var(--ink);font-weight:700}
+
+  /* legend */
+  .legend{display:flex;flex-wrap:wrap;gap:22px;margin-bottom:30px;font-size:13.5px;font-weight:600;color:var(--ink-soft)}
+  .legend span{display:inline-flex;align-items:center;gap:8px}
+  .dot{width:11px;height:11px;border-radius:50%;display:inline-block}
+  .dot.done{background:var(--done)}
+  .dot.prog{background:var(--prog)}
+  .dot.pend{background:var(--pend)}
+  .dot.block{background:var(--block)}
+
+  /* phase card */
+  .phase{margin-bottom:26px;border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(31,39,51,.05),0 8px 24px -16px rgba(31,39,51,.18)}
+  .phead{padding:17px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;color:#fff}
+  .phead.done{background:var(--hdr-done)}
+  .phead.prog{background:var(--hdr-prog)}
+  .phead.pend{background:var(--hdr-pend)}
+  .phead .pt{font-size:17px;font-weight:800;letter-spacing:-0.01em}
+  .phead .ps{font-size:13px;font-weight:500;opacity:.86;margin-top:2px}
+  .pcount{flex:none;font-size:13px;font-weight:700;background:rgba(255,255,255,.2);padding:5px 13px;border-radius:999px;white-space:nowrap}
+
+  .pbody{background:var(--card);padding:6px 22px 12px}
+
+  .section{font-size:11.5px;font-weight:700;letter-spacing:.07em;color:var(--ink-faint);text-transform:uppercase;margin:18px 0 4px}
+
+  /* item */
+  .item{display:flex;gap:13px;padding:13px 0;border-bottom:1px solid var(--line)}
+  .item:last-child{border-bottom:none}
+  .ico{flex:none;width:21px;height:21px;border-radius:50%;margin-top:1px;display:flex;align-items:center;justify-content:center}
+  .ico.done{background:var(--done)}
+  .ico.prog{background:var(--prog)}
+  .ico.pend{background:#fff;border:2px solid var(--pend)}
+  .ico.block{background:var(--block)}
+  .ico svg{width:12px;height:12px;display:block}
+  .ibody{flex:1;min-width:0}
+  .ititle{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:5px}
+  .meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+  .badge{font-size:11px;font-weight:700;padding:2.5px 8px;border-radius:6px;letter-spacing:.01em}
+  .badge.done{background:var(--done-soft);color:var(--done)}
+  .badge.prog{background:var(--prog-soft);color:var(--prog)}
+  .badge.pend{background:var(--pend-soft);color:var(--ink-faint)}
+  .badge.block{background:var(--block-soft);color:var(--block)}
+  .chip{font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:500;background:var(--chip);color:var(--chip-ink);padding:2.5px 7px;border-radius:6px}
+  .desc{font-size:13.5px;color:var(--ink-soft);font-weight:500}
+
+  .foot{margin-top:30px;font-size:12.5px;color:var(--ink-faint);text-align:center;font-weight:500}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>BrickLedger — Build Progress</h1>
+  <div class="sub">Updated June 5, 2026 · <b>Retail off BrickEconomy</b> · G4 per-copy build underway (Phase 1/6)</div>
+
+  <div class="legend">
+    <span><i class="dot done"></i>Done</span>
+    <span><i class="dot prog"></i>In progress</span>
+    <span><i class="dot pend"></i>Pending</span>
+    <span><i class="dot block"></i>Blocked / needs data</span>
+  </div>
+
+  <!-- PHASE 1 -->
+  <div class="phase">
+    <div class="phead done">
+      <div><div class="pt">MC system audit &amp; early fixes</div><div class="ps">Capstone audit + the first interconnection-ranked findings</div></div>
+      <div class="pcount">4 / 4 done</div>
+    </div>
+    <div class="pbody">
+      <div class="section">Audit &amp; foundation</div>
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="ibody"><div class="ititle">MC system audit (read-only capstone)</div>
+        <div class="meta"><span class="badge done">Done</span><span class="chip">b2ea415</span><span class="desc">Bones-solid verdict; inventory &amp; architecture docs reconciled to reality</span></div></div></div>
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="ibody"><div class="ititle">Conditions → binary New / Used + derived Mixed</div>
+        <div class="meta"><span class="badge done">Done</span><span class="desc">Per-copy entries, read-time normalization, per-copy editing in the panel</span></div></div></div>
+
+      <div class="section">Interconnection-ranked findings</div>
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="ibody"><div class="ititle">#1 — Promotion laundering fix</div>
+        <div class="meta"><span class="badge done">Done</span><span class="chip">4b8a8ad</span><span class="desc">Lazy seed (value=null, never cost); both promotion paths; ROI Leaders un-frozen</span></div></div></div>
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="ibody"><div class="ititle">#4 — Headline tiles reconcile</div>
+        <div class="meta"><span class="badge done">Done</span><span class="chip">335e4c2</span><span class="desc">Net Gain reconciles on the value-known subset; invariant pinned by guard test</span></div></div></div>
+    </div>
+  </div>
+
+  <!-- PHASE 2 -->
+  <div class="phase">
+    <div class="phead done">
+      <div><div class="pt">#2 — Retail off BrickEconomy</div><div class="ps">Move RRP onto Brickset + manual, retire BE from retail entirely</div></div>
+      <div class="pcount">7 / 7 done</div>
+    </div>
+    <div class="pbody">
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="ibody"><div class="ititle">Phase 0 — measure the full-out blast radius</div>
+        <div class="meta"><span class="badge done">Done</span><span class="desc">514 cold-cache ceiling → 18 genuine residual (sparse polybags)</span></div></div></div>
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="ibody"><div class="ititle">Phase 1 — CMF retail fix</div>
+        <div class="meta"><span class="badge done">Done</span><span class="desc">Series <code>-0</code> resolver + fetch; 10/11 CMF series reclaimed from Brickset</span></div></div></div>
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="ibody"><div class="ititle">Phase 2 — GWP “Promo · no RRP” tag</div>
+        <div class="meta"><span class="badge done">Done</span><span class="chip">ad81a73</span><span class="desc">41 promo sets get a first-class no-RRP state (validated, zero false positives)</span></div></div></div>
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="ibody"><div class="ititle">Phase 3a — manual MSRP rung</div>
+        <div class="meta"><span class="badge done">Done</span><span class="chip">e1cb1ec</span><span class="desc">Ladder = Brickset → manual → BE; hand-entry reclaim path</span></div></div></div>
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="ibody"><div class="ititle">Phase 3a.1 — MSRP on the edit form</div>
+        <div class="meta"><span class="badge done">Done</span><span class="chip">3afbb4d</span><span class="desc">Reclaim path reaches existing sets; persists for BE-imported sets across reload</span></div></div></div>
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="ibody"><div class="ititle">Phase 3b — unify headline card + same-source</div>
+        <div class="meta"><span class="badge done">Done</span><span class="chip">df64025</span><span class="desc">Retail Value card + vs-MSRP read the ladder; “N of M priced” note</span></div></div></div>
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="ibody"><div class="ititle">Phase 3c — remove BE from retail (finale)</div>
+        <div class="meta"><span class="badge done">Done</span><span class="chip">de6d824</span><span class="desc">Brickset → manual; BE value role untouched; prod verified 459/600 priced, 18 residual</span></div></div></div>
+    </div>
+  </div>
+
+  <!-- PHASE 3 -->
+  <div class="phase">
+    <div class="phead prog">
+      <div><div class="pt">Frontend audit — surface by surface</div><div class="ps">UI/UX counterpart to the system audit: Sets → Purchases → Tracking</div></div>
+      <div class="pcount">3 / 5 done</div>
+    </div>
+    <div class="pbody">
+      <div class="section">Surface 1 — MC Browse (now “Sets”)</div>
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="ibody"><div class="ititle">MC Browse audit — inventory + triage</div>
+        <div class="meta"><span class="badge done">Done</span><span class="chip">04849ff</span><span class="chip">frontend-audit-mc-browse.md</span><span class="desc">keep / fix / remove / needs-backend verdicts</span></div></div></div>
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="ibody"><div class="ititle">Polish batch 1 — labels, removals, layout</div>
+        <div class="meta"><span class="badge done">Done</span><span class="chip">cfd14cd…b5d0798</span><span class="desc">Retail→MSRP, cut BE forecast, drop empty BL columns, Browse→Sets, sort trim, row reflow, meta tag</span></div></div></div>
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="ibody"><div class="ititle">Condition column → display-only</div>
+        <div class="meta"><span class="badge done">Done</span><span class="chip">465abb7</span><span class="desc">ConditionPill; kills the bulk-flip footgun on multi-copy lines; per-copy editing intact</span></div></div></div>
+
+      <div class="section">Surface 2 &amp; 3 — next</div>
+      <div class="item"><div class="ico pend"></div>
+        <div class="ibody"><div class="ititle">Purchases audit</div>
+        <div class="meta"><span class="badge pend">Pending</span><span class="desc">Same read-only inventory + triage; expect Retail/MSRP alignment to recur</span></div></div></div>
+      <div class="item"><div class="ico pend"></div>
+        <div class="ibody"><div class="ititle">Tracking audit</div>
+        <div class="meta"><span class="badge pend">Pending</span><span class="desc">Same treatment once Purchases is settled</span></div></div></div>
+    </div>
+  </div>
+
+  <!-- PHASE 4 -->
+  <div class="phase">
+    <div class="phead prog">
+      <div><div class="pt">Backend gate — the pause-rule</div><div class="ps">Data-model work the frontend audit surfaced; pause frontend to do it</div></div>
+      <div class="pcount">1 / 3 done</div>
+    </div>
+    <div class="pbody">
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="ibody"><div class="ititle">Discovery — current dual-store map (read-only)</div>
+        <div class="meta"><span class="badge done">Done</span><span class="chip">94d5f70</span><span class="chip">g4-per-copy-discovery.md</span><span class="desc">Three creation paths, entries[] shape, per-site behavior + migration options mapped</span></div></div></div>
+      <div class="item"><div class="ico prog"></div>
+        <div class="ibody"><div class="ititle">Per-copy editing / G4 dual-store unification</div>
+        <div class="meta"><span class="badge prog">In progress</span><span class="chip">c7794f8</span><span class="desc">Hybrid spine, branch g4-percopy · P0 net + P1 done: <code>materializeEntries</code> read funnel landed inert (money-neutral, idempotent); wired to nothing until Phase 2</span></div></div></div>
+      <div class="item"><div class="ico pend"></div>
+        <div class="ibody"><div class="ititle">Qty persistence gap (backlog #2)</div>
+        <div class="meta"><span class="badge pend">Pending</span><span class="desc">Inline qty desyncs from <code>entries[]</code> + doesn’t persist for BE sets; sequenced into G4</span></div></div></div>
+    </div>
+  </div>
+
+  <!-- PHASE 5 -->
+  <div class="phase">
+    <div class="phead pend">
+      <div><div class="pt">Infrastructure</div><div class="ps">Deployment / auth / caching — outside the feature work</div></div>
+      <div class="pcount">0 / 3 done</div>
+    </div>
+    <div class="pbody">
+      <div class="item"><div class="ico block"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round"><path d="M12 7v6M12 17h.01"/></svg></div>
+        <div class="ibody"><div class="ititle">Clerk production instance + custom domain</div>
+        <div class="meta"><span class="badge block">Needs domain</span><span class="desc">Dev keys on a <code>vercel.app</code> public-suffix domain → Chrome blocks the cookie → no login AND no retail in Chrome. Highest-leverage fix; needs you to register a domain</span></div></div></div>
+      <div class="item"><div class="ico pend"></div>
+        <div class="ibody"><div class="ititle">Back up the enrichment caches</div>
+        <div class="meta"><span class="badge pend">Pending</span><span class="desc">Brickset/Rebrickable caches aren’t in <code>BACKUP_KEYS</code> → every fresh session re-fetches everything (the “climbing” numbers)</span></div></div></div>
+      <div class="item"><div class="ico pend"></div>
+        <div class="ibody"><div class="ititle">Loading state during enrichment</div>
+        <div class="meta"><span class="badge pend">Pending</span><span class="desc">“Refreshing prices…” so cold-load numbers read as filling-in, not wrong-then-climbing</span></div></div></div>
+    </div>
+  </div>
+
+  <!-- PHASE 6 -->
+  <div class="phase">
+    <div class="phead pend">
+      <div><div class="pt">Backlog &amp; future</div><div class="ps">Parked deliberately — picked up when the moment’s right</div></div>
+      <div class="pcount">0 / 7 done</div>
+    </div>
+    <div class="pbody">
+      <div class="section">Data sources</div>
+      <div class="item"><div class="ico pend"></div>
+        <div class="ibody"><div class="ititle">Brickset site-scrape — retail residual</div>
+        <div class="meta"><span class="badge pend">Pending</span><span class="desc">Fills the ~18 polybags Brickset’s API lacks but its website shows</span></div></div></div>
+
+      <div class="section">Future features (shared price-history root)</div>
+      <div class="item"><div class="ico pend"></div>
+        <div class="ibody"><div class="ititle">BL-data investment forecast</div>
+        <div class="meta"><span class="badge pend">Pending</span><span class="desc">Needs accumulated BL price history; must be honestly caveated</span></div></div></div>
+      <div class="item"><div class="ico pend"></div>
+        <div class="ibody"><div class="ititle">Price-watch / deal alerts</div>
+        <div class="meta"><span class="badge pend">Pending</span><span class="desc">Anchors on the Wanted list; shares the price-history capture foundation</span></div></div></div>
+
+      <div class="section">Audits &amp; parity</div>
+      <div class="item"><div class="ico pend"></div>
+        <div class="ibody"><div class="ititle">Budget audit</div>
+        <div class="meta"><span class="badge pend">Pending</span><span class="desc">Next anti-silo surface sweep</span></div></div></div>
+      <div class="item"><div class="ico pend"></div>
+        <div class="ibody"><div class="ititle">Wanted List audit</div>
+        <div class="meta"><span class="badge pend">Pending</span><span class="desc">Anti-silo sweep</span></div></div></div>
+      <div class="item"><div class="ico pend"></div>
+        <div class="ibody"><div class="ititle">Wanted-metadata-through-promotion parity</div>
+        <div class="meta"><span class="badge pend">Pending</span><span class="desc">Subtheme/dates carried when a wanted set is promoted to the collection</span></div></div></div>
+      <div class="item"><div class="ico pend"></div>
+        <div class="ibody"><div class="ititle">Add prod-build step to CI</div>
+        <div class="meta"><span class="badge pend">Pending</span><span class="desc">Catch circular-dep / prod-only breaks the lint+test gate misses</span></div></div></div>
+    </div>
+  </div>
+
+  <div class="foot">BrickLedger · github.com/mahalobrick · live at lego-app-rust.vercel.app</div>
+
+</div>
+</body>
+</html>
