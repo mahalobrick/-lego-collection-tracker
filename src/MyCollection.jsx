@@ -68,8 +68,6 @@ const OWNED_COL_WIDTHS = {
   acquiredDate: 90,
   retiredDate:  90,
   releasedDate: 90,
-  blSoldNew:    92,
-  blSoldUsed:   92,
   notes:        80,
 };
 
@@ -235,11 +233,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   // ── BE sync info (for pieces, minifigs and aggregate stats) ─────────────
   const [beSyncInfo] = useState(() => {
     try { return JSON.parse(localStorage.getItem("brickEconomyCollectionSyncInfo") || "{}"); } catch { return {}; }
-  });
-
-  // ── BrickLink price guide cache (6-month US sold) ────────────────────────
-  const [blPriceCache] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("blPriceGuideCache") || "{}"); } catch { return {}; }
   });
 
   // ── Purchase ledger → paid provenance (Provenance Step 2) ──────────────────
@@ -1056,18 +1049,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     if (column.key === "acquiredDate") return fmtShortDate(set.acquiredDate);
     if (column.key === "retiredDate")  return fmtShortDate(set.retiredDate);
     if (column.key === "releasedDate") return fmtShortDate(set.releasedDate);
-    if (column.key === "blSoldNew") {
-      const blKey = String(set.setNumber || "").replace(/-1$/, "");
-      const bl = blPriceCache[blKey]?.data;
-      const v = bl?.qty_avg_price_new ?? bl?.avg_price_new;
-      return v != null ? money(v) : "—";
-    }
-    if (column.key === "blSoldUsed") {
-      const blKey = String(set.setNumber || "").replace(/-1$/, "");
-      const bl = blPriceCache[blKey]?.data;
-      const v = bl?.qty_avg_price_used ?? bl?.avg_price_used;
-      return v != null ? money(v) : "—";
-    }
     if (column.key === "notes") return set.notes || "";
 
     return "";

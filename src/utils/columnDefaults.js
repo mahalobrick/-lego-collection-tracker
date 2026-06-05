@@ -18,8 +18,8 @@ export const DEFAULT_OWNED_COLUMNS = [
   { key: "acquiredDate", label: "Acquired",      visible: false },
   { key: "retiredDate",  label: "Retired On",    visible: false },
   { key: "releasedDate", label: "Released",      visible: false },
-  { key: "blSoldNew",    label: "BL New (6mo)",  visible: false },
-  { key: "blSoldUsed",   label: "BL Used (6mo)", visible: false },
+  // blSoldNew / blSoldUsed removed (MC-Browse polish R1): backed only by a non-persisted,
+  // auth-gated BL read overlay (usually empty) and already shown in the detail panel.
   { key: "notes",        label: "Notes",         visible: false },
 ];
 
