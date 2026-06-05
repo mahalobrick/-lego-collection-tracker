@@ -66,8 +66,6 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
   const cached = cacheEntry.data || {};
   const pieces = cached.pieces_count || null;
   const releaseYear = cached.year || Number(String(cached.released_date || "").slice(0, 4)) || null;
-  const forecast2yr = asNumber(cached.forecast_value_new_2_years) || null;
-  const forecast5yr = asNumber(cached.forecast_value_new_5_years) || null;
 
   // Enrich with cached Brickset data (retirement, details). NOTE: the cache is keyed `brickset_${n}`
   // (src/utils/brickset.js) — the bare-key lookup this replaced never matched, so Brickset enrichment
@@ -200,29 +198,9 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
           </div>
         )}
 
-        {(forecast2yr || forecast5yr) && (
-          <div>
-            <div style={sectionLabel}>Investment Forecast</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              {forecast2yr && <StatBox label="2yr Forecast" value={money(forecast2yr)} color="#5aa832" />}
-              {forecast5yr && <StatBox label="5yr Forecast" value={money(forecast5yr)} color="#5aa832" />}
-              {forecast2yr && retailPrice && (
-                <StatBox
-                  label="2yr vs. Retail"
-                  value={`${forecast2yr >= retailPrice ? "+" : ""}${(((forecast2yr - retailPrice) / retailPrice) * 100).toFixed(1)}%`}
-                  color={forecast2yr >= retailPrice ? "#5aa832" : "#ff8b8b"}
-                />
-              )}
-              {forecast5yr && retailPrice && (
-                <StatBox
-                  label="5yr vs. Retail"
-                  value={`${forecast5yr >= retailPrice ? "+" : ""}${(((forecast5yr - retailPrice) / retailPrice) * 100).toFixed(1)}%`}
-                  color={forecast5yr >= retailPrice ? "#5aa832" : "#ff8b8b"}
-                />
-              )}
-            </div>
-          </div>
-        )}
+        {/* Investment Forecast removed (MC-Browse polish R2): it surfaced raw BrickEconomy
+            forecast_value_new_2/5_years projections with no caveat, and BE is retired from value (3c)
+            and retail (3c). A BrickLink-grounded forecast is a future feature, not a BE passthrough. */}
 
         {(subtheme || minifigs != null || rating || ageMin) && (
           <div>

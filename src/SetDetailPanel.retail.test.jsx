@@ -99,3 +99,26 @@ describe("SetDetailPanel vs. MSRP % — reads the resolved ladder, not a raw fie
     expect(txt).toBe("vs. MSRP+50.0%");
   });
 });
+
+describe("SetDetailPanel — investment forecast removed (MC-Browse polish R2)", () => {
+  // Seed the BE cache with the exact fields the old forecast read. The section must NOT render —
+  // BE forecast projections are gone (BE retired from value + retail); no BL-grounded forecast yet.
+  function seedBEForecast(setNumber, f2, f5) {
+    const cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
+    cache[setNumber] = { fetchedAt: "2026-06-01T00:00:00.000Z", data: { forecast_value_new_2_years: f2, forecast_value_new_5_years: f5 } };
+    localStorage.setItem("brickEconomySetCache", JSON.stringify(cache));
+  }
+  function panelText(setNumber, extra = {}) {
+    const item = { setNumber, condition: "new", quantity: 1, entries: [], ...extra };
+    act(() => root.render(<SetDetailPanel item={item} onClose={() => {}} />));
+    return container.textContent;
+  }
+
+  it("does not render the Investment Forecast section even when BE forecast data is present", () => {
+    seedBEForecast("10300-1", 250, 400);
+    const txt = panelText("10300-1", { totalValue: 200, totalPaid: 120 });
+    expect(txt).not.toMatch(/Investment Forecast/);
+    expect(txt).not.toMatch(/Forecast/);
+    expect(txt).not.toMatch(/yr vs\. (MSRP|Retail)/);
+  });
+});
