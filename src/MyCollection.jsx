@@ -6,6 +6,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis
 import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
 import TriValueCell from "./TriValueCell";
 import RowHoverCard from "./RowHoverCard";
+import ConditionPill from "./ConditionPill";
 import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
 import { setConditionDisplay, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
@@ -2436,40 +2437,15 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                           );
                         }
 
-                        // Condition — New / Used / Mixed pill (double-click to edit)
+                        // Condition — New / Used / Mixed pill. DISPLAY-ONLY: a row is the LINE, not a
+                        // copy, so the old inline editor here bulk-rewrote every copy of a multi-copy
+                        // line silently (footgun, removed). Edit condition via the Edit form's Condition
+                        // field or the detail panel's per-copy control. The cell carries no onClick, so a
+                        // click bubbles to the row → opens the detail panel (where per-copy editing lives).
                         if (col.key === "condition") {
-                          const isEditing = inlineEdit?.index === index && inlineEdit?.key === "condition";
-                          const display = setConditionDisplay(set);            // 'new' | 'used' | 'mixed'
-                          const color = conditionDisplayColor(display);        // green / amber / indigo
-                          // Inline editor is still binary New/Used (the entries[]-aware edit is a later step).
-                          const editVal = display === "used" ? "used" : "new";
-                          const editColor = conditionDisplayColor(editVal);
-                          if (isEditing) {
-                            return (
-                              <td key="condition" style={td} onClick={e => e.stopPropagation()}>
-                                <select
-                                  autoFocus
-                                  value={editVal}
-                                  onChange={e => { updateSet(index, "condition", e.target.value); setInlineEdit(null); }}
-                                  onBlur={() => setInlineEdit(null)}
-                                  onKeyDown={e => { if (e.key === "Escape") setInlineEdit(null); }}
-                                  style={{ background: `${editColor}18`, color: editColor, border: `1px solid ${editColor}50`, borderRadius: 10, padding: "2px 6px", fontSize: 11, fontWeight: 700, cursor: "pointer", outline: "none" }}
-                                >
-                                  <option value="new">New</option>
-                                  <option value="used">Used</option>
-                                </select>
-                              </td>
-                            );
-                          }
                           return (
-                            <td key="condition" style={{ ...td, cursor: "default" }}
-                              onClick={e => e.stopPropagation()}
-                              onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ index, key: "condition", value: editVal }); }}
-                            >
-                              <span style={{ background: `${color}18`, color, border: `1px solid ${color}50`, borderRadius: 10, padding: "2px 9px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 5 }}>
-                                {display === "new" && <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0, animation: "pulse-dot 2s ease-in-out infinite" }} />}
-                                {conditionDisplayLabel(display)}
-                              </span>
+                            <td key="condition" style={td}>
+                              <ConditionPill set={set} />
                             </td>
                           );
                         }
