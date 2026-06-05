@@ -173,10 +173,10 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {releaseYear && <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{releaseYear}</span>}
           {pieces && <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{pieces.toLocaleString()} pcs</span>}
-          {/* Canonical retail (MSRP) — always shown (unknown → "—", never hidden-as-absent). Tooltip flags it
-              as sticker price. Label "Retail" matches the row column / "vs. Retail" stat / Retail Value card —
-              one term across the app (Retail Phase 3b); testid stays msrp-chip (internal). */}
-          <span data-testid="msrp-chip" title={retailCellTooltip(retailProv) || undefined} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{isPromoNoRrp(retailProv) ? PROMO_NO_RRP_LABEL : <>Retail {formatValue(retailPrice)}{retailManualMark && <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }} title={retailManualMark.tooltip}>{retailManualMark.marker}</span>}</>}</span>
+          {/* Canonical MSRP (sticker price) — always shown (unknown → "—", never hidden-as-absent). Tooltip
+              flags it as sticker price. Label "MSRP" matches the row column / "vs. MSRP" stat / MSRP Value
+              card — one term across the app (standardized in MC-Browse polish); testid stays msrp-chip. */}
+          <span data-testid="msrp-chip" title={retailCellTooltip(retailProv) || undefined} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{isPromoNoRrp(retailProv) ? PROMO_NO_RRP_LABEL : <>MSRP {formatValue(retailPrice)}{retailManualMark && <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }} title={retailManualMark.tooltip}>{retailManualMark.marker}</span>}</>}</span>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -187,7 +187,7 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
           <StatBox label="ROI" value={roi === null ? "—" : `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%`} color={roi === null ? undefined : roi >= 0 ? "#5aa832" : "#ff8b8b"} />
           <StatBox label="Avg Paid / Copy" value={money(avgPaid)} />
           <StatBox label="Value / Copy" value={valueKnown && qty > 0 ? money(totalValue / qty) : "—"} />
-          {valueKnown && retailPrice && totalPaid > 0 && <StatBox label="vs. Retail" value={`${(((totalValue / qty) - retailPrice) / retailPrice * 100) >= 0 ? "+" : ""}${(((totalValue / qty) - retailPrice) / retailPrice * 100).toFixed(1)}%`} color={(totalValue / qty) >= retailPrice ? "#5aa832" : "#ff8b8b"} />}
+          {valueKnown && retailPrice && totalPaid > 0 && <StatBox label="vs. MSRP" value={`${(((totalValue / qty) - retailPrice) / retailPrice * 100) >= 0 ? "+" : ""}${(((totalValue / qty) - retailPrice) / retailPrice * 100).toFixed(1)}%`} color={(totalValue / qty) >= retailPrice ? "#5aa832" : "#ff8b8b"} />}
         </div>
 
         {blPrice && (blPrice.avg_price_new > 0 || blPrice.avg_price_used > 0) && (

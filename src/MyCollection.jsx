@@ -36,7 +36,7 @@ const DEFAULT_COLLECTION_ITEMS = [
   { key: "avgPaid",      type: "card",  label: "Avg Paid / Set",   visible: false, width: "auto",  collapsed: false },
   { key: "pieces",       type: "card",  label: "Total Pieces",     visible: false, width: "auto",  collapsed: false },
   { key: "minifigs",     type: "card",  label: "Minifigs",         visible: false, width: "auto",  collapsed: false },
-  { key: "retailValue",  type: "card",  label: "Retail Value",     visible: false, width: "auto",  collapsed: false },
+  { key: "retailValue",  type: "card",  label: "MSRP Value",       visible: false, width: "auto",  collapsed: false },
   { key: "newValue",     type: "card",  label: "New Sets Value",   visible: false, width: "auto",  collapsed: false },
   { key: "usedValue",    type: "card",  label: "Used Sets Value",  visible: false, width: "auto",  collapsed: false },
   { key: "watchList",    type: "card",  label: "Wanted List",      visible: false, width: "auto",  collapsed: false },
@@ -1295,7 +1295,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         <div style={tabBar}>
           {[
             { key: "overview", label: "Overview" },
-            { key: "collection", label: "Browse" },
+            { key: "collection", label: "Sets" },
             { key: "sold", label: soldSets.length > 0 ? `Sold (${soldSets.length})` : "Sold" },
           ].map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={tab === t.key ? activeTabStyle : tabBtnStyle}>
@@ -1397,7 +1397,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                      item.key === "avgPaid"      ? <Card title="Avg Paid / Set"   value={money(stats.avgPaid)} /> :
                      item.key === "pieces"       ? <Card title="Total Pieces"     value={(stats.pieces || beSyncInfo.piecesCount || 0).toLocaleString()} /> :
                      item.key === "minifigs"     ? <Card title="Minifigs"         value={(stats.minifigs || beSyncInfo.minifsCount || 0).toLocaleString()} /> :
-                     item.key === "retailValue"  ? <Card title="Retail Value"     value={formatAggregateValue(stats.retailValue, stats.retailValueKnown)} sub={retailPricedNote(stats.retailValueKnown, sets.length)} /> :
+                     item.key === "retailValue"  ? <Card title="MSRP Value"       value={formatAggregateValue(stats.retailValue, stats.retailValueKnown)} sub={retailPricedNote(stats.retailValueKnown, sets.length)} /> :
                      item.key === "newValue"     ? <Card title="New Sets Value"   value={fmtAgg(stats.newSetsValue, stats.newValueKnown)} sub={`${stats.newEntries} sets`} /> :
                      item.key === "usedValue"    ? <Card title="Used Sets Value"  value={fmtAgg(stats.usedSetsValue, stats.usedValueKnown)} sub={`${stats.usedEntries} sets`} /> :
                      item.key === "watchList"    ? <Card title="Wanted List"      value={watchListHighlights.total} /> : null}
@@ -2255,10 +2255,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                 fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
               }}
             >
-              {rbEnriching ? "…" : rbEnrichResult !== null ? `✓ RB (${rbEnrichResult})` : "RB Fill"}
+              {rbEnriching ? "…" : rbEnrichResult !== null ? `✓ Filled (${rbEnrichResult})` : "Rebrickable Fill"}
             </button>
             <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.1)", alignSelf: "center", margin: "0 2px", flexShrink: 0 }} />
-            <div style={{ display: "flex", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden", flexShrink: 0 }} title="Row density — compact shows Market only (Retail / Paid on hover); full shows all three">
+            <div style={{ display: "flex", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden", flexShrink: 0 }} title="Row density — compact shows Market only (MSRP / Paid on hover); full shows all three">
               {[["compact", "Compact"], ["full", "Full"]].map(([val, label]) => (
                 <button
                   key={val}

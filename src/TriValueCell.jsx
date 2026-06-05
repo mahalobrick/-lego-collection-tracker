@@ -4,10 +4,10 @@ import { confidenceBadge } from "./uiStyles";
 // ─────────────────────────────────────────────────────────────────────────────
 // MSRP Step 2 — the Collection row's value cell, density-aware.
 //
-//   density="full"    → three-up stack: Retail / Paid / Market, one figure per line.
+//   density="full"    → three-up stack: MSRP / Paid / Market, one figure per line.
 //   density="compact" → Market only — byte-identical to the pre-Step-2 cell
 //                       (formatValueCell + confidence marker + retail/confidence tooltip).
-//                       Retail + Paid surface in the row hover card instead (RowHoverCard).
+//                       MSRP + Paid surface in the row hover card instead (RowHoverCard).
 //
 // Built once so Budget / Wanted can reuse it later (Wanted has no "Paid" → paid={null} → "—").
 // Each line shows its figure or "—" when unknown (docs/valuation.md rule 6 — never a phantom $0).
@@ -52,7 +52,7 @@ export default function TriValueCell({ retail, paid, market, density = "full" })
   return (
     <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
       <div style={rowStyle} title={retailCellTooltip(retail) || undefined}>
-        <span style={labelStyle}>Retail</span>
+        <span style={labelStyle}>MSRP</span>
         <span style={dimFigure} data-testid="tri-retail">
           {formatRetailCell(retail)}
           {retailMark && (
