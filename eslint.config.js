@@ -114,6 +114,59 @@ const noDirectEntriesIteration = {
     "readers are the funnel + the value/condition/BE-storage layer (see eslint.config.js overrides).",
 };
 
+// ── Managed-enrichment-cache clear ban (P3 memo-coherence) ───────────────────
+// Locks the memo-coherence invariant: each managed enrichment cache (blValueCache, bricksetSetCache,
+// brickEconomySetCache, blPriceGuideCache) is a TWO-part structure — an in-memory memo + the
+// localStorage mirror — and the two must stay in lockstep. A raw
+// `localStorage.removeItem("bricksetSetCache")` empties the STORE but leaves the module's live memo
+// populated, so a memo-aware peek (P3.3) then serves a stale entry the user just tried to clear.
+// P3.7a fixed the two real clear sites by routing them through the cache module's clear() (which
+// wipes BOTH memo and mirror) and added function-level guards — but those guards test the clear
+// FUNCTIONS; nothing stops a FUTURE raw removeItem at a NEW site from re-opening the bug class. This
+// rule is the structural close, mirroring DATA-4's no-raw-setItem ban: it forbids the raw store wipe
+// so every clear of a managed key is forced through the owning module's clear().
+//
+// The sanctioned clear path lives in enrichmentCache.js (clear() → memo.clear() + setItemSafe the
+// mirror to "{}"); the four wrapper modules that OWN a managed key are allowlisted via the file
+// overrides below: valueCache.js (blValueCache), brickset.js (bricksetSetCache), beSyncValues.js
+// (brickEconomySetCache), bricklink-client.js (blPriceGuideCache). Everything else routes its clear
+// through that module.
+//
+// KNOWN GAPS — what a single static AST rule cannot safely catch (mirroring the setItem ban's
+// honesty about aliased writes):
+//   • Aliased store: `const s = localStorage; s.removeItem("blValueCache")` — callee object is a
+//     local Identifier, not `localStorage`; not matched. No code does this; a code-review concern.
+//   • Dynamic key: `localStorage.removeItem(someVar)` / a template literal — the argument is not a
+//     string Literal, so the managed-key regex can't read it. The realistic accidental
+//     reintroduction is a hard-coded key string, which this catches.
+//   • `localStorage.clear()` is banned unconditionally (it wipes the managed mirrors too, leaving
+//     every memo stale) — but only in app code; tests legitimately clear() in teardown and are
+//     exempt via the test override.
+const MANAGED_CACHE_KEYS = "blValueCache|bricksetSetCache|brickEconomySetCache|blPriceGuideCache";
+const noRemoveManagedCache = [
+  {
+    // localStorage.removeItem("<managed key>") / window.localStorage.removeItem("<managed key>")
+    selector:
+      `CallExpression[callee.property.name='removeItem'][callee.object.name='localStorage'][arguments.0.value=/^(${MANAGED_CACHE_KEYS})$/],` +
+      `CallExpression[callee.property.name='removeItem'][callee.object.property.name='localStorage'][arguments.0.value=/^(${MANAGED_CACHE_KEYS})$/]`,
+    message:
+      "Raw removeItem of a managed enrichment cache key empties the store but leaves the module's " +
+      "in-memory memo populated, so a later memo-aware peek serves a stale entry (P3 memo coherence). " +
+      "Clear through the owning module's clear() (valueCache/brickset/beSyncValues/bricklink-client, " +
+      "backed by enrichmentCache.clear()) — it wipes BOTH the memo and the mirror.",
+  },
+  {
+    // bare localStorage.clear() / window.localStorage.clear() — wipes the managed mirrors too.
+    selector:
+      "CallExpression[callee.property.name='clear'][callee.object.name='localStorage']," +
+      "CallExpression[callee.property.name='clear'][callee.object.property.name='localStorage']",
+    message:
+      "localStorage.clear() wipes the managed enrichment cache mirrors but leaves their in-memory " +
+      "memos populated, re-opening the P3 memo-coherence bug class. Clear individual caches through " +
+      "their owning module's clear(). (Tests are exempt — they clear() in teardown.)",
+  },
+];
+
 module.exports = [
   {
     files: ["src/**/*.{js,jsx}"],
@@ -127,7 +180,7 @@ module.exports = [
     // no-op stub), so don't flag them as unused.
     linterOptions: { reportUnusedDisableDirectives: "off" },
     rules: {
-      "no-restricted-syntax": ["error", noRawSetItem, ...noUnknownAsZero, noDirectEntriesIteration],
+      "no-restricted-syntax": ["error", noRawSetItem, ...noUnknownAsZero, noDirectEntriesIteration, ...noRemoveManagedCache],
     },
   },
   // The ONE sanctioned raw-write module (the choke point + the atomic-rollback revert).
@@ -138,16 +191,31 @@ module.exports = [
   // The sanctioned VALUE funnel — these modules DEFINE the null-aware path the ban points
   // people toward, so they legitimately touch the raw value fields (Workstream A). portfolio.js
   // is ALSO the per-copy value funnel (valueGroups delegates to materializeEntries; the edit
-  // helpers operate on already-stored arrays), so it's exempt from the entries ban here too.
+  // helpers operate on already-stored arrays), so it's exempt from the entries ban here too. They
+  // do NOT clear caches, so they keep the managed-cache ban.
   {
     files: ["src/utils/valueDisplay.js", "src/utils/portfolio.js", "src/utils/value.js"],
-    rules: { "no-restricted-syntax": ["error", noRawSetItem] },
+    rules: { "no-restricted-syntax": ["error", noRawSetItem, ...noRemoveManagedCache] },
   },
   // The sanctioned PER-COPY layer (G4): the funnel itself, the condition normalizer, and the BE
-  // storage-normalization / value-sync layer legitimately read the raw stored entries[]. They get
-  // every ban EXCEPT noDirectEntriesIteration.
+  // storage-normalization layer legitimately read the raw stored entries[]. They get every ban
+  // EXCEPT noDirectEntriesIteration (beSyncValues is split out below — it ALSO owns a managed cache).
   {
-    files: ["src/utils/percopy.js", "src/utils/condition.js", "src/utils/beCollection.js", "src/utils/beSyncValues.js"],
+    files: ["src/utils/percopy.js", "src/utils/condition.js", "src/utils/beCollection.js"],
+    rules: { "no-restricted-syntax": ["error", noRawSetItem, ...noUnknownAsZero, ...noRemoveManagedCache] },
+  },
+  // The managed-enrichment-cache OWNERS (P3 memo-coherence): each wraps an enrichmentCache instance
+  // for one managed key and defines the sanctioned clear() the ban points people toward, so they are
+  // exempt from noRemoveManagedCache. enrichmentCache.js is the shared clear primitive. They keep
+  // every OTHER ban (none of them iterate `<set>.entries`, so noDirectEntriesIteration stays).
+  {
+    files: ["src/utils/enrichmentCache.js", "src/utils/valueCache.js", "src/utils/brickset.js", "src/utils/bricklink-client.js"],
+    rules: { "no-restricted-syntax": ["error", noRawSetItem, ...noUnknownAsZero, noDirectEntriesIteration] },
+  },
+  // beSyncValues.js is BOTH a per-copy raw-entries reader (G4, exempt from noDirectEntriesIteration)
+  // AND the brickEconomySetCache owner (P3, exempt from noRemoveManagedCache). It keeps the rest.
+  {
+    files: ["src/utils/beSyncValues.js"],
     rules: { "no-restricted-syntax": ["error", noRawSetItem, ...noUnknownAsZero] },
   },
   // Tests legitimately seed localStorage fixtures directly (arrange step, not app writes)
