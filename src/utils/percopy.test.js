@@ -205,3 +205,22 @@ describe("§6 applyQtyEdit — resize with stable ids", () => {
     expect(applyQtyEdit(MANUAL_2X, 0)).toHaveLength(1);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. INDIVISIBLE COST (watch-item A) — Σ per-copy paid === setCost to the CENT, last copy
+//    absorbs the remainder. Matters once value/cost can sum from per-copy records (delegation).
+// ─────────────────────────────────────────────────────────────────────────────
+describe("§7 indivisible cost — per-copy paids reconcile to the line total exactly", () => {
+  const INDIVISIBLE = { setNumber: "X", condition: "new", qty: 3, totalPaid: 100 }; // $100 ÷ 3
+
+  it("$100 ÷ 3 → 33.33 / 33.33 / 33.34, summing to exactly $100.00", () => {
+    const copies = materializeEntries(INDIVISIBLE);
+    expect(copies.map(c => c.paid_price)).toEqual([33.33, 33.33, 33.34]); // last absorbs the cent
+    const sumCents = Math.round(copies.reduce((s, c) => s + c.paid_price, 0) * 100);
+    expect(sumCents).toBe(Math.round(setCost(INDIVISIBLE) * 100)); // exact to the cent, no drift
+  });
+
+  it("divisible costs are unaffected (200 ÷ 2 → 100 / 100)", () => {
+    expect(materializeEntries(MANUAL_2X).map(c => c.paid_price)).toEqual([100, 100]);
+  });
+});
