@@ -1,6 +1,7 @@
 import { asNumber } from "./formatting";
 import { toValue, valueAmount } from "./value";
 import { conditionBucket } from "./condition";
+import { materializeEntries } from "./percopy";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Portfolio rollup (V2a). Pure, no React, no localStorage.
@@ -58,19 +59,28 @@ const BL_SOURCE = "bricklink";
 const blCondition = (raw) => conditionBucket(raw);
 
 /**
- * The set's per-copy value groups: one entry per owned copy (BE sets carry `entries[]`, each a copy
- * with its own condition); a manual set (no entries) is a single group of `qty` same-condition units.
- * `be` is that copy's stored BE per-unit value (the fallback) — null when BE has none either.
+ * The set's per-copy value groups — one per owned copy. Phase 5: the per-copy ENUMERATION (how many
+ * copies, each copy's condition) is delegated to the ONE funnel — {@link materializeEntries} — so there
+ * is no parallel per-copy logic. valueGroups only resolves each copy's `be` FALLBACK value.
+ *
+ * THE LANDMINE (preserved): a synthesized copy of a LINE-LEVEL manual set carries `current_value: null`
+ * (invariant #1), so its overlay fallback is the SET-LEVEL value spread per copy (`s.currentValue`, which
+ * is per-unit) — NEVER 0 from the null. That keeps a manual set's partial-/no-overlay value intact (the
+ * no-overlay path itself goes through rawSetValue, untouched). An entries[]-backed copy uses its OWN
+ * stored value. Output is byte-identical to the pre-delegation two-branch form across every fixture
+ * (pinned: the §1 with-overlay net + the valueGroups↔materializeEntries invariant test).
+ *
+ * Runtime-safe cycle with percopy.js: materializeEntries and setCost are hoisted function declarations,
+ * dereferenced only at call time — never during module init (same rationale as blCondition above).
  */
-function valueGroups(s) {
-  if (Array.isArray(s.entries) && s.entries.length) {
-    return s.entries.map((e) => ({
-      cond: blCondition(e.condition),
-      units: 1,
-      be: valueAmount(e.current_value ?? e.Value ?? e.value),
-    }));
-  }
-  return [{ cond: blCondition(s.condition), units: asNumber(s.qty) || 1, be: valueAmount(s.currentValue) }];
+export function valueGroups(s) {
+  const hasStoredEntries = Array.isArray(s.entries) && s.entries.length;
+  const lineLevelFallback = hasStoredEntries ? null : valueAmount(s.currentValue);
+  return materializeEntries(s).map((e) => ({
+    cond: blCondition(e.condition),
+    units: 1,
+    be: e.current_value != null ? valueAmount(e.current_value) : lineLevelFallback,
+  }));
 }
 
 // "estimated" value (decision doc / Step 3) = modeled OR asking — a figure NOT backed by a

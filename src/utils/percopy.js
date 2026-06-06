@@ -105,11 +105,16 @@ export function materializeEntries(set, opts) {
 
   // Synthesize: a line-level (manual) set → `qty` identical copies (≥ 1).
   const copies = Math.max(1, Math.floor(asNumber(set.qty) || 1));
-  const perCopyPaid = setCost(set) / copies; // Σ over copies === setCost(set) — money-neutral
+  // Distribute cost to the CENT so Σ per-copy paid === setCost EXACTLY (watch-item A): each copy
+  // gets the floor-cents share and the LAST copy absorbs the remainder. Avoids the float drift of a
+  // bare setCost/qty (e.g. $100 ÷ 3 → 33.33 / 33.33 / 33.34, summing to exactly $100.00).
+  const totalCents = Math.round(setCost(set) * 100);
+  const baseCents = Math.floor(totalCents / copies);
+  const remainderCents = totalCents - baseCents * copies;
   return Array.from({ length: copies }, (_, i) => ({
     id:            copyId(set, i),
     condition:     set.condition ?? null,
-    paid_price:    perCopyPaid,
+    paid_price:    (baseCents + (i === copies - 1 ? remainderCents : 0)) / 100,
     current_value: null,                 // invariant #1 — value is overlay-driven, never frozen here
     retail_price:  asNumber(set.retailPrice ?? set.msrp) || null,
     acquired_date: set.acquiredDate ?? set.acquired_date ?? "",

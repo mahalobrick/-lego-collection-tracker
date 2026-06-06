@@ -13,7 +13,8 @@ import {
   setValueProvenance,
   reconcilePaidEdit,
 } from "./portfolio";
-import { setConditionDisplay } from "./condition";
+import { setConditionDisplay, conditionBucket } from "./condition";
+import { valueGroups } from "./portfolio";
 import { materializeEntries, applyCopyConditionEdit, applyQtyEdit } from "./percopy";
 import { revalueBESet } from "./beSyncValues";
 
@@ -222,4 +223,38 @@ describe("§4b qty-change money — moves correctly and reconciles at the new qt
     expect(rev.totalValue).toBeCloseTo(450, 5);                   // 150 × 3 copies (scaled with qty)
     expect(rev.currentValue).toBeCloseTo(150, 5);                 // per-copy average
   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. THE LOCK (Phase 5) — valueGroups DELEGATES to materializeEntries: ONE source of truth for
+//    per-copy enumeration. The value layer can't drift from the funnel across any store shape.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("§5 invariant — valueGroups enumerates exactly materializeEntries' copies", () => {
+  const PROMOTED = {
+    setNumber: "75313-1", source: "BrickEconomy", condition: "new",
+    entries: [
+      { condition: "new", paid_price: 400, current_value: null, origin: "purchase" },
+      { condition: "new", paid_price: 400, current_value: null, origin: "purchase" },
+    ],
+  };
+  const DIVERGENT_MANUAL = { ...MANUAL_2X, entries: applyCopyConditionEdit(MANUAL_2X, 0, "used") };
+
+  const cases = {
+    "manual (line-level)": MANUAL_2X,
+    "imported (entries[])": BE_2X,
+    "promoted (value-null)": PROMOTED,
+    "divergent manual": DIVERGENT_MANUAL,
+    "value-unknown manual": MANUAL_UNKNOWN,
+  };
+
+  for (const [label, set] of Object.entries(cases)) {
+    it(`${label}: one group per materialized copy, conditions aligned`, () => {
+      const groups = valueGroups(set);
+      const copies = materializeEntries(set);
+      expect(groups).toHaveLength(copies.length);                       // one group per copy (no qty-units)
+      expect(groups.every(g => g.units === 1)).toBe(true);             // delegation → per-copy units
+      expect(groups.map(g => g.cond))
+        .toEqual(copies.map(c => conditionBucket(c.condition)));        // conditions come from the funnel
+    });
+  }
 });
