@@ -16,7 +16,7 @@ import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
 import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, setRetailProvenance, isPromoNoRetail, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
-import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailPricedNote, estimatedValueNote, estimatedCostNote, totalRoiNote, netGainBasisNote } from "./utils/valueDisplay";
+import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailPricedNote, estimatedValueNote, estimatedCostNote, totalRoiNote, netGainBasisNote, signColor } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
@@ -2434,9 +2434,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                 {visibleSets.map((set) => {
                   const index = sets.indexOf(set);
                   const qty = asNumber(set.qty) || 1;
-                  const paid = asNumber(set.paidPrice) * qty;
-                  const value = asNumber(set.currentValue) * qty;
-                  const gain = value - paid;
 
                   return (
                     <tr
@@ -2529,7 +2526,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         // ROI — tinted badge
                         if (col.key === "roi") {
                           const label = renderOwnedCell(set, col);
-                          const roiColor = String(label).startsWith("-") ? "#ff8b8b" : String(label).startsWith("+") ? "#5aa832" : "#8a9bb0";
+                          // Color from the displayed ROI number (setROI), not string-matching the label.
+                          const roiColor = signColor(setROI(set, valueMap));
                           return (
                             <td key="roi" style={tdRight}>
                               {label !== "—"
@@ -2546,7 +2544,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                               col.key === "name"
                                 ? { ...td, overflow: "hidden", textOverflow: "ellipsis" }
                                 : col.key === "gain"
-                                ? { ...tdRight, color: gain >= 0 ? "#5aa832" : "#ff8b8b" }
+                                ? { ...tdRight, color: signColor(setGain(set, valueMap)) }
                                 : isNumericOwnedColumn(col.key)
                                 ? tdRight
                                 : td

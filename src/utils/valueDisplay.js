@@ -333,3 +333,21 @@ export function roiExclusionNote(excludedCount) {
   if (!excludedCount || excludedCount <= 0) return null;
   return `${excludedCount} set${excludedCount === 1 ? "" : "s"} excluded from ROI (no value or no cost)`;
 }
+
+// Sign-keyed cell colors for gain / ROI. Green ≥ 0, red < 0, NEUTRAL for unknown (null) —
+// matching the "—" the value funnel renders. The single rule, so a cell's color always derives
+// from the SAME number it displays (setGain / setROI), never a parallel raw `value − paid` calc.
+export const SIGN_COLORS = { pos: "#5aa832", neg: "#ff8b8b", neutral: "#5d6f80" };
+
+/**
+ * Color for a signed, null-aware figure (gain or ROI). `null`/`undefined` (unknown) → neutral —
+ * so an unknown row reads "—" in neutral, never a phantom red/green. A known value keys strictly to
+ * its sign. Pass the EXACT number being displayed (setGain(set)/setROI(set)) so color can't drift.
+ *
+ * @param {number|null|undefined} amount
+ * @returns {string} hex color
+ */
+export function signColor(amount) {
+  if (amount == null) return SIGN_COLORS.neutral;
+  return amount >= 0 ? SIGN_COLORS.pos : SIGN_COLORS.neg;
+}
