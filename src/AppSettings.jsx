@@ -5,7 +5,7 @@ import Papa from "papaparse";
 import { importBudgetExcel, parseExcelFirstSheet } from "./utils/importBudgetExcel";
 import { asNumber } from "./utils/formatting";
 import { exportFullBackup as runExportBackup, applyBackupToLocalStorage, pushToCloudAuth } from "./utils/exportBackup";
-import { getBrickLinkAccessToken, hasBrickLinkAuth, getBrickLinkSession, bulkSyncPrices } from "./utils/bricklink-client";
+import { getBrickLinkAccessToken, hasBrickLinkAuth, getBrickLinkSession, bulkSyncPrices, clearPriceGuideCache } from "./utils/bricklink-client";
 import { DEFAULT_WANTED_COLUMNS } from "./utils/columnDefaults";
 import { syncBEValues } from "./utils/beSyncValues";
 import { normalizeBrickEconomyCollection } from "./utils/beCollection";
@@ -999,7 +999,7 @@ export default function AppSettings() {
   function disconnectBrickLink() {
     localStorage.removeItem("blBrickLinkAccessToken");
     localStorage.removeItem("blSessionToken");
-    localStorage.removeItem("blPriceGuideCache");
+    clearPriceGuideCache(); // clears localStorage + the shared instance memo (read-equivalent to removeItem)
     setBlConnected(false);
     toast.success("BrickLink disconnected and session cache cleared.");
   }

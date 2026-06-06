@@ -7,12 +7,35 @@
 import { apiFetch } from "./apiFetch";
 import { setItemSafe } from "./safeStorage";
 import { readSource, reportSourceFailure, classifyFailure } from "./readSource";
+import { createEntryCache, MS_TS } from "./enrichmentCache";
 
 const SESSION_TTL_MS = 50 * 60 * 1000;        // 50 minutes
 const PRICE_GUIDE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const BULK_CACHE_TTL_MS  = 12 * 60 * 60 * 1000; // 12 hours — skip re-fetch in bulk sync
 const BULK_BATCH_SIZE    = 3;                    // concurrent requests per batch
 const BULK_BATCH_DELAY_MS = 600;                 // ms between batches
+
+// Shared cache instance for blPriceGuideCache (P3.5) — reproduces it byte-for-byte: ms-epoch `cachedAt`
+// (MS_TS), `-1` de-variant keyFn (both paths normalize identically), `data` value field. DUAL TTL: the
+// instance default is the 6h single-fetch window; the bulk path passes 12h per-call against the SAME
+// stored cachedAt. requireValue stays FALSE (default) to match the bulk filter, which checks only
+// cachedAt age; the single-fetch path re-adds its `&& entry.data` presence guard at the call site.
+// blPriceGuideCache is in SYNC_SKIP_KEYS — the byte-identical key preserves that (no auto-push).
+const priceGuideCache = createEntryCache({
+  key: "blPriceGuideCache",
+  ttlMs: PRICE_GUIDE_TTL_MS,
+  valueField: "data",
+  tsField: "cachedAt",
+  ts: MS_TS,
+  keyFn: (n) => String(n).replace(/-1$/, ""),
+});
+
+/** Drop the in-memory + localStorage price-guide cache. Used by disconnectBrickLink so a disconnect
+ *  clears the cache AND the shared instance's memo (else the memo would survive the removeItem and a
+ *  later lookup could hit a stale entry). clear() writes "{}" — read-equivalent to a removeItem. */
+export function clearPriceGuideCache() {
+  priceGuideCache.clear();
+}
 
 // ── Storage helpers ──────────────────────────────────────────
 
@@ -85,19 +108,13 @@ export async function fetchBrickLinkPriceGuide(setNumber, { report = true, onFai
 
   // Normalize to no-suffix form as the cache key (e.g. "75192" not "75192-1")
   const normalizedNumber = String(setNumber).replace(/-1$/, "");
-  const cacheKey = "blPriceGuideCache";
 
-  // Check cache (keyed by normalized no-suffix number)
-  try {
-    const cache = JSON.parse(localStorage.getItem(cacheKey) || "{}");
-    const entry = cache[normalizedNumber];
-    if (entry && entry.data && entry.cachedAt) {
-      const age = Date.now() - entry.cachedAt;
-      if (age < PRICE_GUIDE_TTL_MS) {
-        return entry.data;
-      }
-    }
-  } catch { /* ignore */ }
+  // Cache read via the shared instance — 6h single-fetch TTL against ms-epoch `cachedAt`. The
+  // `&& hit[key]` reproduces the prior `&& entry.data` presence guard (instance requireValue:false
+  // keeps the bulk path's no-data-check semantics; the single path layers the data guard here).
+  const cacheKey = priceGuideCache.keyOf(setNumber);
+  const hit = priceGuideCache.peek([setNumber], { ttlMs: PRICE_GUIDE_TTL_MS });
+  if (cacheKey in hit && hit[cacheKey]) return hit[cacheKey];
 
   // Get session token
   const sessionToken = await getBrickLinkSession();
@@ -120,12 +137,8 @@ export async function fetchBrickLinkPriceGuide(setNumber, { report = true, onFai
 
     const data = out.data;
 
-    // Cache the result under the normalized key
-    try {
-      const cache = JSON.parse(localStorage.getItem(cacheKey) || "{}");
-      cache[normalizedNumber] = { data, cachedAt: Date.now() };
-      setItemSafe(cacheKey, JSON.stringify(cache));
-    } catch { /* ignore cache write errors */ }
+    // Cache the result under the normalized key via the shared instance ({ data, cachedAt: now }).
+    priceGuideCache.put(setNumber, data);
 
     return data;
   } catch (err) {
@@ -148,15 +161,10 @@ export async function bulkSyncPrices(setNumbers, onProgress) {
   // Normalize all set numbers to no-suffix form before cache checks and fetches
   const normalized = [...new Set(setNumbers.map(n => String(n).replace(/-1$/, "")).filter(Boolean))];
 
-  const cacheKey = "blPriceGuideCache";
-  let cache = {};
-  try { cache = JSON.parse(localStorage.getItem(cacheKey) || "{}"); } catch {}
-
-  const now = Date.now();
-  const toFetch = normalized.filter(n => {
-    const entry = cache[n];
-    return !entry || !entry.cachedAt || (now - entry.cachedAt) >= BULK_CACHE_TTL_MS;
-  });
+  // Bulk freshness via the shared instance — 12h TTL against the SAME ms-epoch `cachedAt` (the
+  // dual-TTL twin of the single-fetch 6h path). requireValue:false matches the prior bulk filter,
+  // which checks only cachedAt age (no data-presence guard). `normalized` is already de-varianted.
+  const toFetch = priceGuideCache.staleKeys(normalized, { ttlMs: BULK_CACHE_TTL_MS });
   const skipped = normalized.length - toFetch.length;
 
   let synced = 0;
