@@ -307,7 +307,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
   const yearLabel = filterYear === null ? "All-time" : String(filterYear);
 
   // Aggregate directly from purchases so imported data with any store name shows up
-  const storeTotals = (() => {
+  const storeTotals = useMemo(() => {
     const byStore = {};
     yearPurchases.forEach(p => {
       if (!p.store) return;
@@ -316,19 +316,19 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
     return Object.entries(byStore)
       .map(([store, total]) => ({ store, total }))
       .sort((a, b) => b.total - a.total);
-  })();
+  }, [yearPurchases]);
   const maxStoreTotal = storeTotals.length > 0 ? storeTotals[0].total : 1;
 
-  const monthlyChartData = MONTHS.map(m => ({
+  const monthlyChartData = useMemo(() => MONTHS.map(m => ({
     month: m,
     total: yearPurchases.filter(p => String(p.month || "").startsWith(m)).reduce((s, p) => s + lineCashPaid(p), 0)
-  }));
+  })), [yearPurchases]);
   const maxMonthlySpend = Math.max(...monthlyChartData.map(d => d.total), 1);
 
   // storeTotals is already filtered (only purchase-backed stores) and sorted desc
-  const storePieData = storeTotals.map(s => ({ name: s.store, value: s.total }));
+  const storePieData = useMemo(() => storeTotals.map(s => ({ name: s.store, value: s.total })), [storeTotals]);
 
-  const themeSpendData = (() => {
+  const themeSpendData = useMemo(() => {
     const byTheme = {};
     yearPurchases.forEach(p => {
       const t = p.theme || "Unknown";
@@ -338,7 +338,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
     return Object.entries(byTheme)
       .sort((a, b) => b[1] - a[1])
       .map(([name, value]) => ({ name, value }));
-  })();
+  }, [yearPurchases]);
 
   // Savings vs MSRP — only purchases where msrp was captured (via Brickset lookup or Buy Now)
   const msrpPurchases = yearPurchases.filter(p => asNumber(p.msrp) > 0);
@@ -351,9 +351,11 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
   const avgPerSet    = totalQtyBought > 0 ? spent / totalQtyBought : null;
 
   // Per-store savings breakdown for savings panel
-  const storeSavingsData = (() => {
+  const storeSavingsData = useMemo(() => {
     const byStore = {};
-    msrpPurchases.forEach(p => {
+    // Same base + filter as msrpPurchases (yearPurchases, msrp > 0) — recomputed inside
+    // the memo so the dep is the stable yearPurchases, not the per-render msrpPurchases const.
+    yearPurchases.filter(p => asNumber(p.msrp) > 0).forEach(p => {
       const s = p.store || "Unknown";
       if (!byStore[s]) byStore[s] = { msrp: 0, paid: 0 };
       byStore[s].msrp += asNumber(p.msrp) * (asNumber(p.qty) || 1);
@@ -362,7 +364,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
     return Object.entries(byStore)
       .map(([store, d]) => ({ store, msrp: d.msrp, paid: d.paid, saved: d.msrp - d.paid, pct: d.msrp > 0 ? ((d.msrp - d.paid) / d.msrp) * 100 : 0 }))
       .sort((a, b) => b.saved - a.saved);
-  })();
+  }, [yearPurchases]);
 
   // Cumulative spend over all time (not filtered by year) for portfolio growth chart
   const cumulativeSpendData = useMemo(() => {
