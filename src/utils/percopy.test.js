@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { materializeEntries, applyCopyConditionEdit } from "./percopy";
+import { materializeEntries, applyCopyConditionEdit, applyQtyEdit } from "./percopy";
 import { portfolioValue, setCost } from "./portfolio";
 import { setConditionDisplay } from "./condition";
 
@@ -171,5 +171,37 @@ describe("§5 applyCopyConditionEdit — full-array edit + id freeze", () => {
     expect(setConditionDisplay(MANUAL_2X)).toBe("new");        // uniform → not mixed
     const edited = { ...MANUAL_2X, entries: applyCopyConditionEdit(MANUAL_2X, 0, "used") };
     expect(setConditionDisplay(edited)).toBe("mixed");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. applyQtyEdit — Phase 4 qty mechanism. Grow/shrink with id stability.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("§6 applyQtyEdit — resize with stable ids", () => {
+  it("grow: appends fresh-id copies, per-unit paid, value null (invariant #1)", () => {
+    const out = applyQtyEdit(MANUAL_2X, 4);                  // qty 2 → 4
+    expect(out).toHaveLength(4);
+    expect(out.map(c => c.id)).toEqual(["10300-1#0", "10300-1#1", "10300-1#2", "10300-1#3"]);
+    expect(out.slice(2).every(c => c.current_value === null)).toBe(true);
+    expect(out.reduce((s, e) => s + e.paid_price, 0)).toBeCloseTo(setCost({ ...MANUAL_2X, qty: 4 }), 5); // 100×4
+  });
+
+  it("shrink: drops the LAST copy, survivors keep their exact ids (no reindex)", () => {
+    const three = applyQtyEdit(MANUAL_2X, 3);                // [#0,#1,#2]
+    const two   = applyQtyEdit({ ...MANUAL_2X, entries: three }, 2);
+    expect(two.map(c => c.id)).toEqual(["10300-1#0", "10300-1#1"]); // #2 dropped, NOT renumbered
+  });
+
+  it("after a shrink, a per-copy edit on a survivor still maps to its id", () => {
+    const three = applyQtyEdit(MANUAL_2X, 3);
+    const two   = applyQtyEdit({ ...MANUAL_2X, entries: three }, 2);
+    const edited = applyCopyConditionEdit({ ...MANUAL_2X, entries: two }, 1, "used");
+    expect(edited.find(c => c.id === "10300-1#1").condition).toBe("used"); // right copy edited
+    expect(edited.map(c => c.id)).toEqual(["10300-1#0", "10300-1#1"]);     // ids intact
+  });
+
+  it("same qty → idempotent passthrough; qty 0/missing → at least 1", () => {
+    expect(applyQtyEdit(MANUAL_2X, 2)).toEqual(materializeEntries(MANUAL_2X));
+    expect(applyQtyEdit(MANUAL_2X, 0)).toHaveLength(1);
   });
 });
