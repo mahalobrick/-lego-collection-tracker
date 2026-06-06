@@ -1045,20 +1045,20 @@ export default function WantedList({ onBuyNow }) {
     return s + (msrp > 0 && tp > 0 && tp < msrp ? msrp - tp : 0);
   }, 0);
   // Theme breakdown for wanted panel
-  const wlThemeData = (() => {
+  const wlThemeData = useMemo(() => {
     const byTheme = {};
     wanted.forEach(w => {
       const t = w.theme || "Unknown";
       byTheme[t] = (byTheme[t] || 0) + 1;
     });
     return Object.entries(byTheme).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
-  })();
+  }, [wanted]);
   // MSRP vs target comparison data
-  const wlMsrpVsTargetData = wanted
+  const wlMsrpVsTargetData = useMemo(() => wanted
     .filter(w => asNumber(w.msrp) > 0)
     .map(w => ({ name: w.name || w.setNumber, msrp: asNumber(w.msrp), target: asNumber(w.targetPrice) || asNumber(w.msrp) }))
     .sort((a, b) => b.msrp - a.msrp)
-    .slice(0, 10);
+    .slice(0, 10), [wanted]);
   const wlBudgetAfterBuy = (() => {
     try {
       const annual  = asNumber(localStorage.getItem("blAnnualBudget")) || 0;
@@ -1098,7 +1098,7 @@ export default function WantedList({ onBuyNow }) {
   const wlCoveredCount = wanted.filter(w => asNumber(w.currentValue) > 0 || asNumber(w.blPriceNew) > 0).length;
   const wlCoveragePct  = wanted.length ? Math.round((wlCoveredCount / wanted.length) * 100) : 0;
   // Score distribution across 5 buckets (0-100 scale, 20pt bands)
-  const wlScoreBuckets = (() => {
+  const wlScoreBuckets = useMemo(() => {
     const buckets = [
       { label: "0–19",   color: "#5aa832", count: 0 },
       { label: "20–39",  color: "#3b82f6", count: 0 },
@@ -1112,7 +1112,19 @@ export default function WantedList({ onBuyNow }) {
       buckets[idx].count++;
     });
     return buckets;
-  })();
+  }, [wanted]);
+  // Urgency breakdown buckets (retirement proximity) — hoisted from the urgency-chart
+  // render branch so the ~5 filter passes run only when `wanted` changes.
+  const wlUrgencyBuckets = useMemo(() => {
+    const now = new Date();
+    return [
+      { label: "Last Chance", count: wanted.filter(w => w.isLastChance).length, color: "#ef4444" },
+      { label: "< 60 days",   count: wanted.filter(w => !w.isLastChance && w.exit_date && (new Date(w.exit_date) - now) / 86400000 <= 60 && (new Date(w.exit_date) - now) / 86400000 > 0).length, color: "#f87171" },
+      { label: "< 180 days",  count: wanted.filter(w => !w.isLastChance && w.exit_date && (new Date(w.exit_date) - now) / 86400000 <= 180 && (new Date(w.exit_date) - now) / 86400000 > 60).length, color: "#f59e0b" },
+      { label: "< 1 year",    count: wanted.filter(w => !w.isLastChance && w.exit_date && (new Date(w.exit_date) - now) / 86400000 <= 365 && (new Date(w.exit_date) - now) / 86400000 > 180).length, color: "#c9a84c" },
+      { label: "No date",     count: wanted.filter(w => !w.exit_date && !w.retiringSoon).length, color: "#5d6f80" },
+    ].filter(b => b.count > 0);
+  }, [wanted]);
 
   // ── Bulk price refresh ────────────────────────────────────────────────────
   // Re-fetches BrickEconomy data for every tracked set (rate-limited 1/500ms).
@@ -1617,14 +1629,7 @@ export default function WantedList({ onBuyNow }) {
                       <div style={{ ...panel, marginTop: 0 }}>
                         <h4 style={{ margin: "0 0 14px" }}>Urgency Breakdown</h4>
                         {(() => {
-                          const now = new Date();
-                          const buckets = [
-                            { label: "Last Chance", count: wanted.filter(w => w.isLastChance).length, color: "#ef4444" },
-                            { label: "< 60 days",   count: wanted.filter(w => !w.isLastChance && w.exit_date && (new Date(w.exit_date) - now) / 86400000 <= 60 && (new Date(w.exit_date) - now) / 86400000 > 0).length, color: "#f87171" },
-                            { label: "< 180 days",  count: wanted.filter(w => !w.isLastChance && w.exit_date && (new Date(w.exit_date) - now) / 86400000 <= 180 && (new Date(w.exit_date) - now) / 86400000 > 60).length, color: "#f59e0b" },
-                            { label: "< 1 year",    count: wanted.filter(w => !w.isLastChance && w.exit_date && (new Date(w.exit_date) - now) / 86400000 <= 365 && (new Date(w.exit_date) - now) / 86400000 > 180).length, color: "#c9a84c" },
-                            { label: "No date",     count: wanted.filter(w => !w.exit_date && !w.retiringSoon).length, color: "#5d6f80" },
-                          ].filter(b => b.count > 0);
+                          const buckets = wlUrgencyBuckets;
                           if (buckets.length === 0) return <div style={{ color: "#5d6f80", fontSize: 13 }}>No retirement data yet.</div>;
                           const ct = chartTypes["urgency-chart"] || "donut";
                           if (ct === "bar") return (
