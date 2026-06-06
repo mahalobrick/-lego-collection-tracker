@@ -208,8 +208,11 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             minifigs,
             pieces,
             acquiredDate: acquiredDates[acquiredDates.length - 1] || null, // most recent
-            retiredDate:  entries[0]?.retired_date || null,
-            releasedDate: entries[0]?.released_date || null,
+            // Retirement / release dates from the Brickset cache (exit_date / launch_date) — same
+            // source the add-form and detail panel use — since BE-CSV entries don't carry these.
+            // entries[0] kept as a fallback. Active sets have null/future exit_date → empty is correct.
+            retiredDate:  bsData.exit_date   ?? entries[0]?.retired_date  ?? null,
+            releasedDate: bsData.launch_date ?? entries[0]?.released_date ?? null,
             notes:        entries.map(e => e.notes).filter(Boolean)[0] || "",
           };
         });
