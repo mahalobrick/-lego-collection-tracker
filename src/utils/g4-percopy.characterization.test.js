@@ -14,7 +14,8 @@ import {
   reconcilePaidEdit,
 } from "./portfolio";
 import { setConditionDisplay } from "./condition";
-import { materializeEntries, applyCopyConditionEdit } from "./percopy";
+import { materializeEntries, applyCopyConditionEdit, applyQtyEdit } from "./percopy";
+import { revalueBESet } from "./beSyncValues";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // G4 / PER-COPY UNIFICATION — PHASE 0 CHARACTERIZATION NET
@@ -174,28 +175,51 @@ describe("§3 identical holdings → identical money (line-level vs entries[])",
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. QTY DEFECT (backlog #2) — pinned AS-IS at the unit level (reconcilePaidEdit, the
-//    function the qty handler calls at MyCollection.jsx:1187). The known-bad parts are
-//    labeled; Phase 4 flips them so the change shows in the diff.
+// 4. QTY UNIFICATION (backlog #2) — defects FLIPPED by Phase 4. entries.length now tracks
+//    qty on BOTH stores via applyQtyEdit (the mechanism behind updateSet's qty branch). The
+//    persistence-across-reload half is component-level — covered by the browser smoke.
 // ─────────────────────────────────────────────────────────────────────────────
-describe("§4 qty edit — current unit-level behavior (Phase 4 will flip the defects)", () => {
-  it("entries[] line: cost re-derives, but entries[].length does NOT track the new qty", () => {
-    const patch = reconcilePaidEdit({ ...BE_2X, qty: 3 }); // user bumps 2 → 3 copies
-    expect(patch.totalPaid).toBeCloseTo(300, 5);           // cost DOES update (100 × 3)
-    // KNOWN DEFECT: Phase 4 flips this — entries should grow to length 3, but reconcilePaidEdit
-    // only remaps the EXISTING copies' paid_price; it never adds/removes rows. So qty and
-    // entries.length (the value copy-count) silently desync.
-    expect(patch.entries).toHaveLength(2);                 // KNOWN DEFECT: should become 3
-    // (The OTHER half of backlog #2 — the new qty never persisting to the blob — lives in the
-    // component: updateSet's persist branch (MyCollection.jsx:1195-1216) has no "qty" case for
-    // a BE set, so it falls to the in-memory-only else. Phase 4 adds that persist branch.)
+describe("§4 qty unification — defects flipped (Phase 4)", () => {
+  it("entries[] line: qty→3 GROWS entries to length 3 (was stuck at 2)", () => {
+    const next = applyQtyEdit(BE_2X, 3);                            // was: reconcilePaidEdit kept length 2
+    expect(next).toHaveLength(3);                                   // FIXED
+    expect(next.reduce((s, e) => s + e.paid_price, 0)).toBeCloseTo(300, 5); // cost = Σ per-copy = 100×3
+    expect(next[2].current_value).toBeNull();                      // new copy unvalued (invariant #1)
   });
 
-  it("line-level (manual) set: cost re-derives and there is no entries[] to desync", () => {
-    const patch = reconcilePaidEdit({ ...MANUAL_2X, qty: 3 });
-    expect(patch.totalPaid).toBeCloseTo(300, 5);           // 100 × 3
-    expect("entries" in patch).toBe(false);                // no per-copy array → nothing to desync
-    // Manual qty IS persisted today (the blOwnedSets effect, MyCollection.jsx:317-321) — so qty is
-    // correct on manual sets and broken on BE sets. Phase 4 unifies both onto add/remove-a-copy.
+  it("manual line-level: qty→3 materializes 3 copies (was: no entries[] to track qty)", () => {
+    const next = applyQtyEdit(MANUAL_2X, 3);
+    expect(next).toHaveLength(3);                                   // FIXED
+    expect(next.reduce((s, e) => s + e.paid_price, 0)).toBeCloseTo(300, 5); // 100 × 3
+  });
+
+  it("qty↓ drops the LAST copy; survivors keep ids (NOT reindexed)", () => {
+    const three = applyQtyEdit(MANUAL_2X, 3);                       // [#0,#1,#2]
+    const two   = applyQtyEdit({ ...MANUAL_2X, entries: three }, 2);
+    expect(two.map(c => c.id)).toEqual(["10300-1#0", "10300-1#1"]); // #2 dropped, survivors NOT reindexed
+    // re-grow fills the freed slot deterministically (#2); the point is survivors #0/#1 are untouched.
+    const grown = applyQtyEdit({ ...MANUAL_2X, entries: two }, 3);
+    expect(grown.map(c => c.id)).toEqual(["10300-1#0", "10300-1#1", "10300-1#2"]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4b. QTY-CHANGE MONEY — Phase 4 MOVES money on purpose (a copy added/removed). The bar is
+//     that it moves CORRECTLY (per-unit × qty) and still reconciles at the new qty.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("§4b qty-change money — moves correctly and reconciles at the new qty", () => {
+  it("manual: cost + value scale per-unit × newQty and reconcile (no overlay)", () => {
+    const next = { ...MANUAL_2X, qty: 3, entries: applyQtyEdit(MANUAL_2X, 3), totalPaid: 300 };
+    expect(setCost(next)).toBeCloseTo(300, 5);                     // 100 × 3 (was 200 at qty 2)
+    expect(portfolioValue([next])).toBeCloseTo(450, 5);           // currentValue 150 × 3 (was 300)
+    expect(portfolioValue([next]) - portfolioValuedCost([next]))
+      .toBeCloseTo(portfolioGain([next]), 5);                     // reconciles at qty 3
+  });
+
+  it("BE: revalue from cache scales totalValue with the new copy count", () => {
+    const d = { current_value_new: 150 }; // BE cache: $150 / new copy
+    const rev = revalueBESet({ ...BE_2X, entries: applyQtyEdit(BE_2X, 3), qty: 3 }, d);
+    expect(rev.totalValue).toBeCloseTo(450, 5);                   // 150 × 3 copies (scaled with qty)
+    expect(rev.currentValue).toBeCloseTo(150, 5);                 // per-copy average
   });
 });

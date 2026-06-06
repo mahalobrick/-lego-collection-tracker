@@ -138,3 +138,45 @@ export function materializeEntries(set, opts) {
 export function applyCopyConditionEdit(set, copyIndex, bucket) {
   return materializeEntries(set).map((e, i) => (i === copyIndex ? { ...e, condition: bucket } : e));
 }
+
+/**
+ * Resize a set's per-copy array to `newQty` (G4 Phase 4 — qty unification). Returns the full next
+ * array; the caller persists it so entries.length tracks qty on BOTH stores (closing backlog #2).
+ *
+ * ID STABILITY (extends watch-item B):
+ *   - GROW   → APPEND copies with ids continuing past the highest existing `#N` suffix
+ *     (`max(suffix)+1` — deterministic and reload-stable; a slot freed by an earlier shrink is
+ *     reused, which is safe because survivors are never reindexed). New copies inherit the per-unit
+ *     paid (`set.paidPrice`; for BE that's averagePaid) and a template copy's condition, with
+ *     `current_value: null` (invariant #1 — value stays overlay-driven).
+ *   - SHRINK → DROP from the END (the most-recently-added copies). Survivors keep their exact
+ *     stored ids — the kept copy objects are sliced, never re-minted/reindexed — so a later
+ *     positional edit still maps to the right copy. (The qty control has no per-copy selector, so
+ *     it removes the last; a future per-copy delete would filter by id and preserve ids the same way.)
+ *
+ * @param {Object} set     owned set (manual line-level OR entries[]-backed)
+ * @param {number} newQty  target copy count (≥ 1)
+ * @returns {Array<Object>} the full per-copy array sized to newQty
+ */
+export function applyQtyEdit(set, newQty) {
+  const target = Math.max(1, Math.floor(asNumber(newQty) || 1));
+  const current = materializeEntries(set); // materialize a still-line-level set first; stable ids
+  if (target === current.length) return current;
+  if (target < current.length) return current.slice(0, target); // drop the last; survivors keep ids
+
+  const setNum = String(set?.setNumber ?? "set");
+  const usedIdx = current.map((c) => {
+    const m = /#(\d+)$/.exec(String(c.id ?? ""));
+    return m ? Number(m[1]) : -1;
+  });
+  let nextIdx = Math.max(-1, ...usedIdx) + 1; // continue past the highest suffix — no reuse
+  const template = current[current.length - 1] || {};
+  const perUnitPaid = asNumber(set?.paidPrice) || asNumber(template.paid_price) || 0;
+  const additions = Array.from({ length: target - current.length }, () => ({
+    ...template,
+    id: `${setNum}#${nextIdx++}`,
+    paid_price: perUnitPaid,
+    current_value: null, // invariant #1 — a new copy is unvalued, never frozen
+  }));
+  return [...current, ...additions];
+}

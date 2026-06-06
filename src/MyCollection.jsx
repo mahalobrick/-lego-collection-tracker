@@ -9,7 +9,7 @@ import RowHoverCard from "./RowHoverCard";
 import ConditionPill from "./ConditionPill";
 import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
 import { setConditionDisplay, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
-import { applyCopyConditionEdit } from "./utils/percopy";
+import { applyCopyConditionEdit, applyQtyEdit } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, bricksetRetailEntry, cmfSeriesRetailTargets } from "./utils/brickset";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
@@ -1189,14 +1189,42 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   function updateSet(index, field, value) {
     const cur = sets[index];
     if (!cur) return;
-    const coerced = field === "qty" || field === "paidPrice" || field === "currentValue" || field === "msrp" ? asNumber(value) : value;
+
+    // Qty unification (G4 Phase 4): a qty change adds/removes actual COPIES so entries.length tracks
+    // qty and the new qty persists on BOTH stores — closing both halves of backlog #2 (the desync and
+    // the BE persistence gap). applyQtyEdit grows by appending fresh-id copies (per-unit paid,
+    // current_value:null) / shrinks by dropping the last (survivors keep ids). Cost re-derives as the
+    // Σ of per-copy paids; BE value re-derives from the cache for the new count (invariant #1 — never
+    // summed from the stored nulls). Routed here, ahead of the per-unit edit branches.
+    if (field === "qty") {
+      const newQty = Math.max(1, Math.floor(asNumber(value) || 1));
+      const nextEntries = applyQtyEdit(cur, newQty);
+      const totalPaid = nextEntries.reduce((s, e) => s + asNumber(e.paid_price), 0);
+      if (cur.source === "BrickEconomy") {
+        const rev = revalueFromCache({ ...cur, entries: nextEntries, qty: newQty }); // {currentValue,totalValue}|null
+        persistBESetEdit(cur.setNumber, {
+          entries: nextEntries, quantity: newQty, qty: newQty,
+          totalPaid, averagePaid: totalPaid / newQty, paidPrice: totalPaid / newQty,
+          ...(rev || {}),
+        });
+      } else {
+        // Manual: qty scalar + materialized entries[]; persisted by the blOwnedSets effect (DATA-4 safe).
+        setSets(prev => prev.map((s, i) => (i === index ? { ...s, qty: newQty, entries: nextEntries, totalPaid } : s)));
+      }
+      setDetailSet(prev => (prev && prev.setNumber === cur.setNumber
+        ? { ...prev, entries: nextEntries, quantity: newQty, qty: newQty }
+        : prev));
+      return;
+    }
+
+    const coerced = field === "paidPrice" || field === "currentValue" || field === "msrp" ? asNumber(value) : value;
 
     // Paid is a per-unit field, but setCost() reads the precomputed `totalPaid` FIRST — so editing
-    // paidPrice (or qty) alone is a silent no-op on gain/ROI/Cost-Basis for any set carrying
-    // totalPaid (every BE import). reconcilePaidEdit re-derives the canonical (totalPaid +
-    // entries[].paid_price) so the edit lands and paid provenance reclassifies (msrp → manual).
+    // paidPrice alone is a silent no-op on gain/ROI/Cost-Basis for any set carrying totalPaid (every
+    // BE import). reconcilePaidEdit re-derives the canonical (totalPaid + entries[].paid_price) so the
+    // edit lands and paid provenance reclassifies (msrp → manual).
     const rec = { ...cur, [field]: coerced };
-    if (field === "paidPrice" || field === "qty") Object.assign(rec, reconcilePaidEdit(rec));
+    if (field === "paidPrice") Object.assign(rec, reconcilePaidEdit(rec));
     // Hand-entered MSRP mirrors to retailPrice (the shared Add-Set contract) so the manual rung +
     // the headline card stay in lockstep. (Phase 3a.1)
     if (field === "msrp") Object.assign(rec, manualMsrpPatch(value));
