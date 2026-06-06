@@ -53,7 +53,11 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
   // still come from setValueProvenance(item), not from these rows.
   const entries = materializeEntries(item);
   const qty = item.quantity || entries.length || 1;
-  const totalPaid = asNumber(item.totalPaid);
+  // Cost Basis = Σ of the per-copy paids the breakdown DISPLAYS, so Cost Basis, Net Gain, and
+  // ROI all reconcile to one basis (per-set fix-#4). Imported sets: Σ === item.totalPaid
+  // (aggregateFromEntries sums per-copy paids, incl. DIVERGENT ones) === setCost — unchanged.
+  // Manual sets: Σ === paidPrice×qty === setCost — fixing the old $0 (item.totalPaid was absent).
+  const totalPaid = entries.reduce((sum, e) => sum + entryPaid(e), 0);
   // Null-aware value/gain/roi: unknown value → "—", never $0 / phantom −cost / −100%.
   // (unknown≠0 sweep)
   const prov = setValueProvenance(item, valueMap);
