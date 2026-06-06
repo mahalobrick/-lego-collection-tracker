@@ -95,7 +95,7 @@
 <div class="wrap">
 
   <h1>BrickLedger — Build Progress</h1>
-  <div class="sub">Updated June 5, 2026 · <b>Retail off BrickEconomy</b> · G4 per-copy build underway (Phase 1/6)</div>
+  <div class="sub">Updated June 6, 2026 · <b>Retail off BrickEconomy</b> · <b>G4 per-copy merged to main</b> (PR #1, rebased) · backlog #2 closed</div>
 
   <div class="legend">
     <span><i class="dot done"></i>Done</span>
@@ -190,20 +190,20 @@
 
   <!-- PHASE 4 -->
   <div class="phase">
-    <div class="phead prog">
+    <div class="phead done">
       <div><div class="pt">Backend gate — the pause-rule</div><div class="ps">Data-model work the frontend audit surfaced; pause frontend to do it</div></div>
-      <div class="pcount">1 / 3 done</div>
+      <div class="pcount">3 / 3 done</div>
     </div>
     <div class="pbody">
       <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
         <div class="ibody"><div class="ititle">Discovery — current dual-store map (read-only)</div>
         <div class="meta"><span class="badge done">Done</span><span class="chip">94d5f70</span><span class="chip">g4-per-copy-discovery.md</span><span class="desc">Three creation paths, entries[] shape, per-site behavior + migration options mapped</span></div></div></div>
-      <div class="item"><div class="ico prog"></div>
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
         <div class="ibody"><div class="ititle">Per-copy editing / G4 dual-store unification</div>
-        <div class="meta"><span class="badge prog">In progress</span><span class="chip">c7794f8</span><span class="desc">Hybrid spine, branch g4-percopy · P0 net + P1 done: <code>materializeEntries</code> read funnel landed inert (money-neutral, idempotent); wired to nothing until Phase 2</span></div></div></div>
-      <div class="item"><div class="ico pend"></div>
+        <div class="meta"><span class="badge done">Done</span><span class="chip">72311c2</span><span class="desc">MERGED to main (PR #1, rebased — 9 commits, linear). One funnel (<code>materializeEntries</code>): manual sets get per-copy condition editing + qty add/remove, all stores unified. <code>valueGroups</code> delegates to it; an invariant test + an esquery lint ban (DATA-4 analog) make the dual-store class impossible. Money-neutral; <b>backlog #2</b> closed. 628 tests green</span></div></div></div>
+      <div class="item"><div class="ico done"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
         <div class="ibody"><div class="ititle">Qty persistence gap (backlog #2)</div>
-        <div class="meta"><span class="badge pend">Pending</span><span class="desc">Inline qty desyncs from <code>entries[]</code> + doesn’t persist for BE sets; sequenced into G4</span></div></div></div>
+        <div class="meta"><span class="badge done">Done</span><span class="chip">f9b9ec9</span><span class="desc">Closed in G4 Phase 4 — inline qty now adds/removes copies, persists for BE sets, and entries.length tracks qty on both stores</span></div></div></div>
     </div>
   </div>
 
