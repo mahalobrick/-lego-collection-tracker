@@ -11,7 +11,7 @@ import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilR
 import { setConditionDisplay, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
 import { applyCopyConditionEdit, applyQtyEdit } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
-import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, bricksetRetailEntry, cmfSeriesRetailTargets } from "./utils/brickset";
+import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, bricksetRetailEntry, cmfSeriesRetailTargets, cacheBricksetSet, getBricksetCache } from "./utils/brickset";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
@@ -254,7 +254,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   // for setRetailProvenance. (BrickEconomy was removed from the retail ladder in Phase 3c.)
   const [retailCaches, setRetailCaches] = useState(() => {
     let bs = {};
-    try { bs = JSON.parse(localStorage.getItem("bricksetSetCache") || "{}"); } catch {}
+    try { bs = getBricksetCache(); } catch {}
     return { bs };
   });
   function retailFor(set) {
@@ -408,10 +408,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       try {
         const bsData = await fetchBricksetSet(clean);
         if (!bsData) { await new Promise(r => setTimeout(r, 400)); continue; }
-        // Persist to Brickset cache so future loads don't need to re-fetch
-        const cache = JSON.parse(localStorage.getItem("bricksetSetCache") || "{}");
-        cache[`brickset_${clean}`] = { fetchedAt: new Date().toISOString(), data: bsData };
-        setItemSafe("bricksetSetCache", JSON.stringify(cache));
+        // Persist to Brickset cache so future loads don't need to re-fetch (shared instance; key
+        // stays `brickset_${clean}` byte-identical — P3.3).
+        cacheBricksetSet(clean, bsData);
         // Patch sets state — minifigs + pieces only (BE owns value fields)
         setSets(prev => prev.map(s => {
           if (String(s.setNumber || "").replace(/-1$/, "") !== clean) return s;
@@ -436,7 +435,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   // entries. ~one call per series (deduped), skips already-cached -0. Returns how many were fetched.
   async function fetchCmfSeriesRetail(currentSets) {
     let bsCache = {};
-    try { bsCache = JSON.parse(localStorage.getItem("bricksetSetCache") || "{}"); } catch {}
+    try { bsCache = getBricksetCache(); } catch {}
     const targets = cmfSeriesRetailTargets(currentSets, bsCache);
     if (!targets.length) return 0;
     let fetched = 0;
@@ -457,7 +456,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       const fetched = await fetchCmfSeriesRetail(sets);
       if (fetched > 0) {
         try {
-          const bs = JSON.parse(localStorage.getItem("bricksetSetCache") || "{}");
+          const bs = getBricksetCache();
           setRetailCaches(prev => ({ ...prev, bs }));
         } catch {}
       }

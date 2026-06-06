@@ -87,6 +87,28 @@ describe("keyFn namespacing — prefix, de-variant, trim-only", () => {
   });
 });
 
+describe("requireValue — value-presence freshness guard (bricketSetCache's `&& data`)", () => {
+  it("an entry with a fresh ts but a falsy value is NOT fresh when requireValue is set", () => {
+    const c = createEntryCache({ key: "rv", ttlMs: 7 * DAY, ts: ISO_TS, requireValue: true });
+    const now = new Date().toISOString();
+    // fresh ts, real data → fresh
+    localStorage.setItem("rv", JSON.stringify({ a: { data: { minifigs: 2 }, fetchedAt: now } }));
+    expect(c.peek(["a"])).toEqual({ a: { minifigs: 2 } });
+    // fresh ts but data null/absent → treated as NOT fresh (re-fetch), matching brickset's guard
+    localStorage.setItem("rv", JSON.stringify({ a: { data: null, fetchedAt: now } }));
+    expect(c.peek(["a"])).toEqual({});
+    expect(c.staleKeys(["a"])).toEqual(["a"]);
+    localStorage.setItem("rv", JSON.stringify({ a: { fetchedAt: now } })); // no data field at all
+    expect(c.peek(["a"])).toEqual({});
+  });
+
+  it("default (requireValue false) keeps valueCache semantics — a cached null is still fresh", () => {
+    const c = createEntryCache({ key: "rv2", ttlMs: DAY, valueField: "record", ts: MS_TS });
+    localStorage.setItem("rv2", JSON.stringify({ a: { record: null, fetchedAt: Date.now() } }));
+    expect(c.peek(["a"])).toEqual({ a: null }); // present + fresh, value is a legit cached null
+  });
+});
+
 describe("per-call TTL override — the dual-TTL (6h single / 12h bulk) shape", () => {
   it("the SAME 7h-old entry is stale at 6h but fresh at 12h", () => {
     const c = createEntryCache({ key: "dual", ttlMs: 6 * HOUR, tsField: "cachedAt", ts: MS_TS });

@@ -67,6 +67,10 @@ const trimKey = (n) => String(n).trim();
  * @param {{parse:(v:any)=>number, write:(ms:number)=>any}} [cfg.ts=ISO_TS]  timestamp codec (MS_TS/ISO_TS).
  * @param {(id:any)=>string} [cfg.keyFn]         requested id → storage key (namespacing/de-variant; default trim).
  * @param {(raw:any)=>any}   [cfg.validate]      write-side value guard (default identity).
+ * @param {boolean} [cfg.requireValue=false]     when true, freshness ALSO requires a truthy value field —
+ *        reproduces a cache whose own read guard is `entry.<ts> && entry.<value>` (e.g. bricksetSetCache's
+ *        `cached.fetchedAt && cached.data`). Default false = valueCache semantics (a cached null/falsy
+ *        value is still a valid fresh entry).
  * @returns {{peek, staleKeys, getRaw, put, putMany, readThrough, clear, keyOf}}
  *
  * All read/write methods operate in STORAGE-KEY space (keyFn-applied); `peek`/`staleKeys`/
@@ -81,6 +85,7 @@ export function createEntryCache({
   ts = ISO_TS,
   keyFn = trimKey,
   validate = identity,
+  requireValue = false,
 }) {
   if (!key) throw new Error("createEntryCache: `key` is required");
   if (!(ttlMs > 0)) throw new Error("createEntryCache: `ttlMs` must be a positive number");
@@ -96,6 +101,7 @@ export function createEntryCache({
   }
   function isFresh(entry, ttl) {
     if (!entry) return false;
+    if (requireValue && !entry[valueField]) return false; // value-presence guard (e.g. brickset's `&& data`)
     const ms = ts.parse(entry[tsField]);
     return Number.isFinite(ms) && (Date.now() - ms) < ttl;
   }

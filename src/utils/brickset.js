@@ -2,12 +2,41 @@ import { apiFetch } from "./apiFetch";
 import { setItemSafe } from "./safeStorage";
 import { readSource, reportSourceFailure, classifyFailure } from "./readSource";
 import { asNumber } from "./formatting";
+import { createEntryCache, ISO_TS } from "./enrichmentCache";
 
 const CACHE_KEY = "bricksetSetCache";
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const THEMES_CACHE_KEY = "bricksetThemesCache";
 const THEMES_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+// Shared cache instance — reproduces bricksetSetCache byte-for-byte (P3.3):
+//   key "bricksetSetCache", keyFn `brickset_<n>` (VERBATIM prefix, no de-variant — net PIN 3),
+//   ISO_TS `fetchedAt`, 7d TTL, `data` value field, no value transform (validate = identity).
+//   requireValue:true reproduces fetchBricksetSet's `cached.fetchedAt && cached.data` read guard.
+// bricksetSetCache is in SYNC_SKIP_KEYS; the byte-identical key keeps it out of the auto-push.
+const bricksetCache = createEntryCache({
+  key: CACHE_KEY,
+  ttlMs: CACHE_TTL_MS,
+  valueField: "data",
+  tsField: "fetchedAt",
+  ts: ISO_TS,
+  keyFn: (n) => `brickset_${n}`,
+  requireValue: true,
+});
+
+/** Persist a Brickset set under `brickset_<n>` via the shared cache. The writer for the MyCollection
+ *  mount-enrichment path (formerly an inline setItemSafe at MyCollection.jsx:412) — byte-identical key
+ *  + `{ fetchedAt(ISO), data }` entry, routed through the one instance so both writers stay in sync. */
+export function cacheBricksetSet(setNumber, data) {
+  bricksetCache.put(setNumber, data);
+}
+
+/** The whole bricksetSetCache map (localStorage mirror), for the retail/CMF cache-walkers
+ *  (bricksetRetailEntry / cmfSeriesRetailTargets). Byte-identical to the prior raw localStorage read. */
+export function getBricksetCache() {
+  return bricksetCache.getRaw();
+}
 
 /**
  * Resolve the Brickset cache entry that carries a set's RETAIL (MSRP), walking from the exact
@@ -135,21 +164,11 @@ export async function fetchBricksetSet(setNumber) {
   const cleanNum = String(setNumber).trim().replace(/\s+/g, "");
   if (!/^\d{3,8}(-\d+)?$/.test(cleanNum)) return null;
 
-  const cacheKey = `brickset_${setNumber}`;
-
-  try {
-    const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || "{}");
-    const cached = cache[cacheKey];
-
-    if (cached && cached.fetchedAt && cached.data) {
-      const age = Date.now() - new Date(cached.fetchedAt).getTime();
-      if (age < CACHE_TTL_MS) {
-        return cached.data;
-      }
-    }
-  } catch {
-    // ignore cache read errors
-  }
+  // Cache read via the shared instance (requireValue + 7d TTL reproduce the prior
+  // `cached.fetchedAt && cached.data && age < TTL` guard exactly; key stays `brickset_<setNumber>`).
+  const cacheKey = bricksetCache.keyOf(setNumber);
+  const hit = bricksetCache.peek([setNumber]);
+  if (cacheKey in hit) return hit[cacheKey];
 
   try {
     const res = await apiFetch(`/api/brickset-set?number=${encodeURIComponent(setNumber)}`);
@@ -164,13 +183,7 @@ export async function fetchBricksetSet(setNumber) {
     const data = out.data && out.data.data;
     if (!data) return null;
 
-    try {
-      const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || "{}");
-      cache[`brickset_${setNumber}`] = { fetchedAt: new Date().toISOString(), data };
-      setItemSafe(CACHE_KEY, JSON.stringify(cache));
-    } catch {
-      // ignore cache write errors
-    }
+    cacheBricksetSet(setNumber, data); // write via the shared instance (setItemSafe inside)
 
     return data;
   } catch (err) {
