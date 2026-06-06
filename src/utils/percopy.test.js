@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { materializeEntries } from "./percopy";
+import { materializeEntries, applyCopyConditionEdit } from "./percopy";
 import { portfolioValue, setCost } from "./portfolio";
+import { setConditionDisplay } from "./condition";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // G4 PHASE 1 — materializeEntries(set) read funnel (INERT). Pins the full contract.
@@ -142,5 +143,33 @@ describe("§4 edge cases", () => {
   it("null / undefined input → []", () => {
     expect(materializeEntries(null)).toEqual([]);
     expect(materializeEntries(undefined)).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. applyCopyConditionEdit — Phase 3 write helper. The id-FREEZE guarantee (watch-item B):
+//    first edit returns the FULL array with stable ids; a second edit references the same ones.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("§5 applyCopyConditionEdit — full-array edit + id freeze", () => {
+  it("first edit returns ALL N copies (not just the edited one) with frozen ids", () => {
+    const out = applyCopyConditionEdit(MANUAL_2X, 0, "used"); // qty 2
+    expect(out).toHaveLength(2);                               // full array, not 1
+    expect(out.map(c => c.id)).toEqual(["10300-1#0", "10300-1#1"]);
+    expect(out.map(c => c.condition)).toEqual(["used", "new"]); // only copy 0 changed
+    expect(out.every(c => c.current_value === null)).toBe(true); // invariant #1 preserved
+  });
+
+  it("after persisting, a SECOND edit references the same stored ids (no drift)", () => {
+    const first = applyCopyConditionEdit(MANUAL_2X, 0, "used");
+    const persisted = { ...MANUAL_2X, entries: first };        // simulate the blOwnedSets persist
+    const second = applyCopyConditionEdit(persisted, 1, "used");
+    expect(second.map(c => c.id)).toEqual(first.map(c => c.id)); // ids stable across edits
+    expect(second.map(c => c.condition)).toEqual(["used", "used"]); // first edit retained + second applied
+  });
+
+  it("drives the Mixed state: one copy flipped → setConditionDisplay reads 'mixed'", () => {
+    expect(setConditionDisplay(MANUAL_2X)).toBe("new");        // uniform → not mixed
+    const edited = { ...MANUAL_2X, entries: applyCopyConditionEdit(MANUAL_2X, 0, "used") };
+    expect(setConditionDisplay(edited)).toBe("mixed");
   });
 });

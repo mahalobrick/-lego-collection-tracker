@@ -14,7 +14,7 @@ import {
   reconcilePaidEdit,
 } from "./portfolio";
 import { setConditionDisplay } from "./condition";
-import { materializeEntries } from "./percopy";
+import { materializeEntries, applyCopyConditionEdit } from "./percopy";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // G4 / PER-COPY UNIFICATION — PHASE 0 CHARACTERIZATION NET
@@ -140,11 +140,14 @@ describe("§2 per-copy view asymmetry — CLOSED by Phase 2 (pin flipped)", () =
     expect(hasPerCopyView(BE_2X)).toBe(true);          // imported unchanged
   });
 
-  it("only an entries[]-backed set can read 'mixed'; a manual set never does", () => {
+  it("a manual set reads 'mixed' once its per-copy conditions DIVERGE (Phase 3)", () => {
     expect(setConditionDisplay(BE_MIXED_2X)).toBe("mixed");
-    expect(setConditionDisplay(MANUAL_2X)).toBe("new");   // single bucket, never mixed
-    // A manual set given a raw 'mixed' string still can't BE mixed without entries[]:
-    expect(setConditionDisplay({ ...MANUAL_2X, condition: "mixed" })).not.toBe("mixed");
+    // Unedited / uniform manual set — still not mixed (single bucket):
+    expect(setConditionDisplay(MANUAL_2X)).toBe("new");
+    expect(setConditionDisplay({ ...MANUAL_2X, condition: "mixed" })).not.toBe("mixed"); // raw string ≠ mixed
+    // Phase 3: a per-copy edit gives the manual set divergent entries[] → NOW it reads mixed.
+    const edited = { ...MANUAL_2X, entries: applyCopyConditionEdit(MANUAL_2X, 0, "used") };
+    expect(setConditionDisplay(edited)).toBe("mixed");
   });
 });
 

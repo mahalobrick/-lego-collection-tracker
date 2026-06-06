@@ -117,3 +117,24 @@ export function materializeEntries(set, opts) {
     origin:        "manual",
   }));
 }
+
+/**
+ * Apply a per-copy condition edit and return the FULL N-copy array (G4 Phase 3 write helper).
+ *
+ * Materializes the whole set first (freezing the positional ${setNumber}#i ids), then flips ONE
+ * copy's condition. Returning the FULL array — not just the edited copy — is the watch-item: the
+ * caller persists all N copies so their ids become stored/stable, and a later qty change can't
+ * re-synthesize and drift them. Idempotent on ids: a set that already carries entries[] passes
+ * through (ids preserved), so a second edit references the SAME ids as the first.
+ *
+ * Pure: a freshly-synthesized copy keeps `current_value: null` (invariant #1 — value stays
+ * overlay-driven, never frozen); a real imported copy keeps its own stored value.
+ *
+ * @param {Object} set        owned set (manual line-level OR entries[]-backed)
+ * @param {number} copyIndex  position of the copy to change (matches the panel's render order)
+ * @param {'new'|'used'} bucket
+ * @returns {Array<Object>} the full per-copy array with `copyIndex`'s condition replaced
+ */
+export function applyCopyConditionEdit(set, copyIndex, bucket) {
+  return materializeEntries(set).map((e, i) => (i === copyIndex ? { ...e, condition: bucket } : e));
+}
