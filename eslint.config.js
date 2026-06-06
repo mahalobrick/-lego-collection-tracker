@@ -85,6 +85,35 @@ const noUnknownAsZero = [
   },
 ];
 
+// ── Per-copy dual-store ban (G4) ─────────────────────────────────────────────
+// Locks the per-copy invariant: a set's copies are read through the ONE funnel —
+// materializeEntries() in src/utils/percopy.js — never by iterating `<set>.entries` directly.
+// The class this closes is the dual-store footgun: code that does `set.entries.map(...)` /
+// `.filter(...)` / `.reduce(...)` silently mishandles a line-level (manual) set, which has no
+// entries[] until it's materialized. Route per-copy reads through materializeEntries(set), which
+// synthesizes copies for a manual set and passes an entries[]-backed set through.
+//
+// SCOPE: the precise, realistic leak shape — a method call whose callee object is a MEMBER access
+// ending in `.entries` (i.e. `<obj>.entries.<method>(...)`). It deliberately does NOT match a local
+// alias (`const e = set.entries; e.map(...)`) — same honest gap the setItem ban documents — nor
+// `Object.entries(x)`, `map.entries()`, `groups.entries()` (callee object is an Identifier, not a
+// `.entries` member), nor a bare `set.entries || []` storage read.
+//
+// ALLOWLIST (the legit direct readers, via file overrides below): percopy.js (the funnel itself),
+// portfolio.js (the value/cost funnel — valueGroups delegates, the edit helpers operate on stored
+// arrays), condition.js (the condition normalizer), and beCollection.js / beSyncValues.js (the BE
+// storage-normalization + value-sync layer that reads/writes the raw stored blob). Everything else —
+// notably the components — routes through materializeEntries.
+const noDirectEntriesIteration = {
+  selector:
+    "CallExpression[callee.object.type='MemberExpression'][callee.object.property.name='entries']",
+  message:
+    "Direct per-copy iteration of `<set>.entries` mishandles line-level (manual) sets (G4). " +
+    "Read copies through materializeEntries(set) from src/utils/percopy.js — it synthesizes a " +
+    "manual set's copies and passes an entries[]-backed set through. The only sanctioned direct " +
+    "readers are the funnel + the value/condition/BE-storage layer (see eslint.config.js overrides).",
+};
+
 module.exports = [
   {
     files: ["src/**/*.{js,jsx}"],
@@ -98,7 +127,7 @@ module.exports = [
     // no-op stub), so don't flag them as unused.
     linterOptions: { reportUnusedDisableDirectives: "off" },
     rules: {
-      "no-restricted-syntax": ["error", noRawSetItem, ...noUnknownAsZero],
+      "no-restricted-syntax": ["error", noRawSetItem, ...noUnknownAsZero, noDirectEntriesIteration],
     },
   },
   // The ONE sanctioned raw-write module (the choke point + the atomic-rollback revert).
@@ -107,10 +136,19 @@ module.exports = [
     rules: { "no-restricted-syntax": "off" },
   },
   // The sanctioned VALUE funnel — these modules DEFINE the null-aware path the ban points
-  // people toward, so they legitimately touch the raw value fields (Workstream A).
+  // people toward, so they legitimately touch the raw value fields (Workstream A). portfolio.js
+  // is ALSO the per-copy value funnel (valueGroups delegates to materializeEntries; the edit
+  // helpers operate on already-stored arrays), so it's exempt from the entries ban here too.
   {
     files: ["src/utils/valueDisplay.js", "src/utils/portfolio.js", "src/utils/value.js"],
     rules: { "no-restricted-syntax": ["error", noRawSetItem] },
+  },
+  // The sanctioned PER-COPY layer (G4): the funnel itself, the condition normalizer, and the BE
+  // storage-normalization / value-sync layer legitimately read the raw stored entries[]. They get
+  // every ban EXCEPT noDirectEntriesIteration.
+  {
+    files: ["src/utils/percopy.js", "src/utils/condition.js", "src/utils/beCollection.js", "src/utils/beSyncValues.js"],
+    rules: { "no-restricted-syntax": ["error", noRawSetItem, ...noUnknownAsZero] },
   },
   // Tests legitimately seed localStorage fixtures directly (arrange step, not app writes)
   // and assert against raw value fields.
