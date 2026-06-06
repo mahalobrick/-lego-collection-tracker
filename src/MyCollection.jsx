@@ -9,6 +9,7 @@ import RowHoverCard from "./RowHoverCard";
 import ConditionPill from "./ConditionPill";
 import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
 import { setConditionDisplay, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
+import { applyCopyConditionEdit } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, bricksetRetailEntry, cmfSeriesRetailTargets } from "./utils/brickset";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
@@ -1157,21 +1158,32 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     return revalueBESet(s, d); // { currentValue, totalValue } | null (pure; mirrors applyCache)
   }
 
-  // Per-copy condition edit (SetDetailPanel's per-copy control). Only entries[copyIndex] changes →
-  // the set becomes Mixed when copies disagree (setConditionDisplay derives it; nothing "mixed" is
-  // stored). Same rails as the bulk edit: reconcileConditionEdit → re-value → persistBESetEdit, plus
-  // a detailSet refresh so the open panel's per-copy rows + value update live. BE sets only — manual
-  // sets have no entries[] (and no per-copy rows); materializing entries[] for a manual Mixed set is
-  // a separate, unbuilt feature.
+  // Per-copy condition edit (SetDetailPanel's per-copy control). Only the targeted copy changes →
+  // the set reads Mixed when copies disagree (setConditionDisplay derives it; nothing "mixed" is
+  // stored). Two persistence rails by store:
+  //   • BE set → reconcileConditionEdit → re-value from cache → persistBESetEdit (the blob writer).
+  //   • Manual set (G4 Phase 3) → materialize the FULL N-copy array on the FIRST edit (freezing the
+  //     ${setNumber}#i ids), flip the one copy, and set entries[] on the in-memory record. The
+  //     EXISTING blOwnedSets persist effect (state change → rewrite) writes it — no raw setItem
+  //     (DATA-4). Copies stay current_value:null, so value keeps resolving via the overlay /
+  //     set-level scalar after persist AND reload (invariant #1) — never summed from the nulls.
   function editCopyCondition(index, copyIndex, bucket) {
     const cur = sets[index];
-    if (!cur || cur.source !== "BrickEconomy") return;
-    const condPatch = reconcileConditionEdit(cur, bucket, copyIndex); // { entries: only copyIndex changed }
-    const edited = { ...cur, ...condPatch };
-    const rev = revalueFromCache(edited); // { currentValue, totalValue } | null
-    persistBESetEdit(cur.setNumber, { ...condPatch, condition: setConditionDisplay(edited), ...(rev || {}) });
-    // Refresh the open panel (its item is the blob shape — no per-set condition; entries + value only).
-    setDetailSet(prev => (prev ? { ...prev, ...condPatch, ...(rev || {}) } : prev));
+    if (!cur) return;
+    if (cur.source === "BrickEconomy") {
+      const condPatch = reconcileConditionEdit(cur, bucket, copyIndex); // { entries: only copyIndex changed }
+      const edited = { ...cur, ...condPatch };
+      const rev = revalueFromCache(edited); // { currentValue, totalValue } | null
+      persistBESetEdit(cur.setNumber, { ...condPatch, condition: setConditionDisplay(edited), ...(rev || {}) });
+      // Refresh the open panel (its item is the blob shape — no per-set condition; entries + value only).
+      setDetailSet(prev => (prev ? { ...prev, ...condPatch, ...(rev || {}) } : prev));
+      return;
+    }
+    // Manual set: full-array materialize + edit (persist-on-first-edit via the blOwnedSets effect).
+    const nextEntries = applyCopyConditionEdit(cur, copyIndex, bucket);
+    setSets(prev => prev.map((s, i) => (i === index ? { ...s, entries: nextEntries } : s)));
+    // Refresh the open panel so the flipped copy + derived Mixed read live (value via the overlay).
+    setDetailSet(prev => (prev ? { ...prev, entries: nextEntries } : prev));
   }
 
   function updateSet(index, field, value) {
@@ -2073,7 +2085,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         valueMap={valueMap}
         onClose={() => { setDetailSet(null); setDetailSetIndex(null); }}
         onEdit={detailSetIndex !== null ? () => { setDetailSet(null); setDetailSetIndex(null); setSelectedSetIndex(detailSetIndex); } : undefined}
-        onEditCopyCondition={detailSetIndex !== null && Array.isArray(detailSet?.entries) && detailSet.entries.length
+        onEditCopyCondition={detailSetIndex !== null
           ? (copyIndex, bucket) => editCopyCondition(detailSetIndex, copyIndex, bucket)
           : undefined}
       />
