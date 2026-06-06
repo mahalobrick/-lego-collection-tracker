@@ -170,6 +170,35 @@ describe("readThrough — the valueCache batch funnel, generalized", () => {
   });
 });
 
+describe("getRaw / saveRaw — whole-map I/O (the load-whole / save-once batch pattern)", () => {
+  it("saveRaw writes the map verbatim (byte-identical to setItemSafe) without re-stamping entries", () => {
+    const c = createEntryCache({ key: "br", ttlMs: DAY, ts: ISO_TS });
+    const map = {
+      "10300": { data: { v: 1 }, fetchedAt: "2026-01-01T00:00:00.000Z" }, // an OLD ts — must NOT be re-stamped
+      "75192": { data: { v: 2 }, fetchedAt: new Date().toISOString() },
+    };
+    c.saveRaw(map);
+    expect(JSON.parse(localStorage.getItem("br"))).toEqual(map);          // verbatim, original timestamps intact
+    expect(c.getRaw()).toEqual(map);
+  });
+
+  it("getRaw reflects exactly what is in localStorage (incl. an external/raw poke of the same key)", () => {
+    const c = createEntryCache({ key: "br2", ttlMs: DAY, ts: ISO_TS });
+    c.saveRaw({ a: { data: 1, fetchedAt: new Date().toISOString() } });
+    // a raw poke (e.g. an ad-hoc lookup writing a -1 key) is visible via getRaw — it reads the mirror
+    const poke = JSON.parse(localStorage.getItem("br2"));
+    poke["b-1"] = { data: 2, fetchedAt: new Date().toISOString() };
+    localStorage.setItem("br2", JSON.stringify(poke));
+    expect(c.getRaw()).toEqual(poke);
+  });
+
+  it("saveRaw reconciles the memo so a later peek is coherent", () => {
+    const c = createEntryCache({ key: "br3", ttlMs: DAY, valueField: "data", ts: MS_TS });
+    c.saveRaw({ a: { data: { v: 9 }, fetchedAt: Date.now() } });
+    expect(c.peek(["a"])).toEqual({ a: { v: 9 } });
+  });
+});
+
 describe("memo / store coherence — matched to valueCache exactly", () => {
   it("the memo shadows the store after a put (survives a store rewrite of the same key)", () => {
     const c = createEntryCache({ key: "m", ttlMs: DAY, valueField: "record", ts: MS_TS });

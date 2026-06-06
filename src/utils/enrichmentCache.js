@@ -71,7 +71,7 @@ const trimKey = (n) => String(n).trim();
  *        reproduces a cache whose own read guard is `entry.<ts> && entry.<value>` (e.g. bricksetSetCache's
  *        `cached.fetchedAt && cached.data`). Default false = valueCache semantics (a cached null/falsy
  *        value is still a valid fresh entry).
- * @returns {{peek, staleKeys, getRaw, put, putMany, readThrough, clear, keyOf}}
+ * @returns {{peek, staleKeys, getRaw, saveRaw, put, putMany, readThrough, clear, keyOf}}
  *
  * All read/write methods operate in STORAGE-KEY space (keyFn-applied); `peek`/`staleKeys`/
  * `readThrough` accept raw ids and apply keyFn internally, returning STORAGE-KEY-keyed maps — which,
@@ -145,6 +145,20 @@ export function createEntryCache({
 
   /** The raw localStorage map under `key` (for callers that walk the whole cache, e.g. retail resolvers). */
   function getRaw() { return loadStore(); }
+
+  /**
+   * Write a whole entry-map verbatim (the load-whole / mutate-many / save-once pattern — e.g.
+   * brickEconomySetCache's batch sync, which stamps each entry's own `fetchedAt` in its fetch loop and
+   * persists once at the end). Byte-identical to `setItemSafe(key, JSON.stringify(map))`; entries are
+   * NOT re-stamped or re-validated (the caller owns the entry shape). Reconciles the memo to match the
+   * written map so a later peek/getFresh stays coherent. Pairs with {@link getRaw}.
+   */
+  function saveRaw(map) {
+    const obj = map || {};
+    saveStore(obj);
+    memo.clear();
+    for (const k of Object.keys(obj)) memo.set(k, obj[k]);
+  }
 
   /** Write one value for a requested id; stamps `tsField` now. Returns the stored (validated) value. */
   function put(id, value, { now = Date.now() } = {}) {
@@ -233,5 +247,5 @@ export function createEntryCache({
     try { setItemSafe(key, "{}"); } catch { /* ignore */ }
   }
 
-  return { peek, staleKeys, getRaw, put, putMany, readThrough, clear, keyOf };
+  return { peek, staleKeys, getRaw, saveRaw, put, putMany, readThrough, clear, keyOf };
 }

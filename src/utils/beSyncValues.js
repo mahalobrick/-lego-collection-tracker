@@ -2,10 +2,29 @@ import { asNumber } from "./formatting";
 import { apiFetch } from "./apiFetch";
 import { setItemSafe } from "./safeStorage";
 import { toValue } from "./value";
+import { createEntryCache, ISO_TS } from "./enrichmentCache";
 
 const CACHE_TTL_MS  = 24 * 60 * 60 * 1000; // 24 hours — used by manual sync
 const BATCH_DELAY_MS = 400;
 const DAILY_BATCH_SIZE = 50; // sets per day for the rolling background sync
+
+// Shared cache instance for the CANONICAL BE engine (this file): the daily batch + manual sync.
+// Reproduces brickEconomySetCache byte-for-byte — key "brickEconomySetCache", `-1` de-variant keyFn
+// (matches allUniqueNums, net PIN 3), ISO_TS `fetchedAt`, 24h TTL, `data` value field. This engine
+// LOADS the whole map, mutates per-entry in its throttled fetch loop (each stamps its own fetchedAt),
+// and SAVES once — so it uses getRaw()/saveRaw(), not per-entry put() (which would re-stamp or force
+// N writes). The ad-hoc per-set lookup pokes elsewhere (MyCollection/WantedList/BudgetDashboard) use a
+// DIFFERENT `-1`-keeping key convention and stay on their own raw reads/writes (not routed here).
+// brickEconomySetCache is in SYNC_SKIP_KEYS + stripped from the cloud push; the byte-identical key
+// preserves both.
+const beSetCache = createEntryCache({
+  key: "brickEconomySetCache",
+  ttlMs: CACHE_TTL_MS,
+  valueField: "data",
+  tsField: "fetchedAt",
+  ts: ISO_TS,
+  keyFn: (n) => String(n).replace(/-1$/, ""),
+});
 
 /**
  * Pick the right BE value for a SINGLE condition.
@@ -147,7 +166,7 @@ export async function runDailyBEBatch() {
 
   const normalized = JSON.parse(localStorage.getItem("brickEconomyNormalizedCollection") || "[]");
   const manual     = JSON.parse(localStorage.getItem("blOwnedSets") || "[]");
-  const cache      = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
+  const cache      = beSetCache.getRaw();
 
   const allNums = allUniqueNums(normalized, manual);
   if (allNums.length === 0) return { updated: 0, failed: 0, total: 0, cycledays: 0 };
@@ -168,7 +187,7 @@ export async function runDailyBEBatch() {
     if (i < batch.length - 1) await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
   }
 
-  setItemSafe("brickEconomySetCache", JSON.stringify(cache));
+  beSetCache.saveRaw(cache);
   setItemSafe("beValueBatchLast", new Date().toISOString());
 
   const updated  = applyCache(normalized, manual, cache);
@@ -190,7 +209,7 @@ export async function runDailyBEBatch() {
 export async function syncBEValues(onProgress, force = false) {
   const normalized = JSON.parse(localStorage.getItem("brickEconomyNormalizedCollection") || "[]");
   const manual     = JSON.parse(localStorage.getItem("blOwnedSets") || "[]");
-  const cache      = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
+  const cache      = beSetCache.getRaw();
   const now        = Date.now();
 
   const allNums = allUniqueNums(normalized, manual);
@@ -214,7 +233,7 @@ export async function syncBEValues(onProgress, force = false) {
     if (i < toFetch.length - 1) await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
   }
 
-  setItemSafe("brickEconomySetCache", JSON.stringify(cache));
+  beSetCache.saveRaw(cache);
   setItemSafe("beValueSyncLast", new Date().toISOString());
 
   const updated = applyCache(normalized, manual, cache);
