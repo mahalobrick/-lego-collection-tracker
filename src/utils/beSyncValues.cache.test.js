@@ -13,7 +13,7 @@ const apiFetchMock = vi.fn();
 vi.mock("./apiFetch", () => ({ apiFetch: (...a) => apiFetchMock(...a) }));
 vi.mock("react-hot-toast", () => ({ default: { error: vi.fn(), success: vi.fn() } }));
 
-import { syncBEValues } from "./beSyncValues";
+import { syncBEValues, clearBESetCache } from "./beSyncValues";
 
 const iso = (ms) => new Date(ms).toISOString();
 const DAY = 24 * 60 * 60 * 1000;
@@ -65,5 +65,27 @@ describe("syncBEValues routed through getRaw/saveRaw — byte-identical cache I/
     await syncBEValues(undefined, true);
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
     expect(JSON.parse(localStorage.getItem("brickEconomySetCache"))["10300"].data.current_value_new).toBe(999);
+  });
+});
+
+describe("clearBESetCache — clearApiCache routes through it (P3.7a memo coherence)", () => {
+  // BE has no memo-aware reader today (every read is store-direct), so no ghost manifests — but the
+  // routed clear must still wipe BOTH layers so the contract holds and a future peek can't be poisoned.
+  // After a sync populates the memo (via saveRaw), clearBESetCache empties the store; the next sync
+  // therefore re-fetches the (now-absent) entry instead of skipping it from a surviving memo.
+  it("after a populated sync, clearBESetCache empties the store and the next sync re-fetches", async () => {
+    localStorage.setItem("brickEconomySetCache", JSON.stringify({
+      "10300": { fetchedAt: iso(Date.now()), data: { current_value_new: 200 } },
+    }));
+    await syncBEValues(undefined, true);            // force → populates memo + store via saveRaw
+    expect(JSON.parse(localStorage.getItem("brickEconomySetCache"))["10300"]).toBeTruthy();
+
+    clearBESetCache();
+    expect(localStorage.getItem("brickEconomySetCache")).toBe("{}"); // store wiped (was a raw removeItem)
+
+    apiFetchMock.mockReset();
+    apiFetchMock.mockResolvedValue(jsonOk({ data: { current_value_new: 300 } }));
+    await syncBEValues(undefined, false);           // entry gone → must re-fetch, not skip from a ghost memo
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -26,6 +26,13 @@ const beSetCache = createEntryCache({
   keyFn: (n) => String(n).replace(/-1$/, ""),
 });
 
+/** Drop the in-memory memo + localStorage mirror. clearApiCache must route through this so the memo
+ *  doesn't survive the clear. Benign today (no BE read consults the memo — every reader is store-direct),
+ *  but contract-correct and a latent trap the instant anyone peeks BE. Mirrors clearPriceGuideCache. */
+export function clearBESetCache() {
+  beSetCache.clear();
+}
+
 /**
  * Pick the right BE value for a SINGLE condition.
  * "new" / "sealed" → current_value_new

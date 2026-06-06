@@ -259,3 +259,164 @@ hygiene items (consolidate Rebrickable-Fill; make `clearApiCache` clear all ~7; 
    confirm we keep per-cache memos for clarity.)
 
 *End of P3 discovery. No code modified. Build starts at P3.0 (net) only after sign-off.*
+
+---
+
+# P3.7 — Warm-seed: design pass (the first browser-observable step)
+
+**Status:** Design only — READ-ONLY pass, **no code written.** **Date:** 2026-06-06 · **Branch:** `main`.
+Prereqs DONE: P3.1 inert module (`enrichmentCache.js`) + P3.2–P3.5 migrations (`blValueCache`
+1b6ae9e · `bricksetSetCache` 8c751b0 · `brickEconomySetCache` canonical engine 4596104 ·
+`blPriceGuideCache` bd981d3), all behavior-neutral, net + CI green. P3.6 (blob caches) deferred.
+
+This section supersedes the §4 sketch where the code disagrees with it (it does — see §P3.7.1). Read it,
+not §4, for the build.
+
+## P3.7.0 — What the code actually shows (correcting the §4 assumptions)
+
+Reading the post-P3.3/P3.4 code end-to-end changes the picture the §4 table painted:
+
+1. **MC minifigs/pieces are ALREADY warm-seeded.** The MC initial-state hydration
+   (`MyCollection.jsx:170`) already does `JSON.parse(localStorage.getItem("bricksetSetCache"))` and
+   fills `minifigs`/`pieces` on the *first* render. `runBricksetEnrichment` (`:393`) is async (fires
+   after paint) and already gates on **state-field presence** (`s.minifigs != null && s.pieces != null`)
+   — so a warm device paints counts immediately and re-fetches **nothing**. The cold-start "climb" is the
+   genuinely-cold case (empty cache → ~600 sequential `fetchBricksetSet` @ 400ms); warm-seed cannot
+   shrink that — it's the same network work. So there is **no "blocking refetch on mount" left to fix**
+   for MC; the §4 "after warm-seed" column describes a state that already exists.
+
+2. **`fetchBricksetSet` reads via `bricksetCache.peek` — memo-aware** (`brickset.js:170`). This is the
+   ONE managed read that consults the in-memory memo. It matters for §P3.7.1.
+
+3. **All `brickEconomySetCache` reads are store-direct, never memo-aware.** The display reads
+   (`MyCollection.jsx:171` hydration, `:1158` `revalueFromCache`, `WantedList.jsx:347/845`, the
+   SetDetailPanel) all `JSON.parse(localStorage.getItem(...))` directly, and BE's own engine uses
+   `beSetCache.getRaw()`/`saveRaw()` (also store-direct). **Nothing calls `beSetCache.peek`/`readThrough`/
+   `staleKeys`** — so the BE memo is *written and rebuilt but never served*.
+
+4. **WantedList has no `bricksetSetCache` read at all.** Its brickset access is `fetchBricksetSet`
+   (`WantedList.jsx:339`, already peek-backed); its only direct cache reads are `brickEconomySetCache`
+   (out of scope). **The §4 "WantedList Brickset retro-fill" warm-seed row is moot — drop it.**
+
+5. **No in-session raw clear of `blValueCache` exists.** `disconnectBrickLink` (`AppSettings.jsx:999`)
+   touches only `blBrickLinkAccessToken` + `blSessionToken` + `clearPriceGuideCache()` — **not**
+   `blValueCache`. `clearValueCache()` is defined (`valueCache.js:89`) but **has no caller**. The task's
+   "disconnectBrickLink's blValueCache clear" does not exist.
+
+**Net effect:** the substantive P3.7 work is the **memo-coherence sweep** (§P3.7.1) — which fixes a real
+in-session bug. The "warm-seed reads" (§P3.7.3) collapse to optional cosmetic single-sourcing, because the
+seed already happens and `getRaw`/raw-`JSON.parse` are byte-identical store reads.
+
+## P3.7.1 — Memo-coherence sweep (the real finding) — REQUIRED, own commit
+
+The P3.x migrations gave each managed cache an in-session memo. Any **in-session raw `removeItem` of a
+managed key** now leaves the memo populated → a later **memo-aware** read serves the ghost. (Page reload
+wipes the memo, so only in-session clears matter.) Full sweep of the 4 managed keys:
+
+| Managed key | In-session raw clear today | Memo-aware reader? | Verdict |
+|---|---|---|---|
+| **`bricksetSetCache`** | `AppSettings.jsx:1262` — the inline **"Clear cache"** button does `localStorage.removeItem("bricksetSetCache")` | **YES** — `fetchBricksetSet` → `bricksetCache.peek` (`brickset.js:170`) | **🔴 ACTIVE BUG. MUST route.** After the click, the store is empty but the memo keeps every entry → the very next `fetchBricksetSet` serves the ghost and re-persists it. "Clear cache" silently does nothing until reload. |
+| **`brickEconomySetCache`** | `AppSettings.jsx:984` — `clearApiCache()` does `localStorage.removeItem("brickEconomySetCache")` (the P5 item) | **NO** — every BE read is store-direct (`getRaw`/raw `JSON.parse`); nothing calls `beSetCache.peek`/`readThrough` | **🟡 Contract/hygiene. SHOULD route.** Benign *today* (no reader consults the BE memo), but it violates the module's clear() contract and is a latent trap the instant anyone peeks BE. Route it now while it's free. |
+| **`blPriceGuideCache`** | `AppSettings.jsx:1002` — `disconnectBrickLink()` → `clearPriceGuideCache()` | YES (client peek) | **✅ Already routed (P3.5).** No action. |
+| **`blValueCache`** | *none* | n/a | **✅ Nothing to do.** No raw clear exists; `clearValueCache()` is uncalled. |
+
+**The two fixes (commit `P3.7a`):**
+- Add `clearBricksetCache()` to `brickset.js` (one line: `bricksetCache.clear()`), export it, and replace
+  the inline `localStorage.removeItem("bricksetSetCache")` at `AppSettings.jsx:1262` with it.
+- Add `clearBESetCache()` to `beSyncValues.js` (`beSetCache.clear()`), export it, and replace the
+  `localStorage.removeItem("brickEconomySetCache")` at `AppSettings.jsx:984` with it. (Leave the adjacent
+  `brickEconomyCollectionCache` removeItem — it's dead/vestigial, §2c, no memo.)
+
+This mirrors exactly the P3.5 `clearPriceGuideCache` precedent (`bricklink-client.js:36`).
+
+**Secondary observation (NOT in P3.7 scope, noted for completeness):** several sites raw-**write** the BE
+map via `setItemSafe("brickEconomySetCache", …)` after a load-mutate (`MyCollection.jsx:786`,
+`WantedList.jsx:1153/1261`, `BudgetDashboard.jsx:984`, the import-restore at `AppSettings.jsx:491`) — these
+bypass `beSetCache.saveRaw()` and leave the BE memo stale too. **Same benign class** (no BE memo-aware
+reader), a P3.4 leftover. Leave as-is: BE is slated for full removal, so churning these write sites earns
+nothing. Flag only if BE ever grows a peek-backed read.
+
+## P3.7.2 — Warm-seed SCOPE recommendation (Q1)
+
+**Confirm the task's lean, with one refinement:**
+- ✅ **`bricksetSetCache` — in scope** (the only cold-start pain; minifigs/pieces). But see §P3.7.3 — the
+  seed already exists, so this reduces to single-sourcing the read, not a new pattern.
+- ❌ **`brickEconomySetCache` — out of scope.** Slated for full removal; its values already display from the
+  synced `brickEconomyNormalizedCollection`; its reads are mixed-key (`c[num]` vs `c[num-1]` vs
+  `c[\`brickset_…\`]`) so a `peek` would be ambiguous. Confirmed.
+- ❌ **WantedList retro-fill — drop it** (refinement, §P3.7.0 pt 4): WantedList has no `bricksetSetCache`
+  read; its brickset path is already peek-backed via `fetchBricksetSet`, and its BE reads are out of scope.
+  Nothing to warm-seed there.
+
+So warm-seed scope = **the two MC `bricksetSetCache` raw reads** (`MyCollection.jsx:170` hydration,
+`:632` `retirementAlertsForOwned`), and even those are optional (§P3.7.3).
+
+## P3.7.3 — Warm-seed PATTERN (Q3): what the value-overlay reference does and does NOT transfer
+
+The MC value-overlay reference is **`peekValueCache` (fresh-only seed) → render → one batched
+`fetchValues` refresh of the stale.** Two reasons it does **not** map cleanly onto brickset:
+
+1. **`peek` is fresh-only (TTL-gated); the current brickset seed is not.** `MyCollection.jsx:170` paints
+   from the raw whole map regardless of age, so a >7d-stale-but-present entry **still paints today**.
+   Swapping to `bricksetCache.peek` would *drop* those from first paint → "—" for up to 4–7 min while the
+   400ms trickle refills them. **That is a displayed-data regression, not warm-seed.** The behavior-neutral
+   seed is **`bricksetCache.getRaw()`** (whole map, no TTL) — byte-identical to today's `JSON.parse`.
+
+2. **The "background refresh the stale" half doesn't pay off for brickset.** The value overlay refreshes
+   because *values change*. The fields the brickset cache feeds the charts — **minifigs/pieces — are static**
+   (a set's piece count never changes). Adding a `bricksetCache.staleKeys(nums)` TTL-refresh loop would fire
+   ~600 refetches every 7d to re-derive numbers that can't have changed — pure churn, zero displayed
+   benefit. (The mutable brickset fields — `exit_date`, retail — are consumed off the same cache but aren't
+   the cold-start pain and aren't worth a 600-set sweep here.) **Recommend NOT adding a TTL-refresh loop**
+   (simplicity-first, CLAUDE.md §2).
+
+**Conclusion:** the only behavior-neutral, non-churning change available is **single-sourcing** the two MC
+raw reads onto `bricksetCache.getRaw()` so every brickset read path goes through the one instance (and the
+"Clear cache" button — once §P3.7.1 routes it through `clearBricksetCache()` — is coherent across *all* read
+paths, not just the peek path). This changes **zero displayed bytes** (`getRaw()` ≡ today's `JSON.parse`).
+
+| Read site | Today | After P3.7b (optional) |
+|---|---|---|
+| `MyCollection.jsx:170` (initial-state hydration) | `JSON.parse(localStorage.getItem("bricksetSetCache")\|\|"{}")` | `bricksetCache.getRaw()` — same bytes, single-sourced |
+| `MyCollection.jsx:632` (`retirementAlertsForOwned`) | same raw `JSON.parse` | `bricksetCache.getRaw()` |
+| `MyCollection.jsx:171/1158`, `WantedList.jsx:347/845`, panel (BE) | raw `JSON.parse(brickEconomySetCache)` | **unchanged** (BE out of scope) |
+| MC value overlay (`:339`) | `peekValueCache`+`fetchValues` | **unchanged — the reference, already correct** |
+
+Honest framing: P3.7b is cosmetic. It carries no behavior change and a non-trivial risk surface (touching
+MC initial state). It can be **deferred or dropped** without losing anything observable; §P3.7.1 is the
+commit that actually matters.
+
+## P3.7.4 — Verification (Q4): first browser-observable change → Vercel-preview check
+
+On top of the §5 net (golden over the fixture collection still byte-identical) and a **new memo-coherence
+assertion** (see below), do a Vercel-preview manual check:
+
+- **Memo-coherence (the bug fix), in one session, no reload:** populate the brickset cache (load MC so
+  counts render) → Settings → click **"Clear cache"** → return to MC. **Observe:** counts/charts that
+  derive from brickset (minifigs, pieces, retirement alerts) drop to "—" and a fresh trickle begins
+  **in the same session**. Pre-fix, they stay populated (the ghost memo) until a hard reload — that
+  contrast is the proof.
+- **Warm remount (unchanged-good baseline):** with a populated cache, switch away from MC and back (and
+  reload once). **Observe:** minifigs/pieces + theme/value charts paint immediately, **no "—" flash**, and
+  the Network panel shows **no `/api/brickset-set` burst** (state-presence gate still short-circuits).
+- **Cold load (unchanged-good baseline):** clear cache + reload. **Observe:** first paint is immediate
+  (collection + values), brickset counts fill via the background trickle without blocking the UI.
+
+**New automated assertion (lands in `P3.7a`):** after `bricksetCache.clear()`, **both** a `getRaw()` read
+and a `fetchBricksetSet`/`peek` read return empty — i.e. `clear()` wipes memo **and** store so **no read
+path serves a ghost.** This is the "warm-seed renders identical data" guard re-aimed at the actual defect
+(coherence), and it would have caught the §P3.7.1 bug. (The displayed-data golden already covers P3.7b,
+since `getRaw` ≡ `JSON.parse`.)
+
+## P3.7.5 — Phasing (Q5): one commit per step, each net-green
+
+| Commit | Scope | Required? | Acceptance |
+|---|---|---|---|
+| **P3.7a — Memo-coherence sweep (FIRST)** | Add+export `clearBricksetCache()` (`brickset.js`) and `clearBESetCache()` (`beSyncValues.js`); route `AppSettings.jsx:1262` → `clearBricksetCache()` and `:984` → `clearBESetCache()`. Add the post-`clear()` no-ghost assertion. | **YES** — fixes the active in-session "Clear cache" bug. | §5 net green; new no-ghost test green; manual: in-session clear works without reload. |
+| **P3.7b — Single-source the brickset reads (OPTIONAL)** | `MyCollection.jsx:170` + `:632` raw `JSON.parse` → `bricksetCache.getRaw()`. **No** `peek`-fresh-only swap, **no** TTL-refresh loop (§P3.7.3). | **No** — cosmetic, byte-identical. Defer/drop freely. | §5 golden byte-identical; charts paint identically; no new network. |
+
+**Explicitly NOT in P3.7** (and why): the brickEconomySetCache reads (BE removal coming); a brickset
+TTL-refresh loop (static fields → churn); the raw BE *write* sites (benign, BE removal); making
+`clearApiCache` clear all ~7 caches incl. blPriceGuideCache (the P5 hygiene item — its own commit).
+
+*End of P3.7 design pass. No code modified. Build starts at P3.7a only after sign-off.*

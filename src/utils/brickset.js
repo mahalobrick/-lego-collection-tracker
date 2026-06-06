@@ -38,6 +38,13 @@ export function getBricksetCache() {
   return bricksetCache.getRaw();
 }
 
+/** Drop the in-memory memo + localStorage mirror. The "Clear cache" button must route through this:
+ *  fetchBricksetSet reads via the memo-aware peek (P3.3), so a raw removeItem would empty the store but
+ *  leave the memo serving (and re-persisting) ghosts in-session until reload. Mirrors clearPriceGuideCache. */
+export function clearBricksetCache() {
+  bricksetCache.clear();
+}
+
 /**
  * Resolve the Brickset cache entry that carries a set's RETAIL (MSRP), walking from the exact
  * figure number up to its series base — the retail twin of the paid base-join (`baseSetNumber`,

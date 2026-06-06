@@ -7,7 +7,8 @@ import { asNumber } from "./utils/formatting";
 import { exportFullBackup as runExportBackup, applyBackupToLocalStorage, pushToCloudAuth } from "./utils/exportBackup";
 import { getBrickLinkAccessToken, hasBrickLinkAuth, getBrickLinkSession, bulkSyncPrices, clearPriceGuideCache } from "./utils/bricklink-client";
 import { DEFAULT_WANTED_COLUMNS } from "./utils/columnDefaults";
-import { syncBEValues } from "./utils/beSyncValues";
+import { syncBEValues, clearBESetCache } from "./utils/beSyncValues";
+import { clearBricksetCache } from "./utils/brickset";
 import { normalizeBrickEconomyCollection } from "./utils/beCollection";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import { notificationsSupported, notificationPermission, requestNotificationPermission } from "./utils/notifications";
@@ -981,8 +982,8 @@ export default function AppSettings() {
   }
 
   function clearApiCache() {
-    localStorage.removeItem("brickEconomySetCache");
-    localStorage.removeItem("brickEconomyCollectionCache");
+    clearBESetCache(); // memo + store (was a raw removeItem that left the memo behind)
+    localStorage.removeItem("brickEconomyCollectionCache"); // dead/vestigial — no memo (P2 Q4)
     toast.success("BrickEconomy API cache cleared.");
   }
 
@@ -1259,7 +1260,7 @@ export default function AppSettings() {
       <section style={panel}>
         <h3 style={{ margin: "0 0 4px" }}>Data Sources</h3>
         <p style={{ ...muted, margin: "0 0 4px", fontSize: 13 }}>Each source has a specific role. Sync individually or let the app auto-refresh on a schedule.</p>
-        <p style={{ fontSize: 12, color: "#4d5e70", margin: "0 0 16px" }}>Metadata (name, pieces, MSRP, minifigs, retirement dates) is fetched on demand from Brickset and cached locally. <button onClick={() => { localStorage.removeItem("bricksetSetCache"); toast.success("Brickset cache cleared"); }} style={{ background: "none", border: "none", color: "#5d6f80", fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0 }}>Clear cache</button></p>
+        <p style={{ fontSize: 12, color: "#4d5e70", margin: "0 0 16px" }}>Metadata (name, pieces, MSRP, minifigs, retirement dates) is fetched on demand from Brickset and cached locally. <button onClick={() => { clearBricksetCache(); toast.success("Brickset cache cleared"); }} style={{ background: "none", border: "none", color: "#5d6f80", fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0 }}>Clear cache</button></p>
 
         {/* ── Source rows ── */}
         {[

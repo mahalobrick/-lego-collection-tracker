@@ -13,7 +13,7 @@ const apiFetchMock = vi.fn();
 vi.mock("./apiFetch", () => ({ apiFetch: (...a) => apiFetchMock(...a) }));
 vi.mock("react-hot-toast", () => ({ default: { error: vi.fn(), success: vi.fn() } }));
 
-import { fetchBricksetSet, cacheBricksetSet, getBricksetCache } from "./brickset";
+import { fetchBricksetSet, cacheBricksetSet, getBricksetCache, clearBricksetCache } from "./brickset";
 
 beforeEach(() => {
   localStorage.clear();
@@ -74,5 +74,26 @@ describe("fetchBricksetSet — write goes through the instance under the verbati
     const second = await fetchBricksetSet("60380-1"); // fresh within 7d → cache hit, no network
     expect(second.minifigs).toBe(9);
     expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("clearBricksetCache — no read path serves a ghost (P3.7a regression guard)", () => {
+  // The shipped regression: P3.3 made fetchBricksetSet memo-aware (reads via peek), but the
+  // "Clear cache" button did a raw removeItem — emptying the store while the MEMO kept every entry,
+  // so the next fetch served (and re-persisted) the ghost until reload. This pins that the routed
+  // clear wipes BOTH layers: after it, getRaw() is empty AND the memo-aware read does NOT short-circuit.
+  it("after clearBricksetCache, the store is empty and a re-fetch hits the network (no ghost from the memo)", async () => {
+    apiFetchMock.mockResolvedValue(jsonOk({ data: { set_number: "75313-1", minifigs: 3, pieces: 100 } }));
+    await fetchBricksetSet("75313-1");                       // populates memo + store
+    expect(getBricksetCache()["brickset_75313-1"]).toBeTruthy();
+
+    clearBricksetCache();
+    expect(getBricksetCache()).toEqual({});                  // store wiped
+
+    apiFetchMock.mockClear();
+    apiFetchMock.mockResolvedValue(jsonOk({ data: { set_number: "75313-1", minifigs: 99, pieces: 999 } }));
+    const after = await fetchBricksetSet("75313-1");         // memo also wiped → must re-fetch
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);           // pre-fix: peek served the ghost, 0 calls
+    expect(after.minifigs).toBe(99);                         // pre-fix: returned the stale 3 from the memo
   });
 });
