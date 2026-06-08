@@ -9,6 +9,7 @@
 
 import { DEFAULT_STORES } from "./storeDefaults";
 import { setItemSafe, restoreRaw } from "./safeStorage";
+import { buildEnrichmentSnapshot } from "./enrichmentSnapshot";
 
 const DEFAULT_ANNUAL_BUDGET = 10320;
 
@@ -35,9 +36,17 @@ export async function pushToCloudAuth(getToken) {
   if (!hasAnyLocalData()) return { skipped: "no_data" };
 
   const backup = buildBackup(new Date());
-  delete backup.brickEconomySetCache; // large and fully regeneratable
+  delete backup.brickEconomySetCache; // large and fully regeneratable — stripped from the cloud push
+  // P4 — attach the enrichment snapshot as a SIBLING field (NOT a BACKUP_KEYS entry): "attach instead
+  // of delete" at this same push-body slot. It rides the cloud POST so a fresh device can start warm
+  // (the cold-start trickle fix), but it is INVISIBLE to dedupHash below — which projects BACKUP_KEYS
+  // only — so it never marks the device dirty / churns the push (P4.0 PIN 3). PUSH-ONLY: buildBackup
+  // (and thus the file export) is left untouched; the file already carries brickEconomySetCache for
+  // offline restore, and bricksetSetCache/blValueCache regenerate on a manual file restore. Restore is
+  // wired in P4.3 — until then the cloud carries the snapshot but nothing reads it (client behaviour-neutral).
+  backup.enrichmentSnapshot = buildEnrichmentSnapshot();
 
-  // Skip if nothing changed since last push
+  // Skip if nothing changed since last push (hash is BACKUP_KEYS-only → enrichmentSnapshot excluded)
   const contentHash = dedupHash(backup);
   if (contentHash === localStorage.getItem("blLastPushHash")) return { skipped: "no_change" };
 

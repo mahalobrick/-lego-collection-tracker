@@ -265,9 +265,11 @@ describe("PIN 5 — A4 unsynced-wipe refusal is invariant to the snapshot caches
   });
 });
 
-// ── PIN 6 — EXISTING PUSH PAYLOAD: byte-identical baseline of today's POST body ─
-// Pin the EXACT body pushToCloudAuth POSTs today, so P4.2 can prove its change is purely
-// ADDITIVE (every pre-existing field byte-identical; only `enrichmentSnapshot` appears).
+// ── PIN 6 — PUSH PAYLOAD: the enrichmentSnapshot field is ADDITIVE (P4.2) ───────
+// P4.2 wired `backup.enrichmentSnapshot = buildEnrichmentSnapshot()` onto the push body at the
+// BE-strip slot. This pins that the change is PURELY ADDITIVE: every pre-existing field byte-
+// identical, brickEconomySetCache still stripped, dedupHash + census byte-identical to a body
+// WITHOUT the sibling — exactly one new top-level key (`enrichmentSnapshot`) appears.
 async function capturePushBody() {
   let body = null;
   const fetchMock = vi.fn(async (_url, opts) => { body = opts.body; return { status: 200, ok: true, json: async () => ({ savedAt: "2026-06-06T00:00:00.000Z" }) }; });
@@ -276,28 +278,55 @@ async function capturePushBody() {
   return { body: JSON.parse(body), res, fetchMock };
 }
 
-describe("PIN 6 — current push payload (buildBackup minus brickEconomySetCache) baseline", () => {
-  it("POSTs the registry fields, STRIPS brickEconomySetCache, and carries NO enrichmentSnapshot today", async () => {
+describe("PIN 6 — push payload: enrichmentSnapshot is an ADDITIVE sibling field", () => {
+  // The pre-P4.2 baseline top-level key-set (registry fields + the 4 wrapper keys), STILL minus
+  // brickEconomySetCache. P4.2 adds EXACTLY one key to this.
+  const baselineKeys = [
+    "version", "app", "exportedAt", "settings",
+    ...BACKUP_KEYS.filter((k) => !k.settings).map((k) => k.field),
+  ];
+
+  it("the body GAINS exactly `enrichmentSnapshot`; every pre-existing field is byte-identical; BE still stripped", async () => {
     seedFixture();
     const { body, fetchMock } = await capturePushBody();
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    // The push body's top-level key-set TODAY (the byte-identical baseline P4.2 extends by +1).
-    expect(Object.keys(body).sort()).toEqual(
-      [
-        "version", "app", "exportedAt", "settings",
-        ...BACKUP_KEYS.filter((k) => !k.settings).map((k) => k.field),
-      ].sort(),
-    );
-    // The two load-bearing facts for P4:
-    expect("brickEconomySetCache" in body).toBe(false); // stripped before push (exportBackup.js:38)
-    expect("enrichmentSnapshot" in body).toBe(false);   // not added yet — P4.2 introduces it
-    // Stable field values for the fixture (so P4.2 can prove these are untouched).
-    expect(body.version).toBe(2);
-    expect(body.app).toBe("BrickLedger");
-    expect(body.ownedSets).toEqual([{ setNumber: "10497", qty: 1 }]);
-    expect(body.settings.currency).toBe("GBP");
-    expect(typeof body.exportedAt).toBe("string"); // ISO timestamp (the only volatile field)
+    // Exactly one new top-level key vs the baseline.
+    expect(Object.keys(body).sort()).toEqual([...baselineKeys, "enrichmentSnapshot"].sort());
+    expect("enrichmentSnapshot" in body).toBe(true);    // P4.2 — now attached
+    expect("brickEconomySetCache" in body).toBe(false); // still stripped before push
+
+    // Pre-existing fields byte-identical: strip the new sibling and the residue is the old baseline.
+    const { enrichmentSnapshot, ...rest } = body;
+    expect(Object.keys(rest).sort()).toEqual(baselineKeys.sort());
+    expect(rest.version).toBe(2);
+    expect(rest.app).toBe("BrickLedger");
+    expect(rest.ownedSets).toEqual([{ setNumber: "10497", qty: 1 }]);
+    expect(rest.settings.currency).toBe("GBP");
+    expect(typeof rest.exportedAt).toBe("string"); // ISO timestamp (the only volatile field)
+
+    // The sibling has the buildEnrichmentSnapshot shape (empty caches → well-defined empty shape).
+    expect(enrichmentSnapshot).toEqual({ v: 1, bricksetSetCache: {}, blValueCache: {} });
+  });
+
+  it("ADDITIVE to dedupHash AND census: both byte-identical to a body WITHOUT the sibling (no churn)", async () => {
+    // Seed the snapshot caches too, so the sibling carries REAL entries — the hash must still ignore it.
+    seedFixture();
+    seedSnapshotCaches();
+    const censusBefore = hasAnyLocalData();
+    const { body } = await capturePushBody();
+
+    // The sibling now carries entries…
+    expect(Object.keys(body.enrichmentSnapshot.bricksetSetCache).length).toBeGreaterThan(0);
+    expect(Object.keys(body.enrichmentSnapshot.blValueCache).length).toBeGreaterThan(0);
+
+    // …yet dedupHash is byte-identical with vs without it (BACKUP_KEYS-only projection — PIN 3 in prod).
+    const withoutSibling = { ...body };
+    delete withoutSibling.enrichmentSnapshot;
+    expect(dedupHash(body)).toBe(dedupHash(withoutSibling));
+
+    // …and census is unchanged by the snapshot caches (they are not registry/user data).
+    expect(hasAnyLocalData()).toBe(censusBefore);
   });
 
   it("a second push with no change is skipped (no_change) — the dedup guard is active", async () => {
