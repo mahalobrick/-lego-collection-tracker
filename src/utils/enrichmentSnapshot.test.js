@@ -21,6 +21,7 @@ vi.mock("./apiFetch", () => ({ apiFetch: (...a) => apiFetchMock(...a) }));
 import { buildEnrichmentSnapshot, restoreEnrichmentSnapshot } from "./enrichmentSnapshot";
 import { getBricksetCache, clearBricksetCache, fetchBricksetSet } from "./brickset";
 import { getValueCacheRaw, clearValueCache, peekValueCache } from "./valueCache";
+import { applyBackupToLocalStorage } from "./exportBackup";
 
 // Fixed whole-entry maps as they live in localStorage: ISO `fetchedAt` for brickset,
 // ms-epoch `fetchedAt` for value. Stamped in the past but WITHIN their TTL (7d / 24h) so a
@@ -138,6 +139,48 @@ describe("restoreEnrichmentSnapshot — safe no-ops", () => {
   it("empty snapshot ({} sub-caches) → no-op true, no write", () => {
     expect(restoreEnrichmentSnapshot({ v: 1, bricksetSetCache: {}, blValueCache: {} })).toBe(true);
     expect(localStorage.getItem("bricksetSetCache")).toBeNull();
+    expect(localStorage.getItem("blValueCache")).toBeNull();
+  });
+});
+
+// ── P4.3 — the applyCloudBackup cold-start SEQUENCE (atomic apply → restore) ────
+// App.jsx applyCloudBackup runs: applyBackupToLocalStorage(cloud) [atomic] → on ok,
+// restoreEnrichmentSnapshot(cloud.enrichmentSnapshot) [cache-only, OUTSIDE the block] → markSynced.
+// These integration tests replicate that exact sequence (the closure itself isn't unit-importable).
+describe("P4.3 — cold-start apply sequence: warm-start + old-backup grace", () => {
+  it("WARM PROOF: a cloud backup carrying a snapshot → caches populated, fetch/peek short-circuit (no apiFetch)", async () => {
+    const cloud = {
+      version: 2,
+      ownedSets: [{ setNumber: "10497", qty: 1 }],
+      settings: { currency: "USD" },
+      enrichmentSnapshot: { v: 1, bricksetSetCache: bricksetMap(), blValueCache: valueMap() },
+    };
+
+    // The applyCloudBackup body: atomic apply (user data), then restore (caches) outside the block.
+    expect(applyBackupToLocalStorage(cloud).ok).toBe(true);
+    expect(restoreEnrichmentSnapshot(cloud.enrichmentSnapshot)).toBe(true);
+
+    // User data applied…
+    expect(JSON.parse(localStorage.getItem("blOwnedSets"))).toEqual([{ setNumber: "10497", qty: 1 }]);
+    // …and the device is WARM: both caches seeded, and the cold-start read paths short-circuit.
+    expect(getBricksetCache()).toEqual(bricksetMap());
+    expect(getValueCacheRaw()).toEqual(valueMap());
+
+    const hit = await fetchBricksetSet("10497-1");
+    expect(hit).toEqual({ set_number: "10497-1", minifigs: 3, pieces: 3955 });
+    expect(peekValueCache(["10497-1"])["10497-1"]).toEqual({ new: { amount: 250, basis: "sold" }, used: null });
+    expect(apiFetchMock).not.toHaveBeenCalled(); // no minifig trickle / value re-batch
+  });
+
+  it("OLD-BACKUP GRACE: a backup with NO enrichmentSnapshot → no-op, no throw, user data intact (cold)", () => {
+    const cloud = { version: 2, ownedSets: [{ setNumber: "75192", qty: 2 }], settings: { currency: "USD" } };
+
+    expect(applyBackupToLocalStorage(cloud).ok).toBe(true);
+    expect(() => restoreEnrichmentSnapshot(cloud.enrichmentSnapshot)).not.toThrow(); // undefined → safe no-op
+    expect(restoreEnrichmentSnapshot(cloud.enrichmentSnapshot)).toBe(true);
+
+    expect(JSON.parse(localStorage.getItem("blOwnedSets"))).toEqual([{ setNumber: "75192", qty: 2 }]); // intact
+    expect(localStorage.getItem("bricksetSetCache")).toBeNull(); // cold, as today
     expect(localStorage.getItem("blValueCache")).toBeNull();
   });
 });

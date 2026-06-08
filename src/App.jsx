@@ -7,6 +7,7 @@ import MyCollection from "./MyCollection";
 import AppSettings from "./AppSettings";
 import { exportFullBackup, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup, clearLocalUserData, hasAnyLocalData } from "./utils/exportBackup";
 import { runDailyBEBatch } from "./utils/beSyncValues";
+import { restoreEnrichmentSnapshot } from "./utils/enrichmentSnapshot";
 import { setItemSafe } from "./utils/safeStorage";
 
 export default function App() {
@@ -118,6 +119,15 @@ export default function App() {
       );
       return false;
     }
+    // P4.3 — seed the enrichment caches from the snapshot so this device starts WARM (no 4-7 min
+    // minifig trickle). This runs ONLY after the atomic apply succeeded, and OUTSIDE its block:
+    // restoreEnrichmentSnapshot is cache-only and swallows quota (returns false, never throws), so a
+    // failed seed can't corrupt the just-applied user data — the device degrades to cold-but-correct
+    // (OBS-2). It writes to localStorage (survives the caller's reload → reloaded surfaces hydrate
+    // warm) and reconciles the memos (covers an in-session no-reload apply). A backup with no
+    // enrichmentSnapshot (pre-P4.2 / BE-era) is a safe no-op. Return value intentionally ignored —
+    // a missing/failed snapshot must not fail the sync.
+    restoreEnrichmentSnapshot(cloud.enrichmentSnapshot);
     markSynced(cloud, userId);
     return true;
   }
