@@ -97,7 +97,10 @@ export function createEntryCache({
     try { return JSON.parse(localStorage.getItem(key) || "{}") || {}; } catch { return {}; }
   }
   function saveStore(store) {
-    try { setItemSafe(key, JSON.stringify(store)); } catch { /* quota — non-fatal, mirrors valueCache */ }
+    // Returns the setItemSafe result: true on a successful mirror, false on quota (setItemSafe
+    // swallows quota internally and returns false) or any other write failure (catch → false).
+    // Mirrors valueCache: a failed mirror is non-fatal. Existing callers ignore the return.
+    try { return setItemSafe(key, JSON.stringify(store)); } catch { return false; }
   }
   function isFresh(entry, ttl) {
     if (!entry) return false;
@@ -152,12 +155,18 @@ export function createEntryCache({
    * persists once at the end). Byte-identical to `setItemSafe(key, JSON.stringify(map))`; entries are
    * NOT re-stamped or re-validated (the caller owns the entry shape). Reconciles the memo to match the
    * written map so a later peek/getFresh stays coherent. Pairs with {@link getRaw}.
+   *
+   * Returns the mirror result (true on success, false on a quota/write failure) so callers that
+   * care about persistence — e.g. the P4 enrichment-snapshot restore's "cold-but-correct" contract
+   * — can detect a failed seed without a throw. The memo is reconciled either way (a session-only
+   * artifact; the failed-mirror case is followed by a reload in the restore flow).
    */
   function saveRaw(map) {
     const obj = map || {};
-    saveStore(obj);
+    const ok = saveStore(obj);
     memo.clear();
     for (const k of Object.keys(obj)) memo.set(k, obj[k]);
+    return ok;
   }
 
   /** Write one value for a requested id; stamps `tsField` now. Returns the stored (validated) value. */

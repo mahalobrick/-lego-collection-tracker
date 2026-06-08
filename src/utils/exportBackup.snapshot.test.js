@@ -37,7 +37,7 @@ import {
   pushToCloudAuth,
   BACKUP_KEYS,
 } from "./exportBackup";
-import { setItemSafe } from "./safeStorage";
+import { restoreEnrichmentSnapshot } from "./enrichmentSnapshot";
 import { peekValueCache, clearValueCache } from "./valueCache";
 import { portfolioValue, portfolioGain, portfolioROI, setCost } from "./portfolio";
 
@@ -210,7 +210,7 @@ describe("PIN 4 — atomic apply (OBS-2) + a failing post-apply cache-only step 
     expect(localStorage.getItem(BACKUP_KEYS[1].key)).toBeNull();
   });
 
-  it("the restore SLOT: a cache-only write that fails AFTER a successful apply cannot corrupt user data", () => {
+  it("the restore SLOT: the REAL restoreEnrichmentSnapshot failing AFTER a successful apply cannot corrupt user data", () => {
     // 1) A successful atomic apply of cloud user-data + mark synced → device is settled.
     const cloud = { version: 2, ownedSets: [{ setNumber: "CLOUD" }], wantedList: [{ setNumber: "W" }], settings: { currency: "USD" } };
     expect(applyBackupToLocalStorage(cloud).ok).toBe(true);
@@ -218,19 +218,24 @@ describe("PIN 4 — atomic apply (OBS-2) + a failing post-apply cache-only step 
     const ownedAfterApply = localStorage.getItem("blOwnedSets");
     const hashAfterApply = localContentHash(); // the device fingerprint to hold invariant
 
-    // 2) Now the restore step (P4.3) writes a snapshot cache and HITS QUOTA. It runs OUTSIDE
-    //    the atomic block, via setItemSafe, which swallows quota (returns false, no throw).
+    // 2) Now the REAL P4.3 restore step writes the snapshot caches and HITS QUOTA. It runs OUTSIDE
+    //    the atomic block; restoreEnrichmentSnapshot swallows quota → returns false, never throws.
     failSetItemFrom(1);
     let threw = false;
-    let wrote = true;
-    try { wrote = setItemSafe("bricksetSetCache", JSON.stringify({ big: "x".repeat(10) })); }
-    catch { threw = true; }
+    let ok = true;
+    try {
+      ok = restoreEnrichmentSnapshot({
+        v: 1,
+        bricksetSetCache: { "brickset_10497-1": { fetchedAt: "2026-06-01T00:00:00.000Z", data: { minifigs: 3 } } },
+        blValueCache: { "10497-1": { record: { new: { amount: 250, basis: "sold" } }, fetchedAt: 1717200000000 } },
+      });
+    } catch { threw = true; }
     vi.restoreAllMocks();
 
     // 3) The failed restore neither threw nor advanced any state: user data is byte-for-byte
     //    its post-apply self, the sync fingerprint is unchanged, and only the cache seed was skipped.
     expect(threw).toBe(false);
-    expect(wrote).toBe(false);
+    expect(ok).toBe(false);                                 // cold-but-correct: seed failed, reported false
     expect(localStorage.getItem("blOwnedSets")).toBe(ownedAfterApply);
     expect(localContentHash()).toBe(hashAfterApply);       // fingerprint unchanged → no spurious re-push
     expect(localStorage.getItem("bricksetSetCache")).toBeNull(); // cache seed skipped (cold-but-correct)

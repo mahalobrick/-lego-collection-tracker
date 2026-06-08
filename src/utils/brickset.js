@@ -45,6 +45,14 @@ export function clearBricksetCache() {
   bricksetCache.clear();
 }
 
+/** P4 enrichment-snapshot RESTORE side: write a whole bricksetSetCache map back verbatim (entries
+ *  and their ISO `fetchedAt` untouched — no re-stamp) via the shared chokepoint, reconciling the memo.
+ *  Returns false on a quota/write failure (no throw) so the snapshot restore can stay "cold-but-correct".
+ *  The READ side is the existing {@link getBricksetCache} (getRaw). INERT until P4.3 wires it. */
+export function restoreBricksetSnapshot(map) {
+  return bricksetCache.saveRaw(map);
+}
+
 /**
  * Resolve the Brickset cache entry that carries a set's RETAIL (MSRP), walking from the exact
  * figure number up to its series base — the retail twin of the paid base-join (`baseSetNumber`,

@@ -89,3 +89,16 @@ export function peekValueCache(setNumbers) {
 export function clearValueCache() {
   cache.clear();
 }
+
+/** P4 enrichment-snapshot READ side: the whole blValueCache map (localStorage mirror), entries and
+ *  their ms-epoch `fetchedAt` verbatim — byte-identical to a raw JSON.parse. INERT until P4.2 wires it. */
+export function getValueCacheRaw() {
+  return cache.getRaw();
+}
+
+/** P4 enrichment-snapshot RESTORE side: write a whole blValueCache map back verbatim (records and
+ *  their ms-epoch `fetchedAt` untouched — no re-stamp) via the shared chokepoint, reconciling the memo.
+ *  Returns false on a quota/write failure (no throw) for the "cold-but-correct" contract. INERT until P4.3. */
+export function restoreValueCache(map) {
+  return cache.saveRaw(map);
+}
