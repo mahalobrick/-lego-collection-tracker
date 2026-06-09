@@ -5,7 +5,7 @@ import BudgetDashboard from "./BudgetDashboard";
 import WantedList from "./WantedList";
 import MyCollection from "./MyCollection";
 import AppSettings from "./AppSettings";
-import { exportFullBackup, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup, clearLocalUserData, hasAnyLocalData, snapshotSig } from "./utils/exportBackup";
+import { exportFullBackup, applyBackupToLocalStorage, pushToCloudAuth, pushSnapshotIfGrown, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup, clearLocalUserData, hasAnyLocalData, snapshotSig } from "./utils/exportBackup";
 import { runDailyBEBatch } from "./utils/beSyncValues";
 import { restoreEnrichmentSnapshot } from "./utils/enrichmentSnapshot";
 import { setItemSafe } from "./utils/safeStorage";
@@ -287,6 +287,28 @@ export default function App() {
     };
     window.addEventListener("brickledger:datachange", onChange);
     return () => { window.removeEventListener("brickledger:datachange", onChange); clearTimeout(timer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, userId]);
+
+  // P4.4 — enrichment-settle force-push: when an enrichment cycle completes (MyCollection emits
+  // brickledger:enrichmentsettled) AND coverage grew, refresh the cloud snapshot WITHOUT a manual
+  // data-change. Mirrors the datachange push effect above — same ~15s debounce (deliberately matching
+  // it) and the same syncReadyRef gating (never push during pending reconcile/conflict). The
+  // strict-greater coverage gate inside pushSnapshotIfGrown is the real anti-storm guard, so coalescing
+  // every settle into one debounced attempt is safe: a no-growth settle skips (snapshot_no_growth), and
+  // the shared blLastSnapshotSig means an opportunistic push that already captured the growth wins.
+  useEffect(() => {
+    if (!isLoaded || !userId) return;
+    let timer = null;
+    const onSettled = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!syncReadyRef.current) return; // never force-push before reconcile decides who wins
+        pushSnapshotIfGrown(getToken).catch(() => {});
+      }, 15_000);
+    };
+    window.addEventListener("brickledger:enrichmentsettled", onSettled);
+    return () => { window.removeEventListener("brickledger:enrichmentsettled", onSettled); clearTimeout(timer); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, userId]);
 

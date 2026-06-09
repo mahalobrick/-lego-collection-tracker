@@ -47,6 +47,7 @@ import {
 import { restoreEnrichmentSnapshot } from "./enrichmentSnapshot";
 import { getBricksetCache, restoreBricksetSnapshot } from "./brickset";
 import { getValueCacheRaw, restoreValueCache, clearValueCache } from "./valueCache";
+import { setItemSafe } from "./safeStorage";
 
 beforeEach(() => {
   localStorage.clear();
@@ -188,6 +189,19 @@ describe("AREA 2 — GATE SIGNATURE: coverage growth is monotonic key growth", (
 
 // ── AREA 3 — FORCE-PUSH: snapshotRefresh bypasses ONLY the equality short-circuit ─
 describe("AREA 3 — FORCE-PUSH: snapshotRefresh bypasses the skip, leaves dedup semantics intact", () => {
+  it("[P4.4.3 SKIP-SET GUARD] writing blLastSnapshotSig must NOT dispatch brickledger:datachange (no churn loop)", () => {
+    // blLastSnapshotSig is bl-prefixed; without it being in SYNC_SKIP_KEYS, setItemSafe would raise
+    // brickledger:datachange → the datachange push effect → which records blLastSnapshotSig → … a
+    // self-perpetuating push loop (the churn caught in P4.4.2). Pin that the gate write is silent.
+    let datachange = 0;
+    const onChange = () => { datachange++; };
+    window.addEventListener("brickledger:datachange", onChange);
+    expect(setItemSafe("blLastSnapshotSig", "5:5")).toBe(true); // a real value change…
+    expect(setItemSafe("blLastSnapshotSig", "6:6")).toBe(true); // …and again
+    window.removeEventListener("brickledger:datachange", onChange);
+    expect(datachange).toBe(0); // …yet no datachange fired → no auto-push churn
+  });
+
   it("[CHAR] blLastSnapshotSig is a non-registry bl-key → invisible to dedupHash AND census", () => {
     // The force-push's gate state must live OUTSIDE the BACKUP_KEYS projection (same class as
     // blLastPushHash), so recording it can never churn the push or drift the census.

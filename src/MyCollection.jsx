@@ -342,7 +342,14 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     const warm = peekValueCache(ownedNumbers);
     if (Object.keys(warm).length) setValueMap(warm);
     let cancelled = false;
-    fetchValues(ownedNumbers).then(map => { if (!cancelled) setValueMap(map); });
+    fetchValues(ownedNumbers).then(map => {
+      if (cancelled) return;
+      setValueMap(map);
+      // P4.4 — enrichment settle point (blValueCache overlay): signal that a value-overlay cycle
+      // settled so App can force-push a grown snapshot. pushSnapshotIfGrown's strict-greater gate is
+      // the anti-storm guard, so emitting on every settle is safe (a no-growth settle just skips).
+      window.dispatchEvent(new CustomEvent("brickledger:enrichmentsettled"));
+    });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ownedKey]);
@@ -460,6 +467,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           setRetailCaches(prev => ({ ...prev, bs }));
         } catch {}
       }
+      // P4.4 — enrichment settle point (bricksetSetCache trickle complete): the IIFE awaits both
+      // Brickset writers in sequence, so its completion is the cycle ceiling. Same signal as the
+      // value overlay; coalesced by App's debounce and gated by pushSnapshotIfGrown's growth check.
+      window.dispatchEvent(new CustomEvent("brickledger:enrichmentsettled"));
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally runs once on mount
