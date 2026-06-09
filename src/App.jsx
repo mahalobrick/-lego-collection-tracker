@@ -5,7 +5,7 @@ import BudgetDashboard from "./BudgetDashboard";
 import WantedList from "./WantedList";
 import MyCollection from "./MyCollection";
 import AppSettings from "./AppSettings";
-import { exportFullBackup, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup, clearLocalUserData, hasAnyLocalData } from "./utils/exportBackup";
+import { exportFullBackup, applyBackupToLocalStorage, pushToCloudAuth, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup, clearLocalUserData, hasAnyLocalData, snapshotSig } from "./utils/exportBackup";
 import { runDailyBEBatch } from "./utils/beSyncValues";
 import { restoreEnrichmentSnapshot } from "./utils/enrichmentSnapshot";
 import { setItemSafe } from "./utils/safeStorage";
@@ -128,6 +128,12 @@ export default function App() {
     // enrichmentSnapshot (pre-P4.2 / BE-era) is a safe no-op. Return value intentionally ignored —
     // a missing/failed snapshot must not fail the sync.
     restoreEnrichmentSnapshot(cloud.enrichmentSnapshot);
+    // P4.4 — seed the force-push gate to the restored coverage so this freshly-restored device does
+    // NOT force-push the very snapshot it just pulled (echo guard, plan §4/§5). blLastSnapshotSig is
+    // device-local sync bookkeeping (SYNC_SKIP_KEYS → no datachange churn); a missing snapshot → "0:0".
+    // Runs OUTSIDE the atomic apply, after the cache restore, via setItemSafe (a quota failure here is
+    // cold-but-correct — the gate just stays unseeded, and the first real growth pushes correctly).
+    setItemSafe("blLastSnapshotSig", snapshotSig(cloud.enrichmentSnapshot));
     markSynced(cloud, userId);
     return true;
   }
