@@ -7,6 +7,9 @@ import { setValueProvenance, setGain, setROI, copyValueProvenance, setRetailProv
 import { bricksetRetailEntry } from "./utils/brickset";
 import { formatValueCell, formatValue, valueConfidence, lotsLabel, isPromoNoRrp, retailCellTooltip, retailSourceMarker, PROMO_NO_RRP_LABEL } from "./utils/valueDisplay";
 import { confidenceBadge } from "./uiStyles";
+import { fetchHistory, peekHistoryCache } from "./utils/historyCache";
+import { historyFromBL } from "./utils/historyEvents";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 function entryPaid(e) {
   return asNumber(e.paid_price ?? e.Paid ?? e.paid ?? 0);
@@ -42,6 +45,25 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
     fetchBrickLinkPriceGuide(String(item.setNumber).replace(/-1$/, ""))
       .then(data => setBlPrice(data))
       .catch(() => setBlPrice(null));
+  }, [item?.setNumber]);
+
+  // Value history (BrickLink sold) — additive owned-set trend (Phase 2, fully BL). Peek the device
+  // cache for an instant warm paint, then refresh via /api/history (24h TTL → no refetch within the
+  // window). NON-BLOCKING: the rest of the panel renders regardless; the chart hides when <2 points.
+  const [history, setHistory] = useState(null); // null = unloaded, [] = no history, [...] = series
+  const [historyLoading, setHistoryLoading] = useState(false);
+  useEffect(() => {
+    const num = item?.setNumber;
+    if (!num) { setHistory(null); setHistoryLoading(false); return; }
+    const key = String(num).trim();
+    const warm = peekHistoryCache([num])[key];
+    setHistory(warm ?? null);
+    setHistoryLoading(!warm);
+    let cancelled = false;
+    fetchHistory([num])
+      .then(map => { if (!cancelled) { setHistory(map[key] ?? []); setHistoryLoading(false); } })
+      .catch(() => { if (!cancelled) setHistoryLoading(false); });
+    return () => { cancelled = true; };
   }, [item?.setNumber]);
 
   if (!item) return null;
@@ -207,6 +229,45 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
             </div>
           </div>
         )}
+
+        {/* ── Value History (BrickLink sold) — owned-set trend (Phase 2, fully BL, zero BE) ──
+            Fed by the Phase-1 read path (fetchHistory → blHistoryCache → /api/history). historyFromBL
+            yields the SAME ASC [{date,value}] shape as the BE-sourced WatchDetailPanel chart, so this
+            block mirrors it (same LineChart config + the <2-points hide rule); only the source differs.
+            isAnimationActive={false} per the Overview-charts convention (fetch-on-open, no grow-replay).
+            Sparse by design now (~5–7 points, +1/week as the cron appends). */}
+        {(() => {
+          const series = historyFromBL(history).new; // ASC [{date,value}]
+          if (series.length >= 2) {
+            return (
+              <div>
+                <div style={sectionLabel}>Value History</div>
+                <div style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "12px 4px 8px" }}>
+                  <ResponsiveContainer width="100%" height={110}>
+                    <LineChart data={series} margin={{ top: 4, right: 10, bottom: 0, left: 0 }}>
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#5d6f80" }} tickFormatter={d => d.slice(5)} minTickGap={30} />
+                      <YAxis tick={{ fontSize: 10, fill: "#5d6f80" }} tickFormatter={v => `$${v}`} width={44} />
+                      <Tooltip contentStyle={{ background: "#0d1623", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#8a9bb0" }} formatter={v => [money(v), "Market Value"]} />
+                      <Line isAnimationActive={false} type="monotone" dataKey="value" stroke="#c9a84c" strokeWidth={2} dot={false} connectNulls />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <div style={{ display: "flex", gap: 14, justifyContent: "center", marginTop: 6 }}>
+                    <span style={{ fontSize: 11, color: "#c9a84c" }}>● Market Value (BrickLink sold)</span>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          if (historyLoading) {
+            return (
+              <div>
+                <div style={sectionLabel}>Value History</div>
+                <div style={{ color: "#5d6f80", fontSize: 12 }}>Loading price history…</div>
+              </div>
+            );
+          }
+          return null; // loaded with <2 points (or no history) → hidden, mirrors WatchDetailPanel
+        })()}
 
         {/* Investment Forecast removed (MC-Browse polish R2): it surfaced raw BrickEconomy
             forecast_value_new_2/5_years projections with no caveat, and BE is retired from value (3c)
