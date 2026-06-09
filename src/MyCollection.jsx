@@ -18,6 +18,7 @@ import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
 import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, setRetailProvenance, isPromoNoRetail, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
 import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailPricedNote, estimatedValueNote, estimatedCostNote, totalRoiNote, netGainBasisNote, signColor } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
+import { valuesAsOf, freshness } from "./utils/freshness";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
 
@@ -331,6 +332,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   // nothing here is written back to stored collection data — it's a read-time overlay only.
   const [valueMap, setValueMap] = useState(undefined);
   const valuesReady = valueMap !== undefined;
+  // Newest cron `asOf` across covered sets — the data-freshness signal for the staleness indicator
+  // (docs/staleness-indicator-plan.md). null when nothing is loaded / all BE-fallback → pill hidden.
+  const valuesAsOfTs = useMemo(() => valuesAsOf(valueMap), [valueMap]);
   const ownedNumbers = useMemo(
     () => [...new Set(sets.map(s => String(s.setNumber || "")).filter(Boolean))],
     [sets]
@@ -1379,7 +1383,21 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           {/* ── Stat pill container ─────────────────────────────────── */}
           <div style={{ background: "rgba(11,21,32,0.7)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "14px 16px", marginBottom: 14, marginTop: 8, position: "relative" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: collPillsCollapsed ? 0 : 12 }}>
-              <span style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Collection Stats</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                <span style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Collection Stats</span>
+                {valuesReady && valuesAsOfTs && (() => {
+                  const fr = freshness(valuesAsOfTs);
+                  if (!fr) return null;
+                  return (
+                    <span
+                      title={`BrickLink values as of ${valuesAsOfTs.slice(0, 10)} — refreshed weekly`}
+                      style={{ fontSize: 10, fontWeight: 600, color: fr.level === "stale" ? "#f59e0b" : "#5d6f80", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                    >
+                      {fr.level === "stale" ? "⚠ " : ""}{fr.label}
+                    </span>
+                  );
+                })()}
+              </div>
               <div style={{ display: "flex", gap: 6 }}>
                 <button onClick={() => runBricksetEnrichment(sets, true)} disabled={metaRefreshing} style={{ ...hoverCtrlBtn, color: metaRefreshing ? "#c9a84c" : "#8a9bb0" }} title="Sync pieces & minifig counts from Brickset">{metaRefreshing ? "⟳" : "⟳"}</button>
                 <button onClick={() => setCollGearOpen(prev => !prev)} style={{ ...hoverCtrlBtn, color: collGearOpen ? "#c9a84c" : "#8a9bb0" }} title="Show / hide stats">⚙</button>
