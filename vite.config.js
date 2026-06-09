@@ -41,6 +41,7 @@ const API_ROUTES = {
   '/api/brickfanatics-retiring':    require('./api/brickfanatics-retiring'),
   '/api/sync':                      require('./api/sync'),
   '/api/values':                    require('./api/values'),
+  '/api/history':                   require('./api/history'),
 }
 
 export default defineConfig({

@@ -19,7 +19,7 @@
 const SYNC_SKIP_KEYS = new Set([
   "blLastPushHash", "blLastCloudPush", "blLastAutoExport", "blLastTab",
   "blLastNotifyDate", "blSyncedUserId", "bricksetSetCache", "brickEconomySetCache",
-  "brickEconomyCollectionCache", "blPriceGuideCache",
+  "brickEconomyCollectionCache", "blPriceGuideCache", "blHistoryCache",
   "blSessionToken", "blBrickLinkAccessToken",
   "blLastSnapshotSig", // P4.4 force-push gate state (device-local sync bookkeeping, like blLastPushHash)
 ]);
