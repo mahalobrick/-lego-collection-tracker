@@ -40,6 +40,8 @@ import {
   hasAnyLocalData,
   applyBackupToLocalStorage,
   pushToCloudAuth,
+  pushSnapshotIfGrown,
+  snapshotSig,
   BACKUP_KEYS,
 } from "./exportBackup";
 import { restoreEnrichmentSnapshot } from "./enrichmentSnapshot";
@@ -146,17 +148,13 @@ describe("AREA 2 — GATE SIGNATURE: coverage growth is monotonic key growth", (
     expect(Object.keys(getValueCacheRaw()).length).toBe(3); // grew
   });
 
-  it.skip("[TARGET P4.4.2] snapshotSig(snapshot) === `${count(bricksetSetCache)}:${count(blValueCache)}`", async () => {
-    // TODO(P4.4.2): un-skip once snapshotSig is exported from exportBackup.js.
-    const { snapshotSig } = await import("./exportBackup");
+  it("[TARGET P4.4.2] snapshotSig(snapshot) === `${count(bricksetSetCache)}:${count(blValueCache)}`", () => {
     expect(snapshotSig({ v: 1, bricksetSetCache: bricksetMap(3), blValueCache: valueMap(2) })).toBe("3:2");
     expect(snapshotSig({ v: 1, bricksetSetCache: {}, blValueCache: {} })).toBe("0:0");
     expect(snapshotSig(null)).toBe("0:0");    // absent snapshot ⇒ 0:0 baseline
   });
 
-  it.skip("[TARGET P4.4.2] pushSnapshotIfGrown fires on strict-greater, skips on equal/lower (anti-storm)", async () => {
-    // TODO(P4.4.2): un-skip once pushSnapshotIfGrown + blLastSnapshotSig recording land.
-    const { pushSnapshotIfGrown } = await import("./exportBackup");
+  it("[TARGET P4.4.2] pushSnapshotIfGrown fires on strict-greater, skips on equal/lower (anti-storm)", async () => {
     seedFixture();
 
     // prev = 2:2; growth in EITHER count must fire.
@@ -179,9 +177,7 @@ describe("AREA 2 — GATE SIGNATURE: coverage growth is monotonic key growth", (
     expect(f3).not.toHaveBeenCalled();
   });
 
-  it.skip("[TARGET P4.4.2] absent blLastSnapshotSig ⇒ prev 0:0 ⇒ any coverage counts as growth", async () => {
-    // TODO(P4.4.2): un-skip with pushSnapshotIfGrown. Defends the very-first-settle case.
-    const { pushSnapshotIfGrown } = await import("./exportBackup");
+  it("[TARGET P4.4.2] absent blLastSnapshotSig ⇒ prev 0:0 ⇒ any coverage counts as growth", async () => {
     seedFixture();
     seedCoverage(1, 0);                        // 1:0 vs absent(0:0) → grew
     const f = mockSyncOK();
@@ -203,8 +199,7 @@ describe("AREA 3 — FORCE-PUSH: snapshotRefresh bypasses the skip, leaves dedup
     expect(hasAnyLocalData()).toBe(censusBefore); // not a census key
   });
 
-  it.skip("[TARGET P4.4.2] snapshotRefresh:true POSTs even when dedupHash === blLastPushHash; default still skips", async () => {
-    // TODO(P4.4.2): un-skip once pushToCloudAuth accepts { snapshotRefresh }.
+  it("[TARGET P4.4.2] snapshotRefresh:true POSTs even when dedupHash === blLastPushHash; default still skips", async () => {
     seedFixture();
     const f1 = mockSyncOK();
     await pushToCloudAuth(TOKEN);              // records blLastPushHash
@@ -227,8 +222,7 @@ describe("AREA 3 — FORCE-PUSH: snapshotRefresh bypasses the skip, leaves dedup
     expect(Object.keys(body.enrichmentSnapshot.blValueCache).length).toBe(4);
   });
 
-  it.skip("[TARGET P4.4.2] a forced push STILL records blLastPushHash + blLastSnapshotSig (dedup unaffected)", async () => {
-    // TODO(P4.4.2): un-skip once snapshotRefresh + sig recording land.
+  it("[TARGET P4.4.2] a forced push STILL records blLastPushHash + blLastSnapshotSig (dedup unaffected)", async () => {
     seedFixture();
     const f1 = mockSyncOK();
     await pushToCloudAuth(TOKEN);
@@ -261,10 +255,8 @@ describe("AREA 4 — RESTORE-SEED: applyCloudBackup seeds blLastSnapshotSig so n
     expect(Object.keys(getValueCacheRaw()).length).toBe(4);
   });
 
-  it.skip("[TARGET P4.4.2] after the applyCloudBackup seed, an immediate settle shows NO growth", async () => {
-    // TODO(P4.4.2): un-skip once snapshotSig + pushSnapshotIfGrown land and applyCloudBackup
-    // seeds blLastSnapshotSig from the restored snapshot. Mirrors that seed sequence here.
-    const { snapshotSig, pushSnapshotIfGrown } = await import("./exportBackup");
+  it("[TARGET P4.4.2] after the applyCloudBackup seed, an immediate settle shows NO growth", async () => {
+    // Mirrors the §4 applyCloudBackup seed sequence (restore → seed blLastSnapshotSig) here.
     seedFixture();
     const snapshot = { v: 1, bricksetSetCache: bricksetMap(6), blValueCache: valueMap(4) };
     restoreEnrichmentSnapshot(snapshot);                          // caches at cloud ceiling
@@ -278,9 +270,7 @@ describe("AREA 4 — RESTORE-SEED: applyCloudBackup seeds blLastSnapshotSig so n
 
 // ── AREA 5 — DOUBLE-PUSH / COALESCE: normal + forced push share one gate state ──
 describe("AREA 5 — DOUBLE-PUSH: a datachange push and a force-push for the same growth coalesce", () => {
-  it.skip("[TARGET P4.4.2] a normal push advances blLastSnapshotSig → the later force-push sees no growth", async () => {
-    // TODO(P4.4.2): un-skip once normal pushToCloudAuth ALSO records blLastSnapshotSig on success.
-    const { pushSnapshotIfGrown } = await import("./exportBackup");
+  it("[TARGET P4.4.2] a normal push advances blLastSnapshotSig → the later force-push sees no growth", async () => {
     seedFixture();
     localStorage.setItem("blLastSnapshotSig", "1:1");
     seedCoverage(3, 2);                         // coverage grew since the last sig
@@ -299,9 +289,7 @@ describe("AREA 5 — DOUBLE-PUSH: a datachange push and a force-push for the sam
     expect(f2).not.toHaveBeenCalled();
   });
 
-  it.skip("[TARGET P4.4.2] a force-push advances the gate → a subsequent settle for the same coverage skips", async () => {
-    // TODO(P4.4.2): un-skip once pushSnapshotIfGrown records blLastSnapshotSig on success.
-    const { pushSnapshotIfGrown } = await import("./exportBackup");
+  it("[TARGET P4.4.2] a force-push advances the gate → a subsequent settle for the same coverage skips", async () => {
     seedFixture();
     localStorage.setItem("blLastSnapshotSig", "1:1");
     seedCoverage(4, 4);

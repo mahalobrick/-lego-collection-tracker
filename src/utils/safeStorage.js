@@ -21,6 +21,7 @@ const SYNC_SKIP_KEYS = new Set([
   "blLastNotifyDate", "blSyncedUserId", "bricksetSetCache", "brickEconomySetCache",
   "brickEconomyCollectionCache", "blPriceGuideCache",
   "blSessionToken", "blBrickLinkAccessToken",
+  "blLastSnapshotSig", // P4.4 force-push gate state (device-local sync bookkeeping, like blLastPushHash)
 ]);
 
 // Cross-browser QuotaExceeded detection (Chrome/Safari: name/code 22; Firefox: 1014).

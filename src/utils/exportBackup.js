@@ -20,6 +20,47 @@ function quickHash(str) {
   return h.toString(36);
 }
 
+// ── P4.4 enrichment-snapshot force-push: the coverage gate ────────────────────
+// The snapshot (bricksetSetCache + blValueCache) rides the push as a sibling field that is
+// INVISIBLE to dedupHash (BACKUP_KEYS-only), so an enrichment-only growth reads as no_change and
+// the normal push skips it (docs/enrichment-p4.4-plan.md §2). To refresh the cloud snapshot when
+// enrichment COMPLETES (coverage grew) without a manual data-change, we gate on a cheap
+// entry-count signature and force a push only on real (monotonic) growth.
+
+/** Entry count of a sub-cache map ({} / missing → 0). */
+function cacheCount(m) {
+  return m && typeof m === "object" ? Object.keys(m).length : 0;
+}
+
+/**
+ * Coverage signature of an enrichment snapshot: "count(bricksetSetCache):count(blValueCache)"
+ * (e.g. "335:300"). An absent / non-object snapshot, or empty caches, → "0:0". Entry counts
+ * suffice because each enrichment write ADDS a key, so coverage growth is monotonic key growth
+ * (plan §3) — no need to hash the large cache contents.
+ */
+export function snapshotSig(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return "0:0";
+  return `${cacheCount(snapshot.bricksetSetCache)}:${cacheCount(snapshot.blValueCache)}`;
+}
+
+/** Parse a "bs:val" signature into [bs, val] counts (absent / malformed → [0, 0]). */
+function parseSig(sig) {
+  if (typeof sig !== "string") return [0, 0];
+  const [bs, val] = sig.split(":");
+  return [Number(bs) || 0, Number(val) || 0];
+}
+
+/**
+ * Did coverage GROW from `prev` to `now`? True iff EITHER count is strictly greater. Strict-greater
+ * (not !==) is the core anti-storm property: an eviction/TTL drop that shrinks a count, or a no-op
+ * settle at the same coverage, never counts as growth. Absent `prev` ⇒ "0:0" ⇒ any coverage grew.
+ */
+function snapshotGrew(now, prev) {
+  const [bsN, valN] = parseSig(now);
+  const [bsP, valP] = parseSig(prev);
+  return bsN > bsP || valN > valP;
+}
+
 // ── Auth-based sync (Phase 3) ─────────────────────────────────────────────────
 // Used when the user is signed in via Clerk.  No passphrase — the Clerk JWT is
 // the security layer.  Data stored as plaintext JSON at /api/sync, keyed by userId.
@@ -27,8 +68,15 @@ function quickHash(str) {
 /**
  * Push current data to /api/sync using a Clerk Bearer token.
  * getToken — async fn from useAuth() that returns the current session JWT.
+ *
+ * @param {object} [opts]
+ * @param {boolean} [opts.snapshotRefresh=false] — P4.4: when true, bypass ONLY the
+ *   dedupHash===blLastPushHash equality short-circuit so an enrichment-only snapshot growth can
+ *   push (the snapshot is invisible to dedupHash). dedupHash is still computed and blLastPushHash
+ *   still recorded afterward (its value is unchanged — no BACKUP_KEYS field moved — so the next
+ *   NORMAL push still correctly skips). All other semantics are identical to the default path.
  */
-export async function pushToCloudAuth(getToken) {
+export async function pushToCloudAuth(getToken, { snapshotRefresh = false } = {}) {
   // Push-guard uses the SAME census as the fresh-device check (hasAnyLocalData, census:true
   // keys), so it can't drift from the overwrite scope. Closes the blind spot where a
   // sold-everything / budget-only device (empty owned/wanted) read as "no data" and never
@@ -46,9 +94,10 @@ export async function pushToCloudAuth(getToken) {
   // wired in P4.3 — until then the cloud carries the snapshot but nothing reads it (client behaviour-neutral).
   backup.enrichmentSnapshot = buildEnrichmentSnapshot();
 
-  // Skip if nothing changed since last push (hash is BACKUP_KEYS-only → enrichmentSnapshot excluded)
+  // Skip if nothing changed since last push (hash is BACKUP_KEYS-only → enrichmentSnapshot excluded).
+  // A force-push (snapshotRefresh) bypasses ONLY this equality short-circuit (P4.4) — see the JSDoc.
   const contentHash = dedupHash(backup);
-  if (contentHash === localStorage.getItem("blLastPushHash")) return { skipped: "no_change" };
+  if (!snapshotRefresh && contentHash === localStorage.getItem("blLastPushHash")) return { skipped: "no_change" };
 
   const token = await getToken();
   if (!token) return null;
@@ -63,7 +112,27 @@ export async function pushToCloudAuth(getToken) {
   const json = await res.json();
   setItemSafe("blLastCloudPush", json.savedAt || new Date().toISOString());
   setItemSafe("blLastPushHash", contentHash);
+  // P4.4 — record the coverage signature on EVERY successful push (normal AND forced) so the
+  // opportunistic push and the force-push share one gate: if a normal push already captured the
+  // grown coverage, a following force-push sees no growth and skips (defuses double-push, plan §5).
+  setItemSafe("blLastSnapshotSig", snapshotSig(backup.enrichmentSnapshot));
   return json;
+}
+
+/**
+ * P4.4 force-push entry point: push the enrichment snapshot ONLY when its coverage GREW since the
+ * last recorded signature. Cheap-gates on the entry-count signature (snapshotGrew), then delegates
+ * to pushToCloudAuth with snapshotRefresh:true (which records blLastSnapshotSig on success). On no
+ * growth it returns { skipped: "snapshot_no_growth" } without touching the network.
+ *
+ * INERT until P4.4.3 wires the brickledger:enrichmentsettled listener — nothing calls this yet.
+ */
+export async function pushSnapshotIfGrown(getToken) {
+  const sigNow = snapshotSig(buildEnrichmentSnapshot());
+  if (!snapshotGrew(sigNow, localStorage.getItem("blLastSnapshotSig"))) {
+    return { skipped: "snapshot_no_growth" };
+  }
+  return pushToCloudAuth(getToken, { snapshotRefresh: true });
 }
 
 // ── Sync reconciliation helpers (Phase 4) ────────────────────────────────────
