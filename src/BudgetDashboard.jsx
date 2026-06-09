@@ -1416,7 +1416,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                           <>
                             <ResponsiveContainer width="100%" height={220}>
                               <PieChart>
-                                <Pie data={storePieData} cx="50%" cy="50%" innerRadius={ct === "donut" ? 60 : 0} outerRadius={95} dataKey="value" paddingAngle={ct === "donut" ? 2 : 1}>
+                                <Pie isAnimationActive={false} data={storePieData} cx="50%" cy="50%" innerRadius={ct === "donut" ? 60 : 0} outerRadius={95} dataKey="value" paddingAngle={ct === "donut" ? 2 : 1}>
                                   {storePieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                                 </Pie>
                                 <Tooltip formatter={v => [money(v), "Spent"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
@@ -1454,7 +1454,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                               <XAxis dataKey="month" {...axisProps} />
                               <YAxis {...axisProps} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} width={44} />
                               <Tooltip formatter={v => [money(v), "Spend"]} labelStyle={{ color: "#8a9bb0" }} contentStyle={tooltipStyle} />
-                              <Line type="monotone" dataKey="total" stroke="#c9a84c" strokeWidth={2} dot={false} activeDot={{ r: 5, fill: "#c9a84c" }} name="Monthly Spend" />
+                              <Line isAnimationActive={false} type="monotone" dataKey="total" stroke="#c9a84c" strokeWidth={2} dot={false} activeDot={{ r: 5, fill: "#c9a84c" }} name="Monthly Spend" />
                             </LineChart>
                           </ResponsiveContainer>
                         ) : (
@@ -1464,7 +1464,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                               <XAxis dataKey="month" {...axisProps} />
                               <YAxis {...axisProps} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} width={44} />
                               <Tooltip formatter={v => [money(v), "Spend"]} labelStyle={{ color: "#8a9bb0" }} contentStyle={tooltipStyle} />
-                              <Bar dataKey="total" fill="#c9a84c" radius={[4, 4, 0, 0]} name="Monthly Spend" />
+                              <Bar isAnimationActive={false} dataKey="total" fill="#c9a84c" radius={[4, 4, 0, 0]} name="Monthly Spend" />
                             </BarChart>
                           </ResponsiveContainer>
                         );
@@ -1495,7 +1495,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                                 <XAxis dataKey="month" {...axisProps} interval="preserveStartEnd" />
                                 <YAxis {...axisProps} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} width={48} />
                                 <Tooltip formatter={v => money(v)} labelStyle={{ color: "#8a9bb0" }} contentStyle={tooltipStyle} />
-                                <Area type="monotone" dataKey="total" stroke="#c9a84c" strokeWidth={2} fill="url(#investGrad)" dot={false} activeDot={{ r: 5, fill: "#c9a84c" }} name="Cumulative Spend" />
+                                <Area isAnimationActive={false} type="monotone" dataKey="total" stroke="#c9a84c" strokeWidth={2} fill="url(#investGrad)" dot={false} activeDot={{ r: 5, fill: "#c9a84c" }} name="Cumulative Spend" />
                               </AreaChart>
                             ) : (
                               <LineChart {...commonProps}>
@@ -1503,7 +1503,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                                 <XAxis dataKey="month" {...axisProps} interval="preserveStartEnd" />
                                 <YAxis {...axisProps} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} width={48} />
                                 <Tooltip formatter={v => money(v)} labelStyle={{ color: "#8a9bb0" }} contentStyle={tooltipStyle} />
-                                <Line type="monotone" dataKey="total" stroke="#c9a84c" strokeWidth={2} dot={false} activeDot={{ r: 5, fill: "#c9a84c" }} name="Cumulative Spend" />
+                                <Line isAnimationActive={false} type="monotone" dataKey="total" stroke="#c9a84c" strokeWidth={2} dot={false} activeDot={{ r: 5, fill: "#c9a84c" }} name="Cumulative Spend" />
                               </LineChart>
                             )}
                           </ResponsiveContainer>
@@ -1515,7 +1515,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                       <h4 style={{ margin: "0 0 14px", color: "#e8e2d5" }}>Spending by Store</h4>
                       <ResponsiveContainer width="100%" height={190}>
                         <PieChart>
-                          <Pie data={storePieData} cx="50%" cy="50%" innerRadius={52} outerRadius={82} dataKey="value" paddingAngle={2}>
+                          <Pie isAnimationActive={false} data={storePieData} cx="50%" cy="50%" innerRadius={52} outerRadius={82} dataKey="value" paddingAngle={2}>
                             {storePieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                           </Pie>
                           <Tooltip formatter={v => money(v)} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />

@@ -1638,7 +1638,7 @@ export default function WantedList({ onBuyNow }) {
                                 <XAxis type="number" tick={{ fill: "#5d6f80", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                                 <YAxis type="category" dataKey="label" tick={{ fill: "#8a9bb0", fontSize: 12 }} width={80} axisLine={false} tickLine={false} />
                                 <Tooltip formatter={v => [v, "Sets"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
-                                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                                <Bar isAnimationActive={false} dataKey="count" radius={[0, 4, 4, 0]}>
                                   {buckets.map((b, i) => <Cell key={i} fill={b.color} />)}
                                 </Bar>
                               </BarChart>
@@ -1648,7 +1648,7 @@ export default function WantedList({ onBuyNow }) {
                             <>
                               <ResponsiveContainer width="100%" height={160}>
                                 <PieChart>
-                                  <Pie data={buckets} cx="50%" cy="50%" innerRadius={ct === "donut" ? 48 : 0} outerRadius={72} dataKey="count" paddingAngle={ct === "donut" ? 2 : 1}>
+                                  <Pie isAnimationActive={false} data={buckets} cx="50%" cy="50%" innerRadius={ct === "donut" ? 48 : 0} outerRadius={72} dataKey="count" paddingAngle={ct === "donut" ? 2 : 1}>
                                     {buckets.map((b, i) => <Cell key={i} fill={b.color} />)}
                                   </Pie>
                                   <Tooltip formatter={v => [v, "Sets"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
@@ -1748,7 +1748,7 @@ export default function WantedList({ onBuyNow }) {
                               <XAxis type="number" tick={{ fill: "#5d6f80", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                               <YAxis type="category" dataKey="label" tick={{ fill: "#8a9bb0", fontSize: 12 }} width={56} axisLine={false} tickLine={false} />
                               <Tooltip formatter={v => [v, "Sets"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
-                              <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                              <Bar isAnimationActive={false} dataKey="count" radius={[0, 4, 4, 0]}>
                                 {wlScoreBuckets.map((b, i) => <Cell key={i} fill={b.color} />)}
                               </Bar>
                             </BarChart>
@@ -1766,7 +1766,7 @@ export default function WantedList({ onBuyNow }) {
                             <>
                               <ResponsiveContainer width="100%" height={180}>
                                 <PieChart>
-                                  <Pie data={wlThemeData.slice(0, 8)} cx="50%" cy="50%" innerRadius={ct === "donut" ? 48 : 0} outerRadius={76} dataKey="value" paddingAngle={ct === "donut" ? 2 : 1}>
+                                  <Pie isAnimationActive={false} data={wlThemeData.slice(0, 8)} cx="50%" cy="50%" innerRadius={ct === "donut" ? 48 : 0} outerRadius={76} dataKey="value" paddingAngle={ct === "donut" ? 2 : 1}>
                                     {wlThemeData.slice(0, 8).map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                                   </Pie>
                                   <Tooltip formatter={v => [v, "Sets"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />

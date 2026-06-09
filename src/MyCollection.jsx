@@ -589,6 +589,17 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       .sort((a, b) => b.value - a.value);
   }, [sets, valueMap]);
 
+  const conditionBreakdownData = useMemo(() => {
+    // Bucketed to New / Used / Mixed per SET (matches the column + filter),
+    // labelled + coloured via the one condition normalizer — no raw tokens,
+    // no split used-grades, and Mixed gets its own slice.
+    const counts = { new: 0, used: 0, mixed: 0 };
+    sets.forEach(s => { counts[setConditionDisplay(s)] += 1; });
+    return ["new", "used", "mixed"]
+      .filter(b => counts[b] > 0)
+      .map(b => ({ name: conditionDisplayLabel(b), value: counts[b], color: conditionDisplayColor(b) }));
+  }, [sets]);
+
   const topRoiSets = useMemo(() => {
     return [...sets]
       // %ROI rule: value known AND cost > 0. Excludes $0-cost (÷0) and unknown-value
@@ -1488,20 +1499,15 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         {sets.length === 0 ? (
                           <div style={{ color: "#5d6f80", fontSize: 13 }}>No sets yet.</div>
                         ) : (() => {
-                          // Bucketed to New / Used / Mixed per SET (matches the column + filter),
-                          // labelled + coloured via the one condition normalizer — no raw tokens,
-                          // no split used-grades, and Mixed gets its own slice.
-                          const counts = { new: 0, used: 0, mixed: 0 };
-                          sets.forEach(s => { counts[setConditionDisplay(s)] += 1; });
-                          const data = ["new", "used", "mixed"]
-                            .filter(b => counts[b] > 0)
-                            .map(b => ({ name: conditionDisplayLabel(b), value: counts[b], color: conditionDisplayColor(b) }));
+                          // Dataset derivation hoisted to the `conditionBreakdownData` memo (deps [sets]);
+                          // aliased here so the JSX below is unchanged. (P1-class straggler memoized.)
+                          const data = conditionBreakdownData;
                           const total = data.reduce((s, d) => s + d.value, 0);
                           return (
                             <>
                               <ResponsiveContainer width="100%" height={160}>
                                 <PieChart>
-                                  <Pie data={data} cx="50%" cy="50%" innerRadius={44} outerRadius={70} dataKey="value" paddingAngle={2}>
+                                  <Pie isAnimationActive={false} data={data} cx="50%" cy="50%" innerRadius={44} outerRadius={70} dataKey="value" paddingAngle={2}>
                                     {data.map((d, i) => <Cell key={i} fill={d.color} />)}
                                   </Pie>
                                   <Tooltip formatter={v => [v, "Sets"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
@@ -1534,7 +1540,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                                       <XAxis type="number" tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} tick={{ fill: "#8a9bb0", fontSize: 10 }} axisLine={false} tickLine={false} />
                                       <YAxis type="category" dataKey="name" tick={{ fill: "#8a9bb0", fontSize: 10 }} axisLine={false} tickLine={false} width={90} />
                                       <Tooltip formatter={v => [money(v), "Value"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
-                                      <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                                      <Bar isAnimationActive={false} dataKey="value" radius={[0, 4, 4, 0]}>
                                         {themeChartData.slice(0, 7).map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                                       </Bar>
                                     </BarChart>
@@ -1544,7 +1550,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                                 <div style={{ position: "relative", height: 240 }}>
                                   <ResponsiveContainer width="100%" height={240}>
                                     <PieChart>
-                                      <Pie data={themeChartData} cx="50%" cy="50%" innerRadius={ct === "donut" ? 68 : 0} outerRadius={106} dataKey="value" paddingAngle={ct === "donut" ? 2 : 1}>
+                                      <Pie isAnimationActive={false} data={themeChartData} cx="50%" cy="50%" innerRadius={ct === "donut" ? 68 : 0} outerRadius={106} dataKey="value" paddingAngle={ct === "donut" ? 2 : 1}>
                                         {themeChartData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                                       </Pie>
                                       <Tooltip formatter={v => money(v)} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
@@ -1784,8 +1790,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                                 <XAxis dataKey="date" tickFormatter={fmt} tick={{ fill: "#5d6f80", fontSize: 10 }} axisLine={false} tickLine={false} minTickGap={40} />
                                 <YAxis tickFormatter={v => `$${(v/1000).toFixed(0)}k`} tick={{ fill: "#5d6f80", fontSize: 10 }} axisLine={false} tickLine={false} width={42} />
                                 <Tooltip formatter={(v, n) => [money(v), n === "value" ? "Portfolio Value" : "Cost Basis"]} labelFormatter={fmt} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
-                                <Area type="monotone" dataKey="paid"  stroke="#3b82f6" fill="url(#paidGrad)"  strokeWidth={1.5} dot={false} name="paid" />
-                                <Area type="monotone" dataKey="value" stroke="#c9a84c" fill="url(#valueGrad)" strokeWidth={2}   dot={false} name="value" />
+                                <Area isAnimationActive={false} type="monotone" dataKey="paid"  stroke="#3b82f6" fill="url(#paidGrad)"  strokeWidth={1.5} dot={false} name="paid" />
+                                <Area isAnimationActive={false} type="monotone" dataKey="value" stroke="#c9a84c" fill="url(#valueGrad)" strokeWidth={2}   dot={false} name="value" />
                               </AreaChart>
                             </ResponsiveContainer>
                           );
