@@ -18,12 +18,16 @@
 //     sold/new  lots ≥10           → amount = 0.75 × sold/new avg_price basis "modeled"  (new healthy ⇒ model used off it)
 //     sold/used lots 1–9           → amount = sold/used avg_price       basis "sold_thin"
 //     sold/used lots 0 + stock     → amount = stock/used min_price      basis "asking"   (residual only)
+//     sold/new  lots 1–9           → amount = 0.75 × sold/new avg_price basis "modeled_thin" (rung-gap close —
+//                                    last-resort model off THIN new; distinct basis keeps the thinner
+//                                    sample honest. Slots BELOW asking so it is purely additive: only a
+//                                    previously-"unknown" outcome can become modeled_thin.)
 //     otherwise                    → amount = null                      basis "unknown"
 //
 // Records align with the Workstream A provenance model so the later app-read step is a
 // clean map: { amount, source:"BrickLink", condition, basis, asOf, lots }. `lots` is the
-// sample size backing the amount (for "modeled" it is the NEW sold sample the figure was
-// derived from; for "asking" it is the stock listing count; for "unknown" it is 0).
+// sample size backing the amount (for "modeled"/"modeled_thin" it is the NEW sold sample the
+// figure was derived from; for "asking" it is the stock listing count; for "unknown" it is 0).
 
 export const USED_FROM_NEW_MULTIPLIER = 0.75; // global 0.75 (doc §3 rung 2 / §4 — median 0.746, IQR 0.689–0.802)
 const HEALTHY_LOTS = 10; // doc §3 rung 1 — ≥10 sold lots = trustworthy average
@@ -88,6 +92,8 @@ export function deriveValue({ soldNew, soldUsed, stockNew, stockUsed, asOf, mult
     usedRec = rec(usedAvg, "sold_thin", asOf, "used", usedLots);            // rung 3 — sparse used, new not healthy
   } else if (minOf(stockUsed) > 0) {
     usedRec = rec(minOf(stockUsed), "asking", asOf, "used", lotsOf(stockUsed)); // rung 4 — residual asking floor
+  } else if (newLots >= 1 && newAvg > 0) {
+    usedRec = rec(newAvg * multiplier, "modeled_thin", asOf, "used", newLots); // rung-gap close — thin new, last resort before unknown
   } else {
     usedRec = rec(null, "unknown", asOf, "used", 0);                        // rung 6
   }

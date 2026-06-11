@@ -88,3 +88,54 @@ describe("deriveValue — USED ladder (rung order 1→2→3→4→6)", () => {
     expect(u.amount).toBe(55);
   });
 });
+
+describe("deriveValue — modeled_thin (rung-gap close: thin new ⇒ last-resort used model)", () => {
+  it("thin new + ZERO used sales + no used stock → 0.75 × thin-new avg, basis 'modeled_thin', lots = new sample", () => {
+    const u = d({ soldNew: { avg: 100, lots: 3 }, soldUsed: { avg: 0, lots: 0 } }).used;
+    expect(u).toEqual({ amount: 75, source: "BrickLink", condition: "used", basis: "modeled_thin", asOf: ASOF, lots: 3 });
+  });
+
+  it("honours a custom multiplier, like the modeled rung", () => {
+    const u = d({ soldNew: { avg: 100, lots: 2 }, soldUsed: { avg: 0, lots: 0 }, multiplier: 0.6 }).used;
+    expect(u).toMatchObject({ amount: 60, basis: "modeled_thin" });
+  });
+
+  // ── Additive-placement pins: every EXISTING outcome is unchanged ────────────
+  it("does NOT outrank rung 3: thin new + thin used → still sold_thin (real used data wins)", () => {
+    const u = d({ soldNew: { avg: 100, lots: 9 }, soldUsed: { avg: 55, lots: 2 } }).used;
+    expect(u).toMatchObject({ amount: 55, basis: "sold_thin" });
+  });
+
+  it("does NOT outrank rung 4: thin new + used stock → still asking", () => {
+    const u = d({ soldNew: { avg: 100, lots: 5 }, soldUsed: { avg: 0, lots: 0 }, stockUsed: { min: 80, lots: 2 } }).used;
+    expect(u).toMatchObject({ amount: 80, basis: "asking" });
+  });
+
+  it("does NOT replace rung 2: HEALTHY new still models as 'modeled', never 'modeled_thin'", () => {
+    const u = d({ soldNew: { avg: 200, lots: 40 }, soldUsed: { avg: 0, lots: 0 } }).used;
+    expect(u).toMatchObject({ amount: 150, basis: "modeled" });
+  });
+
+  it("does NOT fire without thin-new data: new 0 lots + nothing else → still unknown", () => {
+    const u = d({ soldNew: { avg: 0, lots: 0 }, soldUsed: { avg: 0, lots: 0 } }).used;
+    expect(u).toMatchObject({ amount: null, basis: "unknown", lots: 0 });
+  });
+
+  // ── The 7 real rung-gap sets from docs/be-fallback-gap-audit.md §2 — each previously
+  //    resolved used:{amount:null, basis:"unknown"}; all now model off their thin new. ──
+  const AUDIT_SETS = [
+    { n: "11028-1", avg: 18.99, lots: 3 },
+    { n: "42637-1", avg: 29.99, lots: 2 },
+    { n: "43253-1", avg: 19.63, lots: 1 },
+    { n: "76293-1", avg: 31.02, lots: 5 },
+    { n: "40816-1", avg: 19.99, lots: 1 },
+    { n: "40811-1", avg: 24.71, lots: 4 },
+    { n: "40825-1", avg: 46.84, lots: 1 },
+  ];
+  it.each(AUDIT_SETS)("$n: new sold_thin ($avg × 0.75) → used modeled_thin, not unknown/BE-fallback", ({ avg, lots }) => {
+    const { new: n, used: u } = d({ soldNew: { avg, lots }, soldUsed: { avg: 0, lots: 0 } });
+    expect(n).toMatchObject({ basis: "sold_thin", amount: avg, lots });
+    expect(u).toMatchObject({ basis: "modeled_thin", amount: round2(avg * USED_FROM_NEW_MULTIPLIER), lots });
+    expect(u.amount).not.toBeNull();
+  });
+});
