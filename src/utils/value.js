@@ -49,7 +49,7 @@ export function valueAmount(raw) {
  * @property {string|null} condition The set's tracked condition (e.g. 'new', 'used', 'used_good').
  * @property {string} basis          How to read the figure: 'retail'|'market'|'unknown' for stored
  *                                   provenance; a BrickLink basis ('sold'|'sold_thin'|'modeled'|
- *                                   'asking'|'unknown') when overlaid from the BL value cache.
+ *                                   'modeled_thin'|'asking'|'unknown') when overlaid from the BL value cache.
  * @property {string|null} asOf      ISO timestamp the figure is as-of, or null.
  * @property {number|null} lots      BL sample size behind the amount (overlay only), else null.
  * @property {string|null} [confidence] Set-level overlay flag for the row badge when basis is

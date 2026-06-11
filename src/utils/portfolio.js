@@ -83,9 +83,10 @@ export function valueGroups(s) {
   }));
 }
 
-// "estimated" value (decision doc / Step 3) = modeled OR asking — a figure NOT backed by a
-// completed sale of that condition. sold_thin is real-but-thin sold data (flagged, not estimated).
-const isEstimateBasis = (b) => b === "modeled" || b === "asking";
+// "estimated" value (decision doc / Step 3) = modeled, modeled_thin OR asking — a figure NOT backed
+// by a completed sale of that condition. sold_thin is real-but-thin sold data (flagged, not estimated).
+// modeled_thin (rung-gap close, deriveValue.mjs) is modeled off a THIN new sample — still an estimate.
+const isEstimateBasis = (b) => b === "modeled" || b === "modeled_thin" || b === "asking";
 
 /**
  * Resolve a set into per-copy value contributions, condition-matched against the BL cache. Each
@@ -119,8 +120,8 @@ function resolveCopies(s, valueMap) {
  * `rawSetValue` exactly — so only BL-covered sets change.
  *
  * Set-level `basis` is the exact BL basis when every copy shares one (`sold`/`sold_thin`/`modeled`/
- * `asking`), else `"mixed"`. `confidence` resolves the coarse mixed case for the row badge:
- * `"estimates"` if any BL copy is modeled/asking, else `"thin"` if any is sold_thin, else `"clean"`.
+ * `modeled_thin`/`asking`), else `"mixed"`. `confidence` resolves the coarse mixed case for the row badge:
+ * `"estimates"` if any BL copy is modeled/modeled_thin/asking, else `"thin"` if any is sold_thin, else `"clean"`.
  * The per-copy panel keeps each copy's exact basis (copyValueProvenance).
  *
  * @param {Object} s
@@ -311,7 +312,7 @@ export function valueKnown(s, valueMap) {
 }
 
 /**
- * Share of portfolio value that is ESTIMATED (modeled + asking BL copies) ÷ total known value —
+ * Share of portfolio value that is ESTIMATED (modeled + modeled_thin + asking BL copies) ÷ total known value —
  * for the quiet "X% of value estimated" disclosure beside the headline. Resolved per-copy (the same
  * resolveCopies the overlay uses), so a mixed set counts only its estimated copies' dollars.
  * sold_thin is real-but-thin sold data — flagged at the row, NOT counted as estimated. Returns 0

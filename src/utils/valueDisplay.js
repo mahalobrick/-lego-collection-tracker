@@ -199,6 +199,10 @@ export function valueConfidence(value) {
       return { marker: "thin", tooltip: `Based on few recent sales${value.lots != null ? ` (${value.lots})` : ""}` };
     case "modeled":
       return { marker: "est.", tooltip: "Estimated from new sold price" };
+    case "modeled_thin":
+      // Distinct from "modeled" on purpose (the cron labels it separately): same estimate family,
+      // but the model is derived from a THIN new sample — the tooltip says so honestly.
+      return { marker: "est.", tooltip: "Estimated from thin new sold data (few sales)" };
     case "asking":
       return { marker: "ask", tooltip: "Based on current listings, not completed sales" };
     case "sold":
@@ -261,9 +265,10 @@ export function paidConfidence(prov) {
 }
 
 /**
- * How a value's `lots` should be READ, per basis: sold/sold_thin are completed SALES; modeled is
- * derived from the new sold price (NOT a sales count, so no number is surfaced); asking is current
- * LISTINGS. Returns null when there's nothing meaningful to label.
+ * How a value's `lots` should be READ, per basis: sold/sold_thin are completed SALES; modeled /
+ * modeled_thin are derived from the new sold price (NOT a sales count, so no number is surfaced;
+ * modeled_thin notes the thin sample); asking is current LISTINGS. Returns null when there's
+ * nothing meaningful to label.
  *
  * @param {import("./value").Value} value
  * @returns {string|null}
@@ -276,6 +281,8 @@ export function lotsLabel(value) {
       return value.lots != null ? `${value.lots} sales` : null;
     case "modeled":
       return "from new price"; // lots is the NEW sample size — never shown as this copy's sales
+    case "modeled_thin":
+      return "from new price (few sales)"; // same NEW-sample convention, thin sample disclosed
     case "asking":
       return value.lots != null ? `${value.lots} listings` : null;
     default:
@@ -284,7 +291,7 @@ export function lotsLabel(value) {
 }
 
 /**
- * Quiet aggregate disclosure: "X% of value estimated" (modeled + asking dollars). Returns null
+ * Quiet aggregate disclosure: "X% of value estimated" (modeled + modeled_thin + asking dollars). Returns null
  * when the share rounds to 0% so the caller omits it. (sold_thin is flagged per-row, not here.)
  *
  * @param {number} share  fraction in [0, 1] (estimatedValueShare).

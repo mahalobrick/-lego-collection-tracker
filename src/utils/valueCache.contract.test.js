@@ -14,7 +14,7 @@ import response from "../../test-data/values-fixtures/values-response.json";
 
 const CACHED = ["75298-1", "30303-1"]; // present in the cache → real records
 const ABSENT = "71045-12";             // deferred CMF → null (no cached value)
-const VALID_BASES = ["sold", "sold_thin", "modeled", "asking", "unknown"];
+const VALID_BASES = ["sold", "sold_thin", "modeled", "modeled_thin", "asking", "unknown"];
 const COND_KEYS = ["amount", "basis", "lots", "asOf"]; // the curated per-condition shape
 
 const isIsoString = (v) => typeof v === "string" && !Number.isNaN(Date.parse(v));
