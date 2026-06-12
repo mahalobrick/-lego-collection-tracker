@@ -652,7 +652,7 @@ export default function AppSettings() {
     const bsCache = JSON.parse(localStorage.getItem("bricksetSetCache") || "{}");
     const beCache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
 
-    const headers = ["setNumber","name","theme","qty","avgPaid","avgValue","totalPaid","totalValue","gain","roi","condition","retired","exitDate","pieces","subtheme","minifigs","rating","forecast2yr","forecast5yr"];
+    const headers = ["setNumber","name","theme","qty","avgPaid","avgValue","totalPaid","totalValue","gain","roi","condition","retired","exitDate","pieces","subtheme","minifigs","rating"];
     const rows = sets.map(s => {
       const clean = String(s.setNumber || "").replace(/-1$/, "");
       const bs = (bsCache[clean] || bsCache[`${clean}-1`] || {}).data || {};
@@ -671,9 +671,7 @@ export default function AppSettings() {
         be.pieces_count || bs.pieces || "",
         bs.subtheme || "",
         bs.minifigs != null ? bs.minifigs : "",
-        bs.rating || "",
-        be.forecast_value_new_2_years || "",
-        be.forecast_value_new_5_years || ""
+        bs.rating || ""
       ];
     });
     const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
@@ -1267,7 +1265,7 @@ export default function AppSettings() {
           // BrickEconomy
           {
             name: "BrickEconomy",
-            role: "Market values — current value, 2yr & 5yr forecasts",
+            role: "Market values — current value",
             dot: beValueSyncLast ? "#22c55e" : collectionSyncInfo.lastSync ? "#c9a84c" : "#4d5e70",
             status: beValueSyncLast ? `Values synced ${new Date(beValueSyncLast).toLocaleDateString()}` : collectionSyncInfo.lastSync ? `CSV imported ${new Date(collectionSyncInfo.lastSync).toLocaleDateString()}` : "Never synced",
             actions: (

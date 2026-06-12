@@ -33,8 +33,6 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
   const pieces = cached.pieces_count || null;
   const releaseYear = cached.year || Number(String(cached.released_date || "").slice(0, 4)) || null;
   const marketValue = asNumber(cached.current_value_new) || null;
-  const forecast2yr = cached.forecast_value_new_2_years || null;
-  const forecast5yr = cached.forecast_value_new_5_years || null;
 
   const msrp = asNumber(item.msrp);
   const targetPrice = asNumber(item.targetPrice);
@@ -144,12 +142,6 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
             )}
             {blPrice?.min_price_used && blPrice?.max_price_used && (
               <StatBox label="BL Used Range" value={`${money(blPrice.min_price_used)} – ${money(blPrice.max_price_used)}`} />
-            )}
-            {(item.forecast2yr || forecast2yr) && (
-              <StatBox label="2yr Forecast" value={money(item.forecast2yr || forecast2yr)} color="#5aa832" />
-            )}
-            {(item.forecast5yr || forecast5yr) && (
-              <StatBox label="5yr Forecast" value={money(item.forecast5yr || forecast5yr)} color="#5aa832" />
             )}
           </div>
         </div>

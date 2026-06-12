@@ -44,8 +44,6 @@ export const DEFAULT_WANTED_COLUMNS = [
   { key: "targetPrice",          label: "Target Price",  visible: true,  group: "pricing" },
   { key: "discount",             label: "Discount %",    visible: true,  group: "pricing" },
   { key: "currentValue",         label: "Value",         visible: false, group: "pricing" },
-  { key: "forecast2yr",          label: "2yr Forecast",  visible: false, group: "pricing" },
-  { key: "forecast5yr",          label: "5yr Forecast",  visible: false, group: "pricing" },
   { key: "blPriceNew",           label: "BL Avg (New)",  visible: false, group: "pricing" },
   { key: "blPriceUsed",         label: "BL Avg (Used)", visible: false, group: "pricing" },
   { key: "blPriceNewRange",      label: "BL New Range",  visible: false, group: "pricing" },

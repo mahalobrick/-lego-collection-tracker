@@ -41,9 +41,9 @@ const ALL = [...RETIRED, ...AT_RETAIL];
 //   current_value_used         → beValueForCondition (beSyncValues.js:23)            [retired only]
 //   retail_price_us            → beValueForCondition fallback (beSyncValues.js:24), SetDetailPanel:66
 //   retired                    → applyCache provenance (beSyncValues.js:75,90), SetDetailPanel:108
-//   forecast_value_new_2_years → SetDetailPanel:67, WatchDetailPanel:36, WantedList:1155, AppSettings:720
-//   forecast_value_new_5_years → SetDetailPanel:68, WatchDetailPanel:37, WantedList:1156, AppSettings:721
 //   retired_date               → MyCollection reads entries[0]?.retired_date:195      [retired, inconsistent]
+// (forecast_value_new_2/5_years were consumed by the detail panels until the BE-removal D2 drop —
+//  no code reads them now, so they are no longer pinned here.)
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 
@@ -65,13 +65,6 @@ describe("BE /set value-field contract — fields present in EVERY real fixture"
     it("retail_price_us is a positive number (the value fallback + MSRP label)", () => {
       expect(isNum(d.retail_price_us)).toBe(true);
       expect(d.retail_price_us).toBeGreaterThan(0);
-    });
-
-    it("forecast_value_new_2_years / _5_years are positive numbers (detail panels)", () => {
-      expect(isNum(d.forecast_value_new_2_years)).toBe(true);
-      expect(isNum(d.forecast_value_new_5_years)).toBe(true);
-      expect(d.forecast_value_new_2_years).toBeGreaterThan(0);
-      expect(d.forecast_value_new_5_years).toBeGreaterThan(0);
     });
 
     it("beValueForCondition('new') returns the fixture's current_value_new (field is wired)", () => {

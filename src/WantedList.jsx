@@ -67,8 +67,6 @@ export default function WantedList({ onBuyNow }) {
     lastRetirementUpdate: "",
     exit_date: "",
     isLastChance: false,
-    forecast2yr: "",
-    forecast5yr: "",
     notes: "",
     subtheme: "",
     minifigs: "",
@@ -827,8 +825,6 @@ export default function WantedList({ onBuyNow }) {
     if (key === "rating") return item.rating ? `★ ${Number(item.rating).toFixed(1)}` : "—";
     if (key === "packagingType") return item.packagingType || "—";
     if (key === "ageMin") return item.ageMin ? `${item.ageMin}+` : "—";
-    if (key === "forecast2yr") return item.forecast2yr ? money(item.forecast2yr) : "—";
-    if (key === "forecast5yr") return item.forecast5yr ? money(item.forecast5yr) : "—";
     if (key === "blPriceNew") return item.blPriceNew ? money(item.blPriceNew) : "—";
     if (key === "blPriceUsed") return item.blPriceUsed ? money(item.blPriceUsed) : "—";
     if (key === "owned") {
@@ -1128,7 +1124,7 @@ export default function WantedList({ onBuyNow }) {
 
   // ── Bulk price refresh ────────────────────────────────────────────────────
   // Re-fetches BrickEconomy data for every tracked set (rate-limited 1/500ms).
-  // Updates currentValue, forecast fields, and records a price history snapshot.
+  // Updates currentValue and records a price history snapshot.
   async function bulkRefreshPrices() {
     if (refreshing) return;
     const items = wanted.filter(w => w.setNumber);
@@ -1160,8 +1156,6 @@ export default function WantedList({ onBuyNow }) {
           const updates = {};
           if (data.retail_price_us)             updates.msrp        = data.retail_price_us;
           if (data.current_value_new)            updates.currentValue = data.current_value_new;
-          if (data.forecast_value_new_2_years)   updates.forecast2yr  = data.forecast_value_new_2_years;
-          if (data.forecast_value_new_5_years)   updates.forecast5yr  = data.forecast_value_new_5_years;
           return Object.keys(updates).length ? { ...w, ...updates } : w;
         }));
 
@@ -1247,7 +1241,7 @@ export default function WantedList({ onBuyNow }) {
 
       setLookupMessage(`Found: ${bsData?.name || lookupKey}`);
 
-      // ── 2. BrickEconomy (value only — currentValue + forecasts) ───────────
+      // ── 2. BrickEconomy (value only — currentValue) ───────────
       ;(async () => {
         try {
           const cache = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
@@ -1265,8 +1259,6 @@ export default function WantedList({ onBuyNow }) {
             setForm(prev => {
               const updates = {};
               if (beData.current_value_new)          updates.currentValue = beData.current_value_new;
-              if (beData.forecast_value_new_2_years) updates.forecast2yr  = beData.forecast_value_new_2_years;
-              if (beData.forecast_value_new_5_years) updates.forecast5yr  = beData.forecast_value_new_5_years;
               // Only use BE MSRP if Brickset didn't provide one
               if (!bsData?.retail_price_us && beData.retail_price_us) {
                 updates.msrp = beData.retail_price_us;
@@ -1388,7 +1380,7 @@ export default function WantedList({ onBuyNow }) {
       retiringSoon: false, retirementYear: "", bfRetirementDate: "",
       notes: "", subtheme: "", minifigs: "",
       weight: "", rating: "", packagingType: "", ageMin: "",
-      exit_date: "", isLastChance: false, forecast2yr: "", forecast5yr: "",
+      exit_date: "", isLastChance: false,
     });
     setBfRetirement(null);
   }
@@ -1952,7 +1944,7 @@ export default function WantedList({ onBuyNow }) {
           {(form.setNumber || form.name || form.theme || form.msrp || form.targetPrice || form.notes) && (
             <button
               onClick={() => {
-                setForm({ setNumber: "", name: "", theme: "", msrp: "", targetDiscount: "", targetPrice: "", retiringSoon: false, retirementYear: "", bfRetirementDate: "", releaseYear: "", pieces: "", currentValue: "", availability: "", retirementSource: "Brick Fanatics", lastRetirementUpdate: "", notes: "", subtheme: "", minifigs: "", weight: "", rating: "", packagingType: "", ageMin: "", exit_date: "", isLastChance: false, forecast2yr: "", forecast5yr: "" });
+                setForm({ setNumber: "", name: "", theme: "", msrp: "", targetDiscount: "", targetPrice: "", retiringSoon: false, retirementYear: "", bfRetirementDate: "", releaseYear: "", pieces: "", currentValue: "", availability: "", retirementSource: "Brick Fanatics", lastRetirementUpdate: "", notes: "", subtheme: "", minifigs: "", weight: "", rating: "", packagingType: "", ageMin: "", exit_date: "", isLastChance: false });
                 setLookupMessage("");
               }}
               style={{ background: "transparent", color: "#5d6f80", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "5px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
@@ -2104,18 +2096,6 @@ export default function WantedList({ onBuyNow }) {
                   <div style={miniLabel}>Availability</div>
                   <div style={miniValue}>{form.availability || "—"}</div>
                 </div>
-                {form.forecast2yr && (
-                  <div style={miniStat}>
-                    <div style={miniLabel}>2yr Forecast</div>
-                    <div style={{ ...miniValue, color: "#5aa832" }}>{money(form.forecast2yr)}</div>
-                  </div>
-                )}
-                {form.forecast5yr && (
-                  <div style={miniStat}>
-                    <div style={miniLabel}>5yr Forecast</div>
-                    <div style={{ ...miniValue, color: "#5aa832" }}>{money(form.forecast5yr)}</div>
-                  </div>
-                )}
               </div>
 
               {/* ── Retirement banner ── */}
@@ -2231,8 +2211,8 @@ export default function WantedList({ onBuyNow }) {
                 }
               </div>
 
-              {/* BrickEconomy Investment Forecast */}
-              {(form.currentValue || form.forecast2yr || form.forecast5yr) && (
+              {/* BrickEconomy current value */}
+              {form.currentValue && (
                 <div style={{ background: "#0b1520", border: "1px solid rgba(90,168,50,0.15)", borderRadius: 8, padding: "10px 12px" }}>
                   <div style={{ fontSize: 11, color: "#5d6f80", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Investment</div>
                   {form.currentValue && (
@@ -2245,8 +2225,6 @@ export default function WantedList({ onBuyNow }) {
                       )}
                     </div>
                   )}
-                  {form.forecast2yr && <div style={{ fontSize: 12, color: "#5aa832", marginBottom: 2 }}><span style={{ color: "#5d6f80" }}>2yr: </span>{money(form.forecast2yr)}</div>}
-                  {form.forecast5yr && <div style={{ fontSize: 12, color: "#5aa832" }}><span style={{ color: "#5d6f80" }}>5yr: </span>{money(form.forecast5yr)}</div>}
                 </div>
               )}
             </div>
@@ -2405,7 +2383,7 @@ export default function WantedList({ onBuyNow }) {
                     msrp: "", targetPrice: "", targetDiscount: "", storePrice: "",
                     retiringSoon: false, retirementYear: "", bfRetirementDate: "",
                     retirementSource: "", lastRetirementUpdate: "",
-                    exit_date: "", isLastChance: false, forecast2yr: "", forecast5yr: "",
+                    exit_date: "", isLastChance: false,
                     currentValue: "", notes: "", subtheme: "", minifigs: "",
                     weight: "", rating: "", packagingType: "", ageMin: "",
                   });
