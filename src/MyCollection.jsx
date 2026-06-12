@@ -167,9 +167,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     if (brickEconomySaved) {
       try {
         // Cache lookups for minifigs/pieces fallback (entries never store these fields)
-        let bsCache = {}, beSetCache = {};
-        try { bsCache    = JSON.parse(localStorage.getItem("bricksetSetCache")      || "{}"); } catch {}
-        try { beSetCache = JSON.parse(localStorage.getItem("brickEconomySetCache")  || "{}"); } catch {}
+        let bsCache = {};
+        try { bsCache = JSON.parse(localStorage.getItem("bricksetSetCache") || "{}"); } catch {}
 
         beItems = JSON.parse(brickEconomySaved).map(item => {
           const entries = item.entries || [];
@@ -178,12 +177,13 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           // Pull per-entry fields — same across copies for set attributes; pick latest acquired
           const acquiredDates = entries.map(e => e.aquired_date || e.acquired_date).filter(Boolean).sort();
 
-          // minifigs / pieces: entries never store these; fall back to Brickset cache then BE cache
+          // minifigs / pieces: entries never store these; fall back to the Brickset cache (canonical,
+          // backfilled for every owned set by runBricksetEnrichment on mount). The BE-cache tail was
+          // removed in the Phase-1 BE teardown — Brickset covers these; BE added nothing it didn't.
           const clean   = String(item.setNumber || "").replace(/-1$/, "");
           const bsData  = bsCache[`brickset_${clean}`]?.data || bsCache[clean]?.data || {};
-          const beData  = beSetCache[clean]?.data || beSetCache[item.setNumber]?.data || {};
-          const minifigs = entries[0]?.minifigs_count ?? bsData.minifigs ?? beData.minifigs_count ?? null;
-          const pieces   = entries[0]?.pieces_count   ?? bsData.pieces   ?? beData.pieces_count   ?? null;
+          const minifigs = entries[0]?.minifigs_count ?? bsData.minifigs ?? null;
+          const pieces   = entries[0]?.pieces_count   ?? bsData.pieces   ?? null;
 
           return {
             setNumber:    item.setNumber,
