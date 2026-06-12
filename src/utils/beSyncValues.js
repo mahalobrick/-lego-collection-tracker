@@ -3,6 +3,7 @@ import { apiFetch } from "./apiFetch";
 import { setItemSafe } from "./safeStorage";
 import { toValue } from "./value";
 import { createEntryCache, ISO_TS } from "./enrichmentCache";
+import { isFrozenValueSet } from "./frozenValue";
 
 const CACHE_TTL_MS  = 24 * 60 * 60 * 1000; // 24 hours — used by manual sync
 const BATCH_DELAY_MS = 400;
@@ -96,13 +97,14 @@ export function revalueBESet(s, d) {
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
-/** Collect all unique set numbers across both stores. */
+/** Collect all unique set numbers across both stores. The frozen-value promos (BE-removal D1)
+ *  are EXCLUDED: their value is static provenance now, so the batch never re-fetches them. */
 function allUniqueNums(normalized, manual) {
   return [...new Set(
     [...normalized, ...manual]
       .map(s => String(s.setNumber || "").replace(/-1$/, "").trim())
       .filter(Boolean)
-  )];
+  )].filter(num => !isFrozenValueSet(num));
 }
 
 /** Apply cached BE data back to both localStorage collections. Returns updated count. */
@@ -110,6 +112,7 @@ function applyCache(normalized, manual, cache) {
   let updatedCount = 0;
 
   const updatedNormalized = normalized.map(s => {
+    if (isFrozenValueSet(s.setNumber)) return s; // BE-removal D1: frozen — keep the stored provenance, never re-apply BE
     const key = String(s.setNumber || "").replace(/-1$/, "");
     const d   = cache[key]?.data;
     if (!d) return s;
@@ -128,6 +131,7 @@ function applyCache(normalized, manual, cache) {
   setItemSafe("brickEconomyNormalizedCollection", JSON.stringify(updatedNormalized));
 
   const updatedManual = manual.map(s => {
+    if (isFrozenValueSet(s.setNumber)) return s; // BE-removal D1: frozen — never re-apply BE
     const key = String(s.setNumber || "").replace(/-1$/, "");
     const d   = cache[key]?.data;
     if (!d) return s;

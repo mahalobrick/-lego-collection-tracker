@@ -45,11 +45,13 @@ export function valueAmount(raw) {
 /**
  * @typedef {Object} Value
  * @property {number|null} amount    Numeric value, or null when unknown (never 0-for-unknown).
- * @property {string|null} source    Where it came from: 'brickeconomy' | 'bricklink' | 'brickset' | null.
+ * @property {string|null} source    Where it came from: 'brickeconomy' | 'bricklink' | 'brickset' |
+ *                                   'frozen' (static last-known provenance, no live source — D1) | null.
  * @property {string|null} condition The set's tracked condition (e.g. 'new', 'used', 'used_good').
  * @property {string} basis          How to read the figure: 'retail'|'market'|'unknown' for stored
- *                                   provenance; a BrickLink basis ('sold'|'sold_thin'|'modeled'|
- *                                   'modeled_thin'|'asking'|'unknown') when overlaid from the BL value cache.
+ *                                   provenance; 'frozen' for a static last-recorded value with no live
+ *                                   source (BE-removal D1); a BrickLink basis ('sold'|'sold_thin'|
+ *                                   'modeled'|'modeled_thin'|'asking'|'unknown') when overlaid from the BL value cache.
  * @property {string|null} asOf      ISO timestamp the figure is as-of, or null.
  * @property {number|null} lots      BL sample size behind the amount (overlay only), else null.
  * @property {string|null} [confidence] Set-level overlay flag for the row badge when basis is

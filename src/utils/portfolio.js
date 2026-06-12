@@ -2,6 +2,7 @@ import { asNumber } from "./formatting";
 import { toValue, valueAmount } from "./value";
 import { conditionBucket } from "./condition";
 import { materializeEntries } from "./percopy";
+import { isFrozenValueSet, frozenValue } from "./frozenValue";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Portfolio rollup (V2a). Pure, no React, no localStorage.
@@ -167,7 +168,15 @@ export function setValueProvenance(s, valueMap) {
     const bl = blOverlayValue(s, valueMap);
     if (bl) return bl;
   }
-  return toValue(rawSetValue(s), {
+  const raw = rawSetValue(s);
+  // BE-removal D1: the 2 deferred promos are FROZEN — their stored last-BE number is static
+  // provenance with no live source. Only the FALLBACK label changes (a real BL figure above
+  // still wins); the amount is the same stored read, so removing the BE machinery can't blank
+  // them. Frozen only when a real stored number exists — an empty promo stays unknown, not $0.
+  if (raw !== null && isFrozenValueSet(s.setNumber)) {
+    return frozenValue(raw, { condition: s.condition ?? null, setNumber: s.setNumber });
+  }
+  return toValue(raw, {
     source: s.source === "BrickEconomy" ? "brickeconomy" : null,
     condition: s.condition ?? null,
     retired: !!s.retired,
@@ -278,7 +287,14 @@ export function copyValueProvenance(rawValue, { setNumber, condition, retired } 
       lots: typeof blc.lots === "number" ? blc.lots : null,
     };
   }
-  return toValue(valueAmount(rawValue), { condition, retired });
+  const amount = valueAmount(rawValue);
+  // BE-removal D1: a frozen promo's per-copy figure is its stored value, labeled frozen (parity
+  // with setValueProvenance). BL coverage above still wins; falls through to the BE/unknown path
+  // for every other copy, byte-identical to before.
+  if (amount !== null && isFrozenValueSet(setNumber)) {
+    return frozenValue(amount, { condition, setNumber });
+  }
+  return toValue(amount, { condition, retired });
 }
 
 /**

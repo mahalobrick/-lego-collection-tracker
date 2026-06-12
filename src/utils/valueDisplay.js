@@ -188,6 +188,12 @@ export function retailSourceMarker(value) {
  * @returns {{marker:string, tooltip:string}|null}
  */
 export function valueConfidence(value) {
+  // BE-removal D1: a frozen-value set (the 2 deferred promos) carries a static last-recorded
+  // figure with no live source — mark it honestly so it never reads as a live market value.
+  if (value && value.basis === "frozen" && value.amount != null) {
+    const asOf = value.asOf ? ` (as of ${value.asOf})` : "";
+    return { marker: "frozen", tooltip: `Last recorded value${asOf} — no live source, no longer updated` };
+  }
   if (!value || value.source !== "bricklink" || value.amount == null) return null;
   if (value.basis === "mixed") {
     if (value.confidence === "estimates") return { marker: "est.", tooltip: "Contains estimated values" };
