@@ -1,9 +1,10 @@
 # BrickEconomy `/set` fixtures — `price_events_*` contract
 
-Real `GET /api/v1/set/{num}?currency=USD` payloads captured live on **2026-05-31** via
-[`scripts/capture-price-events.mjs`](../../scripts/capture-price-events.mjs) (key from `.env.local`).
-This is the **contract** the Phase 2 `price_events` read adapter is tested against — the first entry
-in the API-fixture practice the audit arc recommended. Do not hand-edit; re-run the script to refresh.
+Real `GET /api/v1/set/{num}?currency=USD` payloads captured live on **2026-05-31** (key from
+`.env.local`). This is the **contract** the Phase 2 `price_events` read adapter is tested against — the
+first entry in the API-fixture practice the audit arc recommended. Do not hand-edit — these are now a
+**frozen snapshot**: the capture generator (`scripts/capture-price-events.mjs`) was removed in the BE
+teardown (Phase 1, see [`docs/be-removal-plan.md`](../../docs/be-removal-plan.md)); BE is no longer re-captured.
 
 Each file is the **verbatim** proxy/​API response: `{ "data": { …set fields… } }`. The app's BE cache
 stores exactly this `data` object (`beSyncValues.fetchSet`: `data: json.data || json`).

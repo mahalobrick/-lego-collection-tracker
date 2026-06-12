@@ -14,8 +14,9 @@ import { beValueForCondition } from "./beSyncValues";
 // ("value-field shape not directly asserted, only derived output").
 //
 // Fixtures: real GET /api/v1/set/{num}?currency=USD payloads captured 2026-05-31
-// (scripts/capture-price-events.mjs). See test-data/be-fixtures/README.md. Each
-// file is the verbatim { data: {…} } envelope the BE cache stores.
+// (generator scripts/capture-price-events.mjs removed in the BE teardown — these are now a frozen
+// snapshot). See test-data/be-fixtures/README.md. Each file is the verbatim { data: {…} } envelope
+// the BE cache stores.
 // ─────────────────────────────────────────────────────────────────────────────
 import retiredNewUsed from "../../test-data/be-fixtures/30432-1.json"; // retired, new + used + band
 import retiredNewOnly from "../../test-data/be-fixtures/71460-1.json"; // retired, used value + retired_date
