@@ -398,6 +398,10 @@ export default function WantedList({ onBuyNow }) {
           if (bsData.age_min   && !w.ageMin)    updates.ageMin    = bsData.age_min;
           if (bsData.rating    && !w.rating)    updates.rating    = bsData.rating;
           if (bsData.packaging_type && !w.packagingType) updates.packagingType = bsData.packaging_type;
+          // Set Age + pieces columns now source from Brickset (BE removal — metadata swap).
+          // releaseYear is String-written (the cell Number()s it); pieces stays a Number (.toLocaleString()).
+          if (bsData.year   && !w.releaseYear) updates.releaseYear = String(bsData.year);
+          if (bsData.pieces && !w.pieces)      updates.pieces      = bsData.pieces;
           if (bsData.owned_by  != null) updates.ownedByCount  = bsData.owned_by;
           if (bsData.wanted_by != null) updates.wantedByCount = bsData.wanted_by;
 
@@ -834,15 +838,9 @@ export default function WantedList({ onBuyNow }) {
         : <span style={{ color: "#5d6f80", fontSize: 12 }}>—</span>;
     }
     if (key === "ageMonths") {
-      const yr = item.releaseYear
-        ? Number(item.releaseYear)
-        : (() => {
-            try {
-              const c = JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}");
-              const e = c[item.setNumber] || c[String(item.setNumber || "").replace(/-1$/, "")];
-              return e?.data?.year || Number(String(e?.data?.released_date || "").slice(0, 4)) || null;
-            } catch { return null; }
-          })();
+      // Release year is Brickset-sourced now (row.releaseYear, backfilled by the mount
+      // enrichment loop). The old brickEconomySetCache fallback is gone (BE removal).
+      const yr = item.releaseYear ? Number(item.releaseYear) : null;
       if (!yr) return "—";
       const months = Math.floor((Date.now() - new Date(`${yr}-07-01`).getTime()) / (1000 * 60 * 60 * 24 * 30.44));
       if (months < 0) return "—";
