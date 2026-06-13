@@ -1,3 +1,18 @@
+## ⚠️ SESSION START CHECK — run before ANY work
+
+Before doing anything else, run `git remote -v` and `pwd`. If `origin` does NOT point to
+`mahalobrick/-lego-collection-tracker` (note the leading hyphen in the repo name), STOP. Do not run any
+BrickLedger work — do not read or edit files, run the test suite, or commit. Tell me the current path and
+remote, and ask:
+
+> "This doesn't look like the BrickLedger repo — do you want me to `cd` to the lego-collection-tracker
+> checkout, or are you in the right place?"
+
+Only switch directories after I explicitly confirm. Sam switches between personal and business directories,
+so a wrong directory is a real possibility, not an error to auto-fix.
+
+---
+
 # BrickLedger — Claude Code Guidelines
 
 ## Project snapshot
