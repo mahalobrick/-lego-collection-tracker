@@ -840,6 +840,9 @@ export default function WantedList({ onBuyNow }) {
     if (key === "ageMonths") {
       // Release year is Brickset-sourced now (row.releaseYear, backfilled by the mount
       // enrichment loop). The old brickEconomySetCache fallback is gone (BE removal).
+      // Intentional gap: a row the loop skips (it gates on !exit_date) that also lacks a
+      // row-level releaseYear renders "—" — no cache fallback. Same coverage class as the
+      // purchase-only cold-cache "—" (follow-up: ungated Brickset backfill if parity matters).
       const yr = item.releaseYear ? Number(item.releaseYear) : null;
       if (!yr) return "—";
       const months = Math.floor((Date.now() - new Date(`${yr}-07-01`).getTime()) / (1000 * 60 * 60 * 24 * 30.44));
