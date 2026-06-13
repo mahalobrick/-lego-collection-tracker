@@ -1,4 +1,5 @@
 import { asNumber, money, setImageUrl } from "./utils/formatting";
+import { getBricksetCache } from "./utils/brickset";
 
 function StatBox({ label, value, color, span }) {
   return (
@@ -22,15 +23,15 @@ function longDate(iso) {
 export default function PurchaseDetailPanel({ item, onClose, onEdit }) {
   if (!item) return null;
 
-  // Pull cached BrickEconomy set data for context
-  const setCache = (() => {
-    try { return JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}"); } catch { return {}; }
-  })();
-  const cacheEntry = setCache[item.setNumber] || setCache[String(item.setNumber || "").replace(/-1$/, "")] || {};
-  const cached = cacheEntry.data || {};
-  const pieces = cached.pieces_count || null;
-  const releaseYear = cached.year || Number(String(cached.released_date || "").slice(0, 4)) || null;
-  const msrp = asNumber(cached.retail_price_us) || null;
+  // Pull cached Brickset set data for context (pieces / year / MSRP). Brickset is the
+  // metadata source after BE removal; the cache is keyed `brickset_<n>` (src/utils/brickset.js).
+  // Purchase-only sets get no enrichment, so a cold cache → "—" (same coverage class BE had).
+  const bsCache = getBricksetCache() || {};
+  const bsStripped = String(item.setNumber || "").replace(/-1$/, "");
+  const bs = (bsCache[`brickset_${item.setNumber}`] || bsCache[`brickset_${bsStripped}`] || bsCache[`brickset_${bsStripped}-1`] || {}).data || {};
+  const pieces = bs.pieces || null;
+  const releaseYear = bs.year || null;
+  const msrp = asNumber(bs.retail_price_us) || null;
 
   const qty = asNumber(item.qty) || 1;
   const unitPrice = asNumber(item.faceValue ?? item.amount);
