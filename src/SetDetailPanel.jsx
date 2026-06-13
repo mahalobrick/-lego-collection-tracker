@@ -90,15 +90,6 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
   const roi = setROI(item, valueMap);     // null when value unknown OR cost ≤ 0
   const avgPaid = qty > 0 ? totalPaid / qty : 0;
 
-  // Enrich with cached BrickEconomy set data
-  const setCache = (() => {
-    try { return JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}"); } catch { return {}; }
-  })();
-  const cacheEntry = setCache[item.setNumber] || setCache[String(item.setNumber).replace(/-1$/, "")] || {};
-  const cached = cacheEntry.data || {};
-  const pieces = cached.pieces_count || null;
-  const releaseYear = cached.year || Number(String(cached.released_date || "").slice(0, 4)) || null;
-
   // Enrich with cached Brickset data (retirement, details). NOTE: the cache is keyed `brickset_${n}`
   // (src/utils/brickset.js) — the bare-key lookup this replaced never matched, so Brickset enrichment
   // (and the canonical MSRP below) silently fell through to BrickEconomy. Resolve the real keys.
@@ -126,6 +117,10 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
   // Mark a hand-entered MSRP so it's distinguishable from a sourced Brickset figure (Phase 3a) — the
   // only non-canonical retail source left after BE was removed from the ladder (3c).
   const retailManualMark = retailProv?.source === "manual" ? retailSourceMarker(retailProv) : null;
+  // Pieces / release-year now come from Brickset (`bs`, already in scope) — the BE
+  // metadata cache was the prior source (BE removal, panel metadata source-swap).
+  const pieces = bs.pieces || null;
+  const releaseYear = bs.year || null;
   const subtheme = bs.subtheme || null;
   const minifigs = bs.minifigs != null ? bs.minifigs : null;
   const rating = bs.rating ? Number(bs.rating) : null;
