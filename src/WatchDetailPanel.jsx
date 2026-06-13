@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { asNumber, money, setImageUrl, daysUntilRetirement, retirementWaveLabel, priorityScore, recommendation } from "./utils/formatting";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { priceEventsFromBE } from "./utils/priceEvents";
+import { getBricksetCache } from "./utils/brickset";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 function StatBox({ label, value, color }) {
@@ -24,15 +25,22 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
 
   if (!item) return null;
 
-  // Pull cached BrickEconomy set data (pieces, year, market value)
+  // Pull cached BrickEconomy set data — market value + price history ONLY (D3, out of
+  // the metadata source-swap). pieces/year now come from Brickset (see the bs read below).
   const setCache = (() => {
     try { return JSON.parse(localStorage.getItem("brickEconomySetCache") || "{}"); } catch { return {}; }
   })();
   const cacheEntry = setCache[item.setNumber] || setCache[String(item.setNumber || "").replace(/-1$/, "")] || {};
   const cached = cacheEntry.data || {};
-  const pieces = cached.pieces_count || null;
-  const releaseYear = cached.year || Number(String(cached.released_date || "").slice(0, 4)) || null;
   const marketValue = asNumber(cached.current_value_new) || null;
+
+  // Pieces / release-year from Brickset (cache keyed `brickset_<n>`, src/utils/brickset.js)
+  // — BE removal, panel metadata source-swap. || null → chip hidden when the cache is cold.
+  const bsCache = getBricksetCache() || {};
+  const bsStripped = String(item.setNumber || "").replace(/-1$/, "");
+  const bs = (bsCache[`brickset_${item.setNumber}`] || bsCache[`brickset_${bsStripped}`] || bsCache[`brickset_${bsStripped}-1`] || {}).data || {};
+  const pieces = bs.pieces || null;
+  const releaseYear = bs.year || null;
 
   const msrp = asNumber(item.msrp);
   const targetPrice = asNumber(item.targetPrice);
