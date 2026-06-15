@@ -544,7 +544,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     // `retailValueKnown` (the priced count) drives formatAggregateValue ("—" when 0) and the
     // "N of M sets priced" note. (Retail Phase 3b — was the BE-import blob
     // totalRetailPrice || (retailPrice || msrp) × qty.)
-    const { total: retailValue, known: retailValueKnown } = portfolioRetail(sets, retailFor);
+    const { total: retailValue, known: retailValueKnown, priceable: retailPriceable } = portfolioRetail(sets, retailFor);
     const minifigs    = sets.reduce((sum, s) => sum + (asNumber(s.minifigs) || 0) * (asNumber(s.qty) || 1), 0);
 
     // Entry-level counts — each copy counted individually, matching BE's method.
@@ -565,7 +565,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     return {
       totalQty, costBasis, value, valuedSets, themes, duplicates,
       retiredSets, newSets, usedSets, avgValue, avgPaid,
-      pieces, retailValue, retailValueKnown, minifigs, newEntries, usedEntries,
+      pieces, retailValue, retailValueKnown, retailPriceable, minifigs, newEntries, usedEntries,
       newSetsValue, usedSetsValue, newValueKnown, usedValueKnown,
       // Paid-provenance split (Step 2 revised): msrpCost/msrpCount drive the quality disclosure
       // beside the TOTAL cost-basis headline. realCost/realCount kept for any consumer needing them.
@@ -1461,7 +1461,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                      item.key === "avgPaid"      ? <Card title="Avg Paid / Set"   value={money(stats.avgPaid)} /> :
                      item.key === "pieces"       ? <Card title="Total Pieces"     value={(stats.pieces || beSyncInfo.piecesCount || 0).toLocaleString()} /> :
                      item.key === "minifigs"     ? <Card title="Minifigs"         value={(stats.minifigs || beSyncInfo.minifsCount || 0).toLocaleString()} /> :
-                     item.key === "retailValue"  ? <Card title="MSRP Value"       value={formatAggregateValue(stats.retailValue, stats.retailValueKnown)} sub={retailPricedNote(stats.retailValueKnown, sets.length)} /> :
+                     item.key === "retailValue"  ? <Card title="MSRP Value"       value={formatAggregateValue(stats.retailValue, stats.retailValueKnown)} sub={retailPricedNote(stats.retailValueKnown, stats.retailPriceable)} /> :
                      item.key === "newValue"     ? <Card title="New Sets Value"   value={fmtAgg(stats.newSetsValue, stats.newValueKnown)} sub={`${stats.newEntries} sets`} /> :
                      item.key === "usedValue"    ? <Card title="Used Sets Value"  value={fmtAgg(stats.usedSetsValue, stats.usedValueKnown)} sub={`${stats.usedEntries} sets`} /> :
                      item.key === "watchList"    ? <Card title="Wanted List"      value={watchListHighlights.total} /> : null}
