@@ -17,7 +17,7 @@ import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
 import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, setRetailProvenance, isPromoNoRetail, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
-import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailPricedNote, estimatedValueNote, estimatedCostNote, totalRoiNote, netGainBasisNote, signColor } from "./utils/valueDisplay";
+import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailPricedNote, retailGapNote, estimatedValueNote, estimatedCostNote, totalRoiNote, netGainBasisNote, signColor } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { valuesAsOf, freshness } from "./utils/freshness";
 import { apiFetch } from "./utils/apiFetch";
@@ -544,9 +544,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     // the same source the per-set Retail column and detail-panel chip read, so the card can't
     // drift from the rows. Promo (no-RRP) and unsourced sets resolve to null → contribute 0;
     // `retailValueKnown` (the priced count) drives formatAggregateValue ("—" when 0) and the
-    // "N of M sets priced" note. (Retail Phase 3b — was the BE-import blob
-    // totalRetailPrice || (retailPrice || msrp) × qty.)
-    const { total: retailValue, known: retailValueKnown, priceable: retailPriceable } = portfolioRetail(sets, retailFor);
+    // priced-coverage note (read against the FULL set count); `retailPromo`/`retailNotListed`
+    // LABEL the gap (GWP vs unsourced) rather than shrink the denominator. (Retail Phase 3b —
+    // was the BE-import blob totalRetailPrice || (retailPrice || msrp) × qty.)
+    const { total: retailValue, known: retailValueKnown, promo: retailPromo, notListed: retailNotListed } = portfolioRetail(sets, retailFor);
     const minifigs    = sets.reduce((sum, s) => sum + (asNumber(s.minifigs) || 0) * (asNumber(s.qty) || 1), 0);
 
     // Entry-level counts — each copy counted individually, matching BE's method.
@@ -567,7 +568,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     return {
       totalQty, costBasis, value, valuedSets, themes, duplicates,
       retiredSets, newSets, usedSets, avgValue, avgPaid,
-      pieces, retailValue, retailValueKnown, retailPriceable, minifigs, newEntries, usedEntries,
+      pieces, retailValue, retailValueKnown, retailPromo, retailNotListed, minifigs, newEntries, usedEntries,
       newSetsValue, usedSetsValue, newValueKnown, usedValueKnown,
       // Paid-provenance split (Step 2 revised): msrpCost/msrpCount drive the quality disclosure
       // beside the TOTAL cost-basis headline. realCost/realCount kept for any consumer needing them.
@@ -1463,7 +1464,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                      item.key === "avgPaid"      ? <Card title="Avg Paid / Set"   value={money(stats.avgPaid)} /> :
                      item.key === "pieces"       ? <Card title="Total Pieces"     value={(stats.pieces || beSyncInfo.piecesCount || 0).toLocaleString()} /> :
                      item.key === "minifigs"     ? <Card title="Minifigs"         value={(stats.minifigs || beSyncInfo.minifsCount || 0).toLocaleString()} /> :
-                     item.key === "retailValue"  ? <Card title="MSRP Value"       value={formatAggregateValue(stats.retailValue, stats.retailValueKnown)} sub={retailPricedNote(stats.retailValueKnown, stats.retailPriceable)} /> :
+                     item.key === "retailValue"  ? <Card title="MSRP Value"       value={formatAggregateValue(stats.retailValue, stats.retailValueKnown)} sub={[retailPricedNote(stats.retailValueKnown, sets.length), retailGapNote(stats.retailPromo, stats.retailNotListed)].filter(Boolean).join(" · ") || null} /> :
                      item.key === "newValue"     ? <Card title="New Sets Value"   value={fmtAgg(stats.newSetsValue, stats.newValueKnown)} sub={`${stats.newEntries} sets`} /> :
                      item.key === "usedValue"    ? <Card title="Used Sets Value"  value={fmtAgg(stats.usedSetsValue, stats.usedValueKnown)} sub={`${stats.usedEntries} sets`} /> :
                      item.key === "watchList"    ? <Card title="Wanted List"      value={watchListHighlights.total} /> : null}

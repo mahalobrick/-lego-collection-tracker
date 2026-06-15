@@ -381,25 +381,30 @@ export function knownValueCount(sets, valueMap) {
  *
  * @param {Array<Object>} sets
  * @param {(set:Object) => (import("./value").Value | null)} retailOf  per-set ladder resolver
- * @returns {{ total:number, known:number, priceable:number }}  `priceable` = sets that could
- *          carry an RRP (total minus promo/GWP) — the honest denominator for the priced-share note.
+ * @returns {{ total:number, known:number, promo:number, notListed:number }}  the gap composition:
+ *          `known` priced + `promo` (GWP/no-RRP) + `notListed` (real RRP, unsourced) === sets.length.
+ *          The card's denominator is the FULL set count; `promo`/`notListed` LABEL the gap (so the
+ *          reader sees WHY some sets aren't priced) rather than shrink the denominator.
  */
 export function portfolioRetail(sets, retailOf) {
-  let total = 0, known = 0, priceable = 0;
+  let total = 0, known = 0, promo = 0, notListed = 0;
   for (const s of sets) {
     const r = retailOf(s);
-    // Coverage denominator honesty: a promo/GWP (basis:"promo", amount null) has no RRP by
-    // nature → drop it from `priceable` entirely. An unsourced set (r === null) keeps a real-
-    // but-unobtained RRP, so it STAYS priceable (a genuine gap to disclose). A sourced figure
-    // (amount != null) is priced. total/known are unchanged by this — only `priceable` is new.
-    if (r && r.basis === "promo") continue;
-    priceable += 1;
+    // Gap composition — every set lands in exactly one bucket, so the three counts sum to
+    // sets.length (the FULL denominator the card reads against):
+    //   promo/GWP (basis:"promo", amount null) — no RRP by nature → LABELED, not dropped;
+    //   a sourced figure (amount != null) → priced (known);
+    //   else (unsourced, but a real RRP exists) → "not listed", a genuine gap to disclose.
+    // total/known are unchanged from the priced-sum behavior — only the gap split is new.
+    if (r && r.basis === "promo") { promo += 1; continue; }
     if (r && r.amount != null) {
       total += r.amount * (asNumber(s.qty) || 1);
       known += 1;
+    } else {
+      notListed += 1;
     }
   }
-  return { total, known, priceable };
+  return { total, known, promo, notListed };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

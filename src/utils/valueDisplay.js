@@ -80,17 +80,37 @@ export function unknownValueNote(knownCount, totalCount) {
 /**
  * Disclosure for the Retail Value card: the headline sums only sets with a sourced RRP
  * (promo/unsourced contribute 0), so when some are unpriced say how many counted —
- * "N of M sets priced". Returns null when ALL sets are priced (nothing hidden) so the
- * caller omits the note, matching {@link unknownValueNote}'s omit-when-zero contract.
+ * "N of M priced", read against the FULL unique-set total. Returns null when ALL sets are
+ * priced (nothing hidden) so the caller omits the note, matching {@link unknownValueNote}'s
+ * omit-when-zero contract. The gap's composition (why the rest aren't priced) is disclosed
+ * alongside by {@link retailGapNote}.
  *
  * @param {number} pricedCount  Sets with a resolved retail (portfolioRetail.known).
- * @param {number} totalCount   Priceable sets (portfolioRetail.priceable — total minus promo/GWP),
- *                              the honest denominator; promo/GWP have no RRP so they don't count.
+ * @param {number} totalCount   Total sets (sets.length) — the FULL denominator, so the gap itself
+ *                              prompts "why aren't all priced?", answered by {@link retailGapNote}.
  * @returns {string|null}
  */
 export function retailPricedNote(pricedCount, totalCount) {
   if (totalCount <= 0 || pricedCount >= totalCount) return null;
-  return `${pricedCount} of ${totalCount} sets priced`;
+  return `${pricedCount} of ${totalCount} priced`;
+}
+
+/**
+ * Companion to {@link retailPricedNote}: the gap's COMPOSITION — why some sets aren't priced.
+ * "{promo} promo(s) (no MSRP) · {notListed} not listed", omitting a segment whose count is 0.
+ * Returns null when the gap is empty (both 0) so the caller omits it. `promo` is the GWP/no-RRP
+ * population (no RRP by nature); `notListed` is sets with a real RRP not yet sourced. Together
+ * with the priced count these partition the collection (priced + promo + notListed = sets.length).
+ *
+ * @param {number} promoCount     GWP/no-RRP sets (portfolioRetail.promo).
+ * @param {number} notListedCount Unsourced-but-real-RRP sets (portfolioRetail.notListed).
+ * @returns {string|null}
+ */
+export function retailGapNote(promoCount, notListedCount) {
+  const parts = [];
+  if (promoCount > 0) parts.push(`${promoCount} promo${promoCount === 1 ? "" : "s"} (no MSRP)`);
+  if (notListedCount > 0) parts.push(`${notListedCount} not listed`);
+  return parts.length ? parts.join(" · ") : null;
 }
 
 // The retail caveat covers BOTH halves of the at-retail trap: the figure is the

@@ -3,19 +3,21 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MSRP coverage — WIRING test for the two fixes that meet in the "MSRP Value" card:
+// MSRP coverage — WIRING test for the two seams that meet in the "MSRP Value" card:
 //   (1) retailFor passes the CMF era-table rung (cmf: cmfEraRetail(n)), so a CMF set
 //       whose Brickset series-bag (-0) retail is null still resolves to its era price
 //       ($4.99 for Series 23 / 71034) and COUNTS as priced.
-//   (2) the card's "N of M sets priced" note uses the PRICEABLE denominator
-//       (portfolioRetail.priceable = total minus promo/GWP), not sets.length.
+//   (2) the card's priced-coverage note reads against the FULL unique-set total
+//       (sets.length), and the gap is LABELED in place — promo/GWP and unsourced
+//       sets are disclosed (retailGapNote), not quietly dropped from the denominator.
 // The unit math is covered in cmfRetail.test.js / portfolio.retail.test.js; this pins
 // that MyCollection actually wires both at the render seam. Discriminating fixture:
 //   71034-3 (CMF, no Brickset cache → era $4.99 → PRICED)
-//   30001-1 (non-promo, unsourced → priceable but unpriced)
-//   6490363-1 (7-digit promo/GWP → excluded from the denominator)
-// → known 1, priceable 2 → "1 of 2 sets priced". Deleting the cmf rung makes it
-// "0 of 2"; reverting the denominator to sets.length makes it "1 of 3". Either RED.
+//   30001-1 (non-promo, unsourced → "not listed")
+//   6490363-1 (7-digit promo/GWP → "promo (no MSRP)")
+// → known 1, promo 1, notListed 1 of 3 → "1 of 3 priced · 1 promo (no MSRP) · 1 not
+// listed". Deleting the cmf rung makes it "0 of 3"; using the promo-excluded
+// denominator makes it "1 of 2". Either turns this RED.
 // Mirrors the god-module harness of MyCollection.staleness.test.jsx.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -43,8 +45,8 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const SETS = [
   { setNumber: "71034-3", theme: "Minifigure Series", qty: 1 }, // CMF S23: no -0 retail → era $4.99 → PRICED
-  { setNumber: "30001-1", theme: "City", qty: 1 },              // unsourced, non-promo → priceable, unpriced
-  { setNumber: "6490363-1", theme: "Promotional", qty: 1 },     // 7-digit promo/GWP → out of the denominator
+  { setNumber: "30001-1", theme: "City", qty: 1 },              // unsourced, non-promo → "not listed"
+  { setNumber: "6490363-1", theme: "Promotional", qty: 1 },     // 7-digit promo/GWP → "promo (no MSRP)"
 ];
 
 let container, root;
@@ -66,12 +68,15 @@ async function render() {
 }
 
 describe("MyCollection — MSRP Value card coverage wiring", () => {
-  it("CMF era fallback prices 71034 AND the note uses the promo-excluded denominator (1 of 2)", async () => {
+  it("CMF era fallback prices 71034 · note uses the FULL set count (1 of 3) · gap is labeled", async () => {
     const txt = await render();
-    // #1: 71034 priced via the cmf rung → counts as 1 priced (would be 0 if the cmf wiring were dropped).
-    // #2: promo/GWP excluded from the denominator → "of 2", never "of 3".
-    expect(txt).toContain("1 of 2 sets priced");
-    expect(txt).not.toContain("1 of 3"); // would appear if the denominator were sets.length
-    expect(txt).not.toContain("0 of 2"); // would appear if the cmf rung were not wired
+    // #1: denominator is the FULL unique-set total (3) — reverts the promo-excluded "1 of 2".
+    expect(txt).toContain("1 of 3 priced");
+    expect(txt).not.toContain("1 of 2"); // the promo-excluded denominator decision is gone
+    // #2: the gap is LABELED in place, not silently dropped — the GWP and the unsourced set.
+    expect(txt).toContain("1 promo (no MSRP)");
+    expect(txt).toContain("1 not listed");
+    // #3: 71034 still prices via the cmf era rung — else known would be 0 → "0 of 3".
+    expect(txt).not.toContain("0 of 3");
   });
 });
