@@ -1,3 +1,12 @@
+// @vitest-environment node
+//
+// Pure data-layer unit test — no DOM, no localStorage. Pinned to the `node`
+// environment (not the suite-default jsdom) so it skips the heavy jsdom setup and
+// stays out of the jsdom worker pool: under full parallel load that setup can take
+// ~60s and starve workers, which intermittently corrupted this file's results
+// (flaky "1 of 3"/"priceable 3" — promo not excluded). node setup is instant and
+// isolated. The whole portfolio→formatting/value/… import chain is node-safe
+// (the only localStorage read, formatting.js currency, is try/catch-guarded).
 import { describe, it, expect } from "vitest";
 import { portfolioRetail, setRetailProvenance, isPromoNoRetail } from "./portfolio";
 import { retailPricedNote } from "./valueDisplay";

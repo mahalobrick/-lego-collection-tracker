@@ -1,3 +1,7 @@
+// @vitest-environment node
+// Pure CMF era-table unit test (no DOM/localStorage) — pinned to node so it skips
+// jsdom setup and the parallel-load starvation that flaked the retail tests. See
+// portfolio.retail.test.js for the full rationale.
 import { describe, it, expect } from "vitest";
 import { cmfEraRetail, cmfEraPriceForSeries } from "./cmfRetail";
 
