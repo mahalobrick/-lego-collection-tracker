@@ -193,7 +193,10 @@ export function setValueProvenance(s, valueMap) {
 // §4), and retail is now Brickset → manual only. The residual (the Brickset-API gap) resolves to "—"
 // until hand-filled via the manual rung (or a future Brickset site-scrape source). BE stays a VALUE
 // fallback only — it has no role here. First source carrying a real figure wins.
-export const RETAIL_SOURCE_ORDER = ["brickset", "manual"];
+// 'cmf' (LAST) is the CMF series-bag era-table fallback ({@link import("./cmfRetail").cmfEraRetail}) —
+// gated below Brickset AND manual so a real sourced figure always wins; it only fills a CMF series
+// whose Brickset `-0` bag has no retail (e.g. 71034 / Series 23). Non-CMF sets pass no `cmf` amount.
+export const RETAIL_SOURCE_ORDER = ["brickset", "manual", "cmf"];
 
 /**
  * Read-time retail (MSRP) {@link import("./value").Value} for a set — the sticker price, never a

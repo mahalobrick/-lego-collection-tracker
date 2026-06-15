@@ -42,6 +42,25 @@ describe("retail ladder — Brickset → manual rung order (BE removed in 3c)", 
   });
 });
 
+describe("retail ladder — CMF era-table fallback rung (gated below Brickset and manual)", () => {
+  // The 'cmf' source is the era-table estimate (src/utils/cmfRetail.js). It sits LAST so a real
+  // Brickset -0 figure or a hand-entered manual MSRP always wins; it only fills a true null gap.
+  it("Brickset present → Brickset wins; the cmf fallback is NOT consulted", () => {
+    const v = setRetailProvenance({ brickset: bs(4.99), manual: man(null), cmf: { amount: 4.99 } });
+    expect(v).toMatchObject({ amount: 4.99, source: "brickset", basis: "retail" });
+  });
+
+  it("Brickset absent, cmf present → cmf fills the gap (source 'cmf', basis 'retail')", () => {
+    const v = setRetailProvenance({ brickset: bs(null), manual: man(0), cmf: { amount: 4.99 } });
+    expect(v).toMatchObject({ amount: 4.99, source: "cmf", basis: "retail" });
+  });
+
+  it("manual outranks the cmf fallback (a hand-entered MSRP beats the era estimate)", () => {
+    const v = setRetailProvenance({ brickset: bs(null), manual: man(3.5), cmf: { amount: 4.99 } });
+    expect(v).toMatchObject({ amount: 3.5, source: "manual", basis: "retail" });
+  });
+});
+
 describe("retail ladder — interaction with the promo no-RRP state", () => {
   it("a manual figure WINS over promo (a hand-entered RRP beats 'no RRP exists')", () => {
     const v = setRetailProvenance({ brickset: bs(null), manual: man(9.99) }, { promo: true });

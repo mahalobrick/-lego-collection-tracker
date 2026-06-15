@@ -12,6 +12,7 @@ import { setConditionDisplay, conditionDisplayColor, conditionDisplayLabel } fro
 import { applyCopyConditionEdit, applyQtyEdit } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, bricksetRetailEntry, cmfSeriesRetailTargets, cacheBricksetSet, getBricksetCache } from "./utils/brickset";
+import { cmfEraRetail } from "./utils/cmfRetail";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
@@ -268,6 +269,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       {
         brickset: { amount: bsEntry.data?.retail_price_us, asOf: bsEntry.fetchedAt },
         manual:   { amount: set.msrp }, // hand-entered MSRP (Phase 3a rung); 0/absent → skipped
+        cmf:      { amount: cmfEraRetail(n) }, // CMF series-bag era-table fallback; gated LAST → only fills a null Brickset -0
       },
       { condition: set.condition, promo: isPromoNoRetail(set) }
     );
