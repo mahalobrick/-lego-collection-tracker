@@ -84,7 +84,8 @@ export function unknownValueNote(knownCount, totalCount) {
  * caller omits the note, matching {@link unknownValueNote}'s omit-when-zero contract.
  *
  * @param {number} pricedCount  Sets with a resolved retail (portfolioRetail.known).
- * @param {number} totalCount   Total sets (sets.length).
+ * @param {number} totalCount   Priceable sets (portfolioRetail.priceable — total minus promo/GWP),
+ *                              the honest denominator; promo/GWP have no RRP so they don't count.
  * @returns {string|null}
  */
 export function retailPricedNote(pricedCount, totalCount) {
