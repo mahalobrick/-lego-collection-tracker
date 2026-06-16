@@ -111,6 +111,10 @@ export function ownedSetFromBlob(item, bsCache = {}) {
     setNumber:    item.setNumber,
     name:         item.name,
     theme:        item.theme,
+    // subtheme must reach the set object: isPromoNoRetail reads theme/subtheme/name, and many GWPs
+    // file under a parent theme with subtheme:"Promotional" — dropping it here under-caught them as
+    // promo (they leaked into "not listed"). The stored blob always carries it (aggregateFromEntries).
+    subtheme:     item.subtheme,
     qty:          item.quantity,
     paidPrice:    item.averagePaid,
     currentValue: item.totalValue,

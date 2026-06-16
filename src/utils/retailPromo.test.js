@@ -27,6 +27,13 @@ describe("isPromoNoRetail — the GWP/promo predicate (Phase-0 heuristic, formal
   it("gift/promo wording in name or subtheme → promo", () => {
     expect(isPromoNoRetail({ setNumber: "40000-1", name: "Holiday Gift with Purchase" })).toBe(true);
   });
+  it("subtheme 'Promotional' under a parent theme → promo (the 23-of-41 under-catch class)", () => {
+    // These GWPs file under a parent theme with a 5-digit 40xxx number — caught ONLY via subtheme.
+    expect(isPromoNoRetail({ setNumber: "40452-1", theme: "Harry Potter", subtheme: "Promotional" })).toBe(true);
+    expect(isPromoNoRetail({ setNumber: "40591-1", theme: "Star Wars",    subtheme: "Promotional" })).toBe(true);
+    // Guard the boundary: the same set with subtheme dropped is NOT promo (why plumbing it mattered).
+    expect(isPromoNoRetail({ setNumber: "40452-1", theme: "Harry Potter" })).toBe(false);
+  });
   it("a normal set is NOT promo (incl. a 5-digit CMF figure)", () => {
     expect(isPromoNoRetail({ setNumber: "10300-1", theme: "Icons", name: "DeLorean" })).toBe(false);
     expect(isPromoNoRetail({ setNumber: "71052-5", theme: "Minifigure Series", name: "Robot T. rex" })).toBe(false);

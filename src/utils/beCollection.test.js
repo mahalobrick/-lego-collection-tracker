@@ -7,7 +7,7 @@ import {
   promoteIntoBlob,
   promoteToCollection,
 } from "./beCollection";
-import { setValueProvenance, setCost } from "./portfolio";
+import { setValueProvenance, setCost, portfolioRetail, setRetailProvenance, isPromoNoRetail } from "./portfolio";
 import { setConditionDisplay } from "./condition";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -253,5 +253,51 @@ describe("ownedSetFromBlob — blob → component set projection", () => {
     const s = ownedSetFromBlob(blobRow, bsCache);
     expect(s.minifigs).toBe(1);
     expect(s.pieces).toBe(1872);
+  });
+
+  // Regression: the projection MUST carry subtheme through. Dropping it here is what under-caught
+  // the GWP promos tagged subtheme:"Promotional" (isPromoNoRetail already reads subtheme — it just
+  // never received it), leaking 18 promos into "not listed" (23-of-41 bug).
+  it("preserves subtheme so the promo predicate can see it", () => {
+    expect(ownedSetFromBlob(blobRow, {}).subtheme).toBe("Back to the Future");
+    expect(ownedSetFromBlob({ setNumber: "40452-1", theme: "Harry Potter", subtheme: "Promotional", entries: [] }, {}).subtheme)
+      .toBe("Promotional");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// End-to-end partition: stored blob → ownedSetFromBlob → portfolioRetail. Proves the
+// subtheme-plumbing fix moves UNPRICED subtheme:"Promotional" GWPs from "not listed"
+// into "promo", with the priced count untouched and the partition invariant intact.
+// Resolver mirrors MyCollection.retailFor (manual rung + promo tag; brickset/cmf absent
+// for these synthetic non-CMF sets). Priced here = a hand-entered MSRP (manual rung).
+// ─────────────────────────────────────────────────────────────────────────────
+describe("portfolioRetail — subtheme:'Promotional' partition (via ownedSetFromBlob)", () => {
+  const retailOf = (set) =>
+    setRetailProvenance({ manual: { amount: set.msrp } }, { condition: set.condition, promo: isPromoNoRetail(set) });
+  const set = (over) => ownedSetFromBlob({ entries: [], ...over }, {});
+
+  const promoUnpriced  = set({ setNumber: "40452-1", theme: "Harry Potter", subtheme: "Promotional" });          // GWP, no RRP
+  const promoPriced    = set({ setNumber: "40999-1", theme: "Icons",        subtheme: "Promotional", msrp: 9.99 }); // hand-priced
+  const normalPriced   = set({ setNumber: "10300-1", theme: "Icons",        subtheme: "Modular",     msrp: 169.99 });
+  const normalUnpriced = set({ setNumber: "21034-1", theme: "Architecture", subtheme: "Skylines" });             // real RRP, unsourced
+
+  it("(a) an UNPRICED subtheme:'Promotional' set classifies as promo (was 'not listed')", () => {
+    expect(portfolioRetail([promoUnpriced], retailOf)).toMatchObject({ known: 0, promo: 1, notListed: 0 });
+  });
+
+  it("(b) partition invariant holds; the priced count is untouched by the widening", () => {
+    const r = portfolioRetail([promoPriced, normalPriced, promoUnpriced, normalUnpriced], retailOf);
+    expect(r).toMatchObject({ known: 2, promo: 1, notListed: 1 });          // promoUnpriced → promo, not notListed
+    expect(r.known + r.promo + r.notListed).toBe(4);                         // known+promo+notListed === total
+    expect(r.known).toBe(2);                                                 // priced unchanged (only UNPRICED sets move)
+  });
+
+  it("(c) a non-promo, non-Promotional-subtheme unsourced set stays OUT of promo (no over-catch)", () => {
+    expect(portfolioRetail([normalUnpriced], retailOf)).toMatchObject({ known: 0, promo: 0, notListed: 1 });
+  });
+
+  it("(d) a PRICED subtheme:'Promotional' set stays priced (known-first beats the promo tag)", () => {
+    expect(portfolioRetail([promoPriced], retailOf)).toMatchObject({ known: 1, promo: 0, notListed: 0 });
   });
 });
