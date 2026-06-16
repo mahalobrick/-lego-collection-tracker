@@ -11,6 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { setItemSafe } from "./safeStorage";
+import { setConditionDisplay } from "./condition";
 
 /**
  * Per-set aggregation over a group of per-copy entries — the roll-up shared by the
@@ -77,6 +78,66 @@ export function normalizeBrickEconomyCollection(collection) {
     bySet[setNumber].entries.push(item);
   }
   return Object.values(bySet).map(({ base, entries }) => aggregateFromEntries(base, entries));
+}
+
+/**
+ * Load-time projection of ONE stored normalized blob row (a {@link aggregateFromEntries} row read
+ * back from `brickEconomyNormalizedCollection`) into the MyCollection component "set" shape — the
+ * object every consumer reads (the table rows, the rollups, `retailFor`/`isPromoNoRetail`, the detail
+ * panel). Pure; extracted verbatim from the MyCollection `sets` initializer so the projection is
+ * single-sourced and testable (a dropped field can no longer hide in a component initializer).
+ *
+ * @param {Object} item    a stored normalized blob row (has setNumber/name/theme/subtheme/quantity/
+ *                         entries/averagePaid/totalPaid/totalValue/retailPrice/totalRetailPrice/…).
+ * @param {Object} [bsCache] the Brickset cache (`bricksetSetCache`) for minifig/piece/date fallbacks;
+ *                         entries never store those, so they fall back to the canonical Brickset row.
+ * @returns {Object} the component set object.
+ */
+export function ownedSetFromBlob(item, bsCache = {}) {
+  const entries = item.entries || [];
+  // One bucketed derivation (Phase 1): per-copy entries collapse to New / Used / Mixed.
+  const condition = setConditionDisplay(item);
+  // Pull per-entry fields — same across copies for set attributes; pick latest acquired
+  const acquiredDates = entries.map(e => e.aquired_date || e.acquired_date).filter(Boolean).sort();
+
+  // minifigs / pieces: entries never store these; fall back to the Brickset cache (canonical,
+  // backfilled for every owned set by runBricksetEnrichment on mount).
+  const clean   = String(item.setNumber || "").replace(/-1$/, "");
+  const bsData  = bsCache[`brickset_${clean}`]?.data || bsCache[clean]?.data || {};
+  const minifigs = entries[0]?.minifigs_count ?? bsData.minifigs ?? null;
+  const pieces   = entries[0]?.pieces_count   ?? bsData.pieces   ?? null;
+
+  return {
+    setNumber:    item.setNumber,
+    name:         item.name,
+    theme:        item.theme,
+    qty:          item.quantity,
+    paidPrice:    item.averagePaid,
+    currentValue: item.totalValue,
+    totalPaid:    item.totalPaid,
+    totalValue:   item.totalValue,
+    // Carry retail through so setPaidProvenance can test paid-vs-retail (msrp classification)
+    // and the Retail Value card reads a real figure rather than undefined. (Provenance Step 2)
+    retailPrice:      item.retailPrice,
+    totalRetailPrice: item.totalRetailPrice,
+    // Hand-entered MSRP override (Phase 3a.1) — an app-level field persisted onto the BE blob
+    // via persistBESetEdit; read back here so the manual retail rung survives reload.
+    msrp:             item.msrp ?? null,
+    roiPct:       item.roiPct,
+    retired:      item.retired,
+    condition,
+    entries,
+    source:       "BrickEconomy",
+    minifigs,
+    pieces,
+    acquiredDate: acquiredDates[acquiredDates.length - 1] || null, // most recent
+    // Retirement / release dates from the Brickset cache (exit_date / launch_date) — same
+    // source the add-form and detail panel use — since BE-CSV entries don't carry these.
+    // entries[0] kept as a fallback. Active sets have null/future exit_date → empty is correct.
+    retiredDate:  bsData.exit_date   ?? entries[0]?.retired_date  ?? null,
+    releasedDate: bsData.launch_date ?? entries[0]?.released_date ?? null,
+    notes:        entries.map(e => e.notes).filter(Boolean)[0] || "",
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

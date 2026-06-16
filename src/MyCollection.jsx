@@ -16,6 +16,7 @@ import { cmfEraRetail } from "./utils/cmfRetail";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
+import { ownedSetFromBlob } from "./utils/beCollection";
 import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, setRetailProvenance, isPromoNoRetail, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
 import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailPricedNote, retailGapNote, estimatedValueNote, estimatedCostNote, totalRoiNote, netGainBasisNote, signColor } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
@@ -171,53 +172,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         let bsCache = {};
         try { bsCache = JSON.parse(localStorage.getItem("bricksetSetCache") || "{}"); } catch {}
 
-        beItems = JSON.parse(brickEconomySaved).map(item => {
-          const entries = item.entries || [];
-          // One bucketed derivation (Phase 1): per-copy entries collapse to New / Used / Mixed.
-          const condition = setConditionDisplay(item);
-          // Pull per-entry fields — same across copies for set attributes; pick latest acquired
-          const acquiredDates = entries.map(e => e.aquired_date || e.acquired_date).filter(Boolean).sort();
-
-          // minifigs / pieces: entries never store these; fall back to the Brickset cache (canonical,
-          // backfilled for every owned set by runBricksetEnrichment on mount). The BE-cache tail was
-          // removed in the Phase-1 BE teardown — Brickset covers these; BE added nothing it didn't.
-          const clean   = String(item.setNumber || "").replace(/-1$/, "");
-          const bsData  = bsCache[`brickset_${clean}`]?.data || bsCache[clean]?.data || {};
-          const minifigs = entries[0]?.minifigs_count ?? bsData.minifigs ?? null;
-          const pieces   = entries[0]?.pieces_count   ?? bsData.pieces   ?? null;
-
-          return {
-            setNumber:    item.setNumber,
-            name:         item.name,
-            theme:        item.theme,
-            qty:          item.quantity,
-            paidPrice:    item.averagePaid,
-            currentValue: item.totalValue,
-            totalPaid:    item.totalPaid,
-            totalValue:   item.totalValue,
-            // Carry retail through so setPaidProvenance can test paid-vs-retail (msrp classification)
-            // and the Retail Value card reads a real figure rather than undefined. (Provenance Step 2)
-            retailPrice:      item.retailPrice,
-            totalRetailPrice: item.totalRetailPrice,
-            // Hand-entered MSRP override (Phase 3a.1) — an app-level field persisted onto the BE blob
-            // via persistBESetEdit; read back here so the manual retail rung survives reload.
-            msrp:             item.msrp ?? null,
-            roiPct:       item.roiPct,
-            retired:      item.retired,
-            condition,
-            entries,
-            source:       "BrickEconomy",
-            minifigs,
-            pieces,
-            acquiredDate: acquiredDates[acquiredDates.length - 1] || null, // most recent
-            // Retirement / release dates from the Brickset cache (exit_date / launch_date) — same
-            // source the add-form and detail panel use — since BE-CSV entries don't carry these.
-            // entries[0] kept as a fallback. Active sets have null/future exit_date → empty is correct.
-            retiredDate:  bsData.exit_date   ?? entries[0]?.retired_date  ?? null,
-            releasedDate: bsData.launch_date ?? entries[0]?.released_date ?? null,
-            notes:        entries.map(e => e.notes).filter(Boolean)[0] || "",
-          };
-        });
+        // Project each stored blob row into the component set shape. Single-sourced + tested in
+        // beCollection.js (ownedSetFromBlob) so a dropped field can't hide in this initializer.
+        beItems = JSON.parse(brickEconomySaved).map(item => ownedSetFromBlob(item, bsCache));
       } catch {}
     }
 

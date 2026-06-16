@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   aggregateFromEntries,
   normalizeBrickEconomyCollection,
+  ownedSetFromBlob,
   buildCopyEntries,
   promoteIntoBlob,
   promoteToCollection,
@@ -213,5 +214,44 @@ describe("promoteToCollection — the single localStorage writer", () => {
     const { warnings } = promoteToCollection(buildCopyEntries({ setNumber: "10497", paidPerUnit: 99, qty: 1 }));
     expect(warnings).toHaveLength(1);
     expect(JSON.parse(localStorage.getItem("brickEconomyNormalizedCollection"))).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ownedSetFromBlob — the load-time blob → component-set projection (extracted from
+// MyCollection's `sets` initializer so it is single-sourced + testable). These pin
+// the field projection: setNumber/name/theme/qty/money fields, the condition
+// derivation, and the Brickset-cache fallbacks for minifig/piece/dates.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("ownedSetFromBlob — blob → component set projection", () => {
+  const blobRow = {
+    setNumber: "10300-1", name: "DeLorean", theme: "Icons", subtheme: "Back to the Future",
+    quantity: 2, averagePaid: 100, totalPaid: 200, totalValue: 300,
+    retailPrice: 169.99, totalRetailPrice: 339.98, roiPct: 50, retired: false,
+    entries: [{ condition: "new", minifigs_count: 1, pieces_count: 1872 }],
+  };
+
+  it("projects the headline fields the table + rollups read", () => {
+    const s = ownedSetFromBlob(blobRow, {});
+    expect(s).toMatchObject({
+      setNumber: "10300-1", name: "DeLorean", theme: "Icons", qty: 2,
+      paidPrice: 100, totalPaid: 200, totalValue: 300, currentValue: 300,
+      retailPrice: 169.99, totalRetailPrice: 339.98, msrp: null,
+      source: "BrickEconomy", condition: "new",
+    });
+  });
+
+  it("falls back to the Brickset cache for minifigs/pieces/dates when entries lack them", () => {
+    const bare = { setNumber: "10300-1", entries: [{ condition: "new" }] };
+    const bsCache = { brickset_10300: { data: { minifigs: 1, pieces: 1872, exit_date: "2025-01-01", launch_date: "2022-04-01" } } };
+    const s = ownedSetFromBlob(bare, bsCache);
+    expect(s).toMatchObject({ minifigs: 1, pieces: 1872, retiredDate: "2025-01-01", releasedDate: "2022-04-01" });
+  });
+
+  it("entries-supplied minifigs/pieces win over the cache", () => {
+    const bsCache = { brickset_10300: { data: { minifigs: 9, pieces: 9 } } };
+    const s = ownedSetFromBlob(blobRow, bsCache);
+    expect(s.minifigs).toBe(1);
+    expect(s.pieces).toBe(1872);
   });
 });
