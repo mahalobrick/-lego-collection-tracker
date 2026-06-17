@@ -776,6 +776,26 @@ export function roiExcludedCount(sets, valueMap) {
   return sets.reduce((n, s) => n + (roiEligible(s, valueMap) ? 0 : 1), 0);
 }
 
+/**
+ * Value of the "free" sets — Σ market value over sets whose value is KNOWN but whose cost is ≤ 0
+ * (GWPs / promos / no recorded cost). This is EXACTLY the slice {@link portfolioGain} counts as pure
+ * gain but {@link portfolioROI} cannot (no positive cost → no % return), so it is the dollar bridge
+ * between a positive Net Gain and a flat/negative ROI:
+ *   portfolioGain === (the cost>0 core's gain) + freebieValue.
+ * Read-time, null-aware, nothing persisted — NOT a new cost/value rule, just the existing
+ * {@link setValueProvenance} / {@link setCost} funnel summed over the cost≤0 value-known subset.
+ *
+ * @param {Array<Object>} sets
+ * @param {Object} [valueMap]
+ * @returns {number}
+ */
+export function freebieValue(sets, valueMap) {
+  return sets.reduce((sum, s) => {
+    const amount = setValueProvenance(s, valueMap).amount;
+    return amount !== null && setCost(s) <= 0 ? sum + amount : sum;
+  }, 0);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Unknown ≠ 0 sweep. Per-set gain + a group rollup, both null-aware by construction
 // so NO consumer has to do its own `asNumber(value) || 0`. A set with unknown value

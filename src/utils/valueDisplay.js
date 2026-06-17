@@ -312,6 +312,51 @@ export function realRoiScopeNote(msrpCount) {
   return !msrpCount || msrpCount <= 0 ? "vs real cost" : `vs real cost · excludes ${msrpCount} estimated at MSRP`;
 }
 
+// ── ROI / Net Gain scope relabel (divergence disclosure) ─────────────────────
+// ROI (portfolioROI) and Net Gain (portfolioGain) are BOTH dollar-weighted over the same cost
+// denominator, but ROI's `cost > 0` gate excludes $0-cost sets that Net Gain counts at full value — so a
+// positive Net Gain can sit beside a flat/negative ROI. These notes label each tile's SCOPE so the pair
+// stops reading as a contradiction. LABELS ONLY — portfolioROI / portfolioGain math is untouched.
+
+/**
+ * Scope label for the TOTAL-cost ROI headline: the % covers cost-basis sets only (cost > 0); $0-cost sets
+ * are excluded (no % return on $0 invested). Appends the MSRP-placeholder disclosure when any cost is an
+ * estimate. Replaces {@link totalRoiNote} at the ROI card (totalRoiNote kept for its existing consumers).
+ *
+ * @param {number} msrpCount  sets whose cost is an MSRP placeholder (disclosed, not excluded).
+ * @returns {string}
+ */
+export function roiScopeNote(msrpCount) {
+  return msrpCount && msrpCount > 0 ? `cost-basis sets only · ${msrpCount} est. at MSRP` : "cost-basis sets only";
+}
+
+/**
+ * Tooltip for the ROI card — why the % excludes $0-cost sets, plus the MSRP caveat when present.
+ *
+ * @param {number} msrpCount
+ * @returns {string}
+ */
+export function roiScopeTooltip(msrpCount) {
+  const base = "Return on sets you have a cost for. Excludes $0-cost sets — no % return on $0 invested.";
+  return msrpCount && msrpCount > 0 ? `${base} ${msrpCount} sets assume cost = MSRP.` : base;
+}
+
+/**
+ * Net Gain sub-line: how much of the gain comes from $0-cost sets ({@link import("./portfolio").freebieValue}).
+ * They count in Net Gain at full value but are excluded from %ROI — so this is the line that explains a
+ * positive Net Gain beside a flat/negative ROI. Returns null when there are none (rounds to $0), so the
+ * caller falls back to its other sub (e.g. {@link netGainBasisNote}).
+ *
+ * @param {number} freebieValue  portfolio-level freebieValue ($0-cost, value-known dollars).
+ * @returns {string|null}
+ */
+export function freebieNote(freebieValue) {
+  return freebieValue && freebieValue >= 0.005 ? `incl. ~${money(freebieValue)} from free sets` : null;
+}
+
+// Static tooltip for the Net Gain card's freebie sub-line.
+export const FREEBIE_TOOLTIP = "Includes $0-cost sets (GWPs/promos) at full value; ROI excludes them.";
+
 /**
  * Confidence marker for a PAID (cost-basis) cell — the paid analog of {@link valueConfidence}.
  * Only an 'msrp' provenance (paid defaulted to retail, no purchase record) carries a quiet

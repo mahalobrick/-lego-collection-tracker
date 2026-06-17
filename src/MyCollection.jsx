@@ -7,6 +7,7 @@ import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
 import TriValueCell from "./TriValueCell";
 import RowHoverCard from "./RowHoverCard";
 import ConditionPill from "./ConditionPill";
+import InfoTip from "./InfoTip";
 import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
 import { setConditionDisplay, conditionBucket, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
 import { applyCopyConditionEdit, applyQtyEdit } from "./utils/percopy";
@@ -17,8 +18,8 @@ import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
 import { ownedSetFromBlob } from "./utils/beCollection";
-import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, conditionValueBuckets, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
-import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailCoverageNote, estimatedValueNote, estimatedCostNote, totalRoiNote, netGainBasisNote, signColor } from "./utils/valueDisplay";
+import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, conditionValueBuckets, freebieValue, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
+import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailCoverageNote, estimatedValueNote, estimatedCostNote, roiScopeNote, roiScopeTooltip, freebieNote, FREEBIE_TOOLTIP, netGainBasisNote, signColor } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { valuesAsOf, freshness } from "./utils/freshness";
 import { apiFetch } from "./utils/apiFetch";
@@ -520,12 +521,15 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       realCost: costSplit.realCost, realCount: costSplit.realCount,
       msrpCost: costSplit.msrpCost, msrpCount: costSplit.msrpCount,
       // Gain over value-known sets; % ROI over the TOTAL cost basis {value known, cost > 0} —
-      // includes the MSRP-estimated portion (disclosed via totalRoiNote). (Step 2 revised)
+      // includes the MSRP-estimated portion (disclosed via roiScopeNote). (Step 2 revised)
       gainLoss: portfolioGain(sets, valueMap),
       // Cost over the value-known subset — the denominator gainLoss is actually computed
       // against. Drives the Net Gain tile's reconciling breakdown (value − valuedCost === gain).
       valuedCost: portfolioValuedCost(sets, valueMap),
       roi: portfolioROI(sets, valueMap),
+      // $0-cost (GWP/promo) value the gain counts but ROI can't — the bridge between a positive Net Gain
+      // and a flat/negative ROI; drives the Net Gain freebie sub-line (labels only, the math is untouched).
+      freebieValue: freebieValue(sets, valueMap),
       // Quiet disclosure: share of value that is estimated (modeled + asking). (Step 3)
       estimatedShare: estimatedValueShare(sets, valueMap)
     };
@@ -1389,8 +1393,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                     {item.key === "qty"          ? <Card title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} /> :
                      item.key === "value"        ? <Card title="Collection Value" value={fmtAgg(stats.value, stats.valuedSets)} sub={valuesReady ? [unknownValueNote(stats.valuedSets, sets.length), estimatedValueNote(stats.estimatedShare)].filter(Boolean).join(" · ") || null : null} /> :
                      item.key === "cost"         ? <Card title="Cost Basis"       value={money(stats.costBasis)} sub={estimatedCostNote(stats.msrpCount, stats.msrpCost)} /> :
-                     item.key === "gain"         ? <Card title="Net Gain / Loss"  value={fmtAgg(stats.gainLoss, stats.valuedSets)} good={stats.valuedSets > 0 ? stats.gainLoss >= 0 : undefined} sub={valuesReady ? netGainBasisNote(stats.value, stats.valuedCost, stats.valuedSets, stats.costBasis) : null} /> :
-                     item.key === "roi"          ? <Card title="ROI"              value={!valuesReady ? "…" : stats.roi === null ? "—" : `${stats.roi.toFixed(1)}%`} good={stats.roi === null ? undefined : stats.roi >= 0} sub={totalRoiNote(stats.msrpCount)} /> :
+                     item.key === "gain"         ? <Card title="Net Gain / Loss"  value={fmtAgg(stats.gainLoss, stats.valuedSets)} good={stats.valuedSets > 0 ? stats.gainLoss >= 0 : undefined} sub={valuesReady ? (freebieNote(stats.freebieValue) ?? netGainBasisNote(stats.value, stats.valuedCost, stats.valuedSets, stats.costBasis)) : null} subTip={valuesReady && freebieNote(stats.freebieValue) ? FREEBIE_TOOLTIP : undefined} /> :
+                     item.key === "roi"          ? <Card title="ROI"              value={!valuesReady ? "…" : stats.roi === null ? "—" : `${stats.roi.toFixed(1)}%`} good={stats.roi === null ? undefined : stats.roi >= 0} sub={roiScopeNote(stats.msrpCount)} subTip={roiScopeTooltip(stats.msrpCount)} /> :
                      item.key === "themes"       ? <Card title="Themes"           value={stats.themes} /> :
                      item.key === "duplicates"   ? <Card title="Multi-Copy Sets"  value={stats.duplicates} /> :
                      item.key === "retired"      ? <Card title="Retired Sets"     value={stats.retiredSets} sub={sets.length ? `${((stats.retiredSets / sets.length) * 100).toFixed(1)}% of unique sets` : null} /> :
@@ -2730,7 +2734,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   );
 }
 
-function Card({ title, value, good, sub }) {
+function Card({ title, value, good, sub, subTip }) {
   const [tip, setTip] = useState(false);
   const accentColor = good === undefined ? "#c9a84c" : good ? "#5aa832" : "#ff8b8b";
   return (
@@ -2748,7 +2752,10 @@ function Card({ title, value, good, sub }) {
         </div>
         {tip && <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: 0, zIndex: 50, background: "#0b1520", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, padding: "5px 10px", fontSize: 15, fontWeight: 700, color: "#e8e2d5", whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,0,0,0.5)", pointerEvents: "none" }}>{value}</div>}
       </div>
-      <div style={{ fontSize: 11, color: "#3d4f60", minHeight: 14 }}>{sub || ""}</div>
+      <div style={{ fontSize: 11, color: "#3d4f60", minHeight: 14, display: "flex", alignItems: "center", gap: 4 }}>
+        {sub || ""}
+        {sub && subTip ? <InfoTip text={subTip} size={13} /> : null}
+      </div>
     </div>
   );
 }
