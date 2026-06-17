@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   DEFAULT_COLLECTION_ITEMS, loadCollectionItems,
-  CARD_DEFS, CARD_TIERS, cardVisible, loadCardOverrides, toggleCardOverride, tieredVisibleCards,
+  CARD_DEFS, CARD_TIERS, CARD_GROUPS, cardVisible, loadCardOverrides, toggleCardOverride,
+  gearCardRows, tieredVisibleCards,
 } from "./collectionLayout";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -177,5 +178,49 @@ describe("tieredVisibleCards(overrides)", () => {
   it("drops a tier whose every card is hidden", () => {
     const tiers = tieredVisibleCards({ value: false, gain: false, roi: false });
     expect(tiers.map(t => t.id)).not.toContain("hero");
+  });
+});
+
+describe("partition group — New/Used/Mixed travel all-or-none", () => {
+  const PART = ["newValue", "usedValue", "mixedValue"];
+
+  it("is the New/Used/Mixed value group", () => {
+    expect(CARD_GROUPS.partition.keys).toEqual(PART);
+  });
+
+  it("all three default OFF and move together via the canonical key", () => {
+    expect(PART.map(k => cardVisible(k, {}))).toEqual([false, false, false]);
+    const on = toggleCardOverride({}, "usedValue");      // toggled via a NON-canonical member
+    expect(on).toEqual({ newValue: true });              // stored under the canonical key only
+    expect(PART.map(k => cardVisible(k, on))).toEqual([true, true, true]);
+  });
+
+  it("a stray partial override can never split the group (canonical decides)", () => {
+    expect(PART.map(k => cardVisible(k, { usedValue: true }))).toEqual([false, false, false]);            // mirrored-only → all hidden
+    expect(PART.map(k => cardVisible(k, { newValue: true, usedValue: false }))).toEqual([true, true, true]); // canonical wins
+  });
+
+  it("tieredVisibleCards renders all three or none, never a partial partition", () => {
+    const shown = (ov) => {
+      const vc = tieredVisibleCards(ov).find(t => t.id === "valueCondition")?.keys || [];
+      return PART.filter(k => vc.includes(k));
+    };
+    expect(shown({})).toEqual([]);                  // none by default
+    expect(shown({ newValue: true })).toEqual(PART); // all three when the group is on
+    expect(shown({ usedValue: true })).toEqual([]);  // stray mirrored member → still none
+  });
+
+  it("loadCardOverrides strips mirrored members, keeping only the canonical key", () => {
+    const raw = JSON.stringify({ newValue: true, usedValue: true, mixedValue: false, value: false });
+    expect(loadCardOverrides(raw)).toEqual({ newValue: true, value: false });
+  });
+
+  it("gearCardRows has ONE row for the partition, labelled as a group (16 rows total)", () => {
+    const rows = gearCardRows();
+    const part = rows.filter(r => PART.includes(r.key));
+    expect(part).toHaveLength(1);
+    expect(part[0]).toEqual({ key: "newValue", label: "New / Used / Mixed value" });
+    expect(rows.some(r => r.key === "usedValue" || r.key === "mixedValue")).toBe(false);
+    expect(rows).toHaveLength(16); // 18 cards − 3 partition members + 1 group row
   });
 });

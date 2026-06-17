@@ -101,14 +101,40 @@ export const CARD_TIERS = [
   { id: "valueCondition", label: "Value & condition",  keys: ["cost", "retailValue", "avgValue", "avgPaid", "newValue", "usedValue", "mixedValue"] },
 ];
 
-// Effective visibility for one card: the user's explicit override if present, else the default.
+// ── Card groups (panel-design SOP rule 3 — partition deviation) ──────────────
+// Some cards must travel together so a PARTIAL set can never render and make the numbers visibly
+// fail to sum. The New / Used / Mixed value cards partition the whole collection, so they toggle
+// all-or-none. The group's state lives under its FIRST (canonical) member's key; the others mirror
+// it — so visibility is single-sourced and a stray per-member override can't split the group.
+export const CARD_GROUPS = {
+  partition: { keys: ["newValue", "usedValue", "mixedValue"], label: "New / Used / Mixed value" },
+};
+
+const GROUP_OF = Object.fromEntries(
+  Object.entries(CARD_GROUPS).flatMap(([gid, g]) => g.keys.map(k => [k, gid]))
+);
+// The key whose override/default actually decides a card's visibility: itself, or — for a grouped
+// card — the group's canonical (first) member.
+function resolveKey(key) {
+  const gid = GROUP_OF[key];
+  return gid ? CARD_GROUPS[gid].keys[0] : key;
+}
+// Non-canonical group members: stored overrides for these are ignored/stripped (the canonical wins).
+const MIRRORED_KEYS = new Set(
+  Object.values(CARD_GROUPS).flatMap(g => g.keys.slice(1))
+);
+
+// Effective visibility for one card: the user's explicit override if present, else the default —
+// resolved through the group's canonical member so a whole group shows or hides as a unit.
 export function cardVisible(key, overrides) {
-  if (overrides && Object.prototype.hasOwnProperty.call(overrides, key)) return overrides[key] === true;
-  return CARD_DEFS[key] ? CARD_DEFS[key].defaultVisible === true : false;
+  const rk = resolveKey(key);
+  if (overrides && Object.prototype.hasOwnProperty.call(overrides, rk)) return overrides[rk] === true;
+  return CARD_DEFS[rk] ? CARD_DEFS[rk].defaultVisible === true : false;
 }
 
-// Parse the persisted override map, defensively: corrupt/non-object → {}, and keep only known
-// card keys with boolean values (a stale/unknown key can never resurrect a removed card).
+// Parse the persisted override map, defensively: corrupt/non-object → {}, keep only known card keys
+// with boolean values (a stale/unknown key can never resurrect a removed card), and drop mirrored
+// group members so the stored map only ever carries each group's canonical key.
 export function loadCardOverrides(saved) {
   if (!saved) return {};
   let parsed;
@@ -116,15 +142,30 @@ export function loadCardOverrides(saved) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
   const clean = {};
   for (const [k, v] of Object.entries(parsed)) {
-    if (CARD_DEFS[k] && typeof v === "boolean") clean[k] = v;
+    if (CARD_DEFS[k] && typeof v === "boolean" && !MIRRORED_KEYS.has(k)) clean[k] = v;
   }
   return clean;
 }
 
-// Toggle one card's override to the opposite of its current effective visibility, returning a new
-// map. (We persist the explicit boolean even when it equals the default — simplest, and harmless.)
+// Toggle a card (or its whole group) to the opposite of its current effective visibility, writing
+// only the canonical key, returning a new map.
 export function toggleCardOverride(overrides, key) {
-  return { ...overrides, [key]: !cardVisible(key, overrides) };
+  const rk = resolveKey(key);
+  return { ...overrides, [rk]: !cardVisible(rk, overrides) };
+}
+
+// The gear's card rows: each ungrouped card once, plus ONE row per group (toggles all members via
+// the canonical key). Used to render the visibility checklist.
+export function gearCardRows() {
+  const rows = [];
+  for (const [key, def] of Object.entries(CARD_DEFS)) {
+    if (GROUP_OF[key]) continue;                      // grouped cards handled as a single row below
+    rows.push({ key, label: def.label });
+  }
+  for (const g of Object.values(CARD_GROUPS)) {
+    rows.push({ key: g.keys[0], label: g.label });    // canonical key drives toggle + checked state
+  }
+  return rows;
 }
 
 // Group the currently-visible cards into their tiers, preserving tier + intra-tier order, dropping
