@@ -1316,7 +1316,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                       {tier.rows.map(row => {
                         const on = cardVisible(row.key, cardOverrides);
                         return (
-                          <label key={row.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0", cursor: "pointer", color: on ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
+                          <label key={row.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", cursor: "pointer", color: on ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
                             <input type="checkbox" checked={on} onChange={() => setCardOverrides(prev => toggleCardOverride(prev, row.key))} style={{ accentColor: "#c9a84c" }} />
                             {row.label}
                           </label>
@@ -2807,5 +2807,11 @@ const hoverCtrlBtn = {
   cursor: "pointer",
   padding: "3px 8px",
   fontWeight: 700,
-  lineHeight: 1.2
+  lineHeight: 1.2,
+  // Finger-sized tap target (panel-design SOP rule 4): >= WCAG 2.5.8 24px, comfortable at 30.
+  minWidth: 30,
+  minHeight: 30,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
