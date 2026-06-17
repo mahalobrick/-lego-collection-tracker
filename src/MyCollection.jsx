@@ -24,7 +24,7 @@ import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { valuesAsOf, freshness } from "./utils/freshness";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
-import { loadCollectionItems, tieredVisibleCards, gearCardRows, cardVisible, loadCardOverrides, toggleCardOverride } from "./utils/collectionLayout";
+import { loadCollectionItems, tieredVisibleCards, gearCardRowsByTier, cardVisible, loadCardOverrides, toggleCardOverride } from "./utils/collectionLayout";
 import { syncBricksetMetadata, metadataGaps, cleanSetNumber } from "./utils/bricksetMetadata";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
@@ -1309,16 +1309,21 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               <>
                 <div onClick={() => setCollGearOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
                 <div style={{ position: "absolute", top: 46, right: 10, zIndex: 30, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "12px 16px", minWidth: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
-                  <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Stats</div>
-                  {gearCardRows().sort((a, b) => a.label.localeCompare(b.label)).map(row => {
-                    const on = cardVisible(row.key, cardOverrides);
-                    return (
-                      <label key={row.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", color: on ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
-                        <input type="checkbox" checked={on} onChange={() => setCardOverrides(prev => toggleCardOverride(prev, row.key))} style={{ accentColor: "#c9a84c" }} />
-                        {row.label}
-                      </label>
-                    );
-                  })}
+                  <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Stats</div>
+                  {gearCardRowsByTier().map(tier => (
+                    <div key={tier.id} style={{ marginBottom: 4 }}>
+                      <div style={{ color: "#3d4f60", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, margin: "6px 0 1px" }}>{tier.label}</div>
+                      {tier.rows.map(row => {
+                        const on = cardVisible(row.key, cardOverrides);
+                        return (
+                          <label key={row.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0", cursor: "pointer", color: on ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
+                            <input type="checkbox" checked={on} onChange={() => setCardOverrides(prev => toggleCardOverride(prev, row.key))} style={{ accentColor: "#c9a84c" }} />
+                            {row.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ))}
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", margin: "10px 0 8px" }} />
                   <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Panels</div>
                   {collectionItems.filter(i => i.type === "panel").sort((a, b) => a.label.localeCompare(b.label)).map(item => (

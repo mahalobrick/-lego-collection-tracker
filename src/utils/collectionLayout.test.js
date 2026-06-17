@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   DEFAULT_COLLECTION_ITEMS, loadCollectionItems,
   CARD_DEFS, CARD_TIERS, CARD_GROUPS, cardVisible, loadCardOverrides, toggleCardOverride,
-  gearCardRows, tieredVisibleCards,
+  gearCardRowsByTier, tieredVisibleCards,
 } from "./collectionLayout";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -215,12 +215,32 @@ describe("partition group — New/Used/Mixed travel all-or-none", () => {
     expect(loadCardOverrides(raw)).toEqual({ newValue: true, value: false });
   });
 
-  it("gearCardRows has ONE row for the partition, labelled as a group (16 rows total)", () => {
-    const rows = gearCardRows();
-    const part = rows.filter(r => PART.includes(r.key));
-    expect(part).toHaveLength(1);
-    expect(part[0]).toEqual({ key: "newValue", label: "New / Used / Mixed value" });
-    expect(rows.some(r => r.key === "usedValue" || r.key === "mixedValue")).toBe(false);
-    expect(rows).toHaveLength(16); // 18 cards − 3 partition members + 1 group row
+  it("the gear collapses the partition into ONE row in the valueCondition tier", () => {
+    const vc = gearCardRowsByTier().find(t => t.id === "valueCondition");
+    const partRows = vc.rows.filter(r => PART.includes(r.key));
+    expect(partRows).toEqual([{ key: "newValue", label: "New / Used / Mixed value" }]);
+    expect(vc.rows.some(r => r.key === "usedValue" || r.key === "mixedValue")).toBe(false);
+  });
+});
+
+describe("gearCardRowsByTier() — gear grouped by tier (on/off within fixed tiers)", () => {
+  it("mirrors the panel tiers in order, hero labelled 'Headline'", () => {
+    const tiers = gearCardRowsByTier();
+    expect(tiers.map(t => t.id)).toEqual(["hero", "composition", "valueCondition"]);
+    expect(tiers.find(t => t.id === "hero").label).toBe("Headline");
+    expect(tiers.find(t => t.id === "composition").label).toBe("Composition");
+    expect(tiers.find(t => t.id === "valueCondition").label).toBe("Value & condition");
+  });
+
+  it("hero rows are value / gain / roi, in order", () => {
+    const hero = gearCardRowsByTier().find(t => t.id === "hero");
+    expect(hero.rows.map(r => r.key)).toEqual(["value", "gain", "roi"]);
+  });
+
+  it("total rows = 16 (18 cards − 3 partition members + 1 group row) with no mirrored keys", () => {
+    const keys = gearCardRowsByTier().flatMap(t => t.rows.map(r => r.key));
+    expect(keys).toHaveLength(16);
+    expect(keys).not.toContain("usedValue");
+    expect(keys).not.toContain("mixedValue");
   });
 });

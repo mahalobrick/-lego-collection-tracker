@@ -154,18 +154,23 @@ export function toggleCardOverride(overrides, key) {
   return { ...overrides, [rk]: !cardVisible(rk, overrides) };
 }
 
-// The gear's card rows: each ungrouped card once, plus ONE row per group (toggles all members via
-// the canonical key). Used to render the visibility checklist.
-export function gearCardRows() {
-  const rows = [];
-  for (const [key, def] of Object.entries(CARD_DEFS)) {
-    if (GROUP_OF[key]) continue;                      // grouped cards handled as a single row below
-    rows.push({ key, label: def.label });
-  }
-  for (const g of Object.values(CARD_GROUPS)) {
-    rows.push({ key: g.keys[0], label: g.label });    // canonical key drives toggle + checked state
-  }
-  return rows;
+// The gear's card checklist, grouped BY TIER (panel-design SOP rule 3 — "on/off within fixed
+// tiers"). Mirrors the panel's tier order + intra-tier order; the hero tier gets a friendly
+// "Headline" label. A grouped card (the partition) collapses to ONE row at its canonical member's
+// position; mirrored members are skipped. Each row's `key` is the canonical key, so it drives both
+// the checked state and the toggle.
+const GEAR_TIER_LABELS = { hero: "Headline" };
+const GROUP_REPS = new Set(Object.values(CARD_GROUPS).map(g => g.keys[0]));
+export function gearCardRowsByTier() {
+  return CARD_TIERS.map(t => {
+    const rows = [];
+    for (const key of t.keys) {
+      if (GROUP_OF[key] && !GROUP_REPS.has(key)) continue;          // skip mirrored group members
+      const label = GROUP_OF[key] ? CARD_GROUPS[GROUP_OF[key]].label : CARD_DEFS[key].label;
+      rows.push({ key, label });
+    }
+    return { id: t.id, label: GEAR_TIER_LABELS[t.id] ?? t.label, rows };
+  }).filter(t => t.rows.length > 0);
 }
 
 // Group the currently-visible cards into their tiers, preserving tier + intra-tier order, dropping
