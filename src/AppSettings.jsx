@@ -8,8 +8,10 @@ import { exportFullBackup as runExportBackup, applyBackupToLocalStorage, pushToC
 import { getBrickLinkAccessToken, hasBrickLinkAuth, getBrickLinkSession, bulkSyncPrices, clearPriceGuideCache } from "./utils/bricklink-client";
 import { DEFAULT_WANTED_COLUMNS } from "./utils/columnDefaults";
 import { syncBEValues, clearBESetCache } from "./utils/beSyncValues";
-import { clearBricksetCache } from "./utils/brickset";
-import { normalizeBrickEconomyCollection } from "./utils/beCollection";
+import { clearBricksetCache, getBricksetCache } from "./utils/brickset";
+import { normalizeBrickEconomyCollection, ownedSetFromBlob } from "./utils/beCollection";
+import { makeRetailResolver } from "./utils/retailResolver";
+import { buildCollectionCsv } from "./utils/collectionCsv";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import { notificationsSupported, notificationPermission, requestNotificationPermission } from "./utils/notifications";
 import { apiFetch } from "./utils/apiFetch";
@@ -526,10 +528,17 @@ export default function AppSettings() {
   }
 
   function exportCollectionCSV() {
-    const sets = collectionSetsForExport();
-    const headers = ["setNumber", "name", "theme", "qty", "paidPrice", "currentValue", "notes"];
-    const rows = sets.map(s => [s.setNumber || "", s.name || "", s.theme || "", s.quantity || s.qty || 1, s.averagePaid ?? s.paidPrice ?? "", s.totalValue ?? s.currentValue ?? "", s.notes || ""]);
-    const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
+    // The 6 MSRP/retail columns come from the SHARED retail ladder (makeRetailResolver →
+    // setRetailProvenance) over ownedSetFromBlob-projected rows — the SAME resolution the Overview
+    // MSRP card uses, so the exported per-set MSRP matches the card exactly (parity by construction;
+    // columns + escaping live in src/utils/collectionCsv.js). The full unstripped setNumber is fed so
+    // curated/Brickset rungs (keyed on e.g. "30303-1") resolve.
+    const bsCache = getBricksetCache();
+    const csv = buildCollectionCsv(
+      collectionSetsForExport(),
+      makeRetailResolver(bsCache),
+      s => ownedSetFromBlob(s, bsCache),
+    );
     downloadFile("brickledger-collection.csv", csv, "text/csv");
   }
 
