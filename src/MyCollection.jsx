@@ -11,14 +11,13 @@ import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilR
 import { setConditionDisplay, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
 import { applyCopyConditionEdit, applyQtyEdit } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
-import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, bricksetRetailEntry, cmfSeriesRetailTargets, cacheBricksetSet, getBricksetCache } from "./utils/brickset";
-import { cmfEraRetail } from "./utils/cmfRetail";
-import { curatedRetail } from "./utils/curatedMsrp";
+import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, cmfSeriesRetailTargets, cacheBricksetSet, getBricksetCache } from "./utils/brickset";
+import { makeRetailResolver } from "./utils/retailResolver";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
 import { ownedSetFromBlob } from "./utils/beCollection";
-import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, setRetailProvenance, isPromoNoRetail, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
+import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
 import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailCoverageNote, estimatedValueNote, estimatedCostNote, totalRoiNote, netGainBasisNote, signColor } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { valuesAsOf, freshness } from "./utils/freshness";
@@ -210,34 +209,15 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   const purchaseMap = useMemo(() => buildPurchaseMap(purchases), [purchases]);
 
   // ── Retail (MSRP) source cache — read once, same cache SetDetailPanel reads ──
-  // Brickset is keyed `brickset_${n}` (canonical). retailFor() builds the per-set sources
-  // for setRetailProvenance. (BrickEconomy was removed from the retail ladder in Phase 3c.)
+  // Brickset is keyed `brickset_${n}` (canonical). retailFor is the SHARED retail-ladder resolver
+  // (makeRetailResolver) — the SAME factory the collection CSV export calls, so the card and the
+  // export can't drift (parity by construction). (BrickEconomy left the retail ladder in Phase 3c.)
   const [retailCaches, setRetailCaches] = useState(() => {
     let bs = {};
     try { bs = getBricksetCache(); } catch {}
     return { bs };
   });
-  function retailFor(set) {
-    const n = set.setNumber;
-    // The Brickset rung walks figure→base→series-0→-1 and takes the first with a real retail
-    // (CMF series retail lives on the -0 variant; the figure's own entry has none) — see
-    // bricksetRetailEntry.
-    const bsEntry = bricksetRetailEntry(retailCaches.bs, n) || {};
-    // Curated rung (static, research-derived — no network, never BE): tier routes which rung carries the
-    // amount. sourced → curated_sourced (basis "retail", above cmf); estimated → curated_estimated (basis
-    // "estimated", last). A promo's curated value stays a promo ARV (Option C) via setRetailProvenance.
-    const cur = curatedRetail(n); // { msrp, tier, confidence, source } | null
-    return setRetailProvenance(
-      {
-        brickset: { amount: bsEntry.data?.retail_price_us, asOf: bsEntry.fetchedAt },
-        manual:   { amount: set.msrp }, // hand-entered MSRP (Phase 3a rung); 0/absent → skipped
-        curated_sourced:   cur?.tier === "sourced"   ? { amount: cur.msrp, confidence: cur.confidence, source: cur.source } : undefined,
-        cmf:      { amount: cmfEraRetail(n) }, // CMF series-bag era-table fallback; gated below curated_sourced
-        curated_estimated: cur?.tier === "estimated" ? { amount: cur.msrp, confidence: cur.confidence, source: cur.source } : undefined,
-      },
-      { condition: set.condition, promo: isPromoNoRetail(set) }
-    );
-  }
+  const retailFor = makeRetailResolver(retailCaches.bs);
 
   // ── Sold / realized gains ────────────────────────────────────────────────
   const [soldSets, setSoldSets] = useState(() => {
