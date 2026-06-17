@@ -9,6 +9,7 @@ import { getBrickLinkAccessToken, hasBrickLinkAuth, getBrickLinkSession, bulkSyn
 import { DEFAULT_WANTED_COLUMNS } from "./utils/columnDefaults";
 import { syncBEValues, clearBESetCache } from "./utils/beSyncValues";
 import { clearBricksetCache, getBricksetCache } from "./utils/brickset";
+import { syncBricksetMetadata } from "./utils/bricksetMetadata";
 import { normalizeBrickEconomyCollection, ownedSetFromBlob } from "./utils/beCollection";
 import { makeRetailResolver } from "./utils/retailResolver";
 import { buildCollectionCsv } from "./utils/collectionCsv";
@@ -279,6 +280,38 @@ export default function AppSettings() {
     setRbFilling(false);
     if (enriched > 0) toast.success(`Rebrickable: ${enriched} fields filled`);
     else toast("Rebrickable: nothing new to fill in");
+  }
+
+  // ── Brickset metadata sync (pieces & minifig counts) ──────────────
+  // Moved here from the Collection Stats header (panel-design SOP — sync lives in Settings). Force-
+  // refetches pieces/minifigs for every owned set and caches them; My Collection reads the counts
+  // from that Brickset cache on its next load.
+  const [bsMetaSync, setBsMetaSync] = useState(null); // { done, total } | null while syncing
+  const [bsMetaSyncLast, setBsMetaSyncLast] = useState(() => localStorage.getItem("blBricksetMetaSyncLast") || "");
+
+  async function handleSyncBricksetMeta() {
+    if (bsMetaSync) return;
+    let numbers = [];
+    try {
+      const be = JSON.parse(localStorage.getItem("brickEconomyNormalizedCollection") || "[]");
+      const manual = JSON.parse(localStorage.getItem("blOwnedSets") || "[]");
+      numbers = [...new Set([...be, ...manual].map(s => s.setNumber).filter(Boolean))];
+    } catch {}
+    if (!numbers.length) { toast("No owned sets to sync."); return; }
+    setBsMetaSync({ done: 0, total: numbers.length });
+    try {
+      const { updated } = await syncBricksetMetadata(
+        numbers.map(setNumber => ({ setNumber })),
+        { force: true, onProgress: (done, total) => setBsMetaSync({ done, total }) },
+      );
+      const at = new Date().toISOString();
+      setItemSafe("blBricksetMetaSyncLast", at);
+      setBsMetaSyncLast(at);
+      if (updated > 0) toast.success(`Brickset metadata synced for ${updated} set${updated !== 1 ? "s" : ""}.`);
+      else toast.error("Could not fetch metadata — check your connection.");
+    } finally {
+      setBsMetaSync(null);
+    }
   }
 
   const [showCollectionImportHelp, setShowCollectionImportHelp] = useState(false);
@@ -1286,6 +1319,19 @@ export default function AppSettings() {
               </div>
             ),
             progress: beValueSync ? Math.round((beValueSync.done / beValueSync.total) * 100) : null,
+          },
+          // Brickset
+          {
+            name: "Brickset",
+            role: "Set metadata — pieces & minifig counts (names, MSRP & retirement are cached on demand)",
+            dot: bsMetaSyncLast ? "#22c55e" : "#4d5e70",
+            status: bsMetaSyncLast ? `Synced ${new Date(bsMetaSyncLast).toLocaleDateString()}` : "Cached on demand",
+            actions: (
+              <button onClick={handleSyncBricksetMeta} disabled={!!bsMetaSync} style={ghostBtn}>
+                {bsMetaSync ? `${bsMetaSync.done}/${bsMetaSync.total}` : "Sync Metadata"}
+              </button>
+            ),
+            progress: bsMetaSync ? Math.round((bsMetaSync.done / bsMetaSync.total) * 100) : null,
           },
           // Brick Fanatics
           {

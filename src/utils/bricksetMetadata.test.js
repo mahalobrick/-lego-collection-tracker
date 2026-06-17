@@ -90,6 +90,21 @@ describe("syncBricksetMetadata()", () => {
     expect(res.attempted).toBe(1);
   });
 
+  it("reports onProgress for every attempted set (success, null, and error alike)", async () => {
+    fetchBricksetSet
+      .mockResolvedValueOnce({ pieces: 1 })    // success
+      .mockResolvedValueOnce(null)             // null result
+      .mockRejectedValueOnce(new Error("x"));  // error
+    const calls = [];
+    await syncBricksetMetadata(
+      [{ setNumber: "1", minifigs: null, pieces: null },
+       { setNumber: "2", minifigs: null, pieces: null },
+       { setNumber: "3", minifigs: null, pieces: null }],
+      { delayMs: 0, onProgress: (done, total) => calls.push([done, total]) }
+    );
+    expect(calls).toEqual([[1, 3], [2, 3], [3, 3]]);
+  });
+
   it("swallows a fetch error and continues to the next set", async () => {
     fetchBricksetSet
       .mockRejectedValueOnce(new Error("boom"))

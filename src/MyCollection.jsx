@@ -1299,7 +1299,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                 })()}
               </div>
               <div style={{ display: "flex", gap: 6 }}>
-                <button onClick={() => runBricksetEnrichment(sets, true)} disabled={metaRefreshing} style={{ ...hoverCtrlBtn, color: metaRefreshing ? "#c9a84c" : "#8a9bb0" }} title="Sync pieces & minifig counts from Brickset">{metaRefreshing ? "⟳" : "⟳"}</button>
+                {/* Brickset metadata sync moved to Settings → Data Sources (panel-design SOP). */}
                 <button onClick={() => setCollGearOpen(prev => !prev)} style={{ ...hoverCtrlBtn, color: collGearOpen ? "#c9a84c" : "#8a9bb0" }} title="Show / hide stats">⚙</button>
                 <button onClick={() => setCollPillsCollapsed(prev => !prev)} style={hoverCtrlBtn} title={collPillsCollapsed ? "Expand" : "Collapse"}>{collPillsCollapsed ? "▼" : "▲"}</button>
               </div>

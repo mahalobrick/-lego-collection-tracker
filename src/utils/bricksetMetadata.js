@@ -23,28 +23,31 @@ export function metadataGaps(sets, force = false) {
 }
 
 // Fetch + cache Brickset metadata for the gap sets, sequentially (with a polite delay between
-// calls). onPatch(clean, { minifigs?, pieces? }) fires per successfully-fetched set carrying
-// only the present fields, so the caller can patch progressively. `updated` counts every set
-// that returned data (matching the legacy counter — a fetch with null fields still counts).
-// Returns { attempted, updated }.
-export async function syncBricksetMetadata(sets, { force = false, onPatch, delayMs = 400 } = {}) {
+// calls). onPatch(clean, { minifigs?, pieces? }) fires per successfully-fetched set carrying only
+// the present fields, so the caller can patch progressively. onProgress(done, total) fires once per
+// attempted set (success, null, or error alike) so a caller can render a count. `updated` counts
+// every set that returned data (matching the legacy counter — a fetch with null fields still
+// counts). Returns { attempted, updated }.
+export async function syncBricksetMetadata(sets, { force = false, onPatch, onProgress, delayMs = 400 } = {}) {
   const toFetch = metadataGaps(sets, force);
   let updated = 0;
-  for (const item of toFetch) {
-    const clean = cleanSetNumber(item.setNumber);
+  for (let i = 0; i < toFetch.length; i++) {
+    const clean = cleanSetNumber(toFetch[i].setNumber);
     try {
       const bsData = await fetchBricksetSet(clean);
-      if (!bsData) { await sleep(delayMs); continue; }
-      // Persist to Brickset cache so future loads don't need to re-fetch (shared instance;
-      // key stays `brickset_${clean}` byte-identical — P3.3).
-      cacheBricksetSet(clean, bsData);
-      // Patch — minifigs + pieces only (BE owns value fields)
-      const upd = {};
-      if (bsData.minifigs != null) upd.minifigs = bsData.minifigs;
-      if (bsData.pieces   != null) upd.pieces   = bsData.pieces;
-      if (onPatch && Object.keys(upd).length) onPatch(clean, upd);
-      updated++;
+      if (bsData) {
+        // Persist to Brickset cache so future loads don't need to re-fetch (shared instance;
+        // key stays `brickset_${clean}` byte-identical — P3.3).
+        cacheBricksetSet(clean, bsData);
+        // Patch — minifigs + pieces only (BE owns value fields)
+        const upd = {};
+        if (bsData.minifigs != null) upd.minifigs = bsData.minifigs;
+        if (bsData.pieces   != null) upd.pieces   = bsData.pieces;
+        if (onPatch && Object.keys(upd).length) onPatch(clean, upd);
+        updated++;
+      }
     } catch {}
+    if (onProgress) onProgress(i + 1, toFetch.length);
     await sleep(delayMs);
   }
   return { attempted: toFetch.length, updated };
