@@ -10,7 +10,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { portfolioRetail, setRetailProvenance, isPromoNoRetail } from "./portfolio";
-import { retailPricedNote, retailGapNote } from "./valueDisplay";
+import { retailPricedNote, retailGapNote, retailCoverageNote } from "./valueDisplay";
 import { curatedRetail } from "./curatedMsrp.js";
 import { CSV_PATH } from "../../scripts/gen-curated-msrp.mjs";
 
@@ -186,6 +186,24 @@ describe("retailPricedNote — disclosure for the unpriced population", () => {
   });
   it("omits the note for an empty collection", () => {
     expect(retailPricedNote(0, 0)).toBeNull();
+  });
+});
+
+describe("retailCoverageNote — the 4-segment MSRP card breakdown (Option C)", () => {
+  it("renders sourced + estimated(~$) + promo·ARV(~$) + not-listed, omitting zero-count segments", () => {
+    expect(retailCoverageNote({ known: 491, estimated: 67, estimatedTotal: 637.89, promo: 41, promoTotal: 855.59, notListed: 1 }))
+      .toBe("491 sourced · 67 estimated (~$637.89) · 41 promo (ARV ~$855.59) · 1 not listed");
+  });
+  it("a promo segment with no ARV ($0) reads 'promo (no MSRP)' (pre-curated label)", () => {
+    expect(retailCoverageNote({ known: 5, promo: 2, promoTotal: 0, notListed: 1 }))
+      .toBe("5 sourced · 2 promo (no MSRP) · 1 not listed");
+  });
+  it("omits the note entirely when there is no gap (everything sourced)", () => {
+    expect(retailCoverageNote({ known: 10 })).toBeNull();
+  });
+  it("shows only the non-zero segments", () => {
+    expect(retailCoverageNote({ known: 10, notListed: 3 })).toBe("10 sourced · 3 not listed");
+    expect(retailCoverageNote({ estimated: 4, estimatedTotal: 19.96 })).toBe("4 estimated (~$19.96)");
   });
 });
 

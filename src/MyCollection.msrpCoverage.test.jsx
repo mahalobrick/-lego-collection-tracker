@@ -11,13 +11,13 @@ import { createRoot } from "react-dom/client";
 //       (sets.length), and the gap is LABELED in place — promo/GWP and unsourced
 //       sets are disclosed (retailGapNote), not quietly dropped from the denominator.
 // The unit math is covered in cmfRetail.test.js / portfolio.retail.test.js; this pins
-// that MyCollection actually wires both at the render seam. Discriminating fixture:
-//   71034-3 (CMF, no Brickset cache → era $4.99 → PRICED)
+// that MyCollection actually wires it at the render seam. Discriminating fixture:
+//   71034-3 (CMF, no Brickset cache → era $4.99 → SOURCED; headline $4.99)
 //   30001-1 (non-promo, unsourced → "not listed")
-//   6490363-1 (7-digit promo/GWP → "promo (no MSRP)")
-// → known 1, promo 1, notListed 1 of 3 → "1 of 3 priced · 1 promo (no MSRP) · 1 not
-// listed". Deleting the cmf rung makes it "0 of 3"; using the promo-excluded
-// denominator makes it "1 of 2". Either turns this RED.
+//   6490363-1 (7-digit promo/GWP, curated estimated ARV $19.99 → promo·ARV, Option C)
+// → "$4.99" headline · "1 sourced · 1 promo (ARV ~$19.99) · 1 not listed". Deleting the
+// cmf rung makes it "0 sourced"; folding the ARV into the headline makes it "$24.98";
+// dropping the promo→promo rule makes the GWP count sourced/estimated. Any turns this RED.
 // Mirrors the god-module harness of MyCollection.staleness.test.jsx.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -67,16 +67,20 @@ async function render() {
   return container.textContent;
 }
 
-describe("MyCollection — MSRP Value card coverage wiring", () => {
-  it("CMF era fallback prices 71034 · note uses the FULL set count (1 of 3) · gap is labeled", async () => {
+describe("MyCollection — MSRP Value card coverage wiring (Option C 4-segment)", () => {
+  it("headline = sourced-only ($4.99 via cmf); 4-segment note labels sourced / promo·ARV / not-listed", async () => {
     const txt = await render();
-    // #1: denominator is the FULL unique-set total (3) — reverts the promo-excluded "1 of 2".
-    expect(txt).toContain("1 of 3 priced");
-    expect(txt).not.toContain("1 of 2"); // the promo-excluded denominator decision is gone
-    // #2: the gap is LABELED in place, not silently dropped — the GWP and the unsourced set.
-    expect(txt).toContain("1 promo (no MSRP)");
+    // #1 headline = SOURCED sum only — 71034's cmf era $4.99; NOT inflated by the GWP's $19.99 ARV.
+    expect(txt).toContain("$4.99");
+    expect(txt).not.toContain("$24.98"); // 4.99 + 19.99 — the ARV must not fold into the headline
+    // #2 cmf era rung still prices 71034 as SOURCED (delete the rung → "0 sourced").
+    expect(txt).toContain("1 sourced");
+    expect(txt).not.toContain("0 sourced");
+    // #3 the gap is LABELED in place: the 6490363 GWP now carries its researched ARV (promo·ARV), and
+    //    the unsourced 30001 is "not listed" — neither silently dropped.
+    expect(txt).toContain("1 promo (ARV");
     expect(txt).toContain("1 not listed");
-    // #3: 71034 still prices via the cmf era rung — else known would be 0 → "0 of 3".
-    expect(txt).not.toContain("0 of 3");
+    // #4 the old "N of M priced" denominator framing is gone (segments now sum to the total implicitly).
+    expect(txt).not.toContain("1 of 3");
   });
 });

@@ -90,4 +90,14 @@ describe("display — the three states render distinctly", () => {
     expect(retailCellTooltip(sourced)).toMatch(/sticker|retail/i);
     expect(retailCellTooltip(sourced)).not.toMatch(/no RRP/i);
   });
+
+  // A VALUED promo (curated ARV, Option C) — basis:"promo" WITH an amount: a fourth display nuance.
+  const promoArv = setRetailProvenance({ curated_estimated: { amount: 19.99, confidence: "C", source: "value proxy" } }, { promo: true });
+  it("valued promo (ARV) → shows the figure tagged 'Promo', with the 'stated value, not a sourced RRP' tooltip", () => {
+    expect(isPromoNoRrp(promoArv)).toBe(true);      // still a promo
+    expect(promoArv.amount).toBe(19.99);
+    expect(formatRetailCell(promoArv)).toBe("Promo · $19.99"); // the ARV, not "no RRP"
+    expect(retailCellTooltip(promoArv)).toBe("LEGO-stated value, not a sourced RRP.");
+    expect(retailCellTooltip(promoArv)).not.toMatch(/no RRP/i); // distinct from the valueless-promo tooltip
+  });
 });

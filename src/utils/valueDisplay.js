@@ -113,6 +113,33 @@ export function retailGapNote(promoCount, notListedCount) {
   return parts.length ? parts.join(" · ") : null;
 }
 
+/**
+ * The MSRP Value card's coverage breakdown (Option C — 4 segments, zero-count segments omitted):
+ *   "N sourced · M estimated (~$X) · P promo (ARV ~$Y) · Q not listed"
+ * Supersedes the {@link retailPricedNote} + {@link retailGapNote} pair for the curated era. The HEADLINE
+ * is the SOURCED sum only; this discloses the estimated ($X) and promo-ARV ($Y) totals SEPARATELY so
+ * estimates/ARVs never inflate it (the `~` flags an estimate). A promo segment with no ARV ($0) reads
+ * "P promo (no MSRP)" — the pre-curated label. Returns null when there is no gap (everything sourced),
+ * matching {@link retailPricedNote}'s omit-when-nothing-hidden contract.
+ *
+ * NOTE (segment ≠ tier): a promo whose curated tier is "estimated" is counted in `promo`, not
+ * `estimated` (Option C) — so the card's estimated count is the NON-promo estimates only, and can be
+ * LESS than the curated CSV's estimated-row count.
+ *
+ * @param {{known?:number, estimated?:number, estimatedTotal?:number, promo?:number, promoTotal?:number,
+ *          notListed?:number}} r  a {@link import("./portfolio").portfolioRetail} result.
+ * @returns {string|null}
+ */
+export function retailCoverageNote({ known = 0, estimated = 0, estimatedTotal = 0, promo = 0, promoTotal = 0, notListed = 0 } = {}) {
+  if (estimated + promo + notListed === 0) return null; // fully sourced — the headline says it all
+  const parts = [];
+  if (known > 0) parts.push(`${known} sourced`);
+  if (estimated > 0) parts.push(`${estimated} estimated (~${money(estimatedTotal)})`);
+  if (promo > 0) parts.push(promoTotal > 0 ? `${promo} promo (ARV ~${money(promoTotal)})` : `${promo} promo (no MSRP)`);
+  if (notListed > 0) parts.push(`${notListed} not listed`);
+  return parts.length ? parts.join(" · ") : null;
+}
+
 // The retail caveat covers BOTH halves of the at-retail trap: the figure is the
 // sticker price (not a secondary-market valuation), AND any ROI beside it is the
 // buyer's discount vs retail, not market appreciation. (docs/valuation.md rule 2)
@@ -142,6 +169,9 @@ export const PROMO_NO_RRP_LABEL = "Promo · no RRP";
 const PROMO_NO_RRP_TOOLTIP =
   "Gift-with-purchase / promo set — never sold at retail, so it has no RRP. " +
   "A known 'no retail' state, not a price we failed to source.";
+// A VALUED promo (basis:"promo" with an amount) — a GWP that carries a researched ARV (curated rung,
+// Option C). Its figure is a stated value, NOT a sticker price, so it's labeled distinctly here.
+const PROMO_ARV_TOOLTIP = "LEGO-stated value, not a sourced RRP.";
 
 /**
  * Is this a promo/no-RRP retail Value (basis:"promo")? The discriminator for the third retail state.
@@ -160,7 +190,11 @@ export function isPromoNoRrp(value) {
  * @returns {string}
  */
 export function formatRetailCell(value) {
-  return isPromoNoRrp(value) ? PROMO_NO_RRP_LABEL : formatValueCell(value);
+  if (isPromoNoRrp(value)) {
+    // A valued promo (curated ARV) shows the figure with the Promo tag; a valueless GWP shows "no RRP".
+    return value.amount != null ? `Promo · ${money(value.amount)}` : PROMO_NO_RRP_LABEL;
+  }
+  return formatValueCell(value);
 }
 
 /**
@@ -170,7 +204,8 @@ export function formatRetailCell(value) {
  * @returns {string|null}
  */
 export function retailCellTooltip(value) {
-  return isPromoNoRrp(value) ? PROMO_NO_RRP_TOOLTIP : retailTooltip(value);
+  if (isPromoNoRrp(value)) return value.amount != null ? PROMO_ARV_TOOLTIP : PROMO_NO_RRP_TOOLTIP;
+  return retailTooltip(value);
 }
 
 /**
