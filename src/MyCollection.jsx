@@ -19,7 +19,7 @@ import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
 import { ownedSetFromBlob } from "./utils/beCollection";
 import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, conditionValueBuckets, freebieValue, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
-import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailCoverageNote, estimatedValueNote, estimatedCostNote, roiScopeNote, roiScopeTooltip, freebieNote, FREEBIE_TOOLTIP, netGainBasisNote, signColor } from "./utils/valueDisplay";
+import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailCoverageNote, vsdEsdNote, VSD_ESD_TOOLTIP, estimatedCostNote, roiScopeNote, roiScopeTooltip, freebieNote, FREEBIE_TOOLTIP, netGainBasisNote, signColor } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { valuesAsOf, freshness } from "./utils/freshness";
 import { apiFetch } from "./utils/apiFetch";
@@ -1391,7 +1391,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                     style={{ opacity: draggedCollItem === item.key ? 0.4 : 1, cursor: "grab" }}
                   >
                     {item.key === "qty"          ? <Card title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} /> :
-                     item.key === "value"        ? <Card title="Collection Value" value={fmtAgg(stats.value, stats.valuedSets)} sub={valuesReady ? [unknownValueNote(stats.valuedSets, sets.length), estimatedValueNote(stats.estimatedShare)].filter(Boolean).join(" · ") || null : null} /> :
+                     item.key === "value"        ? <Card title="Collection Value" value={fmtAgg(stats.value, stats.valuedSets)} sub={valuesReady ? [unknownValueNote(stats.valuedSets, sets.length), vsdEsdNote(stats.estimatedShare)].filter(Boolean).join(" · ") || null : null} subTip={valuesReady && vsdEsdNote(stats.estimatedShare) ? VSD_ESD_TOOLTIP : undefined} /> :
                      item.key === "cost"         ? <Card title="Cost Basis"       value={money(stats.costBasis)} sub={estimatedCostNote(stats.msrpCount, stats.msrpCost)} /> :
                      item.key === "gain"         ? <Card title="Net Gain / Loss"  value={fmtAgg(stats.gainLoss, stats.valuedSets)} good={stats.valuedSets > 0 ? stats.gainLoss >= 0 : undefined} sub={valuesReady ? (freebieNote(stats.freebieValue) ?? netGainBasisNote(stats.value, stats.valuedCost, stats.valuedSets, stats.costBasis)) : null} subTip={valuesReady && freebieNote(stats.freebieValue) ? FREEBIE_TOOLTIP : undefined} /> :
                      item.key === "roi"          ? <Card title="ROI"              value={!valuesReady ? "…" : stats.roi === null ? "—" : `${stats.roi.toFixed(1)}%`} good={stats.roi === null ? undefined : stats.roi >= 0} sub={roiScopeNote(stats.msrpCount)} subTip={roiScopeTooltip(stats.msrpCount)} /> :

@@ -412,6 +412,29 @@ export function estimatedValueNote(share) {
 }
 
 /**
+ * VSD / ESD relabel of the Collection Value estimate disclosure — DISPLAY ONLY. ESD (Estimated Sales
+ * Data) is the SAME {@link estimatedValueShare} fraction this rounds exactly like {@link estimatedValueNote}
+ * (so the ESD number is byte-parity with the old "X% of value estimated"); VSD (Verified Sales Data) is the
+ * complement, 100 − ESD, derived from the rounded ESD so the pair sums to 100. Returns null when share ≤ 0
+ * (same gate as estimatedValueNote: no estimates / no value map → no note, frozen promos untouched).
+ *
+ * @param {number} share  fraction in [0, 1] (estimatedValueShare — NOT recomputed here).
+ * @returns {string|null}  e.g. "98.6% VSD · 1.4% ESD", or null.
+ */
+export function vsdEsdNote(share) {
+  if (!share || share <= 0) return null;
+  const esdPct = share * 100;
+  const esdShown = esdPct < 1 ? esdPct.toFixed(1) : Math.round(esdPct).toString();
+  const vsdShown = (Math.round((100 - Number(esdShown)) * 10) / 10).toString();
+  return `${vsdShown}% VSD · ${esdShown}% ESD`;
+}
+
+// Tooltip for the VSD/ESD split on the Collection Value card.
+export const VSD_ESD_TOOLTIP =
+  "VSD = Verified Sales Data (priced from real sold listings). ESD = Estimated Sales Data " +
+  "(priced by estimate when recent sold data is thin or absent).";
+
+/**
  * Breakdown sub-line for the Net Gain tile under PARTIAL value coverage:
  * "$value − $valuedCost · N valued sets". Net Gain is computed over the value-known subset, so it
  * equals `value − the valued-subset cost` — NOT `value − the Cost Basis tile's inclusive total`.
