@@ -24,39 +24,12 @@ import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { valuesAsOf, freshness } from "./utils/freshness";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
+import { loadCollectionItems } from "./utils/collectionLayout";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
 const CONDITION_CYCLE = ["new", "used_as_new", "used_good", "used_acceptable"];
 
-const DEFAULT_COLLECTION_ITEMS = [
-  { key: "qty",          type: "card",  label: "Total Sets",       visible: true,  width: "auto",  collapsed: false },
-  { key: "value",        type: "card",  label: "Collection Value", visible: true,  width: "auto",  collapsed: false },
-  { key: "cost",         type: "card",  label: "Cost Basis",       visible: true,  width: "auto",  collapsed: false },
-  { key: "gain",         type: "card",  label: "Net Gain / Loss",  visible: true,  width: "auto",  collapsed: false },
-  { key: "roi",          type: "card",  label: "ROI",              visible: true,  width: "auto",  collapsed: false },
-  { key: "themes",       type: "card",  label: "Themes",           visible: true,  width: "auto",  collapsed: false },
-  { key: "duplicates",   type: "card",  label: "Multi-Copy Sets",  visible: true,  width: "auto",  collapsed: false },
-  { key: "retired",      type: "card",  label: "Retired Sets",     visible: false, width: "auto",  collapsed: false },
-  { key: "newUsed",      type: "card",  label: "New / Used",       visible: false, width: "auto",  collapsed: false },
-  { key: "avgValue",     type: "card",  label: "Avg Set Value",    visible: false, width: "auto",  collapsed: false },
-  { key: "avgPaid",      type: "card",  label: "Avg Paid / Set",   visible: false, width: "auto",  collapsed: false },
-  { key: "pieces",       type: "card",  label: "Total Pieces",     visible: false, width: "auto",  collapsed: false },
-  { key: "minifigs",     type: "card",  label: "Minifigs",         visible: false, width: "auto",  collapsed: false },
-  { key: "retailValue",  type: "card",  label: "MSRP Value",       visible: false, width: "auto",  collapsed: false },
-  { key: "newValue",     type: "card",  label: "New Sets Value",   visible: false, width: "auto",  collapsed: false },
-  { key: "usedValue",    type: "card",  label: "Used Sets Value",  visible: false, width: "auto",  collapsed: false },
-  { key: "mixedValue",   type: "card",  label: "Mixed Sets Value", visible: false, width: "auto",  collapsed: false },
-  { key: "watchList",    type: "card",  label: "Wanted List",      visible: false, width: "auto",  collapsed: false },
-  { key: "condition-breakdown", type: "panel", label: "Condition Breakdown", visible: false, width: "half", collapsed: false },
-  { key: "theme-chart",   type: "panel", label: "Value by Theme",     visible: true,  width: "half",  collapsed: false },
-  { key: "roi-leaders",   type: "panel", label: "ROI Leaders",        visible: true,  width: "half",  collapsed: false },
-  { key: "most-valuable", type: "panel", label: "Most Valuable Sets", visible: true,  width: "half",  collapsed: false },
-  { key: "watch-list",    type: "panel", label: "Wanted List",        visible: true,  width: "half",  collapsed: false },
-  { key: "budget",           type: "panel", label: "Budget Snapshot",    visible: true,  width: "full",  collapsed: false },
-  { key: "portfolio-history", type: "panel", label: "Portfolio History",  visible: true,  width: "full",  collapsed: false },
-  { key: "theme-performance", type: "panel", label: "Theme Performance",  visible: true,  width: "full",  collapsed: false },
-];
-
+// DEFAULT_COLLECTION_ITEMS + loadCollectionItems moved to ./utils/collectionLayout
 // DEFAULT_OWNED_COLUMNS imported from ./utils/columnDefaults
 
 // Default column widths (px). All columns are resizable; widths persist in blOwnedColWidths.
@@ -118,26 +91,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   const [hoveredCollItem, setHoveredCollItem] = useState(null);
   const [draggedCollItem, setDraggedCollItem] = useState(null);
   const [metaRefreshing, setMetaRefreshing] = useState(false);
-  const [collectionItems, setCollectionItems] = useState(() => {
-    const saved = localStorage.getItem("blCollectionItems");
-    if (!saved) return DEFAULT_COLLECTION_ITEMS;
-    const parsed = JSON.parse(saved);
-    // Migration: remove retired keys, carry forward their visibility into replacement
-    const legacyVisible = new Set(parsed.filter(c => c.visible).map(c => c.key));
-    const REMOVED_KEYS = new Set(["newSets", "usedSets", "retiringSoon"]);
-    const knownKeys = new Set(DEFAULT_COLLECTION_ITEMS.map(c => c.key));
-    const filtered = parsed.filter(c => !REMOVED_KEYS.has(c.key) && knownKeys.has(c.key));
-    const typeMap = Object.fromEntries(DEFAULT_COLLECTION_ITEMS.map(c => [c.key, c.type]));
-    const labelMap = Object.fromEntries(DEFAULT_COLLECTION_ITEMS.map(c => [c.key, c.label]));
-    const merged = filtered.map(c => ({ ...c, type: typeMap[c.key] ?? c.type, label: labelMap[c.key] ?? c.label }));
-    const savedKeys = new Set(merged.map(c => c.key));
-    const missing = DEFAULT_COLLECTION_ITEMS.filter(c => !savedKeys.has(c.key)).map(c => ({
-      ...c,
-      // newUsed inherits visibility if either old card was visible
-      visible: c.key === "newUsed" ? (legacyVisible.has("newSets") || legacyVisible.has("usedSets") || c.visible) : c.visible,
-    }));
-    return [...merged, ...missing];
-  });
+  const [collectionItems, setCollectionItems] = useState(() => loadCollectionItems(localStorage.getItem("blCollectionItems")));
 
   const [ownedColumnsOpen, setOwnedColumnsOpen] = useState(false);
   const [draggedOwnedColumn, setDraggedOwnedColumn] = useState(null);
