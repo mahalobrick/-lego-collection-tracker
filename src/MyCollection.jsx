@@ -8,7 +8,7 @@ import TriValueCell from "./TriValueCell";
 import RowHoverCard from "./RowHoverCard";
 import ConditionPill from "./ConditionPill";
 import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
-import { setConditionDisplay, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
+import { setConditionDisplay, conditionBucket, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
 import { applyCopyConditionEdit, applyQtyEdit } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, cmfSeriesRetailTargets, cacheBricksetSet, getBricksetCache } from "./utils/brickset";
@@ -17,7 +17,7 @@ import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
 import { ownedSetFromBlob } from "./utils/beCollection";
-import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
+import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, conditionValueBuckets, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
 import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailCoverageNote, estimatedValueNote, estimatedCostNote, totalRoiNote, netGainBasisNote, signColor } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { valuesAsOf, freshness } from "./utils/freshness";
@@ -44,6 +44,7 @@ const DEFAULT_COLLECTION_ITEMS = [
   { key: "retailValue",  type: "card",  label: "MSRP Value",       visible: false, width: "auto",  collapsed: false },
   { key: "newValue",     type: "card",  label: "New Sets Value",   visible: false, width: "auto",  collapsed: false },
   { key: "usedValue",    type: "card",  label: "Used Sets Value",  visible: false, width: "auto",  collapsed: false },
+  { key: "mixedValue",   type: "card",  label: "Mixed Sets Value", visible: false, width: "auto",  collapsed: false },
   { key: "watchList",    type: "card",  label: "Wanted List",      visible: false, width: "auto",  collapsed: false },
   { key: "condition-breakdown", type: "panel", label: "Condition Breakdown", visible: false, width: "half", collapsed: false },
   { key: "theme-chart",   type: "panel", label: "Value by Theme",     visible: true,  width: "half",  collapsed: false },
@@ -473,8 +474,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     const themes = new Set(sets.map(s => s.theme).filter(Boolean)).size;
     const duplicates = sets.filter(s => (asNumber(s.qty) || 1) > 1).length;
     const retiredSets = sets.filter(s => s.retired).length;
-    const newSets     = sets.filter(s => !s.condition || s.condition === "new" || s.condition === "sealed").length;
-    const usedSets    = sets.filter(s => s.condition && s.condition.startsWith("used")).length;
     // Avg over sets that HAVE a value — unknown-value sets are excluded so they
     // don't drag the average down as phantom $0s (avgPaid still spans all sets:
     // a paid price is known even when the current value isn't).
@@ -498,23 +497,24 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     // Entry-level counts — each copy counted individually, matching BE's method.
     // BE sets use the entries[] array; manually-added sets fall back to a single synthetic entry.
     const allEntries    = sets.flatMap(s => s.entries?.length ? s.entries : [{ condition: s.condition, current_value: asNumber(s.currentValue), retired: s.retired }]);
-    const newEntries    = allEntries.filter(e => !e.condition || e.condition === "new" || e.condition === "sealed").length;
-    const usedEntries   = allEntries.filter(e => e.condition && e.condition.startsWith("used")).length;
-    // New/Used Sets Value via the portfolio funnel on condition-filtered SETS — unknown
-    // value contributes 0 and is excluded from the known-count, so an all-unknown subset
-    // renders "—" (formatAggregateValue), never a phantom $0. (Workstream A)
-    const newSetsList   = sets.filter(s => !s.condition || s.condition === "new" || s.condition === "sealed");
-    const usedSetsList  = sets.filter(s => s.condition && s.condition.startsWith("used"));
-    const newSetsValue   = portfolioValue(newSetsList, valueMap);
-    const usedSetsValue  = portfolioValue(usedSetsList, valueMap);
-    const newValueKnown  = knownValueCount(newSetsList, valueMap);
-    const usedValueKnown = knownValueCount(usedSetsList, valueMap);
+    const newEntries    = allEntries.filter(e => conditionBucket(e.condition) === "new").length;
+    const usedEntries   = allEntries.filter(e => conditionBucket(e.condition) === "used").length;
+    // New / Used / Mixed Sets Value via the canonical setConditionDisplay partition (conditionValueBuckets):
+    // three exhaustive + disjoint buckets, so New + Used + Mixed === Collection Value by construction — a
+    // 'mixed' BE set (both new + used copies) no longer falls between New and Used (the ~$3.4k gap). Each
+    // bucket routes value/known through the null-aware funnel, so unknown contributes 0 and an all-unknown
+    // bucket renders "—", never a phantom $0. `count` is set-level — the grain its value is summed at. (Workstream A)
+    const condBuckets = conditionValueBuckets(sets, valueMap);
 
     return {
       totalQty, costBasis, value, valuedSets, themes, duplicates,
-      retiredSets, newSets, usedSets, avgValue, avgPaid,
+      retiredSets, avgValue, avgPaid,
       pieces, retailValue, retailValueKnown, retailEstimated, retailEstimatedTotal, retailPromo, retailPromoTotal, retailNotListed, minifigs, newEntries, usedEntries,
-      newSetsValue, usedSetsValue, newValueKnown, usedValueKnown,
+      // New / Used / Mixed value partition (set-level grain): count is set-level so each tile's "N sets"
+      // sub agrees with its value (was the per-copy entry count, which double-counted a mixed set into both).
+      newSetsValue: condBuckets.new.value,     newValueKnown: condBuckets.new.known,     newSetsCount: condBuckets.new.count,
+      usedSetsValue: condBuckets.used.value,   usedValueKnown: condBuckets.used.known,   usedSetsCount: condBuckets.used.count,
+      mixedSetsValue: condBuckets.mixed.value, mixedValueKnown: condBuckets.mixed.known, mixedSetsCount: condBuckets.mixed.count,
       // Paid-provenance split (Step 2 revised): msrpCost/msrpCount drive the quality disclosure
       // beside the TOTAL cost-basis headline. realCost/realCount kept for any consumer needing them.
       realCost: costSplit.realCost, realCount: costSplit.realCount,
@@ -1410,8 +1410,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                      item.key === "pieces"       ? <Card title="Total Pieces"     value={(stats.pieces || beSyncInfo.piecesCount || 0).toLocaleString()} /> :
                      item.key === "minifigs"     ? <Card title="Minifigs"         value={(stats.minifigs || beSyncInfo.minifsCount || 0).toLocaleString()} /> :
                      item.key === "retailValue"  ? <Card title="MSRP Value"       value={formatAggregateValue(stats.retailValue, stats.retailValueKnown)} sub={retailCoverageNote({ known: stats.retailValueKnown, estimated: stats.retailEstimated, estimatedTotal: stats.retailEstimatedTotal, promo: stats.retailPromo, promoTotal: stats.retailPromoTotal, notListed: stats.retailNotListed })} /> :
-                     item.key === "newValue"     ? <Card title="New Sets Value"   value={fmtAgg(stats.newSetsValue, stats.newValueKnown)} sub={`${stats.newEntries} sets`} /> :
-                     item.key === "usedValue"    ? <Card title="Used Sets Value"  value={fmtAgg(stats.usedSetsValue, stats.usedValueKnown)} sub={`${stats.usedEntries} sets`} /> :
+                     item.key === "newValue"     ? <Card title="New Sets Value"   value={fmtAgg(stats.newSetsValue, stats.newValueKnown)} sub={`${stats.newSetsCount} set${stats.newSetsCount === 1 ? "" : "s"}`} /> :
+                     item.key === "usedValue"    ? <Card title="Used Sets Value"  value={fmtAgg(stats.usedSetsValue, stats.usedValueKnown)} sub={`${stats.usedSetsCount} set${stats.usedSetsCount === 1 ? "" : "s"}`} /> :
+                     item.key === "mixedValue"   ? <Card title="Mixed Sets Value" value={fmtAgg(stats.mixedSetsValue, stats.mixedValueKnown)} sub={`${stats.mixedSetsCount} set${stats.mixedSetsCount === 1 ? "" : "s"}`} /> :
                      item.key === "watchList"    ? <Card title="Wanted List"      value={watchListHighlights.total} /> : null}
                   </div>
                 ))}

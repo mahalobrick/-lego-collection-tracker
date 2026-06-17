@@ -167,6 +167,49 @@ const noRemoveManagedCache = [
   },
 ];
 
+// ── Raw condition-bucketing ban (Overview New/Used/Mixed gap) ────────────────
+// Locks the condition invariant: a set's New/Used/Mixed bucket is derived ONLY through the canonical
+// normalizer — setConditionDisplay() / conditionBucket() (src/utils/condition.js) — never by matching the
+// raw `s.condition` string at the call site. The class this closes: the Overview value cards bucketed on
+// the raw string (`s.condition === "sealed"` for New, `s.condition.startsWith("used")` for Used), so a BE
+// multi-copy set stored set-level condition "mixed" matched NEITHER and its value vanished from New+Used
+// (the ~$3.4k gap vs Collection Value). Routed through setConditionDisplay the three buckets are total +
+// disjoint (conditionValueBuckets in portfolio.js), so the partition can't leak a set.
+//
+// SCOPE — the two precise leak shapes, mirroring the other bans' honesty about what a static rule catches:
+//   • `<obj>.condition.startsWith(...)`  — the used-bucket signature conditionBucket exists to replace.
+//   • `<obj>.condition === / !== "sealed"` — the set-level "sealed counts as New" tell (both orientations).
+// It deliberately does NOT flag a bare `<obj>.condition === "new"` equality: that exact shape has legit
+// per-copy / import uses (e.g. AppSettings' BE-CSV import summary splits raw per-copy rows new-vs-rest,
+// where no 'mixed' exists), and banning it would false-positive that handling. A New/Used SET partition
+// always needs a used check, and the idiomatic one is `.startsWith("used")` — so banning that reliably
+// breaks the buggy pattern; the conditionValueBuckets invariant test (portfolio.conditionBuckets.test.js)
+// is the semantic backstop. `String(x.condition).startsWith(...)` is also not matched (callee object is the
+// String() call, not the member) — the realistic accidental reintroduction is the bare member form.
+//
+// ALLOWLIST: condition.js (defines the normalizer) + beCollection.js (the BE storage layer that calls
+// setConditionDisplay to STORE the set-level "mixed") — both in the per-copy override block below, which
+// re-lists its rules without this one. Components + the value funnel get it.
+const noRawConditionBucketing = [
+  {
+    selector:
+      "CallExpression[callee.property.name='startsWith'][callee.object.type='MemberExpression'][callee.object.property.name='condition']",
+    message:
+      "Raw condition bucketing: `<set>.condition.startsWith('used')` re-opens the New/Used/Mixed gap " +
+      "(a 'mixed' set matches neither New nor Used). Bucket via setConditionDisplay(set) / conditionBucket(raw) " +
+      "from src/utils/condition.js — 'new'|'used'|'mixed', total + disjoint (see conditionValueBuckets).",
+  },
+  {
+    selector:
+      "BinaryExpression[operator=/^[!=]==$/][left.property.name='condition'][right.value='sealed']," +
+      "BinaryExpression[operator=/^[!=]==$/][right.property.name='condition'][left.value='sealed']",
+    message:
+      "Raw condition bucketing: comparing `<set>.condition` to \"sealed\" re-opens the New/Used/Mixed gap. " +
+      "Bucket via setConditionDisplay(set) / conditionBucket(raw) from src/utils/condition.js " +
+      "('new'|'used'|'mixed', total + disjoint — see conditionValueBuckets).",
+  },
+];
+
 module.exports = [
   {
     files: ["src/**/*.{js,jsx}"],
@@ -180,7 +223,7 @@ module.exports = [
     // no-op stub), so don't flag them as unused.
     linterOptions: { reportUnusedDisableDirectives: "off" },
     rules: {
-      "no-restricted-syntax": ["error", noRawSetItem, ...noUnknownAsZero, noDirectEntriesIteration, ...noRemoveManagedCache],
+      "no-restricted-syntax": ["error", noRawSetItem, ...noUnknownAsZero, noDirectEntriesIteration, ...noRemoveManagedCache, ...noRawConditionBucketing],
     },
   },
   // The ONE sanctioned raw-write module (the choke point + the atomic-rollback revert).
@@ -195,7 +238,7 @@ module.exports = [
   // do NOT clear caches, so they keep the managed-cache ban.
   {
     files: ["src/utils/valueDisplay.js", "src/utils/portfolio.js", "src/utils/value.js"],
-    rules: { "no-restricted-syntax": ["error", noRawSetItem, ...noRemoveManagedCache] },
+    rules: { "no-restricted-syntax": ["error", noRawSetItem, ...noRemoveManagedCache, ...noRawConditionBucketing] },
   },
   // The sanctioned PER-COPY layer (G4): the funnel itself, the condition normalizer, and the BE
   // storage-normalization layer legitimately read the raw stored entries[]. They get every ban

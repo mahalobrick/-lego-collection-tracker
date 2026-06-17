@@ -1,6 +1,6 @@
 import { asNumber } from "./formatting";
 import { toValue, valueAmount } from "./value";
-import { conditionBucket } from "./condition";
+import { conditionBucket, setConditionDisplay } from "./condition";
 import { materializeEntries } from "./percopy";
 import { isFrozenValueSet, frozenValue } from "./frozenValue";
 
@@ -832,4 +832,29 @@ export function groupRollup(sets, keyFn, valueMap) {
       unknownValueCount: gsets.length - known,
     };
   });
+}
+
+/**
+ * Collection value split by the canonical New / Used / Mixed condition bucket — the value twin of the
+ * Condition Breakdown pie (both route through {@link import("./condition").setConditionDisplay}). Every
+ * set lands in EXACTLY one bucket: setConditionDisplay is total over its 'new'|'used'|'mixed' output and
+ * the three are disjoint, so by construction
+ *   new.value + used.value + mixed.value === {@link portfolioValue}(sets)   (the headline Collection Value)
+ * — no set's value can fall between buckets. This is the fix for the Overview gap: the old per-card raw
+ * filters (`s.condition === "new"` / `s.condition.startsWith("used")`) dropped a 'mixed' set — a BE
+ * multi-copy set with both new and used copies, stored set-level condition "mixed" (beCollection.js) —
+ * from BOTH New and Used, so its value vanished from the New+Used decomposition. Each bucket routes its
+ * value + known-count through the SAME null-aware funnel ({@link portfolioValue} / {@link knownValueCount}),
+ * so unknown value contributes 0 and an all-unknown bucket reads "—", never a phantom $0. `count` is the
+ * set-level total (the grain the value is computed at), distinct from a per-copy entry count.
+ *
+ * @param {Array<Object>} sets
+ * @param {Object} [valueMap]
+ * @returns {{ new:{value:number,known:number,count:number}, used:{value:number,known:number,count:number}, mixed:{value:number,known:number,count:number} }}
+ */
+export function conditionValueBuckets(sets, valueMap) {
+  const groups = { new: [], used: [], mixed: [] };
+  for (const s of sets) groups[setConditionDisplay(s)].push(s);
+  const roll = (g) => ({ value: portfolioValue(g, valueMap), known: knownValueCount(g, valueMap), count: g.length });
+  return { new: roll(groups.new), used: roll(groups.used), mixed: roll(groups.mixed) };
 }
