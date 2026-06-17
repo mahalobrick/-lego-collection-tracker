@@ -81,9 +81,11 @@ describe("Collection-stats card glossary copy renders the agreed, GENERIC wordin
     expect(CONDITION_VALUE_TOOLTIP).toContain("Mixed = you own both");
     expect(CONDITION_VALUE_TOOLTIP).toContain("sum to your collection value");
   });
-  it("Retired Sets defines retired (per Brickset)", () => {
-    expect(RETIRED_TOOLTIP).toContain("no longer in production");
-    expect(RETIRED_TOOLTIP).toContain("Brickset");
+  it("Retired Sets explains the % (retired ÷ unique sets, counted once per set, not per copy)", () => {
+    expect(RETIRED_TOOLTIP).toContain("÷");
+    expect(RETIRED_TOOLTIP).toContain("unique sets");
+    expect(RETIRED_TOOLTIP).toContain("counts once");
+    expect(RETIRED_TOOLTIP).toContain("not per copy");
   });
   it("Cost Basis explains the MSRP cost proxy / conservative ROI", () => {
     expect(COST_BASIS_TOOLTIP).toContain("MSRP");

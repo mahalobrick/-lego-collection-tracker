@@ -201,9 +201,9 @@ export const CONDITION_VALUE_TOOLTIP =
   "Counted per set — New = all copies new, Used = all used, Mixed = you own both. " +
   "The three values sum to your collection value.";
 
-// Retired Sets.
+// Retired Sets — explains the sub-line %: retired ÷ unique sets, each set counted once (not per copy).
 export const RETIRED_TOOLTIP =
-  "Retired = no longer in production (per Brickset).";
+  "The % is your retired sets ÷ your unique sets — each set counts once, not per copy (extra copies of the same set don't count again).";
 
 // Cost Basis — why ROI reads conservative when some costs are MSRP placeholders.
 export const COST_BASIS_TOOLTIP =
