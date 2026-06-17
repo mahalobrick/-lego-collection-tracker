@@ -15,9 +15,11 @@ import { createRoot } from "react-dom/client";
 //   71034-3 (CMF, no Brickset cache → era $4.99 → SOURCED; headline $4.99)
 //   30001-1 (non-promo, unsourced → "not listed")
 //   6490363-1 (7-digit promo/GWP, curated estimated ARV $19.99 → promo·ARV, Option C)
-// → "$4.99" headline · "1 sourced · 1 promo (ARV ~$19.99) · 1 not listed". Deleting the
-// cmf rung makes it "0 sourced"; folding the ARV into the headline makes it "$24.98";
-// dropping the promo→promo rule makes the GWP count sourced/estimated. Any turns this RED.
+// → "$4.99" headline · COUNTS-only sub "1 sourced · 1 promo · 1 not listed" (Workstream #2:
+// the ARV $19.99 relocated from the sub to the hover-only tooltip, so it's NOT in the always-
+// visible DOM). Deleting the cmf rung makes it "0 sourced"; folding the ARV into the headline
+// makes it "$24.98"; dropping the promo→promo rule makes the GWP count sourced/estimated;
+// regressing the relocation puts "$19.99" back in the sub. Any turns this RED.
 // Mirrors the god-module harness of MyCollection.staleness.test.jsx.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -76,10 +78,13 @@ describe("MyCollection — MSRP Value card coverage wiring (Option C 4-segment)"
     // #2 cmf era rung still prices 71034 as SOURCED (delete the rung → "0 sourced").
     expect(txt).toContain("1 sourced");
     expect(txt).not.toContain("0 sourced");
-    // #3 the gap is LABELED in place: the 6490363 GWP now carries its researched ARV (promo·ARV), and
-    //    the unsourced 30001 is "not listed" — neither silently dropped.
-    expect(txt).toContain("1 promo (ARV");
+    // #3 the gap is LABELED in place via COUNTS: the 6490363 GWP is "1 promo", the unsourced 30001 is
+    //    "1 not listed" — neither silently dropped.
+    expect(txt).toContain("1 promo");
     expect(txt).toContain("1 not listed");
+    // #3b RELOCATION (Workstream #2): the promo's ARV dollar moved off the always-visible sub into the
+    //     hover-only tooltip, so "$19.99" is NOT in the rendered text (counts unchanged, sums relocated).
+    expect(txt).not.toContain("$19.99");
     // #4 the old "N of M priced" denominator framing is gone (segments now sum to the total implicitly).
     expect(txt).not.toContain("1 of 3");
   });

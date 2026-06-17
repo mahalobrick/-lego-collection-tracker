@@ -19,7 +19,7 @@ import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
 import { ownedSetFromBlob } from "./utils/beCollection";
 import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, conditionValueBuckets, freebieValue, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
-import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailCoverageNote, vsdEsdNote, VSD_ESD_TOOLTIP, estimatedCostNote, roiScopeNote, roiScopeTooltip, freebieNote, FREEBIE_TOOLTIP, netGainBasisNote, signColor } from "./utils/valueDisplay";
+import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailCoverageCounts, retailCoverageTooltip, vsdEsdNote, VSD_ESD_TOOLTIP, estimatedCostNote, roiScopeNote, roiScopeTooltip, freebieNote, FREEBIE_TOOLTIP, netGainBasisNote, signColor, TOTAL_SETS_TOOLTIP, NEW_USED_COUNT_TOOLTIP, CONDITION_VALUE_TOOLTIP, RETIRED_TOOLTIP, COST_BASIS_TOOLTIP } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { valuesAsOf, freshness } from "./utils/freshness";
 import { apiFetch } from "./utils/apiFetch";
@@ -1390,14 +1390,14 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                     onDrop={() => dropCollItem(item.key)}
                     style={{ opacity: draggedCollItem === item.key ? 0.4 : 1, cursor: "grab" }}
                   >
-                    {item.key === "qty"          ? <Card title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} /> :
+                    {item.key === "qty"          ? <Card title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} subTip={TOTAL_SETS_TOOLTIP} /> :
                      item.key === "value"        ? <Card title="Collection Value" value={fmtAgg(stats.value, stats.valuedSets)} sub={valuesReady ? [unknownValueNote(stats.valuedSets, sets.length), vsdEsdNote(stats.estimatedShare)].filter(Boolean).join(" · ") || null : null} subTip={valuesReady && vsdEsdNote(stats.estimatedShare) ? VSD_ESD_TOOLTIP : undefined} /> :
-                     item.key === "cost"         ? <Card title="Cost Basis"       value={money(stats.costBasis)} sub={estimatedCostNote(stats.msrpCount, stats.msrpCost)} /> :
+                     item.key === "cost"         ? <Card title="Cost Basis"       value={money(stats.costBasis)} sub={estimatedCostNote(stats.msrpCount, stats.msrpCost)} subTip={COST_BASIS_TOOLTIP} /> :
                      item.key === "gain"         ? <Card title="Net Gain / Loss"  value={fmtAgg(stats.gainLoss, stats.valuedSets)} good={stats.valuedSets > 0 ? stats.gainLoss >= 0 : undefined} sub={valuesReady ? (freebieNote(stats.freebieValue) ?? netGainBasisNote(stats.value, stats.valuedCost, stats.valuedSets, stats.costBasis)) : null} subTip={valuesReady && freebieNote(stats.freebieValue) ? FREEBIE_TOOLTIP : undefined} /> :
                      item.key === "roi"          ? <Card title="ROI"              value={!valuesReady ? "…" : stats.roi === null ? "—" : `${stats.roi.toFixed(1)}%`} good={stats.roi === null ? undefined : stats.roi >= 0} sub={roiScopeNote(stats.msrpCount)} subTip={roiScopeTooltip(stats.msrpCount)} /> :
                      item.key === "themes"       ? <Card title="Themes"           value={stats.themes} /> :
                      item.key === "duplicates"   ? <Card title="Multi-Copy Sets"  value={stats.duplicates} /> :
-                     item.key === "retired"      ? <Card title="Retired Sets"     value={stats.retiredSets} sub={sets.length ? `${((stats.retiredSets / sets.length) * 100).toFixed(1)}% of unique sets` : null} /> :
+                     item.key === "retired"      ? <Card title="Retired Sets"     value={stats.retiredSets} sub={sets.length ? `${((stats.retiredSets / sets.length) * 100).toFixed(1)}% of unique sets` : null} subTip={RETIRED_TOOLTIP} /> :
                      item.key === "newUsed"      ? (
                        <div style={{ ...panel, marginTop: 0, minHeight: 88, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "14px 16px" }}>
                          <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>New / Used</div>
@@ -1406,17 +1406,17 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                            <span style={{ fontSize: 14, color: "#3d4f60", fontWeight: 700 }}>/</span>
                            <span style={{ fontSize: 22, fontWeight: 900, color: "#e8e2d5", lineHeight: 1.1 }}>{stats.usedEntries}</span>
                          </div>
-                         <div style={{ fontSize: 11, color: "#3d4f60", minHeight: 14 }}>new · used</div>
+                         <div style={{ fontSize: 11, color: "#3d4f60", minHeight: 14, display: "flex", alignItems: "center", gap: 4 }}>new · used<InfoTip text={NEW_USED_COUNT_TOOLTIP} size={13} /></div>
                        </div>
                      ) :
                      item.key === "avgValue"     ? <Card title="Avg Set Value"    value={fmtAgg(stats.avgValue, stats.valuedSets)} /> :
                      item.key === "avgPaid"      ? <Card title="Avg Paid / Set"   value={money(stats.avgPaid)} /> :
                      item.key === "pieces"       ? <Card title="Total Pieces"     value={(stats.pieces || beSyncInfo.piecesCount || 0).toLocaleString()} /> :
                      item.key === "minifigs"     ? <Card title="Minifigs"         value={(stats.minifigs || beSyncInfo.minifsCount || 0).toLocaleString()} /> :
-                     item.key === "retailValue"  ? <Card title="MSRP Value"       value={formatAggregateValue(stats.retailValue, stats.retailValueKnown)} sub={retailCoverageNote({ known: stats.retailValueKnown, estimated: stats.retailEstimated, estimatedTotal: stats.retailEstimatedTotal, promo: stats.retailPromo, promoTotal: stats.retailPromoTotal, notListed: stats.retailNotListed })} /> :
-                     item.key === "newValue"     ? <Card title="New Sets Value"   value={fmtAgg(stats.newSetsValue, stats.newValueKnown)} sub={`${stats.newSetsCount} set${stats.newSetsCount === 1 ? "" : "s"}`} /> :
-                     item.key === "usedValue"    ? <Card title="Used Sets Value"  value={fmtAgg(stats.usedSetsValue, stats.usedValueKnown)} sub={`${stats.usedSetsCount} set${stats.usedSetsCount === 1 ? "" : "s"}`} /> :
-                     item.key === "mixedValue"   ? <Card title="Mixed Sets Value" value={fmtAgg(stats.mixedSetsValue, stats.mixedValueKnown)} sub={`${stats.mixedSetsCount} set${stats.mixedSetsCount === 1 ? "" : "s"}`} /> :
+                     item.key === "retailValue"  ? (() => { const r = { known: stats.retailValueKnown, estimated: stats.retailEstimated, estimatedTotal: stats.retailEstimatedTotal, promo: stats.retailPromo, promoTotal: stats.retailPromoTotal, notListed: stats.retailNotListed }; return <Card title="MSRP Value" value={formatAggregateValue(stats.retailValue, stats.retailValueKnown)} sub={retailCoverageCounts(r)} subTip={retailCoverageTooltip(r)} />; })() :
+                     item.key === "newValue"     ? <Card title="New Sets Value"   value={fmtAgg(stats.newSetsValue, stats.newValueKnown)} sub={`${stats.newSetsCount} set${stats.newSetsCount === 1 ? "" : "s"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
+                     item.key === "usedValue"    ? <Card title="Used Sets Value"  value={fmtAgg(stats.usedSetsValue, stats.usedValueKnown)} sub={`${stats.usedSetsCount} set${stats.usedSetsCount === 1 ? "" : "s"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
+                     item.key === "mixedValue"   ? <Card title="Mixed Sets Value" value={fmtAgg(stats.mixedSetsValue, stats.mixedValueKnown)} sub={`${stats.mixedSetsCount} set${stats.mixedSetsCount === 1 ? "" : "s"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
                      item.key === "watchList"    ? <Card title="Wanted List"      value={watchListHighlights.total} /> : null}
                   </div>
                 ))}

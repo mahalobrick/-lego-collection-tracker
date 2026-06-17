@@ -140,6 +140,75 @@ export function retailCoverageNote({ known = 0, estimated = 0, estimatedTotal = 
   return parts.length ? parts.join(" · ") : null;
 }
 
+/**
+ * COUNTS-ONLY twin of {@link retailCoverageNote} for the MSRP card's visible sub (Workstream #2): the
+ * four segment COUNTS only — "N sourced · M est. · P promo · Q not listed" — with the dollar detail
+ * RELOCATED to {@link retailCoverageTooltip}. SAME segment population + omit-zero + omit-when-fully-sourced
+ * contract as retailCoverageNote, so the COUNTS are byte-identical to retailCoverageNote's; only the
+ * estimated/promo `$` sums move off the sub. No recompute — it formats the same portfolioRetail result.
+ *
+ * @param {{known?:number, estimated?:number, promo?:number, notListed?:number}} r  a {@link import("./portfolio").portfolioRetail} result.
+ * @returns {string|null}
+ */
+export function retailCoverageCounts({ known = 0, estimated = 0, promo = 0, notListed = 0 } = {}) {
+  if (estimated + promo + notListed === 0) return null; // fully sourced — the headline says it all
+  const parts = [];
+  if (known > 0) parts.push(`${known} sourced`);
+  if (estimated > 0) parts.push(`${estimated} est.`);
+  if (promo > 0) parts.push(`${promo} promo`);
+  if (notListed > 0) parts.push(`${notListed} not listed`);
+  return parts.length ? parts.join(" · ") : null;
+}
+
+/**
+ * Tooltip glossary for the MSRP card — defines each segment shown by {@link retailCoverageCounts} and is
+ * where the estimated / promo-ARV dollar sums RELOCATE to (off the cramped sub). The only numbers are the
+ * EXISTING computed totals (estimatedTotal / promoTotal), relocated — never literals; the `~` flags an
+ * estimate (matching {@link retailCoverageNote}'s convention). Mirrors the PRESENT segments so the glossary
+ * tracks the counts, and shares their gate — returns null when fully sourced (no sub ⇒ no tooltip).
+ *
+ * @param {{known?:number, estimated?:number, estimatedTotal?:number, promo?:number, promoTotal?:number,
+ *          notListed?:number}} r  the SAME portfolioRetail result fed to {@link retailCoverageCounts}.
+ * @returns {string|null}
+ */
+export function retailCoverageTooltip({ known = 0, estimated = 0, estimatedTotal = 0, promo = 0, promoTotal = 0, notListed = 0 } = {}) {
+  if (estimated + promo + notListed === 0) return null;
+  const parts = [];
+  if (known > 0) parts.push("Sourced = confirmed RRP.");
+  if (estimated > 0) parts.push(`Estimated where none exists (~${money(estimatedTotal)}).`);
+  if (promo > 0) parts.push(promoTotal > 0
+    ? `Promo = LEGO's stated value / ARV (~${money(promoTotal)}), not an RRP.`
+    : "Promo = LEGO's stated value / ARV, not an RRP.");
+  if (notListed > 0) parts.push("Not listed = no value found.");
+  return parts.length ? parts.join(" ") : null;
+}
+
+// ── Collection-stats card glossary (Workstream #2) ───────────────────────────
+// Static, GENERIC explainer copy for the Overview stat cards — single-sourced here, consumed via Card's
+// `subTip` (InfoTip). No per-collection numbers live in these literals; a card that needs a figure in its
+// tooltip relocates an EXISTING computed value instead (see {@link retailCoverageTooltip}).
+
+// Total Sets: total (every copy) vs unique (distinct sets), and why they diverge.
+export const TOTAL_SETS_TOOLTIP =
+  "Total = every copy you own. Unique = distinct sets. The gap is extra copies of multi-copy sets.";
+
+// New / Used COUNT card — counted per COPY, so it differs from the per-SET value cards below.
+export const NEW_USED_COUNT_TOOLTIP =
+  "Counted per copy — each copy is classed new or used.";
+
+// New / Used / Mixed Sets VALUE cards — counted per SET; the three values partition Collection Value.
+export const CONDITION_VALUE_TOOLTIP =
+  "Counted per set — New = all copies new, Used = all used, Mixed = you own both. " +
+  "The three values sum to your collection value.";
+
+// Retired Sets.
+export const RETIRED_TOOLTIP =
+  "Retired = no longer in production (per Brickset).";
+
+// Cost Basis — why ROI reads conservative when some costs are MSRP placeholders.
+export const COST_BASIS_TOOLTIP =
+  "Sets with no purchase record are costed at MSRP, so ROI reads conservative.";
+
 // The retail caveat covers BOTH halves of the at-retail trap: the figure is the
 // sticker price (not a secondary-market valuation), AND any ROI beside it is the
 // buyer's discount vs retail, not market appreciation. (docs/valuation.md rule 2)
