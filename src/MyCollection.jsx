@@ -13,6 +13,7 @@ import { applyCopyConditionEdit, applyQtyEdit } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, bricksetRetailEntry, cmfSeriesRetailTargets, cacheBricksetSet, getBricksetCache } from "./utils/brickset";
 import { cmfEraRetail } from "./utils/cmfRetail";
+import { curatedRetail } from "./utils/curatedMsrp";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
@@ -222,11 +223,17 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     // (CMF series retail lives on the -0 variant; the figure's own entry has none) — see
     // bricksetRetailEntry.
     const bsEntry = bricksetRetailEntry(retailCaches.bs, n) || {};
+    // Curated rung (static, research-derived — no network, never BE): tier routes which rung carries the
+    // amount. sourced → curated_sourced (basis "retail", above cmf); estimated → curated_estimated (basis
+    // "estimated", last). A promo's curated value stays a promo ARV (Option C) via setRetailProvenance.
+    const cur = curatedRetail(n); // { msrp, tier, confidence, source } | null
     return setRetailProvenance(
       {
         brickset: { amount: bsEntry.data?.retail_price_us, asOf: bsEntry.fetchedAt },
         manual:   { amount: set.msrp }, // hand-entered MSRP (Phase 3a rung); 0/absent → skipped
-        cmf:      { amount: cmfEraRetail(n) }, // CMF series-bag era-table fallback; gated LAST → only fills a null Brickset -0
+        curated_sourced:   cur?.tier === "sourced"   ? { amount: cur.msrp, confidence: cur.confidence, source: cur.source } : undefined,
+        cmf:      { amount: cmfEraRetail(n) }, // CMF series-bag era-table fallback; gated below curated_sourced
+        curated_estimated: cur?.tier === "estimated" ? { amount: cur.msrp, confidence: cur.confidence, source: cur.source } : undefined,
       },
       { condition: set.condition, promo: isPromoNoRetail(set) }
     );

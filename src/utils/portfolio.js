@@ -206,6 +206,9 @@ export const RETAIL_SOURCE_ORDER = ["brickset", "manual", "curated_sourced", "cm
 // The rungs whose resolved value is an ESTIMATE (basis "estimated"), parallel to the VALUE-axis estimate
 // concept (isEstimateBasis / estimatedValueShare) — NOT the cost-axis "estimated at MSRP". Single-sourced.
 const ESTIMATED_RETAIL_SOURCES = new Set(["curated_estimated"]);
+// The curated rungs. For a promo set, ONLY a curated value is demoted to a promo ARV (Option C) — a real
+// Brickset/manual RRP still beats the promo tag (the pre-curated invariant, preserved).
+const CURATED_RETAIL_SOURCES = new Set(["curated_sourced", "curated_estimated"]);
 
 /**
  * Read-time retail (MSRP) {@link import("./value").Value} for a set — the sticker price, never a
@@ -235,10 +238,13 @@ export function setRetailProvenance(sources, { condition = null, promo = false }
     const amount = valueAmount(cand && cand.amount); // 0 / blank / missing → null → skip this source
     if (amount === null) continue;
     const asOf = (cand && cand.asOf) ?? null;
-    // Option C (docs/curated-msrp-plan.md §3): a GWP/promo set's resolved figure is a stated ARV, NOT a
-    // sticker MSRP — it STAYS basis:"promo" (a VALUED GWP), carrying the amount + curated provenance, so it
-    // lands in the promo bucket regardless of curated tier and never inflates the sourced/estimated counts.
-    if (promo) return withCurated({ amount, source, condition, basis: "promo", asOf, lots: null }, cand);
+    // Option C (docs/curated-msrp-plan.md §3): for a GWP/promo set, a CURATED figure is a stated ARV, NOT a
+    // sticker MSRP — it STAYS basis:"promo" (a VALUED GWP), carrying the amount + provenance, so it lands in
+    // the promo bucket regardless of curated tier and never inflates sourced/estimated. (A real Brickset/
+    // manual RRP still beats the promo tag — falls through below — preserving the pre-curated invariant.)
+    if (promo && CURATED_RETAIL_SOURCES.has(source)) {
+      return withCurated({ amount, source, condition, basis: "promo", asOf, lots: null }, cand);
+    }
     // curated_estimated → basis "estimated": a non-sourced estimate, disclosed separately and NEVER folded
     // into the sourced count (the VALUE-axis estimate idiom, not the cost-axis "estimated at MSRP").
     if (ESTIMATED_RETAIL_SOURCES.has(source)) {
@@ -411,32 +417,49 @@ export function knownValueCount(sets, valueMap) {
  * {@link setRetailProvenance} underneath) rather than read from a map here. (Retail Phase 3b —
  * replaces the BE-import blob `totalRetailPrice || (retailPrice || msrp) × qty`.)
  *
+ * Option C (docs/curated-msrp-plan.md §3): the partition is 4-way — `known` (sourced, basis "retail")
+ * + `estimated` (basis "estimated", curated proxy/ARV) + `promo` (GWP no/valued-RRP) + `notListed`
+ * (unsourced) === sets.length. The HEADLINE is `total`/`known` (sourced only); `estimatedTotal` and
+ * `promoTotal` are disclosed SEPARATELY (never folded into the headline) — estimates/ARVs must not
+ * inflate the sourced MSRP figure. (NOTE the segment ≠ tier reconciliation: a promo whose curated tier
+ * is "estimated" still counts in `promo`, not `estimated` — so the card's estimated count is the
+ * NON-promo estimates only.)
+ *
  * @param {Array<Object>} sets
  * @param {(set:Object) => (import("./value").Value | null)} retailOf  per-set ladder resolver
- * @returns {{ total:number, known:number, promo:number, notListed:number }}  the gap composition:
- *          `known` priced + `promo` (GWP/no-RRP) + `notListed` (real RRP, unsourced) === sets.length.
- *          The card's denominator is the FULL set count; `promo`/`notListed` LABEL the gap (so the
- *          reader sees WHY some sets aren't priced) rather than shrink the denominator.
+ * @returns {{ total:number, known:number, estimated:number, estimatedTotal:number, promo:number,
+ *          promoTotal:number, notListed:number }}  known + estimated + promo + notListed === sets.length.
  */
 export function portfolioRetail(sets, retailOf) {
-  let total = 0, known = 0, promo = 0, notListed = 0;
+  let total = 0, known = 0, estimated = 0, estimatedTotal = 0, promo = 0, promoTotal = 0, notListed = 0;
   for (const s of sets) {
     const r = retailOf(s);
-    // Gap composition — every set lands in exactly one bucket, so the three counts sum to
-    // sets.length (the FULL denominator the card reads against):
-    //   promo/GWP (basis:"promo", amount null) — no RRP by nature → LABELED, not dropped;
-    //   a sourced figure (amount != null) → priced (known);
-    //   else (unsourced, but a real RRP exists) → "not listed", a genuine gap to disclose.
-    // total/known are unchanged from the priced-sum behavior — only the gap split is new.
-    if (r && r.basis === "promo") { promo += 1; continue; }
+    const qty = asNumber(s.qty) || 1;
+    // Each set lands in EXACTLY one bucket → known + estimated + promo + notListed === sets.length:
+    //   promo/GWP (basis:"promo") — no-RRP or valued ARV; promoTotal sums any ARV but it NEVER counts
+    //     as sourced/estimated (Option C: a GWP value is not a sticker MSRP);
+    //   curated estimate (basis:"estimated") — a non-sourced figure → estimated/estimatedTotal, kept OUT
+    //     of the sourced headline and disclosed separately;
+    //   a sourced RRP (basis:"retail", amount != null) → known/total (the headline);
+    //   else (unsourced, real RRP exists) → "not listed".
+    if (r && r.basis === "promo") {
+      promo += 1;
+      if (r.amount != null) promoTotal += r.amount * qty;
+      continue;
+    }
+    if (r && r.basis === "estimated" && r.amount != null) {
+      estimated += 1;
+      estimatedTotal += r.amount * qty;
+      continue;
+    }
     if (r && r.amount != null) {
-      total += r.amount * (asNumber(s.qty) || 1);
+      total += r.amount * qty;
       known += 1;
     } else {
       notListed += 1;
     }
   }
-  return { total, known, promo, notListed };
+  return { total, known, estimated, estimatedTotal, promo, promoTotal, notListed };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -8,8 +8,11 @@
 // isolated. The whole portfolio→formatting/value/… import chain is node-safe
 // (the only localStorage read, formatting.js currency, is try/catch-guarded).
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { portfolioRetail, setRetailProvenance, isPromoNoRetail } from "./portfolio";
 import { retailPricedNote, retailGapNote } from "./valueDisplay";
+import { curatedRetail } from "./curatedMsrp.js";
+import { CSV_PATH } from "../../scripts/gen-curated-msrp.mjs";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Retail Phase 3b — the Retail Value card sums the SHARED ladder (portfolioRetail
@@ -41,14 +44,14 @@ describe("portfolioRetail — sums the ladder, not the BE blob", () => {
       { setNumber: "75192-1", be: 60, qty: 1 },     // former BE-only → "—" after 3c, not counted
     ];
     // notListed 1 — the unsourced 75192 (a real RRP exists, just unobtained); no promos.
-    expect(portfolioRetail(sets, retailOf)).toEqual({ total: 204.99, known: 2, promo: 0, notListed: 1 });
+    expect(portfolioRetail(sets, retailOf)).toEqual({ total: 204.99, known: 2, estimated: 0, estimatedTotal: 0, promo: 0, promoTotal: 0, notListed: 1 });
   });
 
   it("Brickset wins over a divergent raw retailPrice blob — ladder, not the stored field", () => {
     // The set carries a stale BE-blob retailPrice/totalRetailPrice the OLD card would have summed;
     // the ladder resolver ignores those and takes the Brickset figure. Proves card ≠ blob.
     const sets = [{ setNumber: "10300-1", bs: 100, retailPrice: 80, totalRetailPrice: 80, qty: 1 }];
-    expect(portfolioRetail(sets, retailOf)).toEqual({ total: 100, known: 1, promo: 0, notListed: 0 });
+    expect(portfolioRetail(sets, retailOf)).toEqual({ total: 100, known: 1, estimated: 0, estimatedTotal: 0, promo: 0, promoTotal: 0, notListed: 0 });
   });
 
   it("promo (no-RRP) and unsourced sets contribute 0 and are excluded from the priced count", () => {
@@ -57,8 +60,8 @@ describe("portfolioRetail — sums the ladder, not the BE blob", () => {
       { setNumber: "6490363-1", theme: "Promotional", qty: 1 }, // promo → 0, not counted
       { setNumber: "99999-1", qty: 1 },                        // unsourced → 0, not counted
     ];
-    // total/known unchanged; promo 1 (the GWP) + notListed 1 (the unsourced) label the gap.
-    expect(portfolioRetail(sets, retailOf)).toEqual({ total: 100, known: 1, promo: 1, notListed: 1 });
+    // total/known unchanged; promo 1 (the GWP, no value) + notListed 1 (the unsourced) label the gap.
+    expect(portfolioRetail(sets, retailOf)).toEqual({ total: 100, known: 1, estimated: 0, estimatedTotal: 0, promo: 1, promoTotal: 0, notListed: 1 });
   });
 
   it("nothing priced → total 0 with known 0 (card renders \"—\", never a phantom $0)", () => {
@@ -67,12 +70,12 @@ describe("portfolioRetail — sums the ladder, not the BE blob", () => {
       { setNumber: "99999-1", qty: 1 },
     ];
     // promo 1 + notListed 1 — nothing priced, so the card renders "—".
-    expect(portfolioRetail(sets, retailOf)).toEqual({ total: 0, known: 0, promo: 1, notListed: 1 });
+    expect(portfolioRetail(sets, retailOf)).toEqual({ total: 0, known: 0, estimated: 0, estimatedTotal: 0, promo: 1, promoTotal: 0, notListed: 1 });
   });
 
   it("a stored 0 retail is unknown (no $0 RRP) → contributes 0, not counted", () => {
     const sets = [{ setNumber: "12345-1", bs: 0, msrp: 0, be: 0, qty: 1 }];
-    expect(portfolioRetail(sets, retailOf)).toEqual({ total: 0, known: 0, promo: 0, notListed: 1 });
+    expect(portfolioRetail(sets, retailOf)).toEqual({ total: 0, known: 0, estimated: 0, estimatedTotal: 0, promo: 0, promoTotal: 0, notListed: 1 });
   });
 });
 
@@ -101,6 +104,76 @@ describe("portfolioRetail — gap composition (priced + promo + notListed = all 
     const { known, promo, notListed } = portfolioRetail(sets, retailOf);
     expect(retailPricedNote(known, sets.length)).toBe("1 of 3 priced");
     expect(retailGapNote(promo, notListed)).toBe("1 promo (no MSRP) · 1 not listed");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Option C (docs/curated-msrp-plan.md §3): the curated rungs extend the 3-way partition to 4-way —
+// sourced (basis "retail") + estimated (basis "estimated") + promo + notListed === total. A promo's
+// curated ARV STAYS in promo (never sourced/estimated), regardless of tier.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("portfolioRetail — 4-way partition with curated rungs (Option C)", () => {
+  // Synthetic resolver feeding the curated rungs from per-set fields (cs = curated_sourced amount,
+  // ce = curated_estimated amount), mirroring how MyCollection.retailFor wires curatedRetail().
+  const synth = (s) =>
+    setRetailProvenance(
+      {
+        brickset: { amount: s.bs }, manual: { amount: s.msrp },
+        curated_sourced: { amount: s.cs }, cmf: { amount: s.cmf }, curated_estimated: { amount: s.ce },
+      },
+      { promo: s.promo ?? isPromoNoRetail(s) }
+    );
+
+  it("sourced→sourced, estimated→estimated (separate total), promo ARV→promo (separate total), else notListed", () => {
+    const sets = [
+      { setNumber: "30303-1", cs: 3.99, qty: 1 },                 // curated_sourced → sourced
+      { setNumber: "30370-1", ce: 4.99, qty: 2 },                 // curated_estimated → estimated (×2)
+      { setNumber: "40452-1", cs: 29.99, promo: true, qty: 1 },   // promo + sourced-tier ARV → promo
+      { setNumber: "40453-1", ce: 19.99, promo: true, qty: 1 },   // promo + estimated-tier ARV → promo
+      { setNumber: "99999-1", qty: 1 },                           // unsourced → notListed
+    ];
+    expect(portfolioRetail(sets, synth)).toEqual({
+      total: 3.99, known: 1,                       // sourced sum + count (headline) — estimates/ARVs excluded
+      estimated: 1, estimatedTotal: 9.98,          // 4.99 × 2
+      promo: 2, promoTotal: 49.98,                 // 29.99 + 19.99 — disclosed separately, NOT in total
+      notListed: 1,
+    });
+  });
+
+  it("the 4 buckets partition the collection: sourced + estimated + promo + notListed === total", () => {
+    const sets = [
+      { setNumber: "30303-1", cs: 3.99 }, { setNumber: "30370-1", ce: 4.99 },
+      { setNumber: "40452-1", cs: 29.99, promo: true }, { setNumber: "99999-1" },
+      { setNumber: "10300-1", bs: 100 }, // brickset sourced
+    ];
+    const r = portfolioRetail(sets, synth);
+    expect(r.known + r.estimated + r.promo + r.notListed).toBe(sets.length);
+  });
+
+  it("EXACT over the real curated 129: 20 sourced · 67 estimated · 41 promo·ARV · 1 not-listed (= +20 → 491 overall)", () => {
+    // The curated CSV (in-repo source of truth) → 129 sets; promo-ness from the `bucket` column (the verified
+    // isPromoNoRetail classification for these sets). qty 1, so counts are exact; $ sums are per-unit.
+    const rows = readFileSync(CSV_PATH, "utf8").split(/\r?\n/).filter(Boolean).slice(1).map((l) => l.split(","));
+    const sets = rows.map(([setNumber, , , bucket]) => ({ setNumber, promo: bucket === "promo", qty: 1 }));
+    expect(sets.length).toBe(129);
+    const r = portfolioRetail(sets, (s) => {
+      const cur = curatedRetail(s.setNumber);
+      return setRetailProvenance(
+        {
+          curated_sourced: cur?.tier === "sourced" ? { amount: cur.msrp } : undefined,
+          curated_estimated: cur?.tier === "estimated" ? { amount: cur.msrp } : undefined,
+        },
+        { promo: s.promo }
+      );
+    });
+    expect(r.known).toBe(20);      // curated sourced, non-promo (+471 existing priced = 491 sourced overall)
+    expect(r.estimated).toBe(67);  // curated estimated, non-promo — NOTE: CSV has 94 estimated rows; 27 are promos
+    expect(r.promo).toBe(41);      // ALL promos stay in promo, now carrying ARVs (14 sourced-tier + 27 estimated-tier)
+    expect(r.notListed).toBe(1);   // 30625 (tier=none) stays not-listed
+    expect(r.known + r.estimated + r.promo + r.notListed).toBe(129);
+    expect(r.total).toBeCloseTo(243.49, 2);          // sourced $ (non-promo) — the headline delta
+    expect(r.estimatedTotal).toBeCloseTo(637.89, 2); // estimated $ (non-promo)
+    expect(r.promoTotal).toBeCloseTo(855.59, 2);     // promo·ARV $ (all 41) — disclosed separately
   });
 });
 
