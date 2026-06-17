@@ -350,9 +350,11 @@ export default function AppSettings() {
     return saved ? JSON.parse(saved) : DEFAULT_STORES;
   });
 
-  useEffect(() => setItemSafe("blAutoExportDays", String(autoExportDays)), [autoExportDays]);
-  useEffect(() => setItemSafe("blAnnualBudget", annualBudget), [annualBudget]);
-  useEffect(() => setItemSafe("blStores", JSON.stringify(stores)), [stores]);
+  // Block bodies (not concise) so the effect returns undefined, never setItemSafe()'s value —
+  // a non-function return trips React's "useEffect must not return anything besides a function".
+  useEffect(() => { setItemSafe("blAutoExportDays", String(autoExportDays)); }, [autoExportDays]);
+  useEffect(() => { setItemSafe("blAnnualBudget", annualBudget); }, [annualBudget]);
+  useEffect(() => { setItemSafe("blStores", JSON.stringify(stores)); }, [stores]);
 
   function getPurchases() {
     return JSON.parse(localStorage.getItem("blPurchases") || "[]");
