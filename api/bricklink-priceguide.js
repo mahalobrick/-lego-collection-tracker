@@ -2,6 +2,7 @@ const { setCors, internalError } = require("./_cors");
 const { requireAuth } = require("./_auth");
 const { rateLimitAllow } = require("./_ratelimit");
 const { fetchWithTimeout, FetchFailure, sendSourceError } = require("./_fetch");
+const { BL_TPA_CLIENT_ID } = require("./_bricklink");
 
 const SOURCE = "bricklink";
 
@@ -45,8 +46,6 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  const CLIENT_ID = "ca629c09-4d8c-45dc-8a6f-bfb2b058f720";
-
   // ── Try primary API endpoint ─────────────────────────────────
   const primaryUrl =
     `https://api.bricklink.com/api/store/v1/items/SET/${encodeURIComponent(number)}/price` +
@@ -56,7 +55,7 @@ module.exports = async function handler(req, res) {
     const primaryRes = await fetchWithTimeout(primaryUrl, {
       headers: {
         "x-bl-session-token": sessionToken,
-        "x-bl-tpa-client-id": CLIENT_ID,
+        "x-bl-tpa-client-id": BL_TPA_CLIENT_ID,
         "User-Agent": "LEGO Buy Target App/1.0",
         accept: "application/json"
       }
@@ -77,7 +76,7 @@ module.exports = async function handler(req, res) {
           const usedRes = await fetchWithTimeout(usedUrl, {
             headers: {
               "x-bl-session-token": sessionToken,
-              "x-bl-tpa-client-id": CLIENT_ID,
+              "x-bl-tpa-client-id": BL_TPA_CLIENT_ID,
               "User-Agent": "LEGO Buy Target App/1.0",
               accept: "application/json"
             }

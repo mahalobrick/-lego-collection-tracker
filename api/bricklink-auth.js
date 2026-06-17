@@ -2,6 +2,7 @@ const { setCors, internalError } = require("./_cors");
 const { requireAuth } = require("./_auth");
 const { rateLimitAllow } = require("./_ratelimit");
 const { fetchWithTimeout, FetchFailure, sendSourceError } = require("./_fetch");
+const { BL_TPA_CLIENT_ID } = require("./_bricklink");
 
 const SOURCE = "bricklink";
 
@@ -46,8 +47,6 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: "Missing accessToken in request body" });
   }
 
-  const CLIENT_ID = "ca629c09-4d8c-45dc-8a6f-bfb2b058f720";
-
   try {
     const response = await fetchWithTimeout(
       "https://account.prod.member.bricklink.info/api/v1/actions/verify-and-create-session",
@@ -58,7 +57,7 @@ module.exports = async function handler(req, res) {
           "User-Agent": "LEGO Buy Target App/1.0"
         },
         body: JSON.stringify({
-          clientId: CLIENT_ID,
+          clientId: BL_TPA_CLIENT_ID,
           clientToken: accessToken.trim()
         })
       },
