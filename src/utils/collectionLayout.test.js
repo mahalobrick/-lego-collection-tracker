@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_COLLECTION_ITEMS, loadCollectionItems, CARD_TIERS, tieredVisibleCards } from "./collectionLayout";
+import {
+  DEFAULT_COLLECTION_ITEMS, loadCollectionItems,
+  CARD_DEFS, CARD_TIERS, cardVisible, loadCardOverrides, toggleCardOverride, tieredVisibleCards,
+} from "./collectionLayout";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Characterization tests for the layout loader — these pin the BEHAVIOUR that was
@@ -85,12 +88,17 @@ describe("loadCollectionItems() — net extraction of the legacy initializer", (
   });
 });
 
-describe("CARD_TIERS — every card is assigned to exactly one tier", () => {
-  it("covers all DEFAULT card keys with no key in two tiers", () => {
+describe("CARD_DEFS / CARD_TIERS — registry integrity", () => {
+  it("CARD_DEFS keys exactly match the DEFAULT card keys (registry + defs can't drift)", () => {
     const cardKeys = DEFAULT_COLLECTION_ITEMS.filter(c => c.type === "card").map(c => c.key).sort();
+    expect(Object.keys(CARD_DEFS).sort()).toEqual(cardKeys);
+  });
+
+  it("every CARD_DEF is assigned to exactly one tier", () => {
+    const defKeys = Object.keys(CARD_DEFS).sort();
     const tierKeys = CARD_TIERS.flatMap(t => t.keys).sort();
-    expect(tierKeys).toEqual(cardKeys);                       // exact coverage, no extras/missing
-    expect(new Set(tierKeys).size).toBe(tierKeys.length);     // no key duplicated across tiers
+    expect(tierKeys).toEqual(defKeys);                       // exact coverage, no extras/missing
+    expect(new Set(tierKeys).size).toBe(tierKeys.length);    // no key in two tiers
   });
 
   it("hero tier is value / gain / roi, unlabelled", () => {
@@ -98,31 +106,76 @@ describe("CARD_TIERS — every card is assigned to exactly one tier", () => {
     expect(hero.keys).toEqual(["value", "gain", "roi"]);
     expect(hero.label).toBeNull();
   });
+
+  it("defaults to opt-out — only the partition group + Wanted List start hidden", () => {
+    const off = Object.entries(CARD_DEFS).filter(([, d]) => !d.defaultVisible).map(([k]) => k).sort();
+    expect(off).toEqual(["mixedValue", "newValue", "usedValue", "watchList"]);
+  });
 });
 
-describe("tieredVisibleCards()", () => {
-  const item = (key, visible, type = "card") => ({ key, type, label: key, visible });
-
-  it("groups visible cards into tiers, preserving tier + intra-tier order, dropping empty tiers", () => {
-    const items = [item("roi", true), item("value", true), item("qty", true), item("cost", false)];
-    const tiers = tieredVisibleCards(items);
-    expect(tiers.map(t => t.id)).toEqual(["hero", "composition"]); // valueCondition empty (cost hidden) → dropped
-    expect(tiers[0].keys).toEqual(["value", "roi"]);               // hero order from CARD_TIERS, not input order
-    expect(tiers[1].keys).toEqual(["qty"]);
+describe("cardVisible() — override ?? defaultVisible", () => {
+  it("falls back to the card default when there is no override", () => {
+    expect(cardVisible("value", {})).toBe(true);       // default-on
+    expect(cardVisible("watchList", {})).toBe(false);  // default-off deviation
   });
 
-  it("excludes hidden cards and ignores panels entirely", () => {
-    const items = [item("value", false), item("gain", true), item("theme-chart", true, "panel")];
-    const tiers = tieredVisibleCards(items);
-    expect(tiers).toHaveLength(1);
-    expect(tiers[0].id).toBe("hero");
-    expect(tiers[0].keys).toEqual(["gain"]);
+  it("honours an explicit override either way", () => {
+    expect(cardVisible("watchList", { watchList: true })).toBe(true);  // opt a default-off card IN
+    expect(cardVisible("value", { value: false })).toBe(false);        // opt a default-on card OUT
   });
 
-  it("surfaces an orphan (visible card not in any tier) in the last tier rather than dropping it", () => {
-    const items = [item("value", true), item("ghostCard", true)];
-    const tiers = tieredVisibleCards(items);
-    const last = tiers[tiers.length - 1];
-    expect(last.keys).toContain("ghostCard");
+  it("unknown card key → not visible", () => {
+    expect(cardVisible("nope", {})).toBe(false);
+  });
+});
+
+describe("loadCardOverrides() — defensive parse", () => {
+  it("returns {} for null / corrupt / non-object", () => {
+    expect(loadCardOverrides(null)).toEqual({});
+    expect(loadCardOverrides("{bad")).toEqual({});
+    expect(loadCardOverrides("[1,2]")).toEqual({});
+    expect(loadCardOverrides('"x"')).toEqual({});
+  });
+
+  it("keeps only known card keys with boolean values", () => {
+    const raw = JSON.stringify({ value: false, watchList: true, ghost: true, qty: "yes" });
+    expect(loadCardOverrides(raw)).toEqual({ value: false, watchList: true });
+  });
+});
+
+describe("toggleCardOverride()", () => {
+  it("writes the opposite of current effective visibility", () => {
+    expect(toggleCardOverride({}, "value")).toEqual({ value: false });        // default-on → off
+    expect(toggleCardOverride({}, "watchList")).toEqual({ watchList: true }); // default-off → on
+    expect(toggleCardOverride({ value: false }, "value")).toEqual({ value: true }); // existing flips
+  });
+
+  it("does not mutate the input map", () => {
+    const o = { value: false };
+    toggleCardOverride(o, "qty");
+    expect(o).toEqual({ value: false });
+  });
+});
+
+describe("tieredVisibleCards(overrides)", () => {
+  it("uses defaults when overrides is empty (partition group + Wanted List hidden)", () => {
+    const byId = Object.fromEntries(tieredVisibleCards({}).map(t => [t.id, t.keys]));
+    expect(byId.hero).toEqual(["value", "gain", "roi"]);
+    expect(byId.composition).toEqual(["qty", "themes", "duplicates", "newUsed", "retired", "pieces", "minifigs"]); // watchList off
+    expect(byId.valueCondition).toEqual(["cost", "retailValue", "avgValue", "avgPaid"]);                          // partition off
+  });
+
+  it("an override can hide a default-on card and show default-off cards", () => {
+    const byId = Object.fromEntries(
+      tieredVisibleCards({ value: false, watchList: true, newValue: true, usedValue: true, mixedValue: true }).map(t => [t.id, t.keys])
+    );
+    expect(byId.hero).toEqual(["gain", "roi"]);            // value hidden, tier order preserved
+    expect(byId.composition).toContain("watchList");      // Wanted opted in
+    expect(byId.valueCondition).toEqual(["cost", "retailValue", "avgValue", "avgPaid", "newValue", "usedValue", "mixedValue"]);
+  });
+
+  it("drops a tier whose every card is hidden", () => {
+    const tiers = tieredVisibleCards({ value: false, gain: false, roi: false });
+    expect(tiers.map(t => t.id)).not.toContain("hero");
   });
 });

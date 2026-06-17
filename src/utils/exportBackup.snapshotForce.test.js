@@ -324,7 +324,7 @@ describe("AREA 6 — INVARIANTS: the force-push touches no BACKUP_KEYS / atomic-
   it("[CHAR] BACKUP_KEYS is unchanged: no snapshot-sig entry leaks into the sync registry", () => {
     // The gate state (blLastSnapshotSig) must NOT be a registry key — else it would enter the
     // dedupHash projection / census and the whole P4 invisibility argument collapses.
-    expect(BACKUP_KEYS).toHaveLength(18);
+    expect(BACKUP_KEYS).toHaveLength(19);
     const keys = BACKUP_KEYS.map((k) => k.key);
     const fields = BACKUP_KEYS.map((k) => k.field);
     expect(keys).not.toContain("blLastSnapshotSig");

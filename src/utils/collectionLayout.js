@@ -62,25 +62,78 @@ export function loadCollectionItems(saved) {
   return [...merged, ...missing];
 }
 
+// ── Cards: static config + override-map visibility (panel-design SOP rule 3) ──
+// Cards are STATIC: key -> label + defaultVisible, with tier + order from CARD_TIERS.
+// Per-user state is an OVERRIDE MAP { key: true|false } holding ONLY cards the user explicitly
+// toggled; effective visibility = override ?? defaultVisible. This means a newly-added card
+// appears automatically (no migration), and changing a default later moves every untouched
+// user with it — the model the other tabs inherit. Default = visible (opt-out), except the two
+// recorded deviations (docs/panel-design-sop.md): the New/Used/Mixed partition group and the
+// cross-tab Wanted List card default OFF.
+export const CARD_DEFS = {
+  qty:         { label: "Total Sets",       defaultVisible: true },
+  value:       { label: "Collection Value", defaultVisible: true },
+  cost:        { label: "Cost Basis",       defaultVisible: true },
+  gain:        { label: "Net Gain / Loss",  defaultVisible: true },
+  roi:         { label: "ROI",              defaultVisible: true },
+  themes:      { label: "Themes",           defaultVisible: true },
+  duplicates:  { label: "Multi-Copy Sets",  defaultVisible: true },
+  retired:     { label: "Retired Sets",     defaultVisible: true },
+  newUsed:     { label: "New / Used",       defaultVisible: true },
+  avgValue:    { label: "Avg Set Value",    defaultVisible: true },
+  avgPaid:     { label: "Avg Paid / Set",   defaultVisible: true },
+  pieces:      { label: "Total Pieces",     defaultVisible: true },
+  minifigs:    { label: "Minifigs",         defaultVisible: true },
+  retailValue: { label: "MSRP Value",       defaultVisible: true },
+  newValue:    { label: "New Sets Value",   defaultVisible: false }, // partition group — deviation
+  usedValue:   { label: "Used Sets Value",  defaultVisible: false }, // partition group — deviation
+  mixedValue:  { label: "Mixed Sets Value", defaultVisible: false }, // partition group — deviation
+  watchList:   { label: "Wanted List",      defaultVisible: false }, // cross-tab — deviation
+};
+
 // ── Tiers (panel-design SOP rule 1) ──────────────────────────────────────────
-// Cards are grouped by decision-weight, not laid out as one flat grid. Hero = the
-// numbers that drive a decision on this tab (raised, pinned on top); the rest split
-// into two labelled secondary tiers. Intra-tier key order defines render order.
-// Every card key in DEFAULT_COLLECTION_ITEMS must appear in exactly one tier.
+// Hero = the numbers that drive a decision on this tab (raised, pinned on top); the rest split
+// into two labelled secondary tiers. Intra-tier key order defines render order. Every key in
+// CARD_DEFS must appear in exactly one tier (guarded by tests).
 export const CARD_TIERS = [
   { id: "hero",           label: null,                 keys: ["value", "gain", "roi"] },
   { id: "composition",    label: "Composition",        keys: ["qty", "themes", "duplicates", "newUsed", "retired", "pieces", "minifigs", "watchList"] },
   { id: "valueCondition", label: "Value & condition",  keys: ["cost", "retailValue", "avgValue", "avgPaid", "newValue", "usedValue", "mixedValue"] },
 ];
 
-// Group the currently-visible CARD items into their tiers, preserving tier order and
-// intra-tier key order, dropping empty tiers. Any visible card NOT assigned to a tier is
-// surfaced in the last tier (never silently dropped — SOP "no silently hidden cards").
-export function tieredVisibleCards(items) {
-  const visibleKeys = items.filter(i => i.type === "card" && i.visible).map(i => i.key);
+// Effective visibility for one card: the user's explicit override if present, else the default.
+export function cardVisible(key, overrides) {
+  if (overrides && Object.prototype.hasOwnProperty.call(overrides, key)) return overrides[key] === true;
+  return CARD_DEFS[key] ? CARD_DEFS[key].defaultVisible === true : false;
+}
+
+// Parse the persisted override map, defensively: corrupt/non-object → {}, and keep only known
+// card keys with boolean values (a stale/unknown key can never resurrect a removed card).
+export function loadCardOverrides(saved) {
+  if (!saved) return {};
+  let parsed;
+  try { parsed = JSON.parse(saved); } catch { return {}; }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+  const clean = {};
+  for (const [k, v] of Object.entries(parsed)) {
+    if (CARD_DEFS[k] && typeof v === "boolean") clean[k] = v;
+  }
+  return clean;
+}
+
+// Toggle one card's override to the opposite of its current effective visibility, returning a new
+// map. (We persist the explicit boolean even when it equals the default — simplest, and harmless.)
+export function toggleCardOverride(overrides, key) {
+  return { ...overrides, [key]: !cardVisible(key, overrides) };
+}
+
+// Group the currently-visible cards into their tiers, preserving tier + intra-tier order, dropping
+// empty tiers. Any visible card NOT assigned to a tier is surfaced in the last tier (never silently
+// dropped — SOP "no silently hidden cards").
+export function tieredVisibleCards(overrides) {
   const assigned = new Set(CARD_TIERS.flatMap(t => t.keys));
-  const tiers = CARD_TIERS.map(t => ({ id: t.id, label: t.label, keys: t.keys.filter(k => visibleKeys.includes(k)) }));
-  const orphans = visibleKeys.filter(k => !assigned.has(k));
+  const tiers = CARD_TIERS.map(t => ({ id: t.id, label: t.label, keys: t.keys.filter(k => cardVisible(k, overrides)) }));
+  const orphans = Object.keys(CARD_DEFS).filter(k => !assigned.has(k) && cardVisible(k, overrides));
   if (orphans.length) tiers[tiers.length - 1].keys.push(...orphans);
   return tiers.filter(t => t.keys.length > 0);
 }

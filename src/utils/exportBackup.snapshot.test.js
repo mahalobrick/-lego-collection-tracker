@@ -83,7 +83,7 @@ describe("PIN 1 — dedupHash projects over BACKUP_KEYS only (byte-identical)", 
     expect(h1).toBe(h2);
     // Golden: the exact fingerprint of this fixture today. If a future change moves it,
     // that is a deliberate sync-format change and must be re-pinned consciously.
-    expect(h1).toMatchInlineSnapshot(`"eatfp5"`);
+    expect(h1).toMatchInlineSnapshot(`"fxjn2d"`);
   });
 
   it("depends ONLY on BACKUP_KEYS fields — a backup differing on every NON-registry field hashes the same", () => {

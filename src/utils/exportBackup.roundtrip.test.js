@@ -64,6 +64,7 @@ function makeFullBackup() {
       purchaseColumns: [{ a: 1 }],
       dashboardWidgets: { a: 1 },
       collectionItems: [{ a: 1 }],
+      cardVisOverrides: { value: false },
       ownedColWidths: { a: 1 },
       ownedRowDensity: "full",
     },
@@ -71,7 +72,7 @@ function makeFullBackup() {
 }
 
 describe("characterization — buildBackup <-> apply (Phase C)", () => {
-  it("round-trip: state in == state out for all 18 user-data keys (incl nested settings.*)", async () => {
+  it("round-trip: state in == state out for all 19 user-data keys (incl nested settings.*)", async () => {
     const fixture = {
       blOwnedSets: [{ setNumber: "10497", qty: 1 }],
       brickEconomyNormalizedCollection: [{ setNumber: "75192" }],
@@ -89,6 +90,7 @@ describe("characterization — buildBackup <-> apply (Phase C)", () => {
       blPurchaseColumns: [{ key: "date", visible: true }],
       blDashboardWidgetSettings: { spend: true },
       blCollectionItems: [{ key: "value", visible: true }],
+      blCardVisOverrides: { watchList: true },
       blOwnedColWidths: { name: 150 },
       blOwnedRowDensity: "full",
     };
@@ -103,7 +105,7 @@ describe("characterization — buildBackup <-> apply (Phase C)", () => {
     }
   });
 
-  it("apply's setItem key-set == BACKUP_KEYS (18) exactly", () => {
+  it("apply's setItem key-set == BACKUP_KEYS (19) exactly", () => {
     const keys = captureApplyKeys(makeFullBackup());
     expect(keys.sort()).toEqual(BACKUP_KEYS.map((k) => k.key).sort());
   });
