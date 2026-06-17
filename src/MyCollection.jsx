@@ -24,7 +24,7 @@ import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { valuesAsOf, freshness } from "./utils/freshness";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
-import { loadCollectionItems } from "./utils/collectionLayout";
+import { loadCollectionItems, tieredVisibleCards } from "./utils/collectionLayout";
 import { syncBricksetMetadata, metadataGaps, cleanSetNumber } from "./utils/bricksetMetadata";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
@@ -1320,45 +1320,49 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             )}
 
             {!collPillsCollapsed && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-                {collectionItems.filter(i => i.type === "card" && i.visible).map(item => (
-                  <div key={item.key} draggable
-                    onDragStart={() => setDraggedCollItem(item.key)}
-                    onDragEnd={() => setDraggedCollItem(null)}
-                    onDragOver={e => e.preventDefault()}
-                    onDrop={() => dropCollItem(item.key)}
-                    style={{ opacity: draggedCollItem === item.key ? 0.4 : 1, cursor: "grab" }}
-                  >
-                    {item.key === "qty"          ? <Card title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} subTip={TOTAL_SETS_TOOLTIP} /> :
-                     item.key === "value"        ? <Card title="Collection Value" value={fmtAgg(stats.value, stats.valuedSets)} sub={valuesReady ? [unknownValueNote(stats.valuedSets, sets.length), vsdEsdNote(stats.estimatedShare)].filter(Boolean).join(" · ") || null : null} subTip={valuesReady && vsdEsdNote(stats.estimatedShare) ? VSD_ESD_TOOLTIP : undefined} /> :
-                     item.key === "cost"         ? <Card title="Cost Basis"       value={money(stats.costBasis)} sub={estimatedCostNote(stats.msrpCount, stats.msrpCost)} subTip={COST_BASIS_TOOLTIP} /> :
-                     item.key === "gain"         ? <Card title="Net Gain / Loss"  value={fmtAgg(stats.gainLoss, stats.valuedSets)} good={stats.valuedSets > 0 ? stats.gainLoss >= 0 : undefined} sub={valuesReady ? (freebieNote(stats.freebieValue) ?? netGainBasisNote(stats.value, stats.valuedCost, stats.valuedSets, stats.costBasis)) : null} subTip={valuesReady && freebieNote(stats.freebieValue) ? FREEBIE_TOOLTIP : undefined} /> :
-                     item.key === "roi"          ? <Card title="ROI"              value={!valuesReady ? "…" : stats.roi === null ? "—" : `${stats.roi.toFixed(1)}%`} good={stats.roi === null ? undefined : stats.roi >= 0} sub={roiScopeNote(stats.msrpCount)} subTip={roiScopeTooltip(stats.msrpCount)} /> :
-                     item.key === "themes"       ? <Card title="Themes"           value={stats.themes} /> :
-                     item.key === "duplicates"   ? <Card title="Multi-Copy Sets"  value={stats.duplicates} /> :
-                     item.key === "retired"      ? <Card title="Retired Sets"     value={stats.retiredSets} sub={sets.length ? `${((stats.retiredSets / sets.length) * 100).toFixed(1)}% of unique sets` : null} subTip={RETIRED_TOOLTIP} /> :
-                     item.key === "newUsed"      ? (
-                       <div style={{ ...panel, marginTop: 0, minHeight: 88, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "14px 16px" }}>
-                         <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>New / Used</div>
-                         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                           <span style={{ fontSize: 22, fontWeight: 900, color: "#5aa832", lineHeight: 1.1 }}>{stats.newEntries}</span>
-                           <span style={{ fontSize: 14, color: "#3d4f60", fontWeight: 700 }}>/</span>
-                           <span style={{ fontSize: 22, fontWeight: 900, color: "#e8e2d5", lineHeight: 1.1 }}>{stats.usedEntries}</span>
-                         </div>
-                         <div style={{ fontSize: 11, color: "#3d4f60", minHeight: 14, display: "flex", alignItems: "center", gap: 4 }}>new · used<InfoTip text={NEW_USED_COUNT_TOOLTIP} size={13} /></div>
-                       </div>
-                     ) :
-                     item.key === "avgValue"     ? <Card title="Avg Set Value"    value={fmtAgg(stats.avgValue, stats.valuedSets)} /> :
-                     item.key === "avgPaid"      ? <Card title="Avg Paid / Set"   value={money(stats.avgPaid)} /> :
-                     item.key === "pieces"       ? <Card title="Total Pieces"     value={(stats.pieces || beSyncInfo.piecesCount || 0).toLocaleString()} /> :
-                     item.key === "minifigs"     ? <Card title="Minifigs"         value={(stats.minifigs || beSyncInfo.minifsCount || 0).toLocaleString()} /> :
-                     item.key === "retailValue"  ? (() => { const r = { known: stats.retailValueKnown, estimated: stats.retailEstimated, estimatedTotal: stats.retailEstimatedTotal, promo: stats.retailPromo, promoTotal: stats.retailPromoTotal, notListed: stats.retailNotListed }; return <Card title="MSRP Value" value={formatAggregateValue(stats.retailValue, stats.retailValueKnown)} sub={retailCoverageCounts(r)} subTip={retailCoverageTooltip(r)} />; })() :
-                     item.key === "newValue"     ? <Card title="New Sets Value"   value={fmtAgg(stats.newSetsValue, stats.newValueKnown)} sub={`${stats.newSetsCount} set${stats.newSetsCount === 1 ? "" : "s"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
-                     item.key === "usedValue"    ? <Card title="Used Sets Value"  value={fmtAgg(stats.usedSetsValue, stats.usedValueKnown)} sub={`${stats.usedSetsCount} set${stats.usedSetsCount === 1 ? "" : "s"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
-                     item.key === "mixedValue"   ? <Card title="Mixed Sets Value" value={fmtAgg(stats.mixedSetsValue, stats.mixedValueKnown)} sub={`${stats.mixedSetsCount} set${stats.mixedSetsCount === 1 ? "" : "s"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
-                     item.key === "watchList"    ? <Card title="Wanted List"      value={watchListHighlights.total} /> : null}
-                  </div>
-                ))}
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {tieredVisibleCards(collectionItems).map(tier => {
+                  const isHero = tier.id === "hero";
+                  return (
+                    <div key={tier.id}>
+                      {tier.label && <div style={tierLabel}>{tier.label}</div>}
+                      <div style={isHero ? heroGrid : cardGrid}>
+                        {tier.keys.map(key => (
+                          <div key={key}>
+                            {key === "qty"          ? <Card hero={isHero} title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} subTip={TOTAL_SETS_TOOLTIP} /> :
+                             key === "value"        ? <Card hero={isHero} title="Collection Value" value={fmtAgg(stats.value, stats.valuedSets)} sub={valuesReady ? [unknownValueNote(stats.valuedSets, sets.length), vsdEsdNote(stats.estimatedShare)].filter(Boolean).join(" · ") || null : null} subTip={valuesReady && vsdEsdNote(stats.estimatedShare) ? VSD_ESD_TOOLTIP : undefined} /> :
+                             key === "cost"         ? <Card hero={isHero} title="Cost Basis"       value={money(stats.costBasis)} sub={estimatedCostNote(stats.msrpCount, stats.msrpCost)} subTip={COST_BASIS_TOOLTIP} /> :
+                             key === "gain"         ? <Card hero={isHero} title="Net Gain / Loss"  value={fmtAgg(stats.gainLoss, stats.valuedSets)} good={stats.valuedSets > 0 ? stats.gainLoss >= 0 : undefined} sub={valuesReady ? (freebieNote(stats.freebieValue) ?? netGainBasisNote(stats.value, stats.valuedCost, stats.valuedSets, stats.costBasis)) : null} subTip={valuesReady && freebieNote(stats.freebieValue) ? FREEBIE_TOOLTIP : undefined} /> :
+                             key === "roi"          ? <Card hero={isHero} title="ROI"              value={!valuesReady ? "…" : stats.roi === null ? "—" : `${stats.roi.toFixed(1)}%`} good={stats.roi === null ? undefined : stats.roi >= 0} sub={roiScopeNote(stats.msrpCount)} subTip={roiScopeTooltip(stats.msrpCount)} /> :
+                             key === "themes"       ? <Card hero={isHero} title="Themes"           value={stats.themes} /> :
+                             key === "duplicates"   ? <Card hero={isHero} title="Multi-Copy Sets"  value={stats.duplicates} /> :
+                             key === "retired"      ? <Card hero={isHero} title="Retired Sets"     value={stats.retiredSets} sub={sets.length ? `${((stats.retiredSets / sets.length) * 100).toFixed(1)}% of unique sets` : null} subTip={RETIRED_TOOLTIP} /> :
+                             key === "newUsed"      ? (
+                               <div style={metricCardBase}>
+                                 <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>New / Used</div>
+                                 <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                                   <span style={{ fontSize: 21, fontWeight: 900, color: "#5aa832", lineHeight: 1.1 }}>{stats.newEntries}</span>
+                                   <span style={{ fontSize: 14, color: "#3d4f60", fontWeight: 700 }}>/</span>
+                                   <span style={{ fontSize: 21, fontWeight: 900, color: "#e8e2d5", lineHeight: 1.1 }}>{stats.usedEntries}</span>
+                                 </div>
+                                 <div style={{ fontSize: 11, color: "#3d4f60", minHeight: 14, display: "flex", alignItems: "center", gap: 4 }}>new · used<InfoTip text={NEW_USED_COUNT_TOOLTIP} size={13} /></div>
+                               </div>
+                             ) :
+                             key === "avgValue"     ? <Card hero={isHero} title="Avg Set Value"    value={fmtAgg(stats.avgValue, stats.valuedSets)} /> :
+                             key === "avgPaid"      ? <Card hero={isHero} title="Avg Paid / Set"   value={money(stats.avgPaid)} /> :
+                             key === "pieces"       ? <Card hero={isHero} title="Total Pieces"     value={(stats.pieces || beSyncInfo.piecesCount || 0).toLocaleString()} /> :
+                             key === "minifigs"     ? <Card hero={isHero} title="Minifigs"         value={(stats.minifigs || beSyncInfo.minifsCount || 0).toLocaleString()} /> :
+                             key === "retailValue"  ? (() => { const r = { known: stats.retailValueKnown, estimated: stats.retailEstimated, estimatedTotal: stats.retailEstimatedTotal, promo: stats.retailPromo, promoTotal: stats.retailPromoTotal, notListed: stats.retailNotListed }; return <Card hero={isHero} title="MSRP Value" value={formatAggregateValue(stats.retailValue, stats.retailValueKnown)} sub={retailCoverageCounts(r)} subTip={retailCoverageTooltip(r)} />; })() :
+                             key === "newValue"     ? <Card hero={isHero} title="New Sets Value"   value={fmtAgg(stats.newSetsValue, stats.newValueKnown)} sub={`${stats.newSetsCount} set${stats.newSetsCount === 1 ? "" : "s"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
+                             key === "usedValue"    ? <Card hero={isHero} title="Used Sets Value"  value={fmtAgg(stats.usedSetsValue, stats.usedValueKnown)} sub={`${stats.usedSetsCount} set${stats.usedSetsCount === 1 ? "" : "s"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
+                             key === "mixedValue"   ? <Card hero={isHero} title="Mixed Sets Value" value={fmtAgg(stats.mixedSetsValue, stats.mixedValueKnown)} sub={`${stats.mixedSetsCount} set${stats.mixedSetsCount === 1 ? "" : "s"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
+                             key === "watchList"    ? <Card hero={isHero} title="Wanted List"      value={watchListHighlights.total} /> : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -2673,20 +2677,17 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   );
 }
 
-function Card({ title, value, good, sub, subTip }) {
+function Card({ title, value, good, sub, subTip, hero = false }) {
   const [tip, setTip] = useState(false);
   const accentColor = good === undefined ? "#c9a84c" : good ? "#5aa832" : "#ff8b8b";
+  // Hero (raised, full border, larger number, accent stripe) vs secondary metric card (flat,
+  // borderless, recedes) — panel-design SOP rule 1.
+  const box = hero ? { ...heroCardBase, borderLeft: `3px solid ${accentColor}` } : metricCardBase;
   return (
-    <div style={{
-      ...panel, marginTop: 0, overflow: "hidden",
-      minHeight: 88,
-      display: "flex", flexDirection: "column", justifyContent: "space-between",
-      padding: "14px 16px",
-      borderLeft: `3px solid ${accentColor}`,
-    }}>
+    <div style={box}>
       <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
       <div style={{ position: "relative" }} onMouseEnter={() => setTip(true)} onMouseLeave={() => setTip(false)}>
-        <div style={{ fontSize: 22, fontWeight: 900, color: good === undefined ? "#e8e2d5" : good ? "#5aa832" : "#ff8b8b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "default", lineHeight: 1.1 }}>
+        <div style={{ fontSize: hero ? 27 : 21, fontWeight: 900, color: good === undefined ? "#e8e2d5" : good ? "#5aa832" : "#ff8b8b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "default", lineHeight: 1.12 }}>
           {value}
         </div>
         {tip && <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: 0, zIndex: 50, background: "#0b1520", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, padding: "5px 10px", fontSize: 15, fontWeight: 700, color: "#e8e2d5", whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,0,0,0.5)", pointerEvents: "none" }}>{value}</div>}
@@ -2710,6 +2711,16 @@ const metricGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minm
 const overviewGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 14, marginTop: 14 };
 const panel = { background: "rgba(20,31,48,0.82)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginTop: 18, boxShadow: "0 4px 24px rgba(0,0,0,0.35)" };
 const formGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 };
+// ── Collection Stats tiered layout (panel-design SOP) ─────────────────────────
+// One responsive grid per tier reflows 4→2→1 by available width (auto-fit); the hero tier
+// (larger min) pins on top. Hero cards rise (raised bg + border + bigger number); secondary
+// "metric" cards recede (flat, near-borderless). Card + the newUsed split card share the bases.
+const tierLabel = { color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 };
+const heroGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 12 };
+const cardGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 };
+const cardBoxBase = { overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "space-between", borderRadius: 12 };
+const heroCardBase = { ...cardBoxBase, minHeight: 96, padding: "15px 17px", background: "rgba(255,255,255,0.075)", border: "1px solid rgba(255,255,255,0.18)", boxShadow: "0 4px 18px rgba(0,0,0,0.35)" };
+const metricCardBase = { ...cardBoxBase, minHeight: 84, padding: "12px 14px", background: "rgba(255,255,255,0.035)", border: "1px solid transparent" };
 const muted = { color: "#8a9bb0" };
 const mutedSmall = { color: "#8a9bb0", fontSize: 13 };
 const redBtn = { display: "inline-block", background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" };

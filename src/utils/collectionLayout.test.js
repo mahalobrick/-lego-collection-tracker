@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_COLLECTION_ITEMS, loadCollectionItems } from "./collectionLayout";
+import { DEFAULT_COLLECTION_ITEMS, loadCollectionItems, CARD_TIERS, tieredVisibleCards } from "./collectionLayout";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Characterization tests for the layout loader — these pin the BEHAVIOUR that was
@@ -82,5 +82,47 @@ describe("loadCollectionItems() — net extraction of the legacy initializer", (
 
   it("throws on corrupt JSON (documented legacy behaviour, hardened in the override-map rework)", () => {
     expect(() => loadCollectionItems("{not json")).toThrow();
+  });
+});
+
+describe("CARD_TIERS — every card is assigned to exactly one tier", () => {
+  it("covers all DEFAULT card keys with no key in two tiers", () => {
+    const cardKeys = DEFAULT_COLLECTION_ITEMS.filter(c => c.type === "card").map(c => c.key).sort();
+    const tierKeys = CARD_TIERS.flatMap(t => t.keys).sort();
+    expect(tierKeys).toEqual(cardKeys);                       // exact coverage, no extras/missing
+    expect(new Set(tierKeys).size).toBe(tierKeys.length);     // no key duplicated across tiers
+  });
+
+  it("hero tier is value / gain / roi, unlabelled", () => {
+    const hero = CARD_TIERS.find(t => t.id === "hero");
+    expect(hero.keys).toEqual(["value", "gain", "roi"]);
+    expect(hero.label).toBeNull();
+  });
+});
+
+describe("tieredVisibleCards()", () => {
+  const item = (key, visible, type = "card") => ({ key, type, label: key, visible });
+
+  it("groups visible cards into tiers, preserving tier + intra-tier order, dropping empty tiers", () => {
+    const items = [item("roi", true), item("value", true), item("qty", true), item("cost", false)];
+    const tiers = tieredVisibleCards(items);
+    expect(tiers.map(t => t.id)).toEqual(["hero", "composition"]); // valueCondition empty (cost hidden) → dropped
+    expect(tiers[0].keys).toEqual(["value", "roi"]);               // hero order from CARD_TIERS, not input order
+    expect(tiers[1].keys).toEqual(["qty"]);
+  });
+
+  it("excludes hidden cards and ignores panels entirely", () => {
+    const items = [item("value", false), item("gain", true), item("theme-chart", true, "panel")];
+    const tiers = tieredVisibleCards(items);
+    expect(tiers).toHaveLength(1);
+    expect(tiers[0].id).toBe("hero");
+    expect(tiers[0].keys).toEqual(["gain"]);
+  });
+
+  it("surfaces an orphan (visible card not in any tier) in the last tier rather than dropping it", () => {
+    const items = [item("value", true), item("ghostCard", true)];
+    const tiers = tieredVisibleCards(items);
+    const last = tiers[tiers.length - 1];
+    expect(last.keys).toContain("ghostCard");
   });
 });

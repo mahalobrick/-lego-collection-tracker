@@ -61,3 +61,26 @@ export function loadCollectionItems(saved) {
   }));
   return [...merged, ...missing];
 }
+
+// ── Tiers (panel-design SOP rule 1) ──────────────────────────────────────────
+// Cards are grouped by decision-weight, not laid out as one flat grid. Hero = the
+// numbers that drive a decision on this tab (raised, pinned on top); the rest split
+// into two labelled secondary tiers. Intra-tier key order defines render order.
+// Every card key in DEFAULT_COLLECTION_ITEMS must appear in exactly one tier.
+export const CARD_TIERS = [
+  { id: "hero",           label: null,                 keys: ["value", "gain", "roi"] },
+  { id: "composition",    label: "Composition",        keys: ["qty", "themes", "duplicates", "newUsed", "retired", "pieces", "minifigs", "watchList"] },
+  { id: "valueCondition", label: "Value & condition",  keys: ["cost", "retailValue", "avgValue", "avgPaid", "newValue", "usedValue", "mixedValue"] },
+];
+
+// Group the currently-visible CARD items into their tiers, preserving tier order and
+// intra-tier key order, dropping empty tiers. Any visible card NOT assigned to a tier is
+// surfaced in the last tier (never silently dropped — SOP "no silently hidden cards").
+export function tieredVisibleCards(items) {
+  const visibleKeys = items.filter(i => i.type === "card" && i.visible).map(i => i.key);
+  const assigned = new Set(CARD_TIERS.flatMap(t => t.keys));
+  const tiers = CARD_TIERS.map(t => ({ id: t.id, label: t.label, keys: t.keys.filter(k => visibleKeys.includes(k)) }));
+  const orphans = visibleKeys.filter(k => !assigned.has(k));
+  if (orphans.length) tiers[tiers.length - 1].keys.push(...orphans);
+  return tiers.filter(t => t.keys.length > 0);
+}
