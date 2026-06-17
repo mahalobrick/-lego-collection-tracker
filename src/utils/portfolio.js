@@ -405,6 +405,27 @@ export function knownValueCount(sets, valueMap) {
 }
 
 /**
+ * Classify ONE resolved retail {@link import("./value").Value} into its coverage segment — the
+ * per-set token behind {@link portfolioRetail}'s partition, extracted so a row/CSV consumer can
+ * LABEL a set with the EXACT segment the card counts (parity by construction). Pure.
+ *
+ *   - basis "promo" + amount         → "promo-arv"      (a VALUED GWP / stated ARV — never sourced)
+ *   - basis "promo" + no amount      → "promo-no-msrp"  (a GWP that never carried an RRP)
+ *   - basis "estimated" + amount     → "estimated"      (curated proxy — disclosed apart from sourced)
+ *   - any other amount-bearing Value → "sourced"        (a real RRP: brickset/manual/curated_sourced/cmf)
+ *   - null, or amount null non-promo → "not-listed"     (a real RRP exists, just not obtained)
+ *
+ * @param {import("./value").Value | null} value  a {@link setRetailProvenance} result.
+ * @returns {"sourced"|"estimated"|"promo-arv"|"promo-no-msrp"|"not-listed"}
+ */
+export function retailSegment(value) {
+  if (value && value.basis === "promo") return value.amount != null ? "promo-arv" : "promo-no-msrp";
+  if (value && value.basis === "estimated" && value.amount != null) return "estimated";
+  if (value && value.amount != null) return "sourced";
+  return "not-listed";
+}
+
+/**
  * Headline retail (MSRP) total + priced-set count over the SHARED retail ladder — the same
  * source the per-set Retail column and detail-panel chip read (so the card can't drift from
  * the row). Sums resolved per-unit retail × qty for every set whose ladder resolves to a real
@@ -435,28 +456,16 @@ export function portfolioRetail(sets, retailOf) {
   for (const s of sets) {
     const r = retailOf(s);
     const qty = asNumber(s.qty) || 1;
-    // Each set lands in EXACTLY one bucket → known + estimated + promo + notListed === sets.length:
-    //   promo/GWP (basis:"promo") — no-RRP or valued ARV; promoTotal sums any ARV but it NEVER counts
-    //     as sourced/estimated (Option C: a GWP value is not a sticker MSRP);
-    //   curated estimate (basis:"estimated") — a non-sourced figure → estimated/estimatedTotal, kept OUT
-    //     of the sourced headline and disclosed separately;
-    //   a sourced RRP (basis:"retail", amount != null) → known/total (the headline);
-    //   else (unsourced, real RRP exists) → "not listed".
-    if (r && r.basis === "promo") {
-      promo += 1;
-      if (r.amount != null) promoTotal += r.amount * qty;
-      continue;
-    }
-    if (r && r.basis === "estimated" && r.amount != null) {
-      estimated += 1;
-      estimatedTotal += r.amount * qty;
-      continue;
-    }
-    if (r && r.amount != null) {
-      total += r.amount * qty;
-      known += 1;
-    } else {
-      notListed += 1;
+    // Each set lands in EXACTLY one bucket via retailSegment → known + estimated + promo + notListed
+    // === sets.length. The two promo tokens FOLD into one `promo` count; promoTotal sums any ARV but a
+    // GWP value NEVER counts as sourced/estimated (Option C). estimated is disclosed apart from the
+    // sourced headline; "not-listed" is an unsourced set whose real RRP just isn't obtained.
+    switch (retailSegment(r)) {
+      case "promo-arv":     promo += 1; promoTotal += r.amount * qty; break;
+      case "promo-no-msrp": promo += 1; break;
+      case "estimated":     estimated += 1; estimatedTotal += r.amount * qty; break;
+      case "sourced":       total += r.amount * qty; known += 1; break;
+      default:              notListed += 1; // "not-listed"
     }
   }
   return { total, known, estimated, estimatedTotal, promo, promoTotal, notListed };

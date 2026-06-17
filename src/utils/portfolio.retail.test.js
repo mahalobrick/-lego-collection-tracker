@@ -9,7 +9,7 @@
 // (the only localStorage read, formatting.js currency, is try/catch-guarded).
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { portfolioRetail, setRetailProvenance, isPromoNoRetail } from "./portfolio";
+import { portfolioRetail, retailSegment, setRetailProvenance, isPromoNoRetail } from "./portfolio";
 import { retailPricedNote, retailGapNote, retailCoverageNote } from "./valueDisplay";
 import { curatedRetail } from "./curatedMsrp.js";
 import { CSV_PATH } from "../../scripts/gen-curated-msrp.mjs";
@@ -204,6 +204,58 @@ describe("retailCoverageNote — the 4-segment MSRP card breakdown (Option C)", 
   it("shows only the non-zero segments", () => {
     expect(retailCoverageNote({ known: 10, notListed: 3 })).toBe("10 sourced · 3 not listed");
     expect(retailCoverageNote({ estimated: 4, estimatedTotal: 19.96 })).toBe("4 estimated (~$19.96)");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// retailSegment — the per-set classifier extracted FROM portfolioRetail's bucketing, so the
+// CSV export can label a row's MSRP with the EXACT segment the card's partition counts (parity by
+// construction). portfolioRetail folds {promo-arv, promo-no-msrp} → its single `promo` count, so
+// the 4-way partition stays byte-identical (pinned by the 129-set invariant above).
+// ─────────────────────────────────────────────────────────────────────────────
+describe("retailSegment — per-set segment classifier (one of sourced|estimated|promo-arv|promo-no-msrp|not-listed)", () => {
+  it("a sourced RRP (basis 'retail', amount present) → 'sourced'", () => {
+    expect(retailSegment({ basis: "retail", amount: 100 })).toBe("sourced");
+  });
+  it("a curated estimate (basis 'estimated', amount present) → 'estimated'", () => {
+    expect(retailSegment({ basis: "estimated", amount: 4.99 })).toBe("estimated");
+  });
+  it("a VALUED promo / GWP ARV (basis 'promo', amount present) → 'promo-arv'", () => {
+    expect(retailSegment({ basis: "promo", amount: 19.99 })).toBe("promo-arv");
+  });
+  it("a no-RRP promo / GWP (basis 'promo', amount null) → 'promo-no-msrp'", () => {
+    expect(retailSegment({ basis: "promo", amount: null })).toBe("promo-no-msrp");
+  });
+  it("an unsourced set (null Value) → 'not-listed'", () => {
+    expect(retailSegment(null)).toBe("not-listed");
+  });
+  it("an unknown-basis null amount → 'not-listed'", () => {
+    expect(retailSegment({ basis: "unknown", amount: null })).toBe("not-listed");
+  });
+  it("basis 'estimated' but a null amount → 'not-listed' (estimated needs a figure, mirrors portfolioRetail)", () => {
+    expect(retailSegment({ basis: "estimated", amount: null })).toBe("not-listed");
+  });
+
+  it("matches portfolioRetail's buckets one-for-one (promo folds both promo tokens)", () => {
+    const synth = (s) =>
+      setRetailProvenance(
+        { brickset: { amount: s.bs }, manual: { amount: s.msrp }, curated_estimated: { amount: s.ce } },
+        { promo: s.promo ?? isPromoNoRetail(s) }
+      );
+    const sets = [
+      { setNumber: "10300-1", bs: 100 },                       // sourced
+      { setNumber: "30370-1", ce: 4.99 },                      // estimated
+      { setNumber: "6490363-1", ce: 19.99, promo: true },      // promo-arv
+      { setNumber: "40178-1", name: "VIP gift with purchase", promo: true }, // promo-no-msrp
+      { setNumber: "99999-1" },                                // not-listed
+    ];
+    const tokens = sets.map((s) => retailSegment(synth(s)));
+    expect(tokens).toEqual(["sourced", "estimated", "promo-arv", "promo-no-msrp", "not-listed"]);
+    const r = portfolioRetail(sets, synth);
+    expect(r.known).toBe(tokens.filter((t) => t === "sourced").length);
+    expect(r.estimated).toBe(tokens.filter((t) => t === "estimated").length);
+    expect(r.promo).toBe(tokens.filter((t) => t === "promo-arv" || t === "promo-no-msrp").length);
+    expect(r.notListed).toBe(tokens.filter((t) => t === "not-listed").length);
   });
 });
 
