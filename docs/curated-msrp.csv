@@ -1,0 +1,130 @@
+set_number,name,year,bucket,msrp,confidence,tier,source
+40452-1,Hogwarts Gryffindor Dorms,2021,promo,19.99,C,estimated,Brickfact RRP (secondary)
+40531-1,Lars Family Homestead Kitchen,2022,promo,19.99,C,estimated,Brickfact RRP (secondary)
+40563-1,Tribute to LEGO House,2022,promo,29.99,A,sourced,LEGO product page / stated value
+40566-1,Ray the Castaway,2022,promo,19.99,C,estimated,Brickfact RRP (secondary)
+40577-1,Hogwarts: Grand Staircase,2022,promo,19.99,C,estimated,Brickfact RRP (secondary)
+40585-1,World of Wonders,2023,promo,19.99,C,estimated,Brickfact RRP (secondary)
+40591-1,Death Star II,2023,promo,39.99,C,estimated,Brickset/market value proxy; no official ARV found
+40595-1,Tribute to Galileo Galilei,2023,promo,24.99,C,estimated,Brickfact RRP (secondary)
+40599-1,Houses of the World 4,2023,promo,19.99,C,estimated,Brickwatch LEGO retail price (secondary)
+40606-1,Spring Fun VIP Add-On Pack,2023,promo,9.99,A,sourced,LEGO product page
+40607-1,Summer VIP Add-On pack,2023,promo,9.99,D,estimated,Inferred from VIP Add-On Pack line / comparable LEGO page
+40609-1,Christmas Fun VIP Add-On Pack,2023,promo,9.99,C,estimated,LEGO product page / community checkout value
+40687-1,Alien Space Diner,2024,promo,19.99,A,sourced,LEGO product page
+40689-1,Firework Celebrations,2024,promo,14.99,A,sourced,LEGO event page ARV
+40695-1,Borgin and Burkes: Floo Network,2024,promo,19.99,A,sourced,Official LEGO product page
+40761-1,The Lord of the Rings: Smeagol & Deagol,2025,promo,24.99,A,sourced,Official LEGO product page
+40765-1,Kamino Training Facility,2025,promo,29.99,A,sourced,Official LEGO ARV (US Terms & Conditions)
+40767-1,Up-Scaled Baby Astronaut,2025,promo,19.99,C,estimated,Secondary page quoting LEGO promo terms
+40769-1,SEGA Genesis Controller,2025,promo,19.99,A,sourced,Official LEGO product page
+40770-1,Hogwarts Castle: Room of Requirement,2025,promo,19.99,C,estimated,Comparable LEGO HP GWP value / secondary documentation
+40773-1,The Goonies: The Walshes' Attic,2025,promo,39.99,C,estimated,LEGO product page + reported LEGO site value
+40774-1,Classic Animation Scenes,2025,promo,19.99,A,sourced,Official LEGO ARV (US Terms & Conditions)
+40775-1,Mini Knights Castle,2025,promo,29.99,D,estimated,Search result / social repost quoting LEGO promo terms
+40776-1,Hot Chocolate Stand,2025,promo,39.99,D,estimated,Regional LEGO promo doc via Scribd
+40778-1,Winter Gazebo,2025,promo,22.99,A,sourced,Official LEGO product page
+40786-1,Micro Command Center,2025,promo,19.99,C,estimated,Insiders points redemption value / LEGO product page
+40789-1,Flying Moon Car,2025,promo,19.99,C,estimated,Insiders points redemption value / LEGO product page
+40885-1,Duck Family,2026,promo,19.99,A,sourced,Official LEGO ARV (US Terms & Conditions)
+40917-1,The Darksaber,2026,promo,29.99,A,sourced,Official LEGO ARV (US Terms & Conditions)
+5007427-1,Pirate Adventure Ride,2022,promo,22.99,B,sourced,Brickfact RRP
+5007428-1,Dragon Adventure Ride,2022,promo,22.99,B,sourced,Brickfact RRP
+5007489-1,Fantasy Adventure Ride,2023,promo,19.99,C,estimated,VIP points redemption value
+5007490-1,Space Adventure Ride,2023,promo,19.99,C,estimated,VIP points redemption value / review receipt value
+5008074-1,Buildable Grey Castle,2023,promo,12.99,D,estimated,Insiders reward / comparable small buildable reward
+5008897-1,Tic Tac Toe,2024,promo,9.99,D,estimated,Insiders reward / comparable game reward
+5009378-1,LEGO Best Buy Arcade Race,2025,promo,12.99,D,estimated,Best Buy/LEGO promo value proxy
+5009614-1,Skaters in the Park,2025,promo,9.99,D,estimated,LEGO promo value proxy
+5009806-1,Retro Space Explorer,2025,promo,12.99,D,estimated,LEGO promo value proxy
+6426244-1,90th Anniversary Mini Castle,2022,promo,12.99,D,estimated,90th anniversary mini promo value proxy
+6490363-1,By the Fireplace,2023,promo,19.99,D,estimated,Seasonal GWP value proxy
+6550806-1,Gingerbread Lane,2024,promo,19.99,D,estimated,Seasonal GWP value proxy
+40416-1,Ice Skating Rink,2020,gwp-40xxx,19.99,C,estimated,Brickset/current value proxy
+40484-1,Santa's Front Yard,2021,gwp-40xxx,19.99,C,estimated,Seasonal boxed GWP value proxy
+40527-1,Easter Chicks,2022,gwp-40xxx,14.99,C,estimated,BrickEconomy/market value proxy
+40564-1,Winter Elves Scene,2022,gwp-40xxx,19.99,C,estimated,Brickfact RRP (secondary)
+40565-1,Santa's Workshop,2022,gwp-40xxx,19.99,A,sourced,LEGO product page
+40567-1,Forestmen Forest Hideout,2022,gwp-40xxx,24.99,A,sourced,LEGO product page
+40580-1,Blacktron Cruiser,2023,gwp-40xxx,29.99,B,sourced,Archived LEGO promo terms quoted by Investabrick
+40584-1,Birthday Diorama,2023,gwp-40xxx,12.99,C,estimated,Brickfact RRP (secondary)
+40587-1,Easter Basket,2023,gwp-40xxx,19.99,A,sourced,Official LEGO product page
+40601-1,Majisto's Magical Workshop,2023,gwp-40xxx,29.99,C,estimated,Brickfact RRP (secondary)
+40602-1,Winter Market Stall,2023,gwp-40xxx,19.99,C,estimated,Brickfact RRP (secondary)
+40603-1,Wintertime Carriage Ride,2023,gwp-40xxx,22.99,D,estimated,Brickipedia price (secondary)
+40604-1,Christmas Decor Set,2023,gwp-40xxx,14.99,C,estimated,Seasonal decor GWP value proxy
+40659-1,Mini Steamboat Willie,2023,gwp-40xxx,24.99,C,estimated,Brickfact LEGO retail price listing
+40682-1,Spring Garden House,2024,gwp-40xxx,14.99,C,estimated,Brickset/market value proxy
+40686-1,Trade Federation Troop Carrier,2024,gwp-40xxx,29.99,A,sourced,Official LEGO ARV (US Store Events page)
+40700-1,Winter Holiday Train,2024,gwp-40xxx,19.99,A,sourced,Official LEGO ARV (US Insiders Weekend page)
+40701-1,Ballerina & Nutcracker Scene,2024,gwp-40xxx,22.99,A,sourced,Official LEGO ARV (US Store Events page)
+40703-1,Micro Ninjago City,2024,gwp-40xxx,19.99,C,estimated,Micro NINJAGO reward value proxy
+40704-1,Micro Ninjago Docks,2024,gwp-40xxx,19.99,C,estimated,Micro NINJAGO reward value proxy
+40705-1,Micro Ninjago Gardens,2024,gwp-40xxx,19.99,C,estimated,Micro NINJAGO reward value proxy
+40706-1,Micro Ninjago City Markets,2024,gwp-40xxx,19.99,C,estimated,Micro NINJAGO reward value proxy
+40712-1,Micro Rocket Launchpad,2024,gwp-40xxx,19.99,C,estimated,LEGO product page / boxed space GWP value proxy
+40728-1,Brite Bomber,2024,gwp-40xxx,9.99,C,estimated,BrickHeadz standard MSRP proxy
+40764-1,Easter Bunny Surprise,2025,gwp-40xxx,19.99,B,sourced,Official LEGO product page price
+40768-1,Star Trek: Type-15 Shuttlepod,2025,gwp-40xxx,24.99,D,estimated,Search result / social repost quoting LEGO promo terms
+40772-1,Celebration Series: 3. Luminous Ghost,2025,gwp-40xxx,19.99,C,estimated,Secondary page quoting LEGO promo terms
+122405-1,Velociraptor Baby with DNA Lab,2024,magazine,7.37,C,estimated,est. UK LEGO magazine cover price ~£5.50 × 1.34; per-issue varies £4.50–£5.99 — verify
+242401-1,War Machine,2024,magazine,7.37,C,estimated,est. UK LEGO magazine cover price ~£5.50 × 1.34; per-issue varies £4.50–£5.99 — verify
+552402-1,Mateo with Jet Pack,2024,magazine,7.37,C,estimated,est. UK LEGO magazine cover price ~£5.50 × 1.34; per-issue varies £4.50–£5.99 — verify
+552405-1,Cooper with Double Shooter,2024,magazine,7.37,C,estimated,est. UK LEGO magazine cover price ~£5.50 × 1.34; per-issue varies £4.50–£5.99 — verify
+892403-1,Jay,2024,magazine,7.37,C,estimated,est. UK LEGO magazine cover price ~£5.50 × 1.34; per-issue varies £4.50–£5.99 — verify
+912403-1,Coruscant Guard,2024,magazine,7.37,C,estimated,est. UK LEGO magazine cover price ~£5.50 × 1.34; per-issue varies £4.50–£5.99 — verify
+952302-1,Police Buggy,2023,magazine,7.37,C,estimated,est. UK LEGO magazine cover price ~£5.50 × 1.34; per-issue varies £4.50–£5.99 — verify
+952403-1,Builder with Cement Mixer,2024,magazine,7.37,C,estimated,est. UK LEGO magazine cover price ~£5.50 × 1.34; per-issue varies £4.50–£5.99 — verify
+952411-1,Astronaut with Space Satellite,2024,magazine,7.37,C,estimated,est. UK LEGO magazine cover price ~£5.50 × 1.34; per-issue varies £4.50–£5.99 — verify
+L0002221-1,Construction Worker with Bulldozer,2026,magazine,7.37,C,estimated,est. UK LEGO magazine cover price ~£5.50 × 1.34; per-issue varies £4.50–£5.99 — verify (2026 — may be unreleased/unpriced)
+L0002232-1,Night Trooper,2026,magazine,7.37,C,estimated,est. UK LEGO magazine cover price ~£5.50 × 1.34; per-issue varies £4.50–£5.99 — verify (2026 — may be unreleased/unpriced)
+L0002288-1,Mateo,2026,magazine,7.37,C,estimated,est. UK LEGO magazine cover price ~£5.50 × 1.34; per-issue varies £4.50–£5.99 — verify (2026 — may be unreleased/unpriced)
+30002-1,Police Boat,2009,polybag-BE,2.99,B,sourced,Brickset RRP
+30420-1,Harry Potter and Hedwig,2020,polybag-BE,4.99,B,sourced,BrickEconomy original retail price
+30434-1,Aston Martin Valkyrie AMR Pro,2022,polybag-BE,4.99,C,estimated,Retail polybag standard
+30455-1,Batmobile,2022,polybag-BE,4.99,C,estimated,Retail polybag standard
+30495-1,AT-ST,2022,polybag-BE,4.99,C,estimated,Retail polybag standard
+30543-1,Christmas Train,2018,polybag-BE,3.99,B,sourced,BrickEconomy retail price
+30559-1,Elsa and Bruni's Forest Camp,2022,polybag-BE,4.99,C,estimated,Retail polybag standard
+30570-1,Wildlife Rescue Hovercraft,2021,polybag-BE,4.99,C,estimated,Retail polybag standard
+30580-1,Santa Claus,2021,polybag-BE,4.99,C,estimated,Retail polybag standard
+30581-1,Tropical Parrot,2022,polybag-BE,4.99,C,estimated,Retail polybag standard
+30584-1,Train,2022,polybag-BE,4.99,C,estimated,Retail polybag standard
+30585-1,Fire Patrol Vehicle,2022,polybag-BE,4.99,C,estimated,Retail polybag standard
+30589-1,Go-Kart Racer,2022,polybag-BE,4.99,C,estimated,Retail polybag standard
+30590-1,Scarecrow,2022,polybag-BE,4.99,C,estimated,Retail polybag standard
+30645-1,Snowman,2023,polybag-BE,4.99,C,estimated,Retail polybag standard
+30649-1,Ice Dragon Creature,2023,polybag-BE,4.99,C,estimated,Retail polybag standard
+30650-1,Kai and Rapton's Temple Battle,2023,polybag-BE,4.99,C,estimated,Retail polybag standard
+30651-1,Quidditch Practice,2023,polybag-BE,4.99,C,estimated,Retail polybag standard
+30652-1,Doctor Strange's Interdimensional Portal,2023,polybag-BE,4.99,C,estimated,Retail polybag standard
+30653-1,Batman 1992,2023,polybag-BE,4.99,C,estimated,Retail polybag standard
+30654-1,X-wing Starfighter,2023,polybag-BE,4.99,A,sourced,Official LEGO product page / BrickEconomy
+30663-1,Space Hoverbike,2024,polybag-BE,4.99,C,estimated,Retail polybag standard
+30665-1,Baby Gorilla Encounter,2024,polybag-BE,4.99,C,estimated,Retail polybag standard
+30668-1,Easter Bunny with Colorful Eggs,2024,polybag-BE,4.99,C,estimated,Retail polybag standard
+30672-1,Steve and Baby Panda,2024,polybag-BE,4.99,C,estimated,Retail polybag standard
+30675-1,Tournament Training Ground,2024,polybag-BE,4.99,C,estimated,Retail polybag standard
+30677-1,Draco in the Forbidden Forest,2024,polybag-BE,4.99,C,estimated,Retail polybag standard
+30679-1,Venom Street Bike,2024,polybag-BE,4.99,C,estimated,Retail polybag standard
+30683-1,McLaren Formula 1 Car,2024,polybag-BE,4.99,A,sourced,Official LEGO product page / BrickEconomy
+30685-1,TIE Interceptor,2024,polybag-BE,4.99,C,estimated,Retail polybag standard
+30689-1,Birthday Party Animals,2025,polybag-BE,4.99,C,estimated,Retail polybag standard
+30694-1,Space Science Mech,2025,polybag-BE,4.99,B,sourced,BrickEconomy / official LEGO instructions page
+30706-1,Quidditch Training,2025,polybag-BE,4.99,C,estimated,Retail polybag standard
+30709-1,Ferrari 499P - Hypercar,2025,polybag-BE,4.99,A,sourced,Official LEGO product page / BrickEconomy
+30716-1,Cute Easter Bunny,2026,polybag-BE,4.99,C,estimated,Retail polybag standard
+30719-1,Go-Kart Racer,2026,polybag-BE,4.99,C,estimated,Retail polybag standard
+30723-1,Ninja Cole's Car,2026,polybag-BE,4.99,C,estimated,Retail polybag standard
+30727-1,TIE Advanced,2026,polybag-BE,4.99,C,estimated,Retail polybag standard
+30734-1,Mini F1 ACADEMY Car,2026,polybag-BE,4.99,C,estimated,Retail polybag standard
+30303-1,The Joker Bumper Car,2015,polybag-website,3.99,B,sourced,Brickset website RRP (verified live)
+30435-1,Build Your Own Hogwarts Castle,2022,polybag-website,4.99,B,sourced,Brickset website RRP (verified live)
+30680-1,AAT,2024,polybag-website,4.99,B,sourced,Brickset website RRP (verified live)
+30708-1,Millennium Falcon,2025,polybag-website,4.99,B,sourced,Brickset website RRP (verified live)
+30566-1,Fire Helicopter,2021,polybag-region,4.68,B,sourced,Brickset UK RRP £3.49 × 1.34 (no US price listed)
+30352-1,Police Car,2017,polybag-dead-end,3.99,C,estimated,Retail polybag standard / older City polybag proxy
+30370-1,Diver,2020,polybag-dead-end,4.99,C,estimated,Retail polybag standard
+30383-1,Naboo Starfighter,2019,polybag-dead-end,4.99,C,estimated,Retail polybag standard
+30625-1,Luke Skywalker with Blue Milk,2021,polybag-dead-end,,A,none,No standalone MSRP found
+30635-1,Beach Cleanup,2023,polybag-dead-end,4.99,C,estimated,Retail polybag standard

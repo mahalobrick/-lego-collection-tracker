@@ -25,6 +25,8 @@ collection.json
 !public/themes.csv
 # ...and committed value-source evidence under docs/ is durable, not scratch:
 !docs/evidence/bl-coverage-full.csv
+# ...and the curated MSRP table is the codegen source of truth (drift-checked in CI):
+!docs/curated-msrp.csv
 
 # Claude-specific config
 .claude/
