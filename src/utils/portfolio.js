@@ -193,23 +193,36 @@ export function setValueProvenance(s, valueMap) {
 // §4), and retail is now Brickset → manual only. The residual (the Brickset-API gap) resolves to "—"
 // until hand-filled via the manual rung (or a future Brickset site-scrape source). BE stays a VALUE
 // fallback only — it has no role here. First source carrying a real figure wins.
-// 'cmf' (LAST) is the CMF series-bag era-table fallback ({@link import("./cmfRetail").cmfEraRetail}) —
-// gated below Brickset AND manual so a real sourced figure always wins; it only fills a CMF series
-// whose Brickset `-0` bag has no retail (e.g. 71034 / Series 23). Non-CMF sets pass no `cmf` amount.
-export const RETAIL_SOURCE_ORDER = ["brickset", "manual", "cmf"];
+// 'cmf' is the CMF series-bag era-table fallback ({@link import("./cmfRetail").cmfEraRetail}) — gated
+// below Brickset/manual so a real sourced figure always wins; it only fills a CMF series whose Brickset
+// `-0` bag has no retail (e.g. 71034 / Series 23). Non-CMF sets pass no `cmf` amount.
+// 'curated_sourced' / 'curated_estimated' are the curated-MSRP rungs ({@link import("./curatedMsrp").curatedRetail},
+// docs/curated-msrp-plan.md). curated_sourced is a researched real RRP / LEGO-stated value → basis "retail",
+// ranked ABOVE cmf (a documented figure beats the era guess) but below brickset/manual. curated_estimated is a
+// proxy/ARV → new basis "estimated" (NOT folded into sourced) and ranked LAST, filling only when nothing real
+// exists. Both are STATIC + research-derived (no network, never source:"brickeconomy" — Phase 3c intact).
+export const RETAIL_SOURCE_ORDER = ["brickset", "manual", "curated_sourced", "cmf", "curated_estimated"];
+
+// The rungs whose resolved value is an ESTIMATE (basis "estimated"), parallel to the VALUE-axis estimate
+// concept (isEstimateBasis / estimatedValueShare) — NOT the cost-axis "estimated at MSRP". Single-sourced.
+const ESTIMATED_RETAIL_SOURCES = new Set(["curated_estimated"]);
 
 /**
  * Read-time retail (MSRP) {@link import("./value").Value} for a set — the sticker price, never a
- * market value. Walks {@link RETAIL_SOURCE_ORDER} and returns the first source carrying a real figure
- * (Brickset canonical → user-entered `manual` msrp), tagged `basis:'retail'` with `source` = the
- * winning rung (so a hand-entered MSRP is distinguishable). A stored 0 / blank / missing is "unknown"
- * (no set has a $0 MSRP — VALUE-style {@link import("./value").valueAmount} coalescing), so it is
- * skipped, not taken. When NO source carries a figure: a `promo` set returns the first-class
- * basis:"promo" no-RRP state, else `null` → the caller renders "—". (BrickEconomy was removed from the
- * retail ladder in Phase 3c — it remains a VALUE fallback only.) Parallel to {@link setValueProvenance};
- * does NOT touch the BL→BE market overlay.
+ * market value. Walks {@link RETAIL_SOURCE_ORDER} and returns the first source carrying a real figure,
+ * tagged with `source` = the winning rung and a `basis`: a sourced RRP (brickset / manual /
+ * curated_sourced / cmf) → `'retail'`; the curated_estimated proxy → `'estimated'` (a non-sourced
+ * estimate, disclosed separately and never folded into the sourced count). A stored 0 / blank / missing
+ * is "unknown" (no set has a $0 MSRP — VALUE-style {@link import("./value").valueAmount} coalescing), so
+ * it is skipped. When NO source carries a figure: a `promo` set returns the first-class basis:"promo"
+ * no-RRP state, else `null` → "—". OPTION C: for a `promo` set a resolved curated figure STAYS
+ * basis:"promo" (a valued GWP ARV) — never sourced/estimated. A curated win also carries
+ * `curatedConfidence` + `curatedSource` (for the detail/tooltip, NOT the card). Research-derived +
+ * static: no network, never source:"brickeconomy" (Phase 3c intact). Parallel to {@link setValueProvenance}.
  *
- * @param {{brickset?:{amount?:*, asOf?:string|null}, manual?:{amount?:*}}} sources
+ * @param {{brickset?:{amount?:*, asOf?:string|null}, manual?:{amount?:*},
+ *          curated_sourced?:{amount?:*, confidence?:string, source?:string},
+ *          curated_estimated?:{amount?:*, confidence?:string, source?:string}, cmf?:{amount?:*}}} sources
  *        Raw retail candidates by source (amount may be a number / string / blank).
  * @param {Object} [opts]
  * @param {string|null} [opts.condition]
@@ -221,15 +234,34 @@ export function setRetailProvenance(sources, { condition = null, promo = false }
     const cand = sources && sources[source];
     const amount = valueAmount(cand && cand.amount); // 0 / blank / missing → null → skip this source
     if (amount === null) continue;
-    // retired:false → deriveBasis (via toValue) keeps brickset AND brickeconomy at 'retail': the MSRP
-    // field IS the sticker price, so — unlike the market path — it never flips to 'market' on retirement.
-    return toValue(amount, { source, condition, retired: false, asOf: (cand && cand.asOf) ?? null });
+    const asOf = (cand && cand.asOf) ?? null;
+    // Option C (docs/curated-msrp-plan.md §3): a GWP/promo set's resolved figure is a stated ARV, NOT a
+    // sticker MSRP — it STAYS basis:"promo" (a VALUED GWP), carrying the amount + curated provenance, so it
+    // lands in the promo bucket regardless of curated tier and never inflates the sourced/estimated counts.
+    if (promo) return withCurated({ amount, source, condition, basis: "promo", asOf, lots: null }, cand);
+    // curated_estimated → basis "estimated": a non-sourced estimate, disclosed separately and NEVER folded
+    // into the sourced count (the VALUE-axis estimate idiom, not the cost-axis "estimated at MSRP").
+    if (ESTIMATED_RETAIL_SOURCES.has(source)) {
+      return withCurated({ amount, source, condition, basis: "estimated", asOf, lots: null }, cand);
+    }
+    // Every other rung (brickset / manual / curated_sourced / cmf) is a sourced RRP → basis "retail" via
+    // deriveBasis (retired:false → never flips to 'market': the MSRP field IS the sticker price).
+    return withCurated(toValue(amount, { source, condition, retired: false, asOf }), cand);
   }
   // No sourced RRP. A GWP/promo set has none at ANY source (it was never sold) — return a FIRST-CLASS
   // "no retail exists" Value (basis:"promo", amount null), DISTINCT from an unsourced null ("retail
   // exists somewhere, just not obtained"). A real sourced figure above always wins over the promo tag.
   if (promo) return { amount: null, source: null, condition, basis: "promo", asOf: null, lots: null };
   return null;
+}
+
+// Attach the curated CSV's confidence (A/B/C/D) + source string to a retail Value when the winning rung is
+// a curated one (its cand carries them) — for the detail panel / tooltip, NOT the card. A no-op for the
+// brickset/manual/cmf rungs (their cand has no confidence/source), so those Values stay byte-identical.
+function withCurated(v, cand) {
+  if (cand && cand.confidence != null) v.curatedConfidence = cand.confidence;
+  if (cand && cand.source != null) v.curatedSource = cand.source;
+  return v;
 }
 
 /**
