@@ -9,15 +9,19 @@ owned-set list from Upstash, pulls BrickLink 6-mo sold data, and writes the `val
 **Why a dedicated box:** the BrickLink Store API authorizes calls by a **fixed IP** bound to an Access
 Token. A static-egress host is the supported way to give the batch a stable, whitelisted source IP.
 
-> **Live deployment (today):** DigitalOcean droplet `159.223.113.147`, Ubuntu, running **as root** from
+> **Live deployment (today):** DigitalOcean droplet `<VPS_IP>`, Ubuntu, running **as root** from
 > `/root/brickledger`, weekly **Sun 03:00 UTC**. Running under a dedicated non-login user (e.g.
 > `/opt/brickledger/app`) is noted as **optional future hardening** — not what the box runs now.
+>
+> **Security note (M1, Jun-17 audit):** the literal IP was previously committed in this file, so the box
+> must be treated as **internet-known** — host hardening (SSH, firewall, non-root run) is tracked
+> separately and is *not* solved by this redaction. Keep the real IP out of this doc; use `<VPS_IP>`.
 
 ---
 
 ## 0. Provision the box
 - A host with a **static public IPv4** and root. Note its public IPv4 (you'll whitelist it in §1, and
-  the live box is `159.223.113.147`).
+  the live box is `<VPS_IP>`).
 - The Upstash REST creds (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) — same store the app + sync use.
 - BrickLink Store API **consumer key/secret** (account-level, reused from home).
 
@@ -88,7 +92,7 @@ Confirm the box egresses from the whitelisted IPv4, then prove the batch end-to-
 handing it to the timer:
 
 ```bash
-curl -4 -s https://api.ipify.org   # must equal the box IP you whitelisted in §1 (and 159.223.113.147 today)
+curl -4 -s https://api.ipify.org   # must equal the box IP you whitelisted in §1 (your <VPS_IP>)
 cd /root/brickledger && node scripts/refresh-values.mjs
 ```
 
