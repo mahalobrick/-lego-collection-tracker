@@ -12,7 +12,7 @@ import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilR
 import { setConditionDisplay, conditionBucket, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
 import { applyCopyConditionEdit, applyQtyEdit } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
-import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, cmfSeriesRetailTargets, cacheBricksetSet, getBricksetCache } from "./utils/brickset";
+import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, cmfSeriesRetailTargets, getBricksetCache } from "./utils/brickset";
 import { makeRetailResolver } from "./utils/retailResolver";
 import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
@@ -25,6 +25,7 @@ import { valuesAsOf, freshness } from "./utils/freshness";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
 import { loadCollectionItems } from "./utils/collectionLayout";
+import { syncBricksetMetadata, metadataGaps, cleanSetNumber } from "./utils/bricksetMetadata";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
 const CONDITION_CYCLE = ["new", "used_as_new", "used_good", "used_acceptable"];
@@ -305,37 +306,21 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   // forceAll=false skips sets that already have both fields populated in state.
   async function runBricksetEnrichment(currentSets, forceAll = false) {
     if (metaRefreshing) return;
-    const toFetch = currentSets.filter(s => {
-      if (!s.setNumber) return false;
-      if (!forceAll && s.minifigs != null && s.pieces != null) return false;
-      return true;
-    });
-    if (!toFetch.length) {
+    if (!metadataGaps(currentSets, forceAll).length) {
       if (forceAll) toast.success("Collection metadata is already complete.");
       return;
     }
     setMetaRefreshing(true);
-    let updated = 0;
-    for (const item of toFetch) {
-      const clean = String(item.setNumber).replace(/-1$/, "");
-      try {
-        const bsData = await fetchBricksetSet(clean);
-        if (!bsData) { await new Promise(r => setTimeout(r, 400)); continue; }
-        // Persist to Brickset cache so future loads don't need to re-fetch (shared instance; key
-        // stays `brickset_${clean}` byte-identical — P3.3).
-        cacheBricksetSet(clean, bsData);
-        // Patch sets state — minifigs + pieces only (BE owns value fields)
-        setSets(prev => prev.map(s => {
-          if (String(s.setNumber || "").replace(/-1$/, "") !== clean) return s;
-          const upd = {};
-          if (bsData.minifigs != null) upd.minifigs = bsData.minifigs;
-          if (bsData.pieces   != null) upd.pieces   = bsData.pieces;
-          return Object.keys(upd).length ? { ...s, ...upd } : s;
-        }));
-        updated++;
-      } catch {}
-      await new Promise(r => setTimeout(r, 400));
-    }
+    // Pure fetch/cache loop lives in syncBricksetMetadata; we apply each patch to sets state
+    // progressively via onPatch so the UI fills in as each set returns (legacy behaviour).
+    const { updated } = await syncBricksetMetadata(currentSets, {
+      force: forceAll,
+      onPatch: (clean, upd) => {
+        setSets(prev => prev.map(s =>
+          cleanSetNumber(s.setNumber) === clean ? { ...s, ...upd } : s
+        ));
+      },
+    });
     setMetaRefreshing(false);
     if (forceAll) {
       if (updated > 0) toast.success(`Brickset metadata synced for ${updated} set${updated !== 1 ? "s" : ""}.`);
