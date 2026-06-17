@@ -6,16 +6,28 @@
  * avoids the previous non-atomic INCR-then-EXPIRE race (which could leave a key with
  * no TTL → permanent throttle) and needs no EXPIRE-NX support.
  *
- * Fail-open by design: if the limiter errors or KV isn't configured, the request is
- * ALLOWED (and the error is logged). Rationale — every limited endpoint already
- * requires a verified Clerk user (api/_auth.js), so abuse is bounded to authenticated,
- * accountable accounts; a Redis hiccup must not brick a working feature. The trade-off
- * is logged so it's observable. (A future refinement: tighter, cost-aware limits for the
- * ScraperAPI-backed endpoint, and/or fail-closed there specifically.)
+ * Per-bucket failure policy: when the limiter can't consult KV (Upstash unconfigured, a network
+ * error, or a non-OK response) it falls back to a bucket-specific verdict —
+ *   • fail OPEN (allow) for most buckets: every limited endpoint already requires a verified Clerk
+ *     user (api/_auth.js), so abuse is bounded to accountable accounts and a Redis hiccup must not
+ *     brick a working feature.
+ *   • fail CLOSED (deny) for "scrape": it fronts the *metered* ScraperAPI endpoint
+ *     (api/brickfanatics-retiring.js), so when we can't confirm the request is within limit we deny
+ *     it — a KV outage degrades that one endpoint rather than burning paid budget (L2, Jun-17 audit).
+ * Either way the fallback is logged so it's observable.
  */
 
 // Atomic: increment within a fixed window, returning the new count.
 const LUA = "local c = redis.call('INCR', KEYS[1]) if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end return c";
+
+// Buckets that fail CLOSED (deny) when KV can't be consulted — every other bucket fails OPEN (allow).
+// "scrape" fronts the metered ScraperAPI endpoint, so a KV outage must not let spend go unthrottled.
+const FAIL_CLOSED_BUCKETS = new Set(["scrape"]);
+
+// The allow/deny verdict to use when KV is unavailable, per the bucket's policy above.
+function failModeAllow(bucket) {
+  return !FAIL_CLOSED_BUCKETS.has(bucket);
+}
 
 function kv() {
   const url = process.env.KV_REST_API_URL;
@@ -29,7 +41,7 @@ function kv() {
  */
 async function rateLimitAllow(userId, { limit, windowSeconds, bucket }) {
   const c = kv();
-  if (!c) return true; // not configured → allow
+  if (!c) return failModeAllow(bucket); // KV unconfigured → bucket policy (open for most, closed for scrape)
   try {
     const res = await fetch(c.url, {
       method: "POST",
@@ -41,8 +53,9 @@ async function rateLimitAllow(userId, { limit, windowSeconds, bucket }) {
     const count = Number(data?.result) || 0;
     return count <= limit;
   } catch (err) {
-    console.error("[BrickLedger ratelimit] fail-open:", err.message);
-    return true; // fail-open (logged)
+    const allow = failModeAllow(bucket);
+    console.error(`[BrickLedger ratelimit] KV error → failing ${allow ? "open" : "closed"} (bucket=${bucket}):`, err.message);
+    return allow;
   }
 }
 
