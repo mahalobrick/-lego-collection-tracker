@@ -14,8 +14,10 @@ own richer customization, handled per-tab later. Don't fold that into the summar
 
 Cards are not equal. Group them into tiers by how much they drive action on that tab:
 
-- **Hero tier** — the two or three numbers that actually drive a decision on this tab. Raised cards (white bg + border),
-  larger number, top row. (Collection Stats: Collection Value, Net Gain, ROI.)
+- **Hero tier** — the two or three numbers that actually drive a decision on this tab. Raised cards (an **elevated
+  surface** — a lighter bg + border in this dark theme; "white bg" was light-theme shorthand. Neutral hero numbers stay
+  legible because the surface is raised, not literally white), larger number, top row. (Collection Stats: Collection
+  Value, Net Gain, ROI.)
 - **Secondary tiers** — grouped by meaning, as denser metric cards (secondary bg, no border). Each tier gets a short
   label. (Collection Stats: "Composition", "Value & condition".)
 
@@ -70,11 +72,24 @@ Each tab inherits the same components instead of reinventing them:
 
 Record per-tab deviations from the pattern here as they happen (decisions-to-disk).
 
+### Recorded deviations
+
+**Collection Stats:**
+
+- **Hero = elevated surface, not literal white.** Rule 1 says "white bg + border"; in this dark theme that's a raised
+  lighter surface (`heroCardBase`), so neutral hero numbers (Collection Value) stay legible. "White bg" was light-theme
+  shorthand. The pattern is *raised vs receding*, not a specific colour.
+- **Partition group defaults OFF** (New / Used / Mixed value). Rule 3's "default = visible (opt-out)" would show all three
+  for everyone, duplicating the Collection Value breakdown. They stay opt-*in* (advanced), but travel as a group
+  (all-or-none) so a partial partition can never display. Still discoverable in the gear.
+- **Wanted List card defaults OFF.** It counts *wanted* items, not owned-collection composition — cross-tab noise in a
+  My Collection summary. Opt-in via the gear; kept available, not removed.
+
 ### Per-tab status
 
 | Tab | Tooltip audit | Tiered layout | On/off + defaults | Status |
 |---|---|---|---|---|
-| Collection Stats | done | in build | in build | reference instance |
+| Collection Stats | done | done | in build | reference instance |
 | Budget | — | — | — | pending |
 | Wanted | — | — | — | pending |
 | Sold | — | — | — | pending |
