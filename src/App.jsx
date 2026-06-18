@@ -408,6 +408,10 @@ export default function App() {
              fits on one line instead of ellipsis-truncating. Scoped UNDER .stat-card-grid so hero
              cards (heroGrid, full-width) keep their 27/21px and Metrics used elsewhere keep 24px. */
           .stat-card-grid .stat-card-val { font-size: 18px !important; }
+          /* Deep-dive content panels (My Collection): the half-width 1fr 1fr split squishes each
+             panel to ~159px on a phone (charts/tables unreadable). Stack them 1-up at <=600; the
+             inline 1fr 1fr stays the desktop spec, so above 600px the panels stay side-by-side. */
+          .dd-panel-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
 

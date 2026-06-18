@@ -1385,7 +1385,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           </div>
 
           {/* ── Content panels ──────────────────────────────────────── */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, alignItems: "start" }}>
+          <div className="dd-panel-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, alignItems: "start" }}>
             {collectionItems.filter(item => item.type === "panel" && item.visible).map(item => {
               const gridCol = item.width === "full" ? "1 / -1" : "span 1";
               return (
