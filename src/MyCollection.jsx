@@ -1236,7 +1236,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   }
 
   return (
-    <div style={page} onMouseMove={e => setTipPos({ x: e.clientX, y: e.clientY })} onTouchStart={() => { setHoveredSet(null); setHoveredWatchItem(null); }}>
+    <div className="tab-page" style={page} onMouseMove={e => setTipPos({ x: e.clientX, y: e.clientY })} onTouchStart={() => { setHoveredSet(null); setHoveredWatchItem(null); }}>
       <div style={tabHeader}>
         <div>
           <h2 style={{ margin: 0 }}>My Collection</h2>
@@ -1343,7 +1343,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                   return (
                     <div key={tier.id}>
                       {tier.label && <div style={tierLabel}>{tier.label}</div>}
-                      <div style={isHero ? heroGrid : cardGrid}>
+                      <div className={isHero ? undefined : "cs-card-grid"} style={isHero ? heroGrid : cardGrid}>
                         {tier.keys.map(key => (
                           <div key={key}>
                             {key === "qty"          ? <Card hero={isHero} title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} subTip={TOTAL_SETS_TOOLTIP} /> :

@@ -375,7 +375,7 @@ export default function App() {
         }
         * { box-sizing: border-box; }
         @media (max-width: 700px) {
-          .app-shell { padding: 12px !important; }
+          .app-shell { padding: 6px !important; }
           .app-title { font-size: 26px !important; letter-spacing: 3px !important; }
         }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -395,7 +395,12 @@ export default function App() {
           .nav-wrap { padding: 10px 12px !important; }
           .nav-pill { gap: 2px !important; padding: 4px !important; width: 100% !important; border-radius: 14px !important; }
           .nav-pill-btn { flex: 1 !important; padding: 9px 6px !important; font-size: 11px !important; letter-spacing: 0 !important; }
-          .page-content { padding: 12px !important; }
+          .page-content { padding: 6px !important; }
+          /* Reclaim mobile width: trim each tab's own root padding (22 -> 10) and let the dense
+             secondary stat-card grids drop to a smaller min so they reach 2 columns on a phone
+             instead of 1. Hero cards keep their larger min (stay 1-up). Desktop is untouched. */
+          .tab-page { padding: 10px !important; }
+          .cs-card-grid { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)) !important; }
         }
       `}</style>
 
