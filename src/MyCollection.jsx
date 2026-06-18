@@ -1343,7 +1343,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                   return (
                     <div key={tier.id}>
                       {tier.label && <div style={tierLabel}>{tier.label}</div>}
-                      <div className={isHero ? undefined : "cs-card-grid"} style={isHero ? heroGrid : cardGrid}>
+                      <div className={isHero ? undefined : "stat-card-grid"} style={isHero ? heroGrid : cardGrid}>
                         {tier.keys.map(key => (
                           <div key={key}>
                             {key === "qty"          ? <Card hero={isHero} title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} subTip={TOTAL_SETS_TOOLTIP} /> :
@@ -2707,7 +2707,7 @@ function Card({ title, value, good, sub, subTip, hero = false }) {
     <div style={box}>
       <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
       <div style={{ position: "relative" }} onMouseEnter={() => setTip(true)} onMouseLeave={() => setTip(false)}>
-        <div style={{ fontSize: hero ? 27 : 21, fontWeight: 900, color: good === undefined ? "#e8e2d5" : good ? "#5aa832" : "#ff8b8b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "default", lineHeight: 1.12 }}>
+        <div className="stat-card-val" style={{ fontSize: hero ? 27 : 21, fontWeight: 900, color: good === undefined ? "#e8e2d5" : good ? "#5aa832" : "#ff8b8b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "default", lineHeight: 1.12 }}>
           {value}
         </div>
         {tip && <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: 0, zIndex: 50, background: "#0b1520", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, padding: "5px 10px", fontSize: 15, fontWeight: 700, color: "#e8e2d5", whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,0,0,0.5)", pointerEvents: "none" }}>{value}</div>}

@@ -1497,7 +1497,7 @@ export default function WantedList({ onBuyNow }) {
             )}
 
             {!wlPillsCollapsed && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
+              <div className="stat-card-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
                 {wlItems.filter(i => i.type === "card" && i.visible).map(item => (
                   <div key={item.key} draggable
                     onDragStart={() => setDraggedWLItem(item.key)}
@@ -3206,7 +3206,7 @@ function Metric({ title, value }) {
     <div style={{ ...panel, marginTop: 0, overflow: "hidden" }}>
       <div style={{ ...mutedSmall, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
       <div style={{ position: "relative" }} onMouseEnter={() => setTip(true)} onMouseLeave={() => setTip(false)}>
-        <div style={{ fontSize: 24, fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "default" }}>{value}</div>
+        <div className="stat-card-val" style={{ fontSize: 24, fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "default" }}>{value}</div>
         {tip && <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: 0, zIndex: 50, background: "#0b1520", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, padding: "5px 10px", fontSize: 15, fontWeight: 700, color: "#e8e2d5", whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,0,0,0.5)", pointerEvents: "none" }}>{value}</div>}
       </div>
     </div>

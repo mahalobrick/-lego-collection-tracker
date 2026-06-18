@@ -396,11 +396,18 @@ export default function App() {
           .nav-pill { gap: 2px !important; padding: 4px !important; width: 100% !important; border-radius: 14px !important; }
           .nav-pill-btn { flex: 1 !important; padding: 9px 6px !important; font-size: 11px !important; letter-spacing: 0 !important; }
           .page-content { padding: 6px !important; }
-          /* Reclaim mobile width: trim each tab's own root padding (22 -> 10) and let the dense
-             secondary stat-card grids drop to a smaller min so they reach 2 columns on a phone
-             instead of 1. Hero cards keep their larger min (stay 1-up). Desktop is untouched. */
+          /* Reclaim mobile width (<=600 only): trim each tab's own root padding (22 -> 10) and
+             drop the secondary stat-card grids to a smaller min so they sit 2-up on a phone instead
+             of 1-up. These grids carry an inline grid-template-columns (their desktop spec), so the
+             override below is !important to beat inline at <=600; above 600 no rule applies and the
+             inline desktop column counts are untouched. Hero tier keeps its larger min (stays 1-up).
+             .stat-card-grid is app-wide: My Collection secondary tiers + Budget/Wanted KPI grids. */
           .tab-page { padding: 10px !important; }
-          .cs-card-grid { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)) !important; }
+          .stat-card-grid { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)) !important; }
+          /* At 2-up each card is ~143px; shrink the value font so a full 5-digit currency figure
+             fits on one line instead of ellipsis-truncating. Scoped UNDER .stat-card-grid so hero
+             cards (heroGrid, full-width) keep their 27/21px and Metrics used elsewhere keep 24px. */
+          .stat-card-grid .stat-card-val { font-size: 18px !important; }
         }
       `}</style>
 
