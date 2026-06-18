@@ -1404,7 +1404,7 @@ export default function WantedList({ onBuyNow }) {
   }
 
   return (
-    <div style={page} onMouseMove={e => setTipPos({ x: e.clientX, y: e.clientY })} onTouchStart={() => setHoveredWanted(null)}>
+    <div className="tab-page" style={page} onMouseMove={e => setTipPos({ x: e.clientX, y: e.clientY })} onTouchStart={() => setHoveredWanted(null)}>
       <div style={acTabHeader}>
         <div>
           <h2 style={{ margin: 0 }}>Wanted List</h2>

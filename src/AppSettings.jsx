@@ -1137,7 +1137,7 @@ export default function AppSettings() {
   }
 
   return (
-    <div style={page}>
+    <div className="tab-page" style={page}>
       <div style={stTabHeader}>
         <div>
           <h2 style={{ margin: 0 }}>Settings</h2>
