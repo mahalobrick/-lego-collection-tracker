@@ -1390,7 +1390,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               const gridCol = item.width === "full" ? "1 / -1" : "span 1";
               return (
                 <div key={item.key}
-                  style={{ gridColumn: gridCol, position: "relative" }}
+                  // minWidth:0 lets a panel shrink below its content's intrinsic width so a wide
+                  // child (e.g. the Theme Performance table) scrolls inside its own overflow box
+                  // instead of forcing the whole page wide on mobile (grid items default to min-width:auto).
+                  style={{ gridColumn: gridCol, position: "relative", minWidth: 0 }}
                   draggable
                   onDragStart={() => setDraggedCollItem(item.key)}
                   onDragEnd={() => setDraggedCollItem(null)}
@@ -1734,7 +1737,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         {themePerformance.length === 0 ? (
                           <div style={{ color: "#5d6f80", padding: "20px 0" }}>No collection data yet.</div>
                         ) : (
-                          <div style={{ overflowX: "auto" }}>
+                          <div className="owned-table-scroll" style={{ overflowX: "auto" }}>
                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                               <thead>
                                 <tr>
