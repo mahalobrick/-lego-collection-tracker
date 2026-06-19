@@ -13,6 +13,7 @@
   "dependencies": {
     "@clerk/backend": "^3.4.14",
     "@clerk/react": "^6.7.2",
+    "@tanstack/react-virtual": "^3.14.3",
     "@upstash/redis": "^1.38.0",
     "exceljs": "^4.4.0",
     "fuse.js": "^7.3.0",

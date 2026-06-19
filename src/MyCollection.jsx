@@ -25,6 +25,7 @@ import { valuesAsOf, freshness } from "./utils/freshness";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
 import { loadCollectionItems, tieredVisibleCards, gearCardRowsByTier, cardVisible, loadCardOverrides, toggleCardOverride } from "./utils/collectionLayout";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { syncBricksetMetadata, metadataGaps, cleanSetNumber } from "./utils/bricksetMetadata";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
@@ -1051,6 +1052,20 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
       return sortDirection === "asc" ? result : -result;
     });
+
+  // Virtualize the owned-sets table (combined-Overview prereq): render only the rows in view inside the
+  // existing maxHeight:560 scroll box, so a 600-set collection no longer mounts 600 live <tr>. Dynamic
+  // measureElement handles the compact/full row-height swap (and any wrapping). Pure perf — the native
+  // <table> + table-layout:fixed is kept (spacer rows, NOT transform), so the sticky header, column
+  // resize/reorder/hide and select-all-over-visibleSets are untouched.
+  const ownedScrollRef = useRef(null);
+  const ownedRowVirtualizer = useVirtualizer({
+    count: visibleSets.length,
+    getScrollElement: () => ownedScrollRef.current,
+    estimateSize: () => (rowDensity === "full" ? 64 : 40),
+    overscan: 10,
+    getItemKey: (i) => { const s = visibleSets[i]; return s ? `${s.setNumber}-${sets.indexOf(s)}` : i; },
+  });
 
   // Persist an edit to a BrickEconomy set. BE data lives in the brickEconomyNormalizedCollection
   // blob, which the blOwnedSets persist effect deliberately skips — so a BE-set edit would
@@ -2333,7 +2348,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               const needsHScroll = currentTotalW > defaultTotalW + 10;
               return (
             <div className="owned-table-scroll" style={{ overflowX: needsHScroll ? "auto" : "clip" }}>
-            <div className="owned-table-scroll" style={{ overflowY: "auto", maxHeight: 560 }}>
+            <div ref={ownedScrollRef} className="owned-table-scroll" style={{ overflowY: "auto", maxHeight: 560 }}>
               <table style={{
                 borderCollapse: "collapse", tableLayout: "fixed", width: "100%",
                 minWidth: currentTotalW
@@ -2381,13 +2396,24 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               </thead>
 
               <tbody>
-                {visibleSets.map((set) => {
+                {(() => {
+                  const vItems = ownedRowVirtualizer.getVirtualItems();
+                  const totalSize = ownedRowVirtualizer.getTotalSize();
+                  const padTop = vItems.length ? vItems[0].start : 0;
+                  const padBottom = vItems.length ? totalSize - vItems[vItems.length - 1].end : 0;
+                  const rowColSpan = visibleCols.length + 1; // +1 for the leading checkbox column
+                  return (<>
+                  {padTop > 0 && <tr aria-hidden="true"><td colSpan={rowColSpan} style={{ height: padTop, padding: 0, border: 0 }} /></tr>}
+                  {vItems.map((vrow) => {
+                  const set = visibleSets[vrow.index];
                   const index = sets.indexOf(set);
                   const qty = asNumber(set.qty) || 1;
 
                   return (
                     <tr
                       key={`${set.setNumber}-${index}`}
+                      data-index={vrow.index}
+                      ref={ownedRowVirtualizer.measureElement}
                       onClick={() => { setDetailSet(openSetDetail(set.setNumber) || set); setDetailSetIndex(index); }}
                       onMouseEnter={e => {
                         if (selectedSetIndex !== index) e.currentTarget.style.background = "rgba(255,255,255,0.04)";
@@ -2508,7 +2534,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                       })}
                     </tr>
                   );
-                })}
+                  })}
+                  {padBottom > 0 && <tr aria-hidden="true"><td colSpan={rowColSpan} style={{ height: padBottom, padding: 0, border: 0 }} /></tr>}
+                  </>);
+                })()}
               </tbody>
               </table>
             </div>
