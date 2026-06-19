@@ -412,12 +412,6 @@ export default function App() {
              panel to ~159px on a phone (charts/tables unreadable). Stack them 1-up at <=600; the
              inline 1fr 1fr stays the desktop spec, so above 600px the panels stay side-by-side. */
           .dd-panel-grid { grid-template-columns: 1fr !important; }
-          /* Combined-Overview 3.5 — interim mobile stopgap (superseded by the commit-4 card-list):
-             contain the wide Sets table's horizontal scroll inside its own box so the COMBINED page
-             doesn't drag sideways on a phone. min-width:0 lets the master-detail grid item shrink to
-             the viewport (grid/flex default is min-width:auto), and overflow-x:auto makes the table
-             swipe internally (vs the desktop "clip"). Mobile-only — desktop keeps its inline overflowX. */
-          .owned-table-xscroll { min-width: 0 !important; overflow-x: auto !important; }
         }
       `}</style>
 
