@@ -634,7 +634,7 @@ export default function AppSettings() {
       const items = parseBECollectionCSV(text);
       if (!items) { toast.error("Unrecognised format — use the CSV export from brickeconomy.com/user/collection."); return; }
       if (items.length === 0) { toast.error("No sets found in this CSV."); return; }
-      const ok = window.confirm(`Import ${items.length} entries from BrickEconomy CSV? Replaces existing BrickEconomy data.`);
+      const ok = window.confirm(`Import ${items.length} entries from BrickEconomy CSV? Replaces existing BrickEconomy data.\n\nWhere you haven't logged what you paid, cost = MSRP — a gold-standard baseline, not a record that you paid full price. Log real prices anytime to refine Cost Basis & ROI.`);
       if (!ok) return;
       const normalized    = normalizeBrickEconomyCollection(items);
       const totalPaid     = normalized.reduce((s, i) => s + i.totalPaid,  0);
@@ -682,7 +682,7 @@ export default function AppSettings() {
       const text = await file.text();
       const items = parseBricksetMySetCSV(text);
       if (items.length === 0) { toast.error("No sets found — make sure this is a Brickset 'My Sets' CSV export."); return; }
-      const ok = window.confirm(`Import ${items.length} sets from Brickset? They'll be added as manual items with $0 paid price (update later).`);
+      const ok = window.confirm(`Import ${items.length} sets from Brickset? They'll be added as manual items with no purchase price — so they're held out of Cost Basis & ROI until you log what you paid.`);
       if (!ok) return;
       const existing = JSON.parse(localStorage.getItem("blOwnedSets") || "[]").filter(s => s.source !== "Brickset");
       setItemSafe("blOwnedSets", JSON.stringify([...existing, ...items]));
