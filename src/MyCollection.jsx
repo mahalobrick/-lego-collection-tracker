@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { searchInput, filterSelect, clearFilterButton, filterBar } from "./uiStyles";
 import { DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
@@ -25,7 +25,7 @@ import { valuesAsOf, freshness } from "./utils/freshness";
 import { apiFetch } from "./utils/apiFetch";
 import { setItemSafe } from "./utils/safeStorage";
 import { loadCollectionItems, tieredVisibleCards, gearCardRowsByTier, cardVisible, loadCardOverrides, toggleCardOverride } from "./utils/collectionLayout";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual";
 import { syncBricksetMetadata, metadataGaps, cleanSetNumber } from "./utils/bricksetMetadata";
 
 const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
@@ -1103,13 +1103,29 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   // card height). Gated to mobile so the idle branch does no range work on desktop. Both virtualizer
   // hooks stay declared unconditionally at top level (rules of hooks); only one has a live count.
   const cardScrollRef = useRef(null);
-  const cardRowVirtualizer = useVirtualizer({
+  // Window-scroll (not an inner box): the mobile card-list lives in the native page scroll, so it
+  // windows off the WINDOW. scrollMargin = the list's distance from the document top, measured via
+  // getBoundingClientRect().top + scrollY (document-relative — robust to any positioned ancestor,
+  // unlike offsetTop) and re-measured whenever content ABOVE the list changes height (stats panel
+  // collapse, controls-bar wrap, viewport resize) so the windowed range never drifts.
+  const [cardScrollMargin, setCardScrollMargin] = useState(0);
+  const cardRowVirtualizer = useWindowVirtualizer({
     count: isMobile ? visibleSets.length : 0,
-    getScrollElement: () => cardScrollRef.current,
     estimateSize: () => 132,
     overscan: 6,
+    scrollMargin: cardScrollMargin,
     getItemKey: (i) => { const s = visibleSets[i]; return s ? `card-${s.setNumber}-${sets.indexOf(s)}` : i; },
   });
+  useLayoutEffect(() => {
+    if (!isMobile) return; // desktop renders the table; the window-virtualizer is idle (count 0)
+    const measure = () => {
+      const el = cardScrollRef.current;
+      if (el) setCardScrollMargin(el.getBoundingClientRect().top + window.scrollY);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [isMobile, collPillsCollapsed, rowDensity, visibleSets.length, addOpen, searchText, filterTheme, filterCondition]);
 
   // Persist an edit to a BrickEconomy set. BE data lives in the brickEconomyNormalizedCollection
   // blob, which the blOwnedSets persist effect deliberately skips — so a BE-set edit would
@@ -2414,16 +2430,13 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               const extraCols = visibleCols.filter(c => !PRIMARY.includes(c.key));
               const vItems = cardRowVirtualizer.getVirtualItems();
               const totalSize = cardRowVirtualizer.getTotalSize();
-              const padTop = vItems.length ? vItems[0].start : 0;
-              // When nothing is measured yet, seed the spacer with the FULL virtual height so the
-              // maxHeight:560 box has a viewport to bootstrap from. Without an always-present header
-              // (the table has its sticky thead) an empty box collapses to 0px -> the virtualizer
-              // can't measure -> it never renders a range (deadlock). totalSize = count*estimateSize
-              // even before measurement, so this is non-zero on the first paint.
-              const padBottom = vItems.length ? totalSize - vItems[vItems.length - 1].end : totalSize;
+              // Window-virtualized: a non-scrolling relative box sized to the full virtual height
+              // (totalSize = count*estimateSize even before measurement, so it's non-zero on the
+              // first paint — the old maxHeight:560 bootstrap-deadlock seed is no longer needed now
+              // the window is the viewport). Each card is absolutely positioned via
+              // translateY(start - scrollMargin), the documented useWindowVirtualizer recipe.
               return (
-                <div ref={cardScrollRef} className="owned-cards-scroll" style={{ overflowY: "auto", maxHeight: 560 }}>
-                  {padTop > 0 && <div aria-hidden="true" style={{ height: padTop }} />}
+                <div ref={cardScrollRef} className="owned-cards-scroll" style={{ position: "relative", height: totalSize }}>
                   {vItems.map((vrow) => {
                     const set = visibleSets[vrow.index];
                     const index = sets.indexOf(set);
@@ -2436,7 +2449,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         data-index={vrow.index}
                         ref={cardRowVirtualizer.measureElement}
                         onClick={() => { setDetailSet(openSetDetail(set.setNumber) || set); setDetailSetIndex(index); }}
-                        style={{ paddingBottom: 8 }}
+                        style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vrow.start - cardScrollMargin}px)`, paddingBottom: 8 }}
                       >
                         <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "12px 14px", cursor: "pointer", display: "flex", flexDirection: "column", gap: 8 }}>
                           {/* Header: checkbox · name · ROI badge */}
@@ -2502,7 +2515,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                       </div>
                     );
                   })}
-                  {padBottom > 0 && <div aria-hidden="true" style={{ height: padBottom }} />}
                 </div>
               );
             })() : (() => {
