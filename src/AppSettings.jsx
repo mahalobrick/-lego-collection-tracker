@@ -558,7 +558,8 @@ export default function AppSettings() {
       qty: Number(item.qty || item.Qty || item.quantity || 1),
       paidPrice: Number(item.paidPrice || item["Paid"] || item.paid_price || 0),
       currentValue: Number(item.currentValue || item["Value"] || item.current_value || 0),
-      notes: item.notes || item.Notes || ""
+      notes: item.notes || item.Notes || "",
+      condition: (item.condition || item.Condition || "new").toLowerCase()
     })).filter(s => s.setNumber);
   }
 

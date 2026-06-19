@@ -28,6 +28,7 @@ describe("COLLECTION_CSV_HEADERS — 7 original columns + 6 MSRP/retail columns"
     expect(COLLECTION_CSV_HEADERS).toEqual([
       "setNumber", "name", "theme", "qty", "paidPrice", "currentValue", "notes",
       "msrp", "msrpSegment", "msrpSource", "msrpConfidence", "msrpCuratedSource", "msrpAsOf",
+      "condition",
     ]);
   });
 });
@@ -71,6 +72,39 @@ describe("collectionCsvCells — card ↔ export parity (same resolver, right co
   });
 });
 
+describe("buildCollectionCsv — per-condition rows: a MIXED set splits into new + used", () => {
+  // 2 new copies (paid 100/120, value 200/220) + 1 used copy (paid 60, value 150).
+  const mixed = {
+    setNumber: "75313-1", name: "AT-AT", theme: "Star Wars",
+    entries: [
+      { condition: "new",          paid_price: 100, current_value: 200 },
+      { condition: "usedcomplete", paid_price: 60,  current_value: 150 },
+      { condition: "new",          paid_price: 120, current_value: 220 },
+    ],
+  };
+  let rows;
+  beforeAll(() => { rows = buildCollectionCsv([mixed], resolve, (s) => s).split("\n").slice(1); }); // drop header
+  const cell = (line, i) => Number(line.split(",")[i].replace(/"/g, ""));
+  const cond = (line) => line.split(",").pop().replace(/"/g, "");
+
+  it("emits exactly 2 rows — one 'new', one 'used' — never a single 'mixed'", () => {
+    expect(rows).toHaveLength(2);
+    expect(rows.map(cond).sort()).toEqual(["new", "used"]);
+  });
+
+  it("per-bucket qty + value sum back to the set totals; paid is not double-counted", () => {
+    const by = Object.fromEntries(rows.map((r) => [cond(r), r]));
+    const qN = cell(by.new, 3), qU = cell(by.used, 3);   // qty
+    const vN = cell(by.new, 5), vU = cell(by.used, 5);   // currentValue
+    const pN = cell(by.new, 4), pU = cell(by.used, 4);   // paidPrice (per-unit avg)
+    expect([qN, qU]).toEqual([2, 1]);
+    expect(qN + qU).toBe(3);                              // = 3 copies
+    expect(vN + vU).toBe(570);                            // 200 + 220 + 150
+    expect([pN, pU]).toEqual([110, 60]);
+    expect(pN * qN + pU * qU).toBe(280);                  // 100 + 120 + 60 — no double count
+  });
+});
+
 describe("buildCollectionCsv — full file content across every segment + escaping", () => {
   const sets = [
     { setNumber: "10300-1", name: "Falcon", theme: "Star Wars", quantity: 2, averagePaid: 600, totalValue: 900 },
@@ -87,49 +121,49 @@ describe("buildCollectionCsv — full file content across every segment + escapi
   let lines;
   beforeAll(() => { lines = buildCollectionCsv(sets, resolve, (s) => s).split("\n"); });
 
-  it("header row is the 13 columns, comma-joined", () => {
+  it("header row is the 14 columns, comma-joined", () => {
     expect(lines[0]).toBe(COLLECTION_CSV_HEADERS.join(","));
   });
 
   it("brickset → sourced: msrp 100, source brickset, asOf = the fetch stamp", () => {
     expect(lines[1]).toBe(
-      `"10300-1","Falcon","Star Wars","2","600","900","","100","sourced","brickset","","","${FIXED}"`
+      `"10300-1","Falcon","Star Wars","2","600","900","","100","sourced","brickset","","","${FIXED}","new"`
     );
   });
 
   it("curated_sourced → sourced: carries confidence + the 'converted (UK→USD)' tag verbatim", () => {
     expect(lines[2]).toBe(
-      `"30566-1","Polybag","City","1","0","5","","4.68","sourced","curated_sourced","B","converted (UK→USD); Brickset UK RRP £3.49×1.34","${FIXED}"`
+      `"30566-1","Polybag","City","1","0","5","","4.68","sourced","curated_sourced","B","converted (UK→USD); Brickset UK RRP £3.49×1.34","${FIXED}","new"`
     );
   });
 
   it("curated_estimated → estimated: basis estimated, asOf blank (not toValue-stamped)", () => {
     expect(lines[3]).toBe(
-      `"30370-1","Poly2","City","3","4","6","","4.99","estimated","curated_estimated","C","Retail polybag standard",""`
+      `"30370-1","Poly2","City","3","4","6","","4.99","estimated","curated_estimated","C","Retail polybag standard","","new"`
     );
   });
 
   it("promo + curated ARV → promo-arv (a valued GWP)", () => {
     expect(lines[4]).toBe(
-      `"6490363-1","GWP","Promotional","1","0","25","","19.99","promo-arv","curated_estimated","D","Seasonal GWP value proxy",""`
+      `"6490363-1","GWP","Promotional","1","0","25","","19.99","promo-arv","curated_estimated","D","Seasonal GWP value proxy","","new"`
     );
   });
 
   it("promo, no source → promo-no-msrp (empty msrp/source)", () => {
     expect(lines[5]).toBe(
-      `"9999999-1","GWP2","Promotional","1","0","0","","","promo-no-msrp","","","",""`
+      `"9999999-1","GWP2","Promotional","1","0","0","","","promo-no-msrp","","","","","new"`
     );
   });
 
   it("unsourced → not-listed (empty retail cells)", () => {
     expect(lines[6]).toBe(
-      `"22222-1","Plain","City","1","10","12","","","not-listed","","","",""`
+      `"22222-1","Plain","City","1","10","12","","","not-listed","","","","","new"`
     );
   });
 
   it("manual rung + CSV escaping: embedded comma & quotes are doubled and the field is quoted", () => {
     expect(lines[7]).toBe(
-      `"11111-1","Big, ""Rare"" Set","Ideas","1","0","0","","49.99","sourced","manual","","","${FIXED}"`
+      `"11111-1","Big, ""Rare"" Set","Ideas","1","0","0","","49.99","sourced","manual","","","${FIXED}","new"`
     );
   });
 });
