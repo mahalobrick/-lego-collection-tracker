@@ -74,6 +74,21 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   const [rowDensity, setRowDensity] = useState(() => localStorage.getItem("blOwnedRowDensity") || "compact");
   const [checkedSets, setCheckedSets] = useState([]);
 
+  // Mobile breakpoint (combined-Overview commit 4): <=600px swaps the wide Sets table for a
+  // windowed card-list. Seed from innerWidth (jsdom defaults to 1024 -> false -> the table
+  // renders), then SUBSCRIBE to the breakpoint. matchMedia is guarded so the jsdom suite (no
+  // matchMedia, no setupFiles polyfill) stays green with zero test-file edits. Mirrors the
+  // WantedList isMobile hook, hardened with the guard + an initial mq.matches sync.
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth <= 600);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return; // jsdom / SSR: stay on the desktop table
+    const mq = window.matchMedia("(max-width: 600px)");
+    setIsMobile(mq.matches); // sync if width changed between init and mount
+    const handler = e => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
   const [selectedSetIndex, setSelectedSetIndex] = useState(null);
   const [detailSet, setDetailSet] = useState(null);
   const [detailSetIndex, setDetailSetIndex] = useState(null);
@@ -1076,11 +1091,24 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   // resize/reorder/hide and select-all-over-visibleSets are untouched.
   const ownedScrollRef = useRef(null);
   const ownedRowVirtualizer = useVirtualizer({
-    count: visibleSets.length,
+    count: isMobile ? 0 : visibleSets.length, // desktop table only; mobile renders the card-list below
     getScrollElement: () => ownedScrollRef.current,
     estimateSize: () => (rowDensity === "full" ? 64 : 40),
     overscan: 10,
     getItemKey: (i) => { const s = visibleSets[i]; return s ? `${s.setNumber}-${sets.indexOf(s)}` : i; },
+  });
+
+  // Mobile card-list virtualizer (combined-Overview commit 4): windows visibleSets as stacked cards
+  // in its own inner scroll box, mirroring the table's spacer recipe (measureElement for variable
+  // card height). Gated to mobile so the idle branch does no range work on desktop. Both virtualizer
+  // hooks stay declared unconditionally at top level (rules of hooks); only one has a live count.
+  const cardScrollRef = useRef(null);
+  const cardRowVirtualizer = useVirtualizer({
+    count: isMobile ? visibleSets.length : 0,
+    getScrollElement: () => cardScrollRef.current,
+    estimateSize: () => 132,
+    overscan: 6,
+    getItemKey: (i) => { const s = visibleSets[i]; return s ? `card-${s.setNumber}-${sets.indexOf(s)}` : i; },
   });
 
   // Persist an edit to a BrickEconomy set. BE data lives in the brickEconomyNormalizedCollection
@@ -2372,7 +2400,112 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             gap: 16,
             alignItems: "start"
           }}>
-            {(() => {
+            {isMobile ? (() => {
+              /* ── Mobile card-list (combined-Overview commit 4) — windowed stacked cards that
+                 supersede the wide table at <=600px. Reuses visibleSets (search/filter/sort are
+                 upstream) and renderOwnedCell (null-aware: unknown="—", asNumber/money inherited)
+                 for EVERY value — no fresh value math. Each slot is gated on the REAL visible
+                 column def (column-hide suppresses the field). The PRIMARY keys below get designed
+                 slots; any OTHER enabled column is surfaced on a secondary line, so showing a
+                 column maps to the card too. */
+              const visibleCols = ownedColumns.filter(c => c.visible);
+              const colByKey = Object.fromEntries(visibleCols.map(c => [c.key, c]));
+              const PRIMARY = ["thumb", "setNumber", "name", "theme", "condition", "qty", "value", "gain", "roi"];
+              const extraCols = visibleCols.filter(c => !PRIMARY.includes(c.key));
+              const vItems = cardRowVirtualizer.getVirtualItems();
+              const totalSize = cardRowVirtualizer.getTotalSize();
+              const padTop = vItems.length ? vItems[0].start : 0;
+              // When nothing is measured yet, seed the spacer with the FULL virtual height so the
+              // maxHeight:560 box has a viewport to bootstrap from. Without an always-present header
+              // (the table has its sticky thead) an empty box collapses to 0px -> the virtualizer
+              // can't measure -> it never renders a range (deadlock). totalSize = count*estimateSize
+              // even before measurement, so this is non-zero on the first paint.
+              const padBottom = vItems.length ? totalSize - vItems[vItems.length - 1].end : totalSize;
+              return (
+                <div ref={cardScrollRef} className="owned-cards-scroll" style={{ overflowY: "auto", maxHeight: 560 }}>
+                  {padTop > 0 && <div aria-hidden="true" style={{ height: padTop }} />}
+                  {vItems.map((vrow) => {
+                    const set = visibleSets[vrow.index];
+                    const index = sets.indexOf(set);
+                    const qty = asNumber(set.qty) || 1;
+                    const roiLabel = colByKey.roi ? renderOwnedCell(set, colByKey.roi) : null;
+                    const roiColor = signColor(setROI(set, valueMap));
+                    return (
+                      <div
+                        key={`card-${set.setNumber}-${index}`}
+                        data-index={vrow.index}
+                        ref={cardRowVirtualizer.measureElement}
+                        onClick={() => { setDetailSet(openSetDetail(set.setNumber) || set); setDetailSetIndex(index); }}
+                        style={{ paddingBottom: 8 }}
+                      >
+                        <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "12px 14px", cursor: "pointer", display: "flex", flexDirection: "column", gap: 8 }}>
+                          {/* Header: checkbox · name · ROI badge */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <input
+                              type="checkbox"
+                              checked={checkedSets.includes(index)}
+                              onChange={() => toggleChecked(index)}
+                              onClick={e => e.stopPropagation()}
+                              style={{ accentColor: "#c9a84c", flexShrink: 0 }}
+                            />
+                            {colByKey.thumb && (
+                              <img src={set.thumbnail || setImageUrl(set.setNumber)} alt="" onError={e => { e.currentTarget.style.opacity = "0"; }} style={{ width: 40, height: 30, objectFit: "contain", borderRadius: 4, flexShrink: 0 }} />
+                            )}
+                            <div style={{ flex: 1, minWidth: 0, fontWeight: 800, fontSize: 14, color: "#e8e2d5", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {colByKey.name ? renderOwnedCell(set, colByKey.name) : (set.name || "—")}
+                            </div>
+                            {colByKey.roi && (roiLabel !== "—"
+                              ? <span style={{ background: `${roiColor}1a`, color: roiColor, borderRadius: 6, padding: "2px 8px", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{roiLabel}</span>
+                              : <span style={{ color: "#5d6f80", flexShrink: 0 }}>—</span>)}
+                          </div>
+                          {/* Sub-line: set# · theme · condition */}
+                          {(colByKey.setNumber || colByKey.theme || colByKey.condition) && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: "#8a9bb0" }}>
+                            {colByKey.setNumber && <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{renderOwnedCell(set, colByKey.setNumber)}</span>}
+                            {colByKey.theme && <span>· {renderOwnedCell(set, colByKey.theme)}</span>}
+                            {colByKey.condition && <ConditionPill set={set} />}
+                          </div>
+                          )}
+                          {/* Money row: Value · Gain · Qty */}
+                          {(colByKey.value || colByKey.gain || colByKey.qty) && (
+                          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                            {colByKey.value && (
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 2 }}>Value</div>
+                                {renderOwnedCell(set, colByKey.value)}
+                              </div>
+                            )}
+                            {colByKey.gain && (
+                              <div>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 2 }}>Gain</div>
+                                <div style={{ fontWeight: 700, fontSize: 13, color: signColor(setGain(set, valueMap)) }}>{renderOwnedCell(set, colByKey.gain)}</div>
+                              </div>
+                            )}
+                            {colByKey.qty && (
+                              <div style={{ marginLeft: "auto" }}>
+                                <span style={{ background: "rgba(255,255,255,0.06)", borderRadius: 999, padding: "2px 10px", fontSize: 12, fontWeight: 700, color: "#c9d4e0" }}>×{qty}</span>
+                              </div>
+                            )}
+                          </div>
+                          )}
+                          {/* Any other enabled column (minifigs / dates / notes) — column-show maps to the card */}
+                          {extraCols.length > 0 && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 14px", fontSize: 11.5, color: "#8a9bb0" }}>
+                              {extraCols.map(c => {
+                                const val = renderOwnedCell(set, c);
+                                if (val === "" || val == null) return null;
+                                return <span key={c.key}><span style={{ color: "#5d6f80" }}>{c.label}:</span> {val}</span>;
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {padBottom > 0 && <div aria-hidden="true" style={{ height: padBottom }} />}
+                </div>
+              );
+            })() : (() => {
               const visibleCols = ownedColumns.filter(c => c.visible);
               const defaultTotalW = 36 + visibleCols.reduce((s, c) => s + (OWNED_COL_WIDTHS[c.key] ?? 80), 0);
               const currentTotalW = 36 + visibleCols.reduce((s, c) => s + (columnWidths[c.key] ?? 80), 0);
