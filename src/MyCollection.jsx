@@ -62,6 +62,7 @@ function fmtShortDate(dateStr) {
 
 export default function MyCollection({ onBuyNow, onSwitchTab }) {
   const [tab, setTab] = useState("overview");
+  const [addOpen, setAddOpen] = useState(false); // §Add collapse on the combined Overview page
   const [searchText, setSearchText] = useState("");
   const [filterTheme, setFilterTheme] = useState("");
   const [filterCondition, setFilterCondition] = useState("");
@@ -1260,7 +1261,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         <div style={tabBar}>
           {[
             { key: "overview", label: "Overview" },
-            { key: "collection", label: "Sets" },
             { key: "sold", label: soldSets.length > 0 ? `Sold (${soldSets.length})` : "Sold" },
           ].map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={tab === t.key ? activeTabStyle : tabBtnStyle}>
@@ -1268,12 +1268,13 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             </button>
           ))}
           <div style={{ width: 1, height: 18, background: "rgba(255,255,255,0.12)", alignSelf: "center" }} />
-          <button onClick={() => setTab("add")} style={tab === "add" ? addSetBtnActive : addSetBtn}>
+          <button onClick={() => { setTab("overview"); setAddOpen(true); requestAnimationFrame(() => document.getElementById("bl-sec-add")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} style={addOpen ? addSetBtnActive : addSetBtn}>
             + Add Set
           </button>
         </div>
       </div>
 
+      <div className="cs-overview-sections" style={{ display: "flex", flexDirection: "column" }}>
       {tab === "overview" && sets.length === 0 && (
         <div style={{ textAlign: "center", padding: "60px 24px" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>📦</div>
@@ -1286,7 +1287,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             <button onClick={() => onSwitchTab("settings")} style={{ background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 10, padding: "12px 24px", fontWeight: 900, fontSize: 14, cursor: "pointer" }}>
               Import Collection →
             </button>
-            <button onClick={() => setTab("collection")} style={{ background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "12px 24px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+            <button onClick={() => { setAddOpen(true); requestAnimationFrame(() => document.getElementById("bl-sec-add")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} style={{ background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "12px 24px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
               Add a Set Manually
             </button>
           </div>
@@ -1294,7 +1295,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       )}
 
       {tab === "overview" && sets.length > 0 && (
-        <>
+        <div id="bl-sec-stats" style={{ order: 1 }}>
           {/* ── Stat pill container ─────────────────────────────────── */}
           <div style={{ background: "rgba(11,21,32,0.7)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "14px 16px", marginBottom: 14, marginTop: 8, position: "relative" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: collPillsCollapsed ? 0 : 12 }}>
@@ -1784,7 +1785,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               );
             })}
           </div>
-        </>
+        </div>
       )}
 
       {tab === "sold" && (
@@ -1860,13 +1861,14 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         </section>
       )}
 
-      {tab === "add" && (
-      <section style={panel}>
+      {tab === "overview" && (
+      <section id="bl-sec-add" style={{ ...panel, order: 4 }}>
 
-        {/* ── Header ── */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        {/* ── Header (with §Add collapse toggle — combined Overview) ── */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: addOpen ? 20 : 0 }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, letterSpacing: 0.3 }}>Add Owned Set</h3>
-          {(form.setNumber || form.name || form.theme || form.paidPrice || form.currentValue || form.notes) && (
+          <div style={{ display: "flex", gap: 8 }}>
+          {addOpen && (form.setNumber || form.name || form.theme || form.paidPrice || form.currentValue || form.notes) && (
             <button
               onClick={() => { setLookupData({}); setLookedUpNum(""); setForm({ setNumber: "", name: "", theme: "", condition: "new", qty: 1, paidPrice: "", msrp: "", currentValue: "", notes: "" }); setLookupMessage(""); setSetNumSuggestions([]); }}
               style={{ background: "transparent", color: "#5d6f80", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "5px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
@@ -1874,7 +1876,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               Reset
             </button>
           )}
+          <button onClick={() => setAddOpen(o => !o)} style={addSetBtn}>{addOpen ? "Collapse ▲" : "+ Add a Set ▾"}</button>
+          </div>
         </div>
+        {addOpen && (<>
 
         {/* ── Mode toggle pill ── */}
         <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.04)", borderRadius: 999, padding: 3, border: "1px solid rgba(255,255,255,0.07)", marginBottom: 16 }}>
@@ -2073,6 +2078,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         <button onClick={addSet} style={{ ...redBtn, width: "100%", padding: "13px", fontSize: 15, letterSpacing: 0.3 }}>
           Add to Collection
         </button>
+        </>)}
       </section>
       )}
 
@@ -2122,8 +2128,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         </div>
       )}
 
-      {tab === "collection" && retirementAlertsForOwned.length > 0 && (
-        <div style={{ background: "#1a0a00", border: "1px solid #92400e", borderRadius: 12, padding: "14px 16px", marginTop: 10 }}>
+      {tab === "overview" && sets.length > 0 && retirementAlertsForOwned.length > 0 && (
+        <div style={{ background: "#1a0a00", border: "1px solid #92400e", borderRadius: 12, padding: "14px 16px", marginTop: 10, order: 2 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <div style={{ fontWeight: 800, color: "#f59e0b", fontSize: 14 }}>
               ⚠ {retirementAlertsForOwned.length} owned {retirementAlertsForOwned.length === 1 ? "set" : "sets"} retiring soon — sell window open
@@ -2182,8 +2188,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         </div>
       )}
 
-      {tab === "collection" && (
-      <section style={panel}>
+      {tab === "overview" && sets.length > 0 && (
+      <section id="bl-sec-table" style={{ ...panel, order: 3 }}>
         <div style={{
           display: "flex",
           justifyContent: "space-between",
@@ -2645,6 +2651,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         )}
       </section>
       )}
+      </div>{/* /cs-overview-sections */}
 
       {/* ── Purchase Log Modal ──────────────────────────────────────────────── */}
       {purchaseModal && (
