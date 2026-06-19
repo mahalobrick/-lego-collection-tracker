@@ -533,7 +533,7 @@ export default function AppSettings() {
     } catch (err) {
       toast.error(err?.message?.startsWith("Backup version")
         ? err.message
-        : "Could not read backup file — make sure it's a valid BrickLedger JSON backup.");
+        : "Could not read backup file — make sure it's a valid Brickuity JSON backup.");
     }
   }
 

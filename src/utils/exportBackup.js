@@ -336,7 +336,7 @@ export function applyBackupToLocalStorage(data) {
   if (data.version && data.version > BACKUP_VERSION) {
     throw new Error(
       `Backup version ${data.version} is newer than this app supports (v${BACKUP_VERSION}). ` +
-      `Update BrickLedger and try again.`
+      `Update Brickuity and try again.`
     );
   }
   // Registry-driven so the overwrite set can never drift from the census/build/push-guard.
@@ -384,7 +384,7 @@ function buildBackup(now) {
   // preserved: top-level array → "[]", top-level object → "{}", nested settings.* → "null",
   // currency → "USD", annualBudget → Number (defaulted, so a legit 0 stays 0).
   const settings = {};
-  const backup = { version: 2, app: "BrickLedger", exportedAt: now.toISOString() };
+  const backup = { version: 2, app: "Brickuity", exportedAt: now.toISOString() };
   for (const k of BACKUP_KEYS) {
     const raw = localStorage.getItem(k.key);
     const target = k.settings ? settings : backup;
@@ -415,7 +415,7 @@ export async function exportFullBackup() {
     try {
       const handle = await window.showSaveFilePicker({
         suggestedName: filename,
-        types: [{ description: "BrickLedger Backup", accept: { "application/json": [".json"] } }]
+        types: [{ description: "Brickuity Backup", accept: { "application/json": [".json"] } }]
       });
       const writable = await handle.createWritable();
       await writable.write(content);

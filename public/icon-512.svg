@@ -14,5 +14,5 @@
   <!-- Bottom edge -->
   <rect x="96" y="396" width="320" height="14" rx="7" fill="#b8922e" opacity="0.4"/>
   <!-- "BL" text -->
-  <text x="256" y="320" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="80" fill="#0d1623" text-anchor="middle" dominant-baseline="middle">BL</text>
+  <text x="256" y="320" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="80" fill="#0d1623" text-anchor="middle" dominant-baseline="middle">B</text>
 </svg>

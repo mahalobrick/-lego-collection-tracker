@@ -1,6 +1,6 @@
 {
-  "name": "BrickLedger",
-  "short_name": "BrickLedger",
+  "name": "Brickuity",
+  "short_name": "Brickuity",
   "description": "LEGO collection tracker — retirement alerts, budget, and wanted list",
   "start_url": "/",
   "display": "standalone",

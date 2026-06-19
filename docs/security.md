@@ -175,7 +175,7 @@ Browser-console pass on the prod deploy (`lego-app-rust.vercel.app`) shows Clerk
 **Auth methods enabled (Clerk instance config, pulled `clerk config pull` 2026-05-31):** email (required, verify-at-sign-up) + **password** (required, zxcvbn ≥ 2, HIBP enforced) + **Google OAuth** (social). Phone, username, passkey-for-sign-in, web3, and MFA are all off. The UI uses Clerk's default modal `<SignInButton>`/`<SignUpButton>` (`src/App.jsx:433-442`), so methods are dashboard-driven, not coded. **Because Google social login is enabled, the "provision production OAuth credentials" runbook step DOES apply** — the dev instance currently uses Clerk's *shared* Google OAuth app (`connection_oauth_google.client_id`/`client_secret` are empty), which does **not** carry over to a production instance; a production instance requires your own Google Cloud OAuth client ID/secret.
 
 **GOING-PUBLIC runbook (when the decision flips):**
-1. **Secure a domain** (e.g. `brickledger.app`).
+1. **Secure a domain** (e.g. `brickuity.app`).
 2. **Add the domain in Vercel** (Project → Domains) and **point DNS** (the A/CNAME records Vercel shows) until it verifies.
 3. **Create the Clerk PRODUCTION instance** for the app, targeting that domain (Clerk Dashboard → Production).
 4. **Add Clerk's CNAME records** (Frontend API / accounts portal / email DKIM) at your DNS host; wait for Clerk to verify them.

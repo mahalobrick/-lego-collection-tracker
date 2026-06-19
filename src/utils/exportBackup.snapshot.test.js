@@ -300,7 +300,7 @@ describe("PIN 6 — push payload: enrichmentSnapshot is an ADDITIVE sibling fiel
     const { enrichmentSnapshot, ...rest } = body;
     expect(Object.keys(rest).sort()).toEqual(baselineKeys.sort());
     expect(rest.version).toBe(2);
-    expect(rest.app).toBe("BrickLedger");
+    expect(rest.app).toBe("Brickuity");
     expect(rest.ownedSets).toEqual([{ setNumber: "10497", qty: 1 }]);
     expect(rest.settings.currency).toBe("GBP");
     expect(typeof rest.exportedAt).toBe("string"); // ISO timestamp (the only volatile field)
