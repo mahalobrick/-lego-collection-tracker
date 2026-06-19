@@ -1,4 +1,5 @@
 import {ClerkProvider} from "@clerk/react";
+import "./styles/brickuity-tokens.css"; // Heritage Luxe tokens FIRST — defines :root (dark) + [data-theme="light"]
 import "./index.css";
 import React from 'react'
 import ReactDOM from 'react-dom/client'

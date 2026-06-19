@@ -1,0 +1,121 @@
+/* ============================================================
+   BRICKUITY — Heritage Luxe design tokens
+   ------------------------------------------------------------
+   Default (:root) = DARK, to match the current app.
+   LIGHT mode = add  data-theme="light"  on <html> (the new bit
+   that "tokenize first" unlocks — components reference tokens,
+   so light becomes a value swap, not a restyle).
+
+   Fonts:  Playfair Display = display (wordmark, headings, the
+           hero number).  Inter = everything else / all data.
+           Numbers: use  font-variant-numeric: tabular-nums;
+
+   CONTRAST RULE (measured):  Antique Gold #CDAA5E is a FILL /
+   large-display color.  It scores only ~2:1 as text on ivory,
+   so for any gold-family TEXT on a LIGHT surface use
+   --bk-gold-ink (resolves to dark bronze in light mode).
+   ============================================================ */
+
+:root {                      /* ---------- DARK (default) ---------- */
+  /* Surfaces */
+  --bk-bg:         #0C0F14;  /* Charcoal — page background      */
+  --bk-surface:    #1B1D26;  /* Slate — card / raised tier      */
+  --bk-surface-2:  #1F232D;  /* Panel / overlay / detail slide  */
+  --bk-border:     #2A2E3A;  /* hairline / dividers             */
+
+  /* Text */
+  --bk-text:       #EBE4D6;  /* Ivory — primary                 */
+  --bk-text-muted: #9A958A;  /* secondary / labels              */
+
+  /* Brand gold */
+  --bk-gold:       #CDAA5E;  /* Antique Gold — accent & mark    */
+  --bk-gold-hi:    #E0C580;  /* Highlight Gold — raised faces   */
+  --bk-gold-deep:  #8A6F3D;  /* Bronze — gold detail / outline  */
+  --bk-gold-ink:   #CDAA5E;  /* gold-as-text is fine on dark    */
+
+  /* Semantic (per-mode) */
+  --bk-positive:   #22C55E;  /* Emerald — gain / up             */
+  --bk-negative:   #EF4444;  /* Garnet — loss / down            */
+  --bk-warning:    #F59E0B;  /* Amber — caution / stale         */
+
+  /* Semantic fills (subtle row/chip tints) + info accent */
+  --bk-positive-bg: #15281C;  /* gain tint over surface          */
+  --bk-negative-bg: #2C1618;  /* loss tint                       */
+  --bk-warning-bg:  #2C2210;  /* caution tint                    */
+  --bk-info:        #56B4E9;  /* info / accent (notices, tips)   */
+
+  /* Type */
+  --bk-font-display: 'Playfair Display', Georgia, serif;
+  --bk-font-sans:    'Inter', system-ui, -apple-system, sans-serif;
+
+  /* Categorical chart palette — colorblind-safe (Okabe–Ito),
+     used for the value-by-theme donut & allocations. Both modes. */
+  --bk-cat-1: #E69F00;  --bk-cat-2: #56B4E9;  --bk-cat-3: #009E73;
+  --bk-cat-4: #F0E442;  --bk-cat-5: #0072B2;  --bk-cat-6: #D55E00;
+  --bk-cat-7: #CC79A7;  --bk-cat-8: #999999;
+
+  /* Action / interactive (gold-forward; mode-invariant) */
+  --bk-action:       #CDAA5E;  /* primary action FILL = brand gold */
+  --bk-action-hover: #E0C580;  /* hover / raise                    */
+  --bk-action-ink:   #1A140A;  /* text on a gold action            */
+
+  /* Utility residue (locked w/ Sam, Jun 19 — gap-table homes) */
+  --bk-hover:        #232634;  /* row / control hover on a surface */
+  --bk-active:       #30343F;  /* pressed (1 step above --bk-border) */
+  --bk-disabled-bg:  #16181F;
+  --bk-disabled-tx:  #5C5950;
+  --bk-scrim:        rgba(6,8,12,.66);           /* modal backdrop  */
+  --bk-shadow:       0 2px 10px rgba(0,0,0,.55);  /* card / pop     */
+  --bk-focus:        #E0C580;  /* focus ring = highlight gold       */
+  --bk-font-mono:    ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+[data-theme="light"] {       /* ---------- LIGHT ---------- */
+  --bk-bg:         #F7F2E8;  /* Ivory — page background         */
+  --bk-surface:    #FFFFFF;  /* card / raised tier              */
+  --bk-surface-2:  #EFE7D6;  /* Paper — secondary surface       */
+  --bk-border:     #E2D8C4;  /* hairline                        */
+
+  --bk-text:       #1A1A1A;  /* Espresso — primary              */
+  --bk-text-muted: #6B6353;  /* secondary                       */
+
+  --bk-gold:       #CDAA5E;  /* fills / large display only      */
+  --bk-gold-hi:    #E0C580;
+  --bk-gold-deep:  #6B5528;  /* darker bronze reads on ivory    */
+  --bk-gold-ink:   #6B5528;  /* USE for gold-family TEXT here   */
+
+  --bk-positive:   #2E5E3E;  /* Forest  (6.8:1 on ivory)        */
+  --bk-negative:   #8B1E2D;  /* Claret  (8.1:1 on ivory)        */
+  --bk-warning:    #9A5B00;  /* darkened amber for warning TEXT
+                                (raw #F09A2A is unreadable here) */
+
+  --bk-positive-bg: #E6F0E8;  /* pale forest tint on ivory       */
+  --bk-negative-bg: #F5E3E5;  /* pale claret tint                */
+  --bk-warning-bg:  #F6ECD8;  /* pale amber tint                 */
+  --bk-info:        #0072B2;  /* deeper blue reads on ivory      */
+
+  /* Utility residue — light overrides (action/gold are mode-invariant) */
+  --bk-hover:        #F1E9DA;
+  --bk-active:       #E9DFC9;
+  --bk-disabled-bg:  #ECE4D4;
+  --bk-disabled-tx:  #A89E8C;
+  --bk-scrim:        rgba(26,26,26,.40);
+  --bk-shadow:       0 1px 4px rgba(60,50,30,.14);
+  --bk-focus:        #8A6F3D;  /* bronze ring, visible on ivory     */
+}
+
+/* ------------------------------------------------------------
+   Usage sketch (for reference — delete in production):
+
+   body        { background: var(--bk-bg); color: var(--bk-text);
+                 font-family: var(--bk-font-sans); }
+   .app-title  { font-family: var(--bk-font-display); color: var(--bk-gold); }
+   .hero-value { font-family: var(--bk-font-display); color: var(--bk-text);
+                 font-variant-numeric: tabular-nums; }
+   .data-cell  { font-family: var(--bk-font-sans);
+                 font-variant-numeric: tabular-nums; }
+   .gain       { color: var(--bk-positive); }   .loss { color: var(--bk-negative); }
+   .card       { background: var(--bk-surface); border: 1px solid var(--bk-border); }
+   .btn-action { background: var(--bk-action); color: var(--bk-action-ink); }
+   a, .link    { color: var(--bk-gold-ink); }   /* readable both modes */
+   ------------------------------------------------------------ */

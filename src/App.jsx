@@ -27,6 +27,15 @@ export default function App() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Heritage Luxe — reflect the persisted theme (default "dark") onto <html data-theme> so the
+  // token sheet's [data-theme="light"] overrides can engage once a toggle ships. Device-local
+  // preference: blTheme is skip-listed in setItemSafe (no cloud push), exactly like blLastTab.
+  useEffect(() => {
+    const theme = localStorage.getItem("blTheme") || "dark";
+    document.documentElement.dataset.theme = theme;
+    setItemSafe("blTheme", theme);
+  }, []);
+
   // One-shot toast after a sign-out wipe + reload.
   useEffect(() => {
     if (sessionStorage.getItem("blSignedOutCleared")) {
