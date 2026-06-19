@@ -2380,7 +2380,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               // This hides the 3px browser-rounding artifact from table-layout:fixed + width:100%.
               const needsHScroll = currentTotalW > defaultTotalW + 10;
               return (
-            <div className="owned-table-scroll" style={{ overflowX: needsHScroll ? "auto" : "clip" }}>
+            <div className="owned-table-scroll owned-table-xscroll" style={{ overflowX: needsHScroll ? "auto" : "clip" }}>
             <div ref={ownedScrollRef} className="owned-table-scroll" style={{ overflowY: "auto", maxHeight: 560 }}>
               <table style={{
                 borderCollapse: "collapse", tableLayout: "fixed", width: "100%",
