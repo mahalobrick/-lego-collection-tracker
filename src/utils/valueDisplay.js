@@ -207,7 +207,7 @@ export const RETIRED_TOOLTIP =
 
 // Cost Basis — why ROI reads conservative when some costs are MSRP placeholders.
 export const COST_BASIS_TOOLTIP =
-  "Sets with no purchase record are costed at MSRP, so ROI reads conservative.";
+  "Where you haven't logged what you paid, cost = MSRP — a gold-standard baseline, not a record that you paid full price. Keeps Cost Basis complete and ROI conservative.";
 
 // The retail caveat covers BOTH halves of the at-retail trap: the figure is the
 // sticker price (not a secondary-market valuation), AND any ROI beside it is the
@@ -343,18 +343,16 @@ export function valueConfidence(value) {
 }
 
 /**
- * QUALITY disclosure for the cost-basis headline: "N estimated at MSRP (~$Y)". The headline is the
- * TOTAL cost (real + estimated); this note flags how much of it is an MSRP placeholder rather than
- * recorded spend — the cost-side twin of {@link estimatedValueNote}'s "% estimated". The `~` signals
- * the figure is an estimate, not real money. Returns null when none (count 0) so the caller omits it.
+ * QUALITY disclosure for the cost-basis headline: a numberless flag that part of the TOTAL cost is an
+ * MSRP baseline (sets with no logged purchase) rather than recorded spend. No count/$ on the card — the
+ * tooltip ({@link COST_BASIS_TOOLTIP}) carries the gold-standard framing. Returns null when none so the
+ * caller omits it. Gated on msrpCount > 0.
  *
- * @param {number} msrpCount  sets whose paid is an MSRP default (no purchase record).
- * @param {number} msrpCost   summed placeholder dollars.
+ * @param {number} msrpCount  sets whose cost is the MSRP baseline (no purchase record).
  * @returns {string|null}
  */
-export function estimatedCostNote(msrpCount, msrpCost) {
-  if (!msrpCount || msrpCount <= 0) return null;
-  return `${msrpCount} estimated at MSRP (~${money(msrpCost)})`;
+export function estimatedCostNote(msrpCount) {
+  return msrpCount > 0 ? "incl. sets costed at MSRP" : null;
 }
 
 /**
@@ -388,26 +386,26 @@ export function realRoiScopeNote(msrpCount) {
 // stops reading as a contradiction. LABELS ONLY — portfolioROI / portfolioGain math is untouched.
 
 /**
- * Scope label for the TOTAL-cost ROI headline: the % covers cost-basis sets only (cost > 0); $0-cost sets
- * are excluded (no % return on $0 invested). Appends the MSRP-placeholder disclosure when any cost is an
- * estimate. Replaces {@link totalRoiNote} at the ROI card (totalRoiNote kept for its existing consumers).
+ * Scope label for the TOTAL-cost ROI headline: the % covers cost-basis sets only (cost > 0); free
+ * ($0-cost) sets are excluded (no % return on $0 invested). Numberless and constant — the MSRP-baseline
+ * caveat lives in {@link roiScopeTooltip}, not the card. Replaces {@link totalRoiNote} at the ROI card.
  *
- * @param {number} msrpCount  sets whose cost is an MSRP placeholder (disclosed, not excluded).
  * @returns {string}
  */
-export function roiScopeNote(msrpCount) {
-  return msrpCount && msrpCount > 0 ? `cost-basis sets only · ${msrpCount} est. at MSRP` : "cost-basis sets only";
+export function roiScopeNote() {
+  return "cost-basis sets only";
 }
 
 /**
- * Tooltip for the ROI card — why the % excludes $0-cost sets, plus the MSRP caveat when present.
+ * Tooltip for the ROI card — why the % is over paid (cost-basis) sets and excludes free $0-cost sets,
+ * plus a non-numeric MSRP-baseline caveat when any cost is an MSRP default (gated on msrpCount > 0).
  *
  * @param {number} msrpCount
  * @returns {string}
  */
 export function roiScopeTooltip(msrpCount) {
-  const base = "Return on sets you have a cost for. Excludes $0-cost sets — no % return on $0 invested.";
-  return msrpCount && msrpCount > 0 ? `${base} ${msrpCount} sets assume cost = MSRP.` : base;
+  const base = "Return on sets you have a cost for. Free sets ($0 cost) are excluded — no % return on $0 invested.";
+  return msrpCount && msrpCount > 0 ? `${base} Where no purchase was recorded, cost = MSRP — a gold-standard baseline.` : base;
 }
 
 /**

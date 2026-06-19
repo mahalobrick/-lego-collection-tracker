@@ -33,17 +33,18 @@ describe("freebieValue()", () => {
 });
 
 describe("ROI / Net Gain relabel notes", () => {
-  it("roiScopeNote scopes to cost-basis sets, with the MSRP disclosure when present", () => {
-    expect(roiScopeNote(430)).toBe("cost-basis sets only · 430 est. at MSRP");
-    expect(roiScopeNote(0)).toBe("cost-basis sets only");
-    expect(roiScopeNote(undefined)).toBe("cost-basis sets only");
+  it("roiScopeNote scopes to cost-basis sets only — numberless & constant (MSRP caveat lives in the tooltip)", () => {
+    expect(roiScopeNote()).toBe("cost-basis sets only");
+    expect(roiScopeNote(430)).toBe("cost-basis sets only"); // any arg ignored — no count rendered on the card
   });
 
-  it("roiScopeTooltip explains the $0-cost exclusion, plus the MSRP caveat when present", () => {
+  it("roiScopeTooltip explains the free-set exclusion, plus a NON-NUMERIC MSRP-baseline caveat when present", () => {
     expect(roiScopeTooltip(0)).toBe(
-      "Return on sets you have a cost for. Excludes $0-cost sets — no % return on $0 invested."
+      "Return on sets you have a cost for. Free sets ($0 cost) are excluded — no % return on $0 invested."
     );
-    expect(roiScopeTooltip(430)).toContain("430 sets assume cost = MSRP.");
+    const tip = roiScopeTooltip(430);
+    expect(tip).toContain("cost = MSRP — a gold-standard baseline");
+    expect(tip).not.toContain("430"); // msrpCount is NOT rendered — the caveat is non-numeric
   });
 
   it("freebieNote renders the $0-cost contribution, null when there is none", () => {

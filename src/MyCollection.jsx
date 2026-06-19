@@ -469,7 +469,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       realCost: costSplit.realCost, realCount: costSplit.realCount,
       msrpCost: costSplit.msrpCost, msrpCount: costSplit.msrpCount,
       // Gain over value-known sets; % ROI over the TOTAL cost basis {value known, cost > 0} —
-      // includes the MSRP-estimated portion (disclosed via roiScopeNote). (Step 2 revised)
+      // includes the MSRP-estimated portion (disclosed via roiScopeTooltip). (Step 2 revised)
       gainLoss: portfolioGain(sets, valueMap),
       // Cost over the value-known subset — the denominator gainLoss is actually computed
       // against. Drives the Net Gain tile's reconciling breakdown (value − valuedCost === gain).
@@ -1348,9 +1348,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                           <div key={key}>
                             {key === "qty"          ? <Card hero={isHero} title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} subTip={TOTAL_SETS_TOOLTIP} /> :
                              key === "value"        ? <Card hero={isHero} title="Collection Value" value={fmtAgg(stats.value, stats.valuedSets)} sub={valuesReady ? [unknownValueNote(stats.valuedSets, sets.length), vsdEsdNote(stats.estimatedShare)].filter(Boolean).join(" · ") || null : null} subTip={valuesReady && vsdEsdNote(stats.estimatedShare) ? VSD_ESD_TOOLTIP : undefined} /> :
-                             key === "cost"         ? <Card hero={isHero} title="Cost Basis"       value={money(stats.costBasis)} sub={estimatedCostNote(stats.msrpCount, stats.msrpCost)} subTip={COST_BASIS_TOOLTIP} /> :
+                             key === "cost"         ? <Card hero={isHero} title="Cost Basis"       value={money(stats.costBasis)} sub={estimatedCostNote(stats.msrpCount)} subTip={COST_BASIS_TOOLTIP} /> :
                              key === "gain"         ? <Card hero={isHero} title="Net Gain / Loss"  value={fmtAgg(stats.gainLoss, stats.valuedSets)} good={stats.valuedSets > 0 ? stats.gainLoss >= 0 : undefined} sub={valuesReady ? (freebieNote(stats.freebieValue) ?? netGainBasisNote(stats.value, stats.valuedCost, stats.valuedSets, stats.costBasis)) : null} subTip={valuesReady && freebieNote(stats.freebieValue) ? FREEBIE_TOOLTIP : undefined} /> :
-                             key === "roi"          ? <Card hero={isHero} title="ROI"              value={!valuesReady ? "…" : stats.roi === null ? "—" : `${stats.roi.toFixed(1)}%`} good={stats.roi === null ? undefined : stats.roi >= 0} sub={roiScopeNote(stats.msrpCount)} subTip={roiScopeTooltip(stats.msrpCount)} /> :
+                             key === "roi"          ? <Card hero={isHero} title="ROI"              value={!valuesReady ? "…" : stats.roi === null ? "—" : `${stats.roi.toFixed(1)}%`} good={stats.roi === null ? undefined : stats.roi >= 0} sub={roiScopeNote()} subTip={roiScopeTooltip(stats.msrpCount)} /> :
                              key === "themes"       ? <Card hero={isHero} title="Themes"           value={stats.themes} /> :
                              key === "duplicates"   ? <Card hero={isHero} title="Multi-Copy Sets"  value={stats.duplicates} /> :
                              key === "retired"      ? <Card hero={isHero} title="Retired Sets"     value={stats.retiredSets} sub={sets.length ? `${((stats.retiredSets / sets.length) * 100).toFixed(1)}% of unique sets` : null} subTip={RETIRED_TOOLTIP} /> :
