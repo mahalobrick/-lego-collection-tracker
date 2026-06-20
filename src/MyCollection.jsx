@@ -28,7 +28,7 @@ import { loadCollectionItems, tieredVisibleCards, gearCardRowsByTier, cardVisibl
 import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual";
 import { syncBricksetMetadata, metadataGaps, cleanSetNumber } from "./utils/bricksetMetadata";
 
-const PIE_COLORS = ["#c9a84c", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#5aa832"];
+const PIE_COLORS = ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"]; // Okabe-Ito cat-1..7 (literal; recharts SVG fill won't resolve var())
 const CONDITION_CYCLE = ["new", "used_as_new", "used_good", "used_acceptable"];
 
 // DEFAULT_COLLECTION_ITEMS + loadCollectionItems moved to ./utils/collectionLayout
@@ -629,10 +629,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       const annualBudget = asNumber(localStorage.getItem("blAnnualBudget")) || 0;
       const totalSpent = purchases.reduce((sum, p) => sum + lineCashPaid(p), 0);
       const pct = annualBudget ? Math.min((totalSpent / annualBudget) * 100, 100) : 0;
-      const color = pct >= 100 ? "#ef4444" : pct >= 70 ? "#f7b731" : "#22c55e";
+      const color = pct >= 100 ? "var(--bk-negative)" : pct >= 70 ? "var(--bk-warning)" : "var(--bk-positive)";
       const status = pct >= 100 ? "Over Budget" : pct >= 70 ? "Approaching Limit" : "Healthy";
       return { annualBudget, totalSpent, remaining: annualBudget - totalSpent, pct, color, status };
-    } catch { return { annualBudget: 0, totalSpent: 0, remaining: 0, pct: 0, color: "#22c55e", status: "Healthy" }; }
+    } catch { return { annualBudget: 0, totalSpent: 0, remaining: 0, pct: 0, color: "var(--bk-positive)", status: "Healthy" }; }
   }, [refreshKey]);
 
   // ── Duplicate detection for Add Set ───────────────────────────────────────
@@ -1347,7 +1347,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               {t.label}
             </button>
           ))}
-          <div style={{ width: 1, height: 18, background: "rgba(255,255,255,0.12)", alignSelf: "center" }} />
+          <div style={{ width: 1, height: 18, background: "var(--bk-border)", alignSelf: "center" }} />
           <button onClick={() => { setTab("overview"); setAddOpen(true); requestAnimationFrame(() => document.getElementById("bl-sec-add")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} style={addOpen ? addSetBtnActive : addSetBtn}>
             + Add Set
           </button>
@@ -1355,11 +1355,11 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       </div>
 
       {tab === "overview" && sets.length > 0 && (
-        <nav className="cs-quicknav" style={{ position: "sticky", top: "var(--bl-nav-h, 56px)", zIndex: 90, display: "flex", gap: 6, padding: "8px 0", marginBottom: 6, background: "rgba(11,16,32,0.92)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <nav className="cs-quicknav" style={{ position: "sticky", top: "var(--bl-nav-h, 56px)", zIndex: 90, display: "flex", gap: 6, padding: "8px 0", marginBottom: 6, background: "var(--bk-surface)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", borderBottom: "1px solid var(--bk-border)" }}>
           {[{ key: "bl-sec-stats", label: "Stats" }, { key: "bl-sec-table", label: "Table" }, { key: "bl-sec-add", label: "Add" }].map(s => (
             <button key={s.key}
               onClick={() => { if (s.key === "bl-sec-add") setAddOpen(true); requestAnimationFrame(() => { const el = document.getElementById(s.key); if (el) { const off = (document.querySelector(".nav-wrap")?.offsetHeight || 56) + (document.querySelector(".cs-quicknav")?.offsetHeight || 44) + 8; window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - off, behavior: "smooth" }); } }); }}
-              style={{ background: activeSection === s.key ? "#c9a84c" : "transparent", color: activeSection === s.key ? "#0d1623" : "#8a9bb0", border: "1px solid " + (activeSection === s.key ? "#c9a84c" : "rgba(255,255,255,0.12)"), borderRadius: 999, padding: "6px 16px", fontWeight: 800, fontSize: 12.5, cursor: "pointer", transition: "all 0.15s ease" }}>
+              style={{ background: activeSection === s.key ? "var(--bk-action)" : "transparent", color: activeSection === s.key ? "var(--bk-action-ink)" : "var(--bk-text-muted)", border: "1px solid " + (activeSection === s.key ? "var(--bk-action)" : "var(--bk-border)"), borderRadius: 999, padding: "6px 16px", fontWeight: 800, fontSize: 12.5, cursor: "pointer", transition: "all 0.15s ease" }}>
               {s.label}
             </button>
           ))}
@@ -1370,16 +1370,16 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       {tab === "overview" && sets.length === 0 && (
         <div style={{ textAlign: "center", padding: "60px 24px" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>📦</div>
-          <div style={{ fontWeight: 900, fontSize: 20, color: "#e8e2d5", marginBottom: 8 }}>Start your collection</div>
-          <div style={{ color: "#8a9bb0", fontSize: 14, maxWidth: 420, margin: "0 auto 24px", lineHeight: 1.6 }}>
+          <div style={{ fontWeight: 900, fontSize: 20, color: "var(--bk-text)", marginBottom: 8 }}>Start your collection</div>
+          <div style={{ color: "var(--bk-text-muted)", fontSize: 14, maxWidth: 420, margin: "0 auto 24px", lineHeight: 1.6 }}>
             Already tracking sets in BrickEconomy or Brickset? Import your CSV in one step.
             Otherwise add sets manually or restore from a cloud backup.
           </div>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-            <button onClick={() => onSwitchTab("settings")} style={{ background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 10, padding: "12px 24px", fontWeight: 900, fontSize: 14, cursor: "pointer" }}>
+            <button onClick={() => onSwitchTab("settings")} style={{ background: "var(--bk-action)", color: "var(--bk-action-ink)", border: "none", borderRadius: 10, padding: "12px 24px", fontWeight: 900, fontSize: 14, cursor: "pointer" }}>
               Import Collection →
             </button>
-            <button onClick={() => { setAddOpen(true); requestAnimationFrame(() => document.getElementById("bl-sec-add")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} style={{ background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "12px 24px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+            <button onClick={() => { setAddOpen(true); requestAnimationFrame(() => document.getElementById("bl-sec-add")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} style={{ background: "transparent", color: "var(--bk-text-muted)", border: "1px solid var(--bk-border)", borderRadius: 10, padding: "12px 24px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
               Add a Set Manually
             </button>
           </div>
@@ -1389,17 +1389,17 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       {tab === "overview" && sets.length > 0 && (
         <div id="bl-sec-stats" style={{ order: 1, minWidth: 0 }}>
           {/* ── Stat pill container ─────────────────────────────────── */}
-          <div style={{ background: "rgba(11,21,32,0.7)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "14px 16px", marginBottom: 14, marginTop: 8, position: "relative" }}>
+          <div style={{ background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 14, padding: "14px 16px", marginBottom: 14, marginTop: 8, position: "relative" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: collPillsCollapsed ? 0 : 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                <span style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Collection Stats</span>
+                <span style={{ color: "var(--bk-text-muted)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Collection Stats</span>
                 {valuesReady && valuesAsOfTs && (() => {
                   const fr = freshness(valuesAsOfTs);
                   if (!fr) return null;
                   return (
                     <span
                       title={`BrickLink values as of ${valuesAsOfTs.slice(0, 10)} — refreshed weekly`}
-                      style={{ fontSize: 10, fontWeight: 600, color: fr.level === "stale" ? "#f59e0b" : "#5d6f80", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                      style={{ fontSize: 10, fontWeight: 600, color: fr.level === "stale" ? "var(--bk-warning)" : "var(--bk-text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
                     >
                       {fr.level === "stale" ? "⚠ " : ""}{fr.label}
                     </span>
@@ -1408,7 +1408,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               </div>
               <div style={{ display: "flex", gap: 6 }}>
                 {/* Brickset metadata sync moved to Settings → Data Sources (panel-design SOP). */}
-                <button onClick={() => setCollGearOpen(prev => !prev)} style={{ ...hoverCtrlBtn, color: collGearOpen ? "#c9a84c" : "#8a9bb0" }} title="Show / hide stats">⚙</button>
+                <button onClick={() => setCollGearOpen(prev => !prev)} style={{ ...hoverCtrlBtn, color: collGearOpen ? "var(--bk-gold-ink)" : "var(--bk-text-muted)" }} title="Show / hide stats">⚙</button>
                 <button onClick={() => setCollPillsCollapsed(prev => !prev)} style={hoverCtrlBtn} title={collPillsCollapsed ? "Expand" : "Collapse"}>{collPillsCollapsed ? "▼" : "▲"}</button>
               </div>
             </div>
@@ -1416,27 +1416,27 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             {collGearOpen && (
               <>
                 <div onClick={() => setCollGearOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
-                <div style={{ position: "absolute", top: 46, right: 10, zIndex: 30, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "12px 16px", minWidth: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
-                  <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Stats</div>
+                <div style={{ position: "absolute", top: 46, right: 10, zIndex: 30, background: "var(--bk-bg)", border: "1px solid var(--bk-border)", borderRadius: 10, padding: "12px 16px", minWidth: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
+                  <div style={{ color: "var(--bk-text-muted)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Stats</div>
                   {gearCardRowsByTier().map(tier => (
                     <div key={tier.id} style={{ marginBottom: 4 }}>
-                      <div style={{ color: "#3d4f60", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, margin: "6px 0 1px" }}>{tier.label}</div>
+                      <div style={{ color: "var(--bk-text-muted)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, margin: "6px 0 1px" }}>{tier.label}</div>
                       {tier.rows.map(row => {
                         const on = cardVisible(row.key, cardOverrides);
                         return (
-                          <label key={row.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", cursor: "pointer", color: on ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
-                            <input type="checkbox" checked={on} onChange={() => setCardOverrides(prev => toggleCardOverride(prev, row.key))} style={{ accentColor: "#c9a84c" }} />
+                          <label key={row.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", cursor: "pointer", color: on ? "var(--bk-text)" : "var(--bk-text-muted)", fontSize: 13 }}>
+                            <input type="checkbox" checked={on} onChange={() => setCardOverrides(prev => toggleCardOverride(prev, row.key))} style={{ accentColor: "var(--bk-gold)" }} />
                             {row.label}
                           </label>
                         );
                       })}
                     </div>
                   ))}
-                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", margin: "10px 0 8px" }} />
-                  <div style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Panels</div>
+                  <div style={{ borderTop: "1px solid var(--bk-border)", margin: "10px 0 8px" }} />
+                  <div style={{ color: "var(--bk-text-muted)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Panels</div>
                   {collectionItems.filter(i => i.type === "panel").sort((a, b) => a.label.localeCompare(b.label)).map(item => (
-                    <label key={item.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", color: item.visible ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
-                      <input type="checkbox" checked={item.visible} onChange={() => setCollectionItems(prev => prev.map(x => x.key === item.key ? { ...x, visible: !x.visible } : x))} style={{ accentColor: "#c9a84c" }} />
+                    <label key={item.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", color: item.visible ? "var(--bk-text)" : "var(--bk-text-muted)", fontSize: 13 }}>
+                      <input type="checkbox" checked={item.visible} onChange={() => setCollectionItems(prev => prev.map(x => x.key === item.key ? { ...x, visible: !x.visible } : x))} style={{ accentColor: "var(--bk-gold)" }} />
                       {item.label}
                     </label>
                   ))}
@@ -1464,13 +1464,13 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                              key === "retired"      ? <Card hero={isHero} title="Retired Sets"     value={stats.retiredSets} sub={sets.length ? `${((stats.retiredSets / sets.length) * 100).toFixed(1)}% of unique sets` : null} subTip={RETIRED_TOOLTIP} /> :
                              key === "newUsed"      ? (
                                <div style={metricCardBase}>
-                                 <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>New / Used</div>
+                                 <div style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>New / Used</div>
                                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                                   <span style={{ fontSize: 21, fontWeight: 900, color: "#5aa832", lineHeight: 1.1 }}>{stats.newEntries}</span>
-                                   <span style={{ fontSize: 14, color: "#3d4f60", fontWeight: 700 }}>/</span>
-                                   <span style={{ fontSize: 21, fontWeight: 900, color: "#e8e2d5", lineHeight: 1.1 }}>{stats.usedEntries}</span>
+                                   <span style={{ fontSize: 21, fontWeight: 900, color: "var(--bk-positive)", lineHeight: 1.1 }}>{stats.newEntries}</span>
+                                   <span style={{ fontSize: 14, color: "var(--bk-text-muted)", fontWeight: 700 }}>/</span>
+                                   <span style={{ fontSize: 21, fontWeight: 900, color: "var(--bk-text)", lineHeight: 1.1 }}>{stats.usedEntries}</span>
                                  </div>
-                                 <div style={{ fontSize: 11, color: "#3d4f60", minHeight: 14, display: "flex", alignItems: "center", gap: 4 }}>new · used<InfoTip text={NEW_USED_COUNT_TOOLTIP} size={13} /></div>
+                                 <div style={{ fontSize: 11, color: "var(--bk-text-muted)", minHeight: 14, display: "flex", alignItems: "center", gap: 4 }}>new · used<InfoTip text={NEW_USED_COUNT_TOOLTIP} size={13} /></div>
                                </div>
                              ) :
                              key === "avgValue"     ? <Card hero={isHero} title="Avg Set Value"    value={fmtAgg(stats.avgValue, stats.valuedSets)} /> :
@@ -1532,14 +1532,14 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
                   {item.collapsed ? (
                       <div style={{ ...panel, marginTop: 0, padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontWeight: 700, color: "#8a9bb0", fontSize: 14 }}>{item.label}</span>
-                        <button onClick={() => toggleCollCollapse(item.key)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "4px 10px", color: "#8a9bb0", fontSize: 12, cursor: "pointer" }}>▼</button>
+                        <span style={{ fontWeight: 700, color: "var(--bk-text-muted)", fontSize: 14 }}>{item.label}</span>
+                        <button onClick={() => toggleCollCollapse(item.key)} style={{ background: "none", border: "1px solid var(--bk-border)", borderRadius: 8, padding: "4px 10px", color: "var(--bk-text-muted)", fontSize: 12, cursor: "pointer" }}>▼</button>
                       </div>
                     ) : item.key === "condition-breakdown" ? (
                       <div style={{ ...panel, marginTop: 0 }}>
                         <h4 style={{ margin: "0 0 14px" }}>Condition Breakdown</h4>
                         {sets.length === 0 ? (
-                          <div style={{ color: "#5d6f80", fontSize: 13 }}>No sets yet.</div>
+                          <div style={{ color: "var(--bk-text-muted)", fontSize: 13 }}>No sets yet.</div>
                         ) : (() => {
                           // Dataset derivation hoisted to the `conditionBreakdownData` memo (deps [sets]);
                           // aliased here so the JSX below is unchanged. (P1-class straggler memoized.)
@@ -1552,15 +1552,15 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                                   <Pie isAnimationActive={false} data={data} cx="50%" cy="50%" innerRadius={44} outerRadius={70} dataKey="value" paddingAngle={2}>
                                     {data.map((d, i) => <Cell key={i} fill={d.color} />)}
                                   </Pie>
-                                  <Tooltip formatter={v => [v, "Sets"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
+                                  <Tooltip formatter={v => [v, "Sets"]} contentStyle={{ background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)" }} />
                                 </PieChart>
                               </ResponsiveContainer>
                               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: 4 }}>
                                 {data.map((d, i) => (
-                                  <span key={d.name} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#8a9bb0" }}>
+                                  <span key={d.name} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--bk-text-muted)" }}>
                                     <span style={{ width: 10, height: 10, borderRadius: 2, background: d.color, display: "inline-block" }} />
-                                    {d.name} <strong style={{ color: "#e8e2d5" }}>{d.value}</strong>
-                                    <span style={{ color: "#5d6f80" }}>({((d.value / total) * 100).toFixed(0)}%)</span>
+                                    {d.name} <strong style={{ color: "var(--bk-text)" }}>{d.value}</strong>
+                                    <span style={{ color: "var(--bk-text-muted)" }}>({((d.value / total) * 100).toFixed(0)}%)</span>
                                   </span>
                                 ))}
                               </div>
@@ -1579,9 +1579,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                                 <div style={{ height: 240, marginBottom: 4 }}>
                                   <ResponsiveContainer width="100%" height={240}>
                                     <BarChart data={themeChartData.slice(0, 7)} layout="vertical" margin={{ left: 0, right: 16, top: 4, bottom: 4 }}>
-                                      <XAxis type="number" tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} tick={{ fill: "#8a9bb0", fontSize: 10 }} axisLine={false} tickLine={false} />
-                                      <YAxis type="category" dataKey="name" tick={{ fill: "#8a9bb0", fontSize: 10 }} axisLine={false} tickLine={false} width={90} />
-                                      <Tooltip formatter={v => [money(v), "Value"]} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
+                                      <XAxis type="number" tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} tick={{ fill: "#9a958a", fontSize: 10 }} axisLine={false} tickLine={false} />
+                                      <YAxis type="category" dataKey="name" tick={{ fill: "#9a958a", fontSize: 10 }} axisLine={false} tickLine={false} width={90} />
+                                      <Tooltip formatter={v => [money(v), "Value"]} contentStyle={{ background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)" }} />
                                       <Bar isAnimationActive={false} dataKey="value" radius={[0, 4, 4, 0]}>
                                         {themeChartData.slice(0, 7).map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                                       </Bar>
@@ -1595,13 +1595,13 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                                       <Pie isAnimationActive={false} data={themeChartData} cx="50%" cy="50%" innerRadius={ct === "donut" ? 68 : 0} outerRadius={106} dataKey="value" paddingAngle={ct === "donut" ? 2 : 1}>
                                         {themeChartData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                                       </Pie>
-                                      <Tooltip formatter={v => money(v)} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
+                                      <Tooltip formatter={v => money(v)} contentStyle={{ background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)" }} />
                                     </PieChart>
                                   </ResponsiveContainer>
                                   {ct === "donut" && (
                                     <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-                                      <div style={{ fontSize: 20, fontWeight: 900, color: "#e8e2d5" }}>{fmtAgg(stats.value, stats.valuedSets)}</div>
-                                      <div style={{ color: "#8a9bb0", fontSize: 12 }}>Collection Value</div>
+                                      <div style={{ fontSize: 20, fontWeight: 900, color: "var(--bk-text)" }}>{fmtAgg(stats.value, stats.valuedSets)}</div>
+                                      <div style={{ color: "var(--bk-text-muted)", fontSize: 12 }}>Collection Value</div>
                                     </div>
                                   )}
                                 </div>
@@ -1609,28 +1609,28 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                             })()}
                             <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
                               {themeChartData.slice(0, showAllThemes ? 15 : 5).map((d, i) => (
-                                <div key={d.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, background: "#0b1520", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "8px 12px" }}>
+                                <div key={d.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, background: "var(--bk-bg)", border: "1px solid var(--bk-border)", borderRadius: 10, padding: "8px 12px" }}>
                                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                     <span style={{ width: 12, height: 12, borderRadius: 999, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0, display: "inline-block" }} />
                                     <div>
                                       <div style={{ fontWeight: 700, fontSize: 13 }}>{d.name}</div>
-                                      <div style={{ color: "#5d6f80", fontSize: 12 }}>{d.qty} set{d.qty !== 1 ? "s" : ""}</div>
+                                      <div style={{ color: "var(--bk-text-muted)", fontSize: 12 }}>{d.qty} set{d.qty !== 1 ? "s" : ""}</div>
                                     </div>
                                   </div>
                                   <div style={{ fontWeight: 900, fontSize: 13 }}>{formatAggregateValue(d.value, d.known)}</div>
                                 </div>
                               ))}
                               {themeChartData.length > 5 && (
-                                <button onClick={() => setShowAllThemes(prev => !prev)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 12px", color: "#8a9bb0", fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
+                                <button onClick={() => setShowAllThemes(prev => !prev)} style={{ background: "none", border: "1px solid var(--bk-border)", borderRadius: 10, padding: "8px 12px", color: "var(--bk-text-muted)", fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
                                   {showAllThemes ? "▲ Show less" : `▾ ${Math.min(themeChartData.length, 15) - 5} more themes`}
                                 </button>
                               )}
                             </div>
                           </>
                         ) : (
-                          <div style={{ textAlign: "center", padding: "28px 20px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 10 }}>
-                            <div style={{ fontWeight: 700, color: "#8a9bb0", marginBottom: 4 }}>No collection data yet</div>
-                            <div style={{ fontSize: 13, color: "#5d6f80" }}>Sync from BrickEconomy in Settings → Data, or add sets manually below.</div>
+                          <div style={{ textAlign: "center", padding: "28px 20px", background: "var(--bk-surface-2)", border: "1px dashed var(--bk-border)", borderRadius: 10 }}>
+                            <div style={{ fontWeight: 700, color: "var(--bk-text-muted)", marginBottom: 4 }}>No collection data yet</div>
+                            <div style={{ fontSize: 13, color: "var(--bk-text-muted)" }}>Sync from BrickEconomy in Settings → Data, or add sets manually below.</div>
                           </div>
                         )}
                       </div>
@@ -1644,30 +1644,30 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                               return (
                                 <div key={`${s.setNumber}-${i}`}
                                   onClick={() => { setDetailSet(openSetDetail(s.setNumber) || s); setDetailSetIndex(realIndex); }}
-                                  onMouseEnter={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.18)"; setHoveredSet(s); }}
-                                  onMouseLeave={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.06)"; setHoveredSet(null); }}
-                                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0f1a28", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
+                                  onMouseEnter={e => { e.currentTarget.style.border = "1px solid var(--bk-border)"; setHoveredSet(s); }}
+                                  onMouseLeave={e => { e.currentTarget.style.border = "1px solid var(--bk-border)"; setHoveredSet(null); }}
+                                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
                                   <div>
                                     <div style={{ fontWeight: 700, fontSize: 14 }}>{s.name || s.setNumber || "—"}</div>
-                                    <div style={{ color: "#5d6f80", fontSize: 12 }}>{s.theme || "—"}</div>
+                                    <div style={{ color: "var(--bk-text-muted)", fontSize: 12 }}>{s.theme || "—"}</div>
                                   </div>
                                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                    <span style={{ color: s._roi >= 0 ? "#5aa832" : "#ff8b8b", fontWeight: 900, fontSize: 15, whiteSpace: "nowrap" }}>
+                                    <span style={{ color: signColor(s._roi), fontWeight: 900, fontSize: 15, whiteSpace: "nowrap" }}>
                                       {s._roi >= 0 ? "+" : ""}{s._roi.toFixed(1)}%
                                     </span>
-                                    <span style={{ color: "#5d6f80", fontSize: 16 }}>›</span>
+                                    <span style={{ color: "var(--bk-text-muted)", fontSize: 16 }}>›</span>
                                   </div>
                                 </div>
                               );
                             })}
                             {topRoiSets.length > 5 && (
-                              <button onClick={() => setShowAllRoi(prev => !prev)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 12px", color: "#8a9bb0", fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
+                              <button onClick={() => setShowAllRoi(prev => !prev)} style={{ background: "none", border: "1px solid var(--bk-border)", borderRadius: 10, padding: "8px 12px", color: "var(--bk-text-muted)", fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
                                 {showAllRoi ? "▲ Show less" : `▾ ${Math.min(topRoiSets.length, 15) - 5} more`}
                               </button>
                             )}
                           </div>
                         ) : (
-                          <div style={{ color: "#5d6f80", padding: "20px 0" }}>Add sets with paid price and value to see ROI rankings.</div>
+                          <div style={{ color: "var(--bk-text-muted)", padding: "20px 0" }}>Add sets with paid price and value to see ROI rankings.</div>
                         )}
                       </div>
                     ) : item.key === "most-valuable" ? (
@@ -1681,28 +1681,28 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                               return (
                                 <div key={`${s.setNumber}-${i}`}
                                   onClick={() => { setDetailSet(openSetDetail(s.setNumber) || s); setDetailSetIndex(sets.indexOf(s)); }}
-                                  onMouseEnter={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.18)"; setHoveredSet(s); }}
-                                  onMouseLeave={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.06)"; setHoveredSet(null); }}
-                                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0f1a28", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
+                                  onMouseEnter={e => { e.currentTarget.style.border = "1px solid var(--bk-border)"; setHoveredSet(s); }}
+                                  onMouseLeave={e => { e.currentTarget.style.border = "1px solid var(--bk-border)"; setHoveredSet(null); }}
+                                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
                                   <div>
                                     <div style={{ fontWeight: 700, fontSize: 14 }}>{s.name || s.setNumber || "—"}</div>
-                                    <div style={{ color: "#5d6f80", fontSize: 12 }}>{s.theme || "—"} · Qty {asNumber(s.qty) || 1}</div>
+                                    <div style={{ color: "var(--bk-text-muted)", fontSize: 12 }}>{s.theme || "—"} · Qty {asNumber(s.qty) || 1}</div>
                                   </div>
                                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                     <span style={{ fontWeight: 900, fontSize: 14 }}>{formatValueCell(prov)}</span>
-                                    <span style={{ color: "#5d6f80", fontSize: 16 }}>›</span>
+                                    <span style={{ color: "var(--bk-text-muted)", fontSize: 16 }}>›</span>
                                   </div>
                                 </div>
                               );
                             })}
                             {topValueSets.length > 5 && (
-                              <button onClick={() => setShowAllValuable(prev => !prev)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 12px", color: "#8a9bb0", fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
+                              <button onClick={() => setShowAllValuable(prev => !prev)} style={{ background: "none", border: "1px solid var(--bk-border)", borderRadius: 10, padding: "8px 12px", color: "var(--bk-text-muted)", fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
                                 {showAllValuable ? "▲ Show less" : `▾ ${Math.min(topValueSets.length, 15) - 5} more`}
                               </button>
                             )}
                           </div>
                         ) : (
-                          <div style={{ color: "#5d6f80", padding: "20px 0" }}>No sets yet.</div>
+                          <div style={{ color: "var(--bk-text-muted)", padding: "20px 0" }}>No sets yet.</div>
                         )}
                       </div>
                     ) : item.key === "watch-list" ? (
@@ -1711,46 +1711,46 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         {watchListHighlights.total > 0 ? (
                           <>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-                              <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{watchListHighlights.total} tracked</span>
-                              {watchListHighlights.retiringSoon > 0 && <span style={{ background: "#3b0a0a", border: "1px solid #7f1d1d", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#ff8b8b", fontWeight: 700 }}>{watchListHighlights.retiringSoon} retiring soon</span>}
-                              {watchListHighlights.critical > 0 && <span style={{ background: "#451a03", border: "1px solid #92400e", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#f59e0b", fontWeight: 700 }}>{watchListHighlights.critical} urgent</span>}
+                              <span style={{ background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "var(--bk-text-muted)" }}>{watchListHighlights.total} tracked</span>
+                              {watchListHighlights.retiringSoon > 0 && <span style={{ background: "var(--bk-negative-bg)", border: "1px solid var(--bk-negative-bg)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "var(--bk-negative)", fontWeight: 700 }}>{watchListHighlights.retiringSoon} retiring soon</span>}
+                              {watchListHighlights.critical > 0 && <span style={{ background: "var(--bk-warning-bg)", border: "1px solid var(--bk-warning-bg)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "var(--bk-warning)", fontWeight: 700 }}>{watchListHighlights.critical} urgent</span>}
                             </div>
                             <div style={{ display: "grid", gap: 8 }}>
                               {watchListHighlights.scored.slice(0, showAllWatchHighlights ? 15 : 5).map((wlItem, i) => {
                                 const rec = recommendation(wlItem._score);
-                                const recColor = rec === "Buy Now" ? "#ef4444" : rec === "Watch Closely" ? "#f59e0b" : "#5aa832";
+                                const recColor = rec === "Buy Now" ? "var(--bk-negative)" : rec === "Watch Closely" ? "var(--bk-warning)" : "var(--bk-positive)";
                                 return (
                                   <div key={`${wlItem.setNumber}-${i}`}
                                     onClick={() => setDetailWatchItem(wlItem)}
-                                    onMouseEnter={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.18)"; setHoveredWatchItem(wlItem); }}
-                                    onMouseLeave={e => { e.currentTarget.style.border = "1px solid rgba(255,255,255,0.06)"; setHoveredWatchItem(null); }}
-                                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#0f1a28", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
+                                    onMouseEnter={e => { e.currentTarget.style.border = "1px solid var(--bk-border)"; setHoveredWatchItem(wlItem); }}
+                                    onMouseLeave={e => { e.currentTarget.style.border = "1px solid var(--bk-border)"; setHoveredWatchItem(null); }}
+                                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
                                     <div>
                                       <div style={{ fontWeight: 700, fontSize: 14 }}>{wlItem.name || wlItem.setNumber || "—"}</div>
-                                      <div style={{ color: "#5d6f80", fontSize: 12 }}>{wlItem.theme || "—"}</div>
+                                      <div style={{ color: "var(--bk-text-muted)", fontSize: 12 }}>{wlItem.theme || "—"}</div>
                                     </div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                       <div style={{ textAlign: "right" }}>
                                         <div style={{ fontWeight: 900, fontSize: 15 }}>{wlItem._score}</div>
                                         <div style={{ color: recColor, fontSize: 11, fontWeight: 700 }}>{rec}</div>
                                       </div>
-                                      <span style={{ color: "#5d6f80", fontSize: 16 }}>›</span>
+                                      <span style={{ color: "var(--bk-text-muted)", fontSize: 16 }}>›</span>
                                     </div>
                                   </div>
                                 );
                               })}
                               {watchListHighlights.total > 5 && (
-                                <button onClick={() => setShowAllWatchHighlights(prev => !prev)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 12px", color: "#8a9bb0", fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
+                                <button onClick={() => setShowAllWatchHighlights(prev => !prev)} style={{ background: "none", border: "1px solid var(--bk-border)", borderRadius: 10, padding: "8px 12px", color: "var(--bk-text-muted)", fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
                                   {showAllWatchHighlights ? "▲ Show less" : `▾ ${Math.min(watchListHighlights.total, 15) - 5} more`}
                                 </button>
                               )}
                             </div>
                           </>
                         ) : (
-                          <div style={{ textAlign: "center", padding: "28px 20px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 10 }}>
-                            <div style={{ fontWeight: 700, color: "#8a9bb0", marginBottom: 4 }}>Watch list is empty</div>
-                            <div style={{ fontSize: 13, color: "#5d6f80" }}>
-                              <span style={{ color: "#c9a84c", cursor: "pointer", textDecoration: "underline" }} onClick={() => onSwitchTab && onSwitchTab("acquisition")}>Switch to Wanted List</span> to track sets you want.
+                          <div style={{ textAlign: "center", padding: "28px 20px", background: "var(--bk-surface-2)", border: "1px dashed var(--bk-border)", borderRadius: 10 }}>
+                            <div style={{ fontWeight: 700, color: "var(--bk-text-muted)", marginBottom: 4 }}>Watch list is empty</div>
+                            <div style={{ fontSize: 13, color: "var(--bk-text-muted)" }}>
+                              <span style={{ color: "var(--bk-gold-ink)", cursor: "pointer", textDecoration: "underline" }} onClick={() => onSwitchTab && onSwitchTab("acquisition")}>Switch to Wanted List</span> to track sets you want.
                             </div>
                           </div>
                         )}
@@ -1763,31 +1763,31 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                               <h4 style={{ margin: 0 }}>Budget</h4>
                               <span style={{ fontWeight: 700, fontSize: 13, color: budgetSnapshot.color }}>{budgetSnapshot.status}</span>
                             </div>
-                            <div style={{ height: 6, borderRadius: 999, background: "#0b1520", overflow: "hidden" }}>
+                            <div style={{ height: 6, borderRadius: 999, background: "var(--bk-bg)", overflow: "hidden" }}>
                               <div style={{ width: `${budgetSnapshot.pct}%`, height: "100%", background: budgetSnapshot.color, borderRadius: 999 }} />
                             </div>
-                            <div style={{ marginTop: 5, fontSize: 12, color: "#8a9bb0" }}>{budgetSnapshot.pct.toFixed(0)}% of annual budget used</div>
+                            <div style={{ marginTop: 5, fontSize: 12, color: "var(--bk-text-muted)" }}>{budgetSnapshot.pct.toFixed(0)}% of annual budget used</div>
                           </div>
                           <div style={{ textAlign: "right" }}>
-                            <div style={{ color: "#8a9bb0", fontSize: 11, marginBottom: 2 }}>Annual Budget</div>
+                            <div style={{ color: "var(--bk-text-muted)", fontSize: 11, marginBottom: 2 }}>Annual Budget</div>
                             <div style={{ fontWeight: 900, fontSize: 18 }}>{money(budgetSnapshot.annualBudget)}</div>
                           </div>
                           <div style={{ textAlign: "right" }}>
-                            <div style={{ color: "#8a9bb0", fontSize: 11, marginBottom: 2 }}>Spent</div>
+                            <div style={{ color: "var(--bk-text-muted)", fontSize: 11, marginBottom: 2 }}>Spent</div>
                             <div style={{ fontWeight: 900, fontSize: 18 }}>{money(budgetSnapshot.totalSpent)}</div>
                           </div>
                           <div style={{ textAlign: "right" }}>
-                            <div style={{ color: "#8a9bb0", fontSize: 11, marginBottom: 2 }}>Remaining</div>
-                            <div style={{ fontWeight: 900, fontSize: 18, color: budgetSnapshot.remaining >= 0 ? "#5aa832" : "#ff8b8b" }}>{money(budgetSnapshot.remaining)}</div>
+                            <div style={{ color: "var(--bk-text-muted)", fontSize: 11, marginBottom: 2 }}>Remaining</div>
+                            <div style={{ fontWeight: 900, fontSize: 18, color: signColor(budgetSnapshot.remaining) }}>{money(budgetSnapshot.remaining)}</div>
                           </div>
                         </div>
                       ) : (
                         <div style={{ ...panel, marginTop: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
                           <div>
                             <h4 style={{ margin: "0 0 4px" }}>Budget</h4>
-                            <div style={{ fontSize: 13, color: "#5d6f80" }}>No annual budget configured.</div>
+                            <div style={{ fontSize: 13, color: "var(--bk-text-muted)" }}>No annual budget configured.</div>
                           </div>
-                          <button onClick={() => onSwitchTab && onSwitchTab("settings")} style={{ background: "transparent", color: "#c9a84c", border: "1px solid rgba(201,168,76,0.3)", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                          <button onClick={() => onSwitchTab && onSwitchTab("settings")} style={{ background: "transparent", color: "var(--bk-gold-ink)", border: "1px solid var(--bk-gold-deep)", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                             Set Budget in Settings →
                           </button>
                         </div>
@@ -1799,7 +1799,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                           <div style={{ display: "flex", gap: 6 }}>
                             {["30d","90d","1y","all"].map(r => (
                               <button key={r} onClick={() => setHistRange(r)}
-                                style={{ background: histRange === r ? "#c9a84c" : "rgba(255,255,255,0.04)", color: histRange === r ? "#0d1623" : "#8a9bb0", border: `1px solid ${histRange === r ? "#c9a84c" : "rgba(255,255,255,0.1)"}`, borderRadius: 6, padding: "4px 10px", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+                                style={{ background: histRange === r ? "var(--bk-action)" : "var(--bk-surface-2)", color: histRange === r ? "var(--bk-action-ink)" : "var(--bk-text-muted)", border: `1px solid ${histRange === r ? "var(--bk-action)" : "var(--bk-border)"}`, borderRadius: 6, padding: "4px 10px", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
                                 {r.toUpperCase()}
                               </button>
                             ))}
@@ -1810,8 +1810,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                           const cutDate = new Date(); cutDate.setDate(cutDate.getDate() - cutoff);
                           const data = portfolioHistory.filter(h => histRange === "all" || new Date(h.date) >= cutDate);
                           if (data.length < 2) return (
-                            <div style={{ textAlign: "center", padding: "28px 20px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 10 }}>
-                              <div style={{ color: "#8a9bb0", fontSize: 13 }}>History builds automatically — sync or open the app daily to add data points.</div>
+                            <div style={{ textAlign: "center", padding: "28px 20px", background: "var(--bk-surface-2)", border: "1px dashed var(--bk-border)", borderRadius: 10 }}>
+                              <div style={{ color: "var(--bk-text-muted)", fontSize: 13 }}>History builds automatically — sync or open the app daily to add data points.</div>
                             </div>
                           );
                           const fmt = d => { const dt = new Date(d + "T12:00:00"); return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" }); };
@@ -1820,20 +1820,20 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                               <AreaChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
                                 <defs>
                                   <linearGradient id="valueGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%"  stopColor="#c9a84c" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="#c9a84c" stopOpacity={0.02} />
+                                    <stop offset="5%"  stopColor="#CDAA5E" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="#CDAA5E" stopOpacity={0.02} />
                                   </linearGradient>
                                   <linearGradient id="paidGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.2} />
-                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.02} />
+                                    <stop offset="5%"  stopColor="#0072B2" stopOpacity={0.2} />
+                                    <stop offset="95%" stopColor="#0072B2" stopOpacity={0.02} />
                                   </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                                <XAxis dataKey="date" tickFormatter={fmt} tick={{ fill: "#5d6f80", fontSize: 10 }} axisLine={false} tickLine={false} minTickGap={40} />
-                                <YAxis tickFormatter={v => `$${(v/1000).toFixed(0)}k`} tick={{ fill: "#5d6f80", fontSize: 10 }} axisLine={false} tickLine={false} width={42} />
-                                <Tooltip formatter={(v, n) => [money(v), n === "value" ? "Portfolio Value" : "Cost Basis"]} labelFormatter={fmt} contentStyle={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5" }} />
-                                <Area isAnimationActive={false} type="monotone" dataKey="paid"  stroke="#3b82f6" fill="url(#paidGrad)"  strokeWidth={1.5} dot={false} name="paid" />
-                                <Area isAnimationActive={false} type="monotone" dataKey="value" stroke="#c9a84c" fill="url(#valueGrad)" strokeWidth={2}   dot={false} name="value" />
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.18)" />
+                                <XAxis dataKey="date" tickFormatter={fmt} tick={{ fill: "#9a958a", fontSize: 10 }} axisLine={false} tickLine={false} minTickGap={40} />
+                                <YAxis tickFormatter={v => `$${(v/1000).toFixed(0)}k`} tick={{ fill: "#9a958a", fontSize: 10 }} axisLine={false} tickLine={false} width={42} />
+                                <Tooltip formatter={(v, n) => [money(v), n === "value" ? "Portfolio Value" : "Cost Basis"]} labelFormatter={fmt} contentStyle={{ background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)" }} />
+                                <Area isAnimationActive={false} type="monotone" dataKey="paid"  stroke="#0072B2" fill="url(#paidGrad)"  strokeWidth={1.5} dot={false} name="paid" />
+                                <Area isAnimationActive={false} type="monotone" dataKey="value" stroke="#CDAA5E" fill="url(#valueGrad)" strokeWidth={2}   dot={false} name="value" />
                               </AreaChart>
                             </ResponsiveContainer>
                           );
@@ -1843,7 +1843,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                       <div style={{ ...panel, marginTop: 0 }}>
                         <h4 style={{ margin: "0 0 14px" }}>Theme Performance</h4>
                         {themePerformance.length === 0 ? (
-                          <div style={{ color: "#5d6f80", padding: "20px 0" }}>No collection data yet.</div>
+                          <div style={{ color: "var(--bk-text-muted)", padding: "20px 0" }}>No collection data yet.</div>
                         ) : (
                           <div className="owned-table-scroll" style={{ overflowX: "auto" }}>
                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -1861,8 +1861,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                                     <td style={tdStyleR}>{t.sets}</td>
                                     <td style={tdStyleR}>{money(t.paid)}</td>
                                     <td style={tdStyleR}>{t.knownCount > 0 ? money(t.value) : "—"}</td>
-                                    <td style={{ ...tdStyleR, color: t.knownCount > 0 && t.gain >= 0 ? "#5aa832" : t.knownCount > 0 ? "#ff8b8b" : "#5d6f80" }}>{t.knownCount > 0 ? money(t.gain) : "—"}</td>
-                                    <td style={{ ...tdStyleR, color: (t.roi ?? 0) >= 0 ? "#5aa832" : "#ff8b8b", fontWeight: 900 }}>
+                                    <td style={{ ...tdStyleR, color: t.knownCount > 0 ? signColor(t.gain) : "var(--bk-text-muted)" }}>{t.knownCount > 0 ? money(t.gain) : "—"}</td>
+                                    <td style={{ ...tdStyleR, color: signColor(t.roi ?? 0), fontWeight: 900 }}>
                                       {t.roi != null ? `${t.roi >= 0 ? "+" : ""}${t.roi.toFixed(1)}%` : "—"}
                                     </td>
                                   </tr>
@@ -1885,21 +1885,21 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
             <div>
               <h3 style={{ margin: "0 0 2px" }}>Realized Gains</h3>
-              <div style={{ color: "#8a9bb0", fontSize: 13 }}>Sets you've sold — logged for P&L tracking.</div>
+              <div style={{ color: "var(--bk-text-muted)", fontSize: 13 }}>Sets you've sold — logged for P&L tracking.</div>
             </div>
             {soldSets.length > 0 && (
               <button onClick={() => { if (window.confirm("Clear all sold records?")) setSoldSets([]); }}
-                style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "#5d6f80", borderRadius: 8, padding: "6px 12px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+                style={{ background: "transparent", border: "1px solid var(--bk-border)", color: "var(--bk-text-muted)", borderRadius: 8, padding: "6px 12px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
                 Clear All
               </button>
             )}
           </div>
 
           {soldSets.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "48px 20px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 12 }}>
+            <div style={{ textAlign: "center", padding: "48px 20px", background: "var(--bk-surface-2)", border: "1px dashed var(--bk-border)", borderRadius: 12 }}>
               <div style={{ fontSize: 40, marginBottom: 10 }}>🏷️</div>
-              <div style={{ fontWeight: 700, color: "#8a9bb0", marginBottom: 6 }}>No sales logged yet</div>
-              <div style={{ fontSize: 13, color: "#5d6f80" }}>When you mark a set as sold from the Collection tab, it appears here.</div>
+              <div style={{ fontWeight: 700, color: "var(--bk-text-muted)", marginBottom: 6 }}>No sales logged yet</div>
+              <div style={{ fontSize: 13, color: "var(--bk-text-muted)" }}>When you mark a set as sold from the Collection tab, it appears here.</div>
             </div>
           ) : (() => {
             const totalSold = soldSets.reduce((s, x) => s + asNumber(x.soldPrice), 0);
@@ -1912,36 +1912,36 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                   {[
                     { label: "Total Proceeds", value: money(totalSold) },
                     { label: "Total Invested", value: money(totalPaid) },
-                    { label: "Realized Gain", value: money(totalGain), color: totalGain >= 0 ? "#5aa832" : "#ff8b8b" },
-                    { label: "Overall ROI", value: `${overallRoi >= 0 ? "+" : ""}${overallRoi.toFixed(1)}%`, color: overallRoi >= 0 ? "#5aa832" : "#ff8b8b" },
+                    { label: "Realized Gain", value: money(totalGain), color: signColor(totalGain) },
+                    { label: "Overall ROI", value: `${overallRoi >= 0 ? "+" : ""}${overallRoi.toFixed(1)}%`, color: signColor(overallRoi) },
                   ].map(({ label, value, color }) => (
-                    <div key={label} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 14px" }}>
-                      <div style={{ color: "#8a9bb0", fontSize: 11, marginBottom: 4 }}>{label}</div>
-                      <div style={{ fontWeight: 900, fontSize: 16, color: color || "#e8e2d5" }}>{value}</div>
+                    <div key={label} style={{ background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 10, padding: "10px 14px" }}>
+                      <div style={{ color: "var(--bk-text-muted)", fontSize: 11, marginBottom: 4 }}>{label}</div>
+                      <div style={{ fontWeight: 900, fontSize: 16, color: color || "var(--bk-text)" }}>{value}</div>
                     </div>
                   ))}
                 </div>
                 <div style={{ display: "grid", gap: 8 }}>
                   {soldSets.map((s, i) => {
-                    const roiColor = (s.roi ?? 0) >= 0 ? "#5aa832" : "#ff8b8b";
+                    const roiColor = signColor(s.roi ?? 0);
                     return (
-                      <div key={i} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                      <div key={i} style={{ background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 10, padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700, fontSize: 14 }}>{s.name || s.setNumber}</div>
-                          <div style={{ color: "#5d6f80", fontSize: 12 }}>{s.theme || "—"} · {s.soldDate || "no date"}</div>
-                          {s.notes && <div style={{ color: "#8a9bb0", fontSize: 12, marginTop: 2 }}>{s.notes}</div>}
+                          <div style={{ color: "var(--bk-text-muted)", fontSize: 12 }}>{s.theme || "—"} · {s.soldDate || "no date"}</div>
+                          {s.notes && <div style={{ color: "var(--bk-text-muted)", fontSize: 12, marginTop: 2 }}>{s.notes}</div>}
                         </div>
                         <div style={{ display: "flex", gap: 16, alignItems: "center", flexShrink: 0 }}>
                           <div style={{ textAlign: "right" }}>
-                            <div style={{ color: "#5d6f80", fontSize: 11 }}>Sold / Paid</div>
+                            <div style={{ color: "var(--bk-text-muted)", fontSize: 11 }}>Sold / Paid</div>
                             <div style={{ fontWeight: 700, fontSize: 13 }}>{money(s.soldPrice)} / {money(s.paidPrice)}</div>
                           </div>
                           <div style={{ textAlign: "right" }}>
-                            <div style={{ color: "#5d6f80", fontSize: 11 }}>Gain · ROI</div>
+                            <div style={{ color: "var(--bk-text-muted)", fontSize: 11 }}>Gain · ROI</div>
                             <div style={{ fontWeight: 900, fontSize: 13, color: roiColor }}>{money(s.gain)} · {s.roi != null ? `${s.roi >= 0 ? "+" : ""}${s.roi.toFixed(1)}%` : "—"}</div>
                           </div>
                           <button onClick={() => { if (window.confirm("Remove this sale record?")) setSoldSets(prev => prev.filter((_, j) => j !== i)); }}
-                            style={{ background: "none", border: "none", color: "#5d6f80", cursor: "pointer", fontWeight: 900, fontSize: 18 }}>×</button>
+                            style={{ background: "none", border: "none", color: "var(--bk-text-muted)", cursor: "pointer", fontWeight: 900, fontSize: 18 }}>×</button>
                         </div>
                       </div>
                     );
@@ -1963,7 +1963,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           {addOpen && (form.setNumber || form.name || form.theme || form.paidPrice || form.currentValue || form.notes) && (
             <button
               onClick={() => { setLookupData({}); setLookedUpNum(""); setForm({ setNumber: "", name: "", theme: "", condition: "new", qty: 1, paidPrice: "", msrp: "", currentValue: "", notes: "" }); setLookupMessage(""); setSetNumSuggestions([]); }}
-              style={{ background: "transparent", color: "#5d6f80", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "5px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+              style={{ background: "transparent", color: "var(--bk-text-muted)", border: "1px solid var(--bk-border)", borderRadius: 8, padding: "5px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
             >
               Reset
             </button>
@@ -1974,14 +1974,14 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         {addOpen && (<>
 
         {/* ── Mode toggle pill ── */}
-        <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.04)", borderRadius: 999, padding: 3, border: "1px solid rgba(255,255,255,0.07)", marginBottom: 16 }}>
+        <div style={{ display: "inline-flex", background: "var(--bk-surface-2)", borderRadius: 999, padding: 3, border: "1px solid var(--bk-border)", marginBottom: 16 }}>
           {[
             { label: "By Set Number", catalog: false },
             { label: "Search Catalog", catalog: true },
           ].map(m => (
             <button key={m.label}
               onClick={() => { setAddCatalogMode(m.catalog); if (!m.catalog) { setAddCatalogResults([]); setAddCatalogQuery(""); } }}
-              style={{ background: addCatalogMode === m.catalog ? "#c9a84c" : "transparent", color: addCatalogMode === m.catalog ? "#0d1623" : "#8a9bb0", border: "none", borderRadius: 999, padding: "7px 16px", fontWeight: 700, cursor: "pointer", fontSize: 13, transition: "all 0.15s" }}
+              style={{ background: addCatalogMode === m.catalog ? "var(--bk-action)" : "transparent", color: addCatalogMode === m.catalog ? "var(--bk-action-ink)" : "var(--bk-text-muted)", border: "none", borderRadius: 999, padding: "7px 16px", fontWeight: 700, cursor: "pointer", fontSize: 13, transition: "all 0.15s" }}
             >
               {m.label}
             </button>
@@ -1991,7 +1991,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         {/* ── Set number lookup ── */}
         {!addCatalogMode && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>Set Number or Name</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>Set Number or Name</div>
             <div style={{ display: "flex", gap: 8, position: "relative" }}>
               <div style={{ flex: 1, position: "relative" }}>
                 <input
@@ -2011,14 +2011,14 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                     if (stale) { setLookupData({}); setLookedUpNum(""); }
                   }}
                   onKeyDown={e => { if (e.key === "Enter") { setSetNumSuggestions([]); lookupSet(); } if (e.key === "Escape") setSetNumSuggestions([]); }}
-                  style={{ width: "100%", background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)" }}
+                  style={{ width: "100%", background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)" }}
                   autoComplete="off"
                 />
                 {/* Autocomplete dropdown */}
                 {(setNumSuggestions.length > 0 || setNumSuggestLoading) && (
-                  <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#0d1a2a", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, overflow: "hidden", zIndex: 200, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
+                  <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 10, overflow: "hidden", zIndex: 200, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
                     {setNumSuggestLoading && (
-                      <div style={{ padding: "10px 14px", fontSize: 13, color: "#5d6f80" }}>Searching…</div>
+                      <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--bk-text-muted)" }}>Searching…</div>
                     )}
                     {setNumSuggestions.map(s => {
                       const clean = String(s.setNumber || "").replace(/-1$/, "");
@@ -2031,18 +2031,18 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                             setSetNumSuggestions([]);
                             setTimeout(() => lookupSet(), 50);
                           }}
-                          style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", cursor: "pointer", borderBottom: "1px solid rgba(255,255,255,0.05)" }}
-                          onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                          style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", cursor: "pointer", borderBottom: "1px solid var(--bk-surface-2)" }}
+                          onMouseEnter={e => e.currentTarget.style.background = "var(--bk-surface-2)"}
                           onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                         >
                           <img src={s.thumbnail || `https://images.brickset.com/sets/small/${clean}-1.jpg`} alt=""
                             onError={e => { e.currentTarget.style.display = "none"; }}
-                            style={{ width: 44, height: 36, objectFit: "contain", borderRadius: 4, background: "#0b1520", flexShrink: 0 }} />
+                            style={{ width: 44, height: 36, objectFit: "contain", borderRadius: 4, background: "var(--bk-bg)", flexShrink: 0 }} />
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 700, fontSize: 13, color: "#e8e2d5", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
-                            <div style={{ fontSize: 11, color: "#5d6f80" }}>#{clean} · {s.theme} · {s.year}{s.pieces ? ` · ${s.pieces.toLocaleString()} pcs` : ""}{s.msrp ? ` · ${money(s.msrp)}` : ""}</div>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: "var(--bk-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
+                            <div style={{ fontSize: 11, color: "var(--bk-text-muted)" }}>#{clean} · {s.theme} · {s.year}{s.pieces ? ` · ${s.pieces.toLocaleString()} pcs` : ""}{s.msrp ? ` · ${money(s.msrp)}` : ""}</div>
                           </div>
-                          {inColl && <span style={{ fontSize: 10, color: "#c9a84c", fontWeight: 700, flexShrink: 0 }}>OWNED</span>}
+                          {inColl && <span style={{ fontSize: 10, color: "var(--bk-gold-ink)", fontWeight: 700, flexShrink: 0 }}>OWNED</span>}
                         </div>
                       );
                     })}
@@ -2050,22 +2050,22 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                 )}
               </div>
               <button onClick={() => { setSetNumSuggestions([]); lookupSet(); }} disabled={lookupLoading}
-                style={{ background: "transparent", color: lookupLoading ? "#5d6f80" : "#8a9bb0", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "0 16px", fontWeight: 700, cursor: lookupLoading ? "default" : "pointer", fontSize: 13, whiteSpace: "nowrap" }}>
+                style={{ background: "transparent", color: lookupLoading ? "var(--bk-text-muted)" : "var(--bk-text-muted)", border: "1px solid var(--bk-border)", borderRadius: 10, padding: "0 16px", fontWeight: 700, cursor: lookupLoading ? "default" : "pointer", fontSize: 13, whiteSpace: "nowrap" }}>
                 {lookupLoading ? "Searching…" : "Look Up"}
               </button>
             </div>
             {lookupMessage && (
-              <div style={{ marginTop: 8, fontSize: 13, color: lookupMessage.startsWith("Found") ? "#5aa832" : "#ff8b8b", display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ marginTop: 8, fontSize: 13, color: lookupMessage.startsWith("Found") ? "var(--bk-positive)" : "var(--bk-negative)", display: "flex", alignItems: "center", gap: 6 }}>
                 {lookupMessage.startsWith("Found") ? "✓" : "✗"} {lookupMessage}
               </div>
             )}
             {addDupeWarning === "collection" && (
-              <div style={{ marginTop: 8, background: "rgba(30,64,175,0.12)", border: "1px solid rgba(30,64,175,0.35)", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "#93c5fd" }}>
+              <div style={{ marginTop: 8, background: "var(--bk-surface-2)", border: "1px solid var(--bk-info)", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "var(--bk-info)" }}>
                 ℹ Already in your collection — adding as a new entry
               </div>
             )}
             {addDupeWarning === "watchlist" && (
-              <div style={{ marginTop: 8, background: "rgba(30,64,175,0.15)", border: "1px solid rgba(30,64,175,0.4)", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "#93c5fd" }}>
+              <div style={{ marginTop: 8, background: "var(--bk-surface-2)", border: "1px solid var(--bk-info)", borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "var(--bk-info)" }}>
                 ℹ On your Wanted List — adding won't remove it from the list
               </div>
             )}
@@ -2075,14 +2075,14 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         {/* ── Catalog search ── */}
         {addCatalogMode && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>Search</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>Search</div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input placeholder="Set name or theme…" value={addCatalogQuery}
                 onChange={e => setAddCatalogQuery(e.target.value)}
-                style={{ flex: 1, background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)" }} autoFocus />
-              {addCatalogLoading && <span style={{ color: "#8a9bb0", fontSize: 13, whiteSpace: "nowrap" }}>Searching…</span>}
+                style={{ flex: 1, background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)" }} autoFocus />
+              {addCatalogLoading && <span style={{ color: "var(--bk-text-muted)", fontSize: 13, whiteSpace: "nowrap" }}>Searching…</span>}
             </div>
-            {addCatalogError && <div style={{ color: "#ff8b8b", fontSize: 13, marginTop: 8 }}>{addCatalogError}</div>}
+            {addCatalogError && <div style={{ color: "var(--bk-negative)", fontSize: 13, marginTop: 8 }}>{addCatalogError}</div>}
             {addCatalogResults.length > 0 && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10, maxHeight: 380, overflowY: "auto", marginTop: 10 }}>
                 {addCatalogResults.map(s => {
@@ -2095,49 +2095,49 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         setAddCatalogMode(false); setAddCatalogResults([]); setAddCatalogQuery("");
                         setTimeout(() => lookupSet(), 50);
                       }}
-                      style={{ background: "#0f1a28", border: `1px solid ${inColl ? "rgba(234,179,8,0.4)" : "rgba(255,255,255,0.07)"}`, borderRadius: 10, padding: 10, cursor: "pointer" }}
-                      onMouseEnter={e => { e.currentTarget.style.border = "1px solid rgba(201,168,76,0.5)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.border = inColl ? "1px solid rgba(234,179,8,0.4)" : "1px solid rgba(255,255,255,0.07)"; }}
+                      style={{ background: "var(--bk-surface)", border: `1px solid ${inColl ? "var(--bk-gold)" : "var(--bk-border)"}`, borderRadius: 10, padding: 10, cursor: "pointer" }}
+                      onMouseEnter={e => { e.currentTarget.style.border = "1px solid var(--bk-gold-deep)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.border = inColl ? "1px solid var(--bk-gold)" : "1px solid var(--bk-border)"; }}
                     >
                       {s.thumbnail ? (
                         <img src={s.thumbnail} alt="" onError={e => { e.currentTarget.style.display = "none"; }}
-                          style={{ width: "100%", height: 72, objectFit: "contain", borderRadius: 6, background: "#0b1520", marginBottom: 6 }} />
-                      ) : <div style={{ width: "100%", height: 72, borderRadius: 6, background: "#0b1520", marginBottom: 6 }} />}
+                          style={{ width: "100%", height: 72, objectFit: "contain", borderRadius: 6, background: "var(--bk-bg)", marginBottom: 6 }} />
+                      ) : <div style={{ width: "100%", height: 72, borderRadius: 6, background: "var(--bk-bg)", marginBottom: 6 }} />}
                       <div style={{ fontWeight: 700, fontSize: 12, lineHeight: 1.3, marginBottom: 3 }}>{s.name}</div>
-                      <div style={{ color: "#5d6f80", fontSize: 11 }}>#{clean} · {s.year}</div>
-                      {s.pieces && <div style={{ color: "#5d6f80", fontSize: 11 }}>{s.pieces.toLocaleString()} pcs</div>}
-                      {s.msrp && <div style={{ color: "#c9a84c", fontWeight: 700, fontSize: 12, marginTop: 4 }}>{money(s.msrp)}</div>}
-                      {inColl && <div style={{ color: "#fbbf24", fontSize: 11, marginTop: 2 }}>✓ Already owned</div>}
+                      <div style={{ color: "var(--bk-text-muted)", fontSize: 11 }}>#{clean} · {s.year}</div>
+                      {s.pieces && <div style={{ color: "var(--bk-text-muted)", fontSize: 11 }}>{s.pieces.toLocaleString()} pcs</div>}
+                      {s.msrp && <div style={{ color: "var(--bk-gold-ink)", fontWeight: 700, fontSize: 12, marginTop: 4 }}>{money(s.msrp)}</div>}
+                      {inColl && <div style={{ color: "var(--bk-gold-ink)", fontSize: 11, marginTop: 2 }}>✓ Already owned</div>}
                     </div>
                   );
                 })}
               </div>
             )}
             {addCatalogQuery.length >= 2 && !addCatalogLoading && addCatalogResults.length === 0 && !addCatalogError && (
-              <div style={{ color: "#5d6f80", fontSize: 13, padding: "16px 0" }}>No results — try a different name.</div>
+              <div style={{ color: "var(--bk-text-muted)", fontSize: 13, padding: "16px 0" }}>No results — try a different name.</div>
             )}
           </div>
         )}
 
         {/* ── Divider ── */}
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", margin: "4px 0 18px" }} />
+        <div style={{ borderTop: "1px solid var(--bk-border)", margin: "4px 0 18px" }} />
 
         {/* ── Detail fields ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 16px", marginBottom: 20 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Set Name</span>
-            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Millennium Falcon" style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%" }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Set Name</span>
+            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Millennium Falcon" style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", width: "100%" }} />
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Theme</span>
-            <select value={form.theme} onChange={e => setForm({ ...form, theme: e.target.value })} style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%", color: "#e8e2d5", borderRadius: 8, padding: "7px 10px", fontSize: 13 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Theme</span>
+            <select value={form.theme} onChange={e => setForm({ ...form, theme: e.target.value })} style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", width: "100%", color: "var(--bk-text)", borderRadius: 8, padding: "7px 10px", fontSize: 13 }}>
               <option value="">— select —</option>
               {themes.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Condition</span>
-            <select value={form.condition} onChange={e => setForm({ ...form, condition: e.target.value })} style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Condition</span>
+            <select value={form.condition} onChange={e => setForm({ ...form, condition: e.target.value })} style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", width: "100%" }}>
               <option value="new">New</option>
               <option value="sealed">Sealed</option>
               <option value="used_as_new">Used — Like New</option>
@@ -2146,28 +2146,28 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             </select>
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Qty</span>
-            <input type="number" min="1" step="1" value={form.qty} onChange={e => setForm({ ...form, qty: e.target.value })} style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%" }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Qty</span>
+            <input type="number" min="1" step="1" value={form.qty} onChange={e => setForm({ ...form, qty: e.target.value })} style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", width: "100%" }} />
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Paid Price</span>
-            <input type="number" min="0" step="0.01" value={form.paidPrice} onChange={e => setForm({ ...form, paidPrice: e.target.value })} placeholder="0.00" style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%" }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Paid Price</span>
+            <input type="number" min="0" step="0.01" value={form.paidPrice} onChange={e => setForm({ ...form, paidPrice: e.target.value })} placeholder="0.00" style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", width: "100%" }} />
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>MSRP <span style={{ color: "#3d4f60", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— retail</span></span>
-            <input type="number" min="0" step="0.01" value={form.msrp} onChange={e => setForm({ ...form, msrp: e.target.value })} placeholder="0.00" style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%" }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>MSRP <span style={{ color: "var(--bk-text-muted)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— retail</span></span>
+            <input type="number" min="0" step="0.01" value={form.msrp} onChange={e => setForm({ ...form, msrp: e.target.value })} placeholder="0.00" style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", width: "100%" }} />
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Current Value</span>
-            <input type="number" min="0" step="0.01" value={form.currentValue} onChange={e => setForm({ ...form, currentValue: e.target.value })} placeholder="0.00" style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%" }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Current Value</span>
+            <input type="number" min="0" step="0.01" value={form.currentValue} onChange={e => setForm({ ...form, currentValue: e.target.value })} placeholder="0.00" style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", width: "100%" }} />
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Notes <span style={{ color: "#3d4f60", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— optional</span></span>
-            <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Any notes about this set…" style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", width: "100%" }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Notes <span style={{ color: "var(--bk-text-muted)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— optional</span></span>
+            <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Any notes about this set…" style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", width: "100%" }} />
           </label>
         </div>
 
-        <button onClick={addSet} style={{ ...actionBtn, width: "100%", padding: "13px", fontSize: 15, letterSpacing: 0.3 }}>
+        <button onClick={addSet} className="bk-action-btn" style={{ ...actionBtn, width: "100%", padding: "13px", fontSize: 15, letterSpacing: 0.3 }}>
           Add to Collection
         </button>
         </>)}
@@ -2199,36 +2199,36 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       )}
 
       {hoveredWatchItem && (
-        <div style={{ position: "fixed", left: tipPos.x > window.innerWidth - 280 ? tipPos.x - 256 : tipPos.x + 16, top: tipPos.y > window.innerHeight - 230 ? tipPos.y - 215 : tipPos.y - 8, zIndex: 9999, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "10px 14px", pointerEvents: "none", boxShadow: "0 8px 32px rgba(0,0,0,0.55)", minWidth: 240 }}>
+        <div style={{ position: "fixed", left: tipPos.x > window.innerWidth - 280 ? tipPos.x - 256 : tipPos.x + 16, top: tipPos.y > window.innerHeight - 230 ? tipPos.y - 215 : tipPos.y - 8, zIndex: 9999, background: "var(--bk-bg)", border: "1px solid var(--bk-border)", borderRadius: 10, padding: "10px 14px", pointerEvents: "none", boxShadow: "0 8px 32px rgba(0,0,0,0.55)", minWidth: 240 }}>
           <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
             <img src={setImageUrl(hoveredWatchItem.setNumber)} alt="" onError={e => { e.currentTarget.style.display = "none"; }}
-              style={{ width: 72, height: 72, objectFit: "contain", borderRadius: 8, background: "#111d2e", border: "1px solid rgba(255,255,255,0.07)", flexShrink: 0 }} />
+              style={{ width: 72, height: 72, objectFit: "contain", borderRadius: 8, background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, color: "#e8e2d5", marginBottom: 6, fontSize: 13 }}>{hoveredWatchItem.name || hoveredWatchItem.setNumber || "Set"}</div>
+              <div style={{ fontWeight: 700, color: "var(--bk-text)", marginBottom: 6, fontSize: 13 }}>{hoveredWatchItem.name || hoveredWatchItem.setNumber || "Set"}</div>
               <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "3px 12px", fontSize: 12 }}>
-                {hoveredWatchItem.setNumber && <><span style={{ color: "#5d6f80" }}>Set #</span><span style={{ color: "#e8e2d5" }}>{hoveredWatchItem.setNumber}</span></>}
-                {hoveredWatchItem.theme && <><span style={{ color: "#5d6f80" }}>Theme</span><span style={{ color: "#e8e2d5" }}>{hoveredWatchItem.theme}</span></>}
-                {hoveredWatchItem.msrp > 0 && <><span style={{ color: "#5d6f80" }}>MSRP</span><span style={{ color: "#c9a84c", fontWeight: 700 }}>{money(hoveredWatchItem.msrp)}</span></>}
-                {hoveredWatchItem.targetPrice > 0 && <><span style={{ color: "#5d6f80" }}>Target</span><span style={{ color: "#e8e2d5" }}>{money(hoveredWatchItem.targetPrice)}</span></>}
-                {hoveredWatchItem.status && <><span style={{ color: "#5d6f80" }}>Status</span><span style={{ color: hoveredWatchItem.status === "Critical" ? "#ef4444" : hoveredWatchItem.status === "Buy Soon" ? "#f59e0b" : "#e8e2d5" }}>{hoveredWatchItem.status}</span></>}
-                <span style={{ color: "#5d6f80" }}>Score</span><span style={{ color: "#e8e2d5", fontWeight: 700 }}>{hoveredWatchItem._score}</span>
-                {hoveredWatchItem.retiringSoon && <><span style={{ color: "#5d6f80" }}>Retiring</span><span style={{ color: "#f59e0b" }}>⚠ Soon</span></>}
+                {hoveredWatchItem.setNumber && <><span style={{ color: "var(--bk-text-muted)" }}>Set #</span><span style={{ color: "var(--bk-text)" }}>{hoveredWatchItem.setNumber}</span></>}
+                {hoveredWatchItem.theme && <><span style={{ color: "var(--bk-text-muted)" }}>Theme</span><span style={{ color: "var(--bk-text)" }}>{hoveredWatchItem.theme}</span></>}
+                {hoveredWatchItem.msrp > 0 && <><span style={{ color: "var(--bk-text-muted)" }}>MSRP</span><span style={{ color: "var(--bk-gold-ink)", fontWeight: 700 }}>{money(hoveredWatchItem.msrp)}</span></>}
+                {hoveredWatchItem.targetPrice > 0 && <><span style={{ color: "var(--bk-text-muted)" }}>Target</span><span style={{ color: "var(--bk-text)" }}>{money(hoveredWatchItem.targetPrice)}</span></>}
+                {hoveredWatchItem.status && <><span style={{ color: "var(--bk-text-muted)" }}>Status</span><span style={{ color: hoveredWatchItem.status === "Critical" ? "var(--bk-negative)" : hoveredWatchItem.status === "Buy Soon" ? "var(--bk-warning)" : "var(--bk-text)" }}>{hoveredWatchItem.status}</span></>}
+                <span style={{ color: "var(--bk-text-muted)" }}>Score</span><span style={{ color: "var(--bk-text)", fontWeight: 700 }}>{hoveredWatchItem._score}</span>
+                {hoveredWatchItem.retiringSoon && <><span style={{ color: "var(--bk-text-muted)" }}>Retiring</span><span style={{ color: "var(--bk-warning)" }}>⚠ Soon</span></>}
               </div>
             </div>
           </div>
-          <div style={{ marginTop: 8, fontSize: 11, color: "#5d6f80", borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 6 }}>click for details</div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "var(--bk-text-muted)", borderTop: "1px solid var(--bk-border)", paddingTop: 6 }}>click for details</div>
         </div>
       )}
 
       {tab === "overview" && sets.length > 0 && retirementAlertsForOwned.length > 0 && (
-        <div style={{ background: "#1a0a00", border: "1px solid #92400e", borderRadius: 12, padding: "14px 16px", marginTop: 10, order: 2, minWidth: 0 }}>
+        <div style={{ background: "var(--bk-warning-bg)", border: "1px solid var(--bk-warning-bg)", borderRadius: 12, padding: "14px 16px", marginTop: 10, order: 2, minWidth: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontWeight: 800, color: "#f59e0b", fontSize: 14 }}>
+            <div style={{ fontWeight: 800, color: "var(--bk-warning)", fontSize: 14 }}>
               ⚠ {retirementAlertsForOwned.length} owned {retirementAlertsForOwned.length === 1 ? "set" : "sets"} retiring soon — sell window open
             </div>
             <button
               onClick={() => { const codes = retirementAlertsForOwned.map(s => String(s.setNumber || "").replace(/-1$/, "")); setRetireDismissed(prev => [...new Set([...prev, ...codes])]); }}
-              style={{ background: "none", border: "none", color: "#8a9bb0", cursor: "pointer", fontSize: 18, fontWeight: 900, flexShrink: 0, padding: "0 4px" }}
+              style={{ background: "none", border: "none", color: "var(--bk-text-muted)", cursor: "pointer", fontSize: 18, fontWeight: 900, flexShrink: 0, padding: "0 4px" }}
             >×</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -2243,28 +2243,28 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               const clean = String(s.setNumber || "").replace(/-1$/, "");
               const blUrl = `https://www.bricklink.com/v2/catalog/catalogitem.page?S=${clean}-1#T=S&O={"ss":"US"}`;
               return (
-                <div key={s.setNumber} style={{ background: "#2a0d00", border: "1px solid #78350f", borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div key={s.setNumber} style={{ background: "var(--bk-warning-bg)", border: "1px solid var(--bk-warning-bg)", borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, color: "#e8e2d5", fontSize: 13, marginBottom: 5 }}>
+                    <div style={{ fontWeight: 700, color: "var(--bk-text)", fontSize: 13, marginBottom: 5 }}>
                       {s.name || s.setNumber}
-                      <span style={{ marginLeft: 8, fontSize: 11, color: "#8a9bb0", fontWeight: 400 }}>#{clean}</span>
+                      <span style={{ marginLeft: 8, fontSize: 11, color: "var(--bk-text-muted)", fontWeight: 400 }}>#{clean}</span>
                     </div>
                     <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-                      {paid  > 0 && <span style={{ fontSize: 12, color: "#8a9bb0" }}>Paid <strong style={{ color: "#e8e2d5" }}>{money(paid)}</strong></span>}
-                      {value !== null && <span style={{ fontSize: 12, color: "#8a9bb0" }}>Market <strong style={{ color: "#c9a84c" }}>{formatValue(value)}</strong></span>}
+                      {paid  > 0 && <span style={{ fontSize: 12, color: "var(--bk-text-muted)" }}>Paid <strong style={{ color: "var(--bk-text)" }}>{money(paid)}</strong></span>}
+                      {value !== null && <span style={{ fontSize: 12, color: "var(--bk-text-muted)" }}>Market <strong style={{ color: "var(--bk-gold-ink)" }}>{formatValue(value)}</strong></span>}
                       {gain !== null && roi !== null && (
-                        <span style={{ fontSize: 12, fontWeight: 700, color: gain >= 0 ? "#5aa832" : "#ff8b8b" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: signColor(gain) }}>
                           {gain >= 0 ? "+" : ""}{money(gain)} ({roi >= 0 ? "+" : ""}{roi.toFixed(1)}%)
                         </span>
                       )}
                     </div>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: s.alertType === "lastchance" ? "#ef4444" : "#f59e0b" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: s.alertType === "lastchance" ? "var(--bk-negative)" : "var(--bk-warning)" }}>
                       {s.alertType === "lastchance" ? "🚨 Last Chance" : `${s.days}d left`}
                     </span>
                     <a href={blUrl} target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: 12, color: "#3b82f6", textDecoration: "none", fontWeight: 700 }}>
+                      style={{ fontSize: 12, color: "var(--bk-info)", textDecoration: "none", fontWeight: 700 }}>
                       Sell on BrickLink ↗
                     </a>
                   </div>
@@ -2272,7 +2272,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               );
             })}
             {retirementAlertsForOwned.length > 5 && (
-              <div style={{ fontSize: 12, color: "#8a9bb0", padding: "4px 2px" }}>
+              <div style={{ fontSize: 12, color: "var(--bk-text-muted)", padding: "4px 2px" }}>
                 +{retirementAlertsForOwned.length - 5} more sets retiring soon
               </div>
             )}
@@ -2334,22 +2334,22 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                 ? `Last run: ${rbEnrichResult} fields filled — click to re-run`
                 : "Fill missing pieces / theme / name from local Rebrickable catalog (no API call)"}
               style={{
-                background: rbEnrichResult ? "rgba(90,168,50,0.08)" : "rgba(255,255,255,0.05)",
-                border: `1px solid ${rbEnrichResult ? "rgba(90,168,50,0.25)" : "rgba(255,255,255,0.1)"}`,
-                color: rbEnriching ? "#5d6f80" : rbEnrichResult ? "#5aa832" : "#8a9bb0",
+                background: rbEnrichResult ? "var(--bk-positive-bg)" : "var(--bk-surface-2)",
+                border: `1px solid ${rbEnrichResult ? "var(--bk-positive)" : "var(--bk-border)"}`,
+                color: rbEnriching ? "var(--bk-text-muted)" : rbEnrichResult ? "var(--bk-positive)" : "var(--bk-text-muted)",
                 borderRadius: 8, padding: "5px 10px", cursor: rbEnriching ? "not-allowed" : "pointer",
                 fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
               }}
             >
               {rbEnriching ? "…" : rbEnrichResult !== null ? `✓ Filled (${rbEnrichResult})` : "Rebrickable Fill"}
             </button>
-            <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.1)", alignSelf: "center", margin: "0 2px", flexShrink: 0 }} />
-            <div style={{ display: "flex", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden", flexShrink: 0 }} title="Row density — compact shows Market only (MSRP / Paid on hover); full shows all three">
+            <div style={{ width: 1, height: 16, background: "var(--bk-border)", alignSelf: "center", margin: "0 2px", flexShrink: 0 }} />
+            <div style={{ display: "flex", border: "1px solid var(--bk-border)", borderRadius: 8, overflow: "hidden", flexShrink: 0 }} title="Row density — compact shows Market only (MSRP / Paid on hover); full shows all three">
               {[["compact", "Compact"], ["full", "Full"]].map(([val, label]) => (
                 <button
                   key={val}
                   onClick={() => setRowDensity(val)}
-                  style={{ background: rowDensity === val ? "rgba(201,168,76,0.15)" : "transparent", color: rowDensity === val ? "#c9a84c" : "#8a9bb0", border: "none", padding: "5px 9px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}
+                  style={{ background: rowDensity === val ? "var(--bk-active)" : "transparent", color: rowDensity === val ? "var(--bk-gold-ink)" : "var(--bk-text-muted)", border: "none", padding: "5px 9px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}
                 >
                   {label}
                 </button>
@@ -2358,7 +2358,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             <div style={{ position: "relative" }}>
               <button
                 onClick={() => setOwnedColumnsOpen(prev => !prev)}
-                style={{ ...hoverCtrlBtn, color: ownedColumnsOpen ? "#c9a84c" : "#8a9bb0", padding: "5px 8px", display: "flex", alignItems: "center" }}
+                style={{ ...hoverCtrlBtn, color: ownedColumnsOpen ? "var(--bk-gold-ink)" : "var(--bk-text-muted)", padding: "5px 8px", display: "flex", alignItems: "center" }}
                 title={`Column visibility — ${ownedColumns.filter(c => c.visible).length} of ${ownedColumns.length} shown`}
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
@@ -2371,20 +2371,20 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               {ownedColumnsOpen && (
               <>
                 <div onClick={() => setOwnedColumnsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 39 }} />
-                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 40, background: "#0b1520", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, padding: "12px 16px", minWidth: 190, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
+                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 40, background: "var(--bk-bg)", border: "1px solid var(--bk-border)", borderRadius: 10, padding: "12px 16px", minWidth: 190, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    <span style={{ color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Columns</span>
-                    <button onClick={() => setColumnWidths({ ...OWNED_COL_WIDTHS })} style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "#8a9bb0", fontSize: 11, cursor: "pointer", padding: "2px 7px" }} title="Reset all column widths to defaults">Reset widths</button>
+                    <span style={{ color: "var(--bk-text-muted)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Columns</span>
+                    <button onClick={() => setColumnWidths({ ...OWNED_COL_WIDTHS })} style={{ background: "none", border: "1px solid var(--bk-border)", borderRadius: 6, color: "var(--bk-text-muted)", fontSize: 11, cursor: "pointer", padding: "2px 7px" }} title="Reset all column widths to defaults">Reset widths</button>
                   </div>
                   {ownedColumns.map((col, i) => (
                     <div key={col.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, cursor: "pointer", color: col.visible ? "#e8e2d5" : "#5d6f80", fontSize: 13 }}>
-                        <input type="checkbox" checked={col.visible} onChange={() => toggleOwnedColumn(col.key)} style={{ accentColor: "#c9a84c" }} />
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, cursor: "pointer", color: col.visible ? "var(--bk-text)" : "var(--bk-text-muted)", fontSize: 13 }}>
+                        <input type="checkbox" checked={col.visible} onChange={() => toggleOwnedColumn(col.key)} style={{ accentColor: "var(--bk-gold)" }} />
                         {col.label}
                       </label>
                       <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                        <button onClick={() => moveOwnedColumn(col.key, -1)} disabled={i === 0} style={{ background: "none", border: "none", color: i === 0 ? "#2a3a4a" : "#8a9bb0", cursor: i === 0 ? "default" : "pointer", padding: "0 2px", fontSize: 10, lineHeight: 1 }}>▲</button>
-                        <button onClick={() => moveOwnedColumn(col.key, 1)} disabled={i === ownedColumns.length - 1} style={{ background: "none", border: "none", color: i === ownedColumns.length - 1 ? "#2a3a4a" : "#8a9bb0", cursor: i === ownedColumns.length - 1 ? "default" : "pointer", padding: "0 2px", fontSize: 10, lineHeight: 1 }}>▼</button>
+                        <button onClick={() => moveOwnedColumn(col.key, -1)} disabled={i === 0} style={{ background: "none", border: "none", color: i === 0 ? "var(--bk-disabled-tx)" : "var(--bk-text-muted)", cursor: i === 0 ? "default" : "pointer", padding: "0 2px", fontSize: 10, lineHeight: 1 }}>▲</button>
+                        <button onClick={() => moveOwnedColumn(col.key, 1)} disabled={i === ownedColumns.length - 1} style={{ background: "none", border: "none", color: i === ownedColumns.length - 1 ? "var(--bk-disabled-tx)" : "var(--bk-text-muted)", cursor: i === ownedColumns.length - 1 ? "default" : "pointer", padding: "0 2px", fontSize: 10, lineHeight: 1 }}>▼</button>
                       </div>
                     </div>
                   ))}
@@ -2410,7 +2410,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             <button
               onClick={deleteCheckedSets}
               style={{
-                background: "#7f1d1d",
+                background: "var(--bk-negative-bg)",
                 color: "white",
                 border: "none",
                 borderRadius: 8,
@@ -2426,9 +2426,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         )}
 
         {sets.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "48px 20px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 12, marginTop: 12 }}>
-            <div style={{ fontWeight: 700, fontSize: 15, color: "#8a9bb0", marginBottom: 6 }}>Your collection is empty</div>
-            <div style={{ fontSize: 13, color: "#5d6f80" }}>Sync from BrickEconomy in Settings → Data, or use the form above to add your first set.</div>
+          <div style={{ textAlign: "center", padding: "48px 20px", background: "var(--bk-surface-2)", border: "1px dashed var(--bk-border)", borderRadius: 12, marginTop: 12 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "var(--bk-text-muted)", marginBottom: 6 }}>Your collection is empty</div>
+            <div style={{ fontSize: 13, color: "var(--bk-text-muted)" }}>Sync from BrickEconomy in Settings → Data, or use the form above to add your first set.</div>
           </div>
         ) : (
           <div style={{
@@ -2472,7 +2472,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         onClick={() => { setDetailSet(openSetDetail(set.setNumber) || set); setDetailSetIndex(index); }}
                         style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vrow.start - cardScrollMargin}px)`, paddingBottom: 8 }}
                       >
-                        <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "12px 14px", cursor: "pointer", display: "flex", flexDirection: "column", gap: 8 }}>
+                        <div style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", borderRadius: 12, padding: "12px 14px", cursor: "pointer", display: "flex", flexDirection: "column", gap: 8 }}>
                           {/* Header: checkbox · name · ROI badge */}
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                             <input
@@ -2480,21 +2480,21 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                               checked={checkedSets.includes(index)}
                               onChange={() => toggleChecked(index)}
                               onClick={e => e.stopPropagation()}
-                              style={{ accentColor: "#c9a84c", flexShrink: 0 }}
+                              style={{ accentColor: "var(--bk-gold)", flexShrink: 0 }}
                             />
                             {colByKey.thumb && (
                               <img src={set.thumbnail || setImageUrl(set.setNumber)} alt="" onError={e => { e.currentTarget.style.opacity = "0"; }} style={{ width: 40, height: 30, objectFit: "contain", borderRadius: 4, flexShrink: 0 }} />
                             )}
-                            <div style={{ flex: 1, minWidth: 0, fontWeight: 800, fontSize: 14, color: "#e8e2d5", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <div style={{ flex: 1, minWidth: 0, fontWeight: 800, fontSize: 14, color: "var(--bk-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {colByKey.name ? renderOwnedCell(set, colByKey.name) : (set.name || "—")}
                             </div>
                             {colByKey.roi && (roiLabel !== "—"
                               ? <span style={{ background: `${roiColor}1a`, color: roiColor, borderRadius: 6, padding: "2px 8px", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{roiLabel}</span>
-                              : <span style={{ color: "#5d6f80", flexShrink: 0 }}>—</span>)}
+                              : <span style={{ color: "var(--bk-text-muted)", flexShrink: 0 }}>—</span>)}
                           </div>
                           {/* Sub-line: set# · theme · condition */}
                           {(colByKey.setNumber || colByKey.theme || colByKey.condition) && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: "#8a9bb0" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: "var(--bk-text-muted)" }}>
                             {colByKey.setNumber && <span style={{ fontFamily: "var(--bk-font-mono)" }}>{renderOwnedCell(set, colByKey.setNumber)}</span>}
                             {colByKey.theme && <span>· {renderOwnedCell(set, colByKey.theme)}</span>}
                             {colByKey.condition && <ConditionPill set={set} />}
@@ -2505,30 +2505,30 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                             {colByKey.value && (
                               <div style={{ minWidth: 0 }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 2 }}>Value</div>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 2 }}>Value</div>
                                 {renderOwnedCell(set, colByKey.value)}
                               </div>
                             )}
                             {colByKey.gain && (
                               <div>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 2 }}>Gain</div>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 2 }}>Gain</div>
                                 <div style={{ fontWeight: 700, fontSize: 13, color: signColor(setGain(set, valueMap)) }}>{renderOwnedCell(set, colByKey.gain)}</div>
                               </div>
                             )}
                             {colByKey.qty && (
                               <div style={{ marginLeft: "auto" }}>
-                                <span style={{ background: "rgba(255,255,255,0.06)", borderRadius: 999, padding: "2px 10px", fontSize: 12, fontWeight: 700, color: "#c9d4e0" }}>×{qty}</span>
+                                <span style={{ background: "var(--bk-border)", borderRadius: 999, padding: "2px 10px", fontSize: 12, fontWeight: 700, color: "var(--bk-text)" }}>×{qty}</span>
                               </div>
                             )}
                           </div>
                           )}
                           {/* Any other enabled column (minifigs / dates / notes) — column-show maps to the card */}
                           {extraCols.length > 0 && (
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 14px", fontSize: 11.5, color: "#8a9bb0" }}>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 14px", fontSize: 11.5, color: "var(--bk-text-muted)" }}>
                               {extraCols.map(c => {
                                 const val = renderOwnedCell(set, c);
                                 if (val === "" || val == null) return null;
-                                return <span key={c.key}><span style={{ color: "#5d6f80" }}>{c.label}:</span> {val}</span>;
+                                return <span key={c.key}><span style={{ color: "var(--bk-text-muted)" }}>{c.label}:</span> {val}</span>;
                               })}
                             </div>
                           )}
@@ -2576,7 +2576,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                       onClick={() => sortHeader(col.key)}
                       title="Click to sort · Drag label to reorder · Drag right edge to resize"
                     >
-                      <span style={{ color: "rgba(255,255,255,0.22)", fontSize: 9, marginRight: 3, letterSpacing: -1 }}>⠿</span>
+                      <span style={{ color: "var(--bk-border)", fontSize: 9, marginRight: 3, letterSpacing: -1 }}>⠿</span>
                       {sortLabel(col.label, col.key)}
                       <div
                         onMouseDown={e => startResize(col.key, e)}
@@ -2586,7 +2586,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                           cursor: "col-resize", zIndex: 10,
                           borderRight: "2px solid transparent",
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.borderRightColor = "rgba(201,168,76,0.6)"; }}
+                        onMouseEnter={e => { e.currentTarget.style.borderRightColor = "var(--bk-gold-deep)"; }}
                         onMouseLeave={e => { e.currentTarget.style.borderRightColor = "transparent"; }}
                       />
                     </th>
@@ -2615,20 +2615,20 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                       ref={ownedRowVirtualizer.measureElement}
                       onClick={() => { setDetailSet(openSetDetail(set.setNumber) || set); setDetailSetIndex(index); }}
                       onMouseEnter={e => {
-                        if (selectedSetIndex !== index) e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                        if (selectedSetIndex !== index) e.currentTarget.style.background = "var(--bk-surface-2)";
                         setHoveredSet(set);
                       }}
                       onMouseLeave={e => {
-                        e.currentTarget.style.background = selectedSetIndex === index ? "#332500" : "transparent";
+                        e.currentTarget.style.background = selectedSetIndex === index ? "var(--bk-active)" : "transparent";
                         setHoveredSet(null);
                       }}
                       style={{
                         cursor: "pointer",
-                        background: selectedSetIndex === index ? "#332500" : "transparent",
+                        background: selectedSetIndex === index ? "var(--bk-active)" : "transparent",
                         transition: "background 0.12s ease"
                       }}
                     >
-                      <td style={{ ...td, ...stickyCheckbox, borderLeft: hoveredSet === set ? "2px solid #c9a84c" : "2px solid transparent", transition: "border-color 0.12s ease" }} onClick={e => e.stopPropagation()}>
+                      <td style={{ ...td, ...stickyCheckbox, borderLeft: hoveredSet === set ? "2px solid var(--bk-gold)" : "2px solid transparent", transition: "border-color 0.12s ease" }} onClick={e => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={checkedSets.includes(index)}
@@ -2683,7 +2683,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                                     if (e.key === "Enter")  { updateSet(index, "qty", inlineEdit.value); setInlineEdit(null); }
                                     if (e.key === "Escape") setInlineEdit(null);
                                   }}
-                                  style={{ width: 50, background: "#0d1a2a", border: "1px solid rgba(201,168,76,0.5)", borderRadius: 6, color: "#e8e2d5", fontSize: 13, padding: "2px 6px", outline: "none", textAlign: "right" }}
+                                  style={{ width: 50, background: "var(--bk-surface)", border: "1px solid var(--bk-gold-deep)", borderRadius: 6, color: "var(--bk-text)", fontSize: 13, padding: "2px 6px", outline: "none", textAlign: "right" }}
                                 />
                               </td>
                             );
@@ -2707,7 +2707,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                             <td key="roi" style={tdRight}>
                               {label !== "—"
                                 ? <span style={{ background: `${roiColor}1a`, color: roiColor, borderRadius: 6, padding: "2px 7px", fontSize: 12, fontWeight: 700 }}>{label}</span>
-                                : <span style={{ color: "#5d6f80" }}>—</span>}
+                                : <span style={{ color: "var(--bk-text-muted)" }}>—</span>}
                             </td>
                           );
                         }
@@ -2726,7 +2726,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                             }
                           >
                             {col.key === "name"
-                              ? <span style={{ color: hoveredSet === set ? "#c9a84c" : undefined, transition: "color 0.15s" }}>{renderOwnedCell(set, col)}</span>
+                              ? <span style={{ color: hoveredSet === set ? "var(--bk-gold-ink)" : undefined, transition: "color 0.15s" }}>{renderOwnedCell(set, col)}</span>
                               : renderOwnedCell(set, col)}
                           </td>
                         );
@@ -2747,14 +2747,14 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             {selectedSetIndex !== null && sets[selectedSetIndex] && (
               <div style={{ ...editPanel, position: "sticky", top: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#e8e2d5" }}>Edit Set</h3>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "var(--bk-text)" }}>Edit Set</h3>
                   <button onClick={() => setSelectedSetIndex(null)} style={circleButton}>×</button>
                 </div>
 
                 {(() => {
                   const s = sets[selectedSetIndex];
-                  const lbl = { fontSize: 10, fontWeight: 700, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 5, display: "block" };
-                  const inp = { width: "100%", background: "#0d1a2a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e8e2d5", fontSize: 13, padding: "7px 10px", outline: "none", boxSizing: "border-box" };
+                  const lbl = { fontSize: 10, fontWeight: 700, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 5, display: "block" };
+                  const inp = { width: "100%", background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)", fontSize: 13, padding: "7px 10px", outline: "none", boxSizing: "border-box" };
                   const row = { display: "grid", gap: 10, marginBottom: 10 };
                   const isUsed = String(s.condition || "new").startsWith("used");
                   return (
@@ -2777,10 +2777,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                         <label>
                           <span style={lbl}>Condition</span>
                           <div style={{ display: "flex", gap: 4, marginTop: 1 }}>
-                            {[["new","New","#5aa832"],["used","Used","#f59e0b"]].map(([val, label, color]) => (
+                            {[["new","New","var(--bk-cat-3)"],["used","Used","var(--bk-cat-1)"]].map(([val, label, color]) => (
                               <button key={val}
                                 onClick={() => updateSet(selectedSetIndex, "condition", val)}
-                                style={{ border: `1px solid ${(!isUsed && val==="new") || (isUsed && val==="used") ? color : "rgba(255,255,255,0.1)"}`, borderRadius: 8, padding: "7px 14px", fontWeight: 700, fontSize: 12, cursor: "pointer", background: (!isUsed && val==="new") || (isUsed && val==="used") ? `${color}22` : "transparent", color: (!isUsed && val==="new") || (isUsed && val==="used") ? color : "#5d6f80", transition: "all 0.12s" }}
+                                style={{ border: `1px solid ${(!isUsed && val==="new") || (isUsed && val==="used") ? color : "var(--bk-border)"}`, borderRadius: 8, padding: "7px 14px", fontWeight: 700, fontSize: 12, cursor: "pointer", background: (!isUsed && val==="new") || (isUsed && val==="used") ? `${color}22` : "transparent", color: (!isUsed && val==="new") || (isUsed && val==="used") ? color : "var(--bk-text-muted)", transition: "all 0.12s" }}
                               >{label}</button>
                             ))}
                           </div>
@@ -2809,13 +2809,13 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                   <button onClick={() => setSelectedSetIndex(null)}>Done</button>
                   <button
                     onClick={() => { setSellModal(v => !v); setSellPrice(""); setSellNotes(""); }}
-                    style={{ background: "transparent", border: "1px solid rgba(239,68,68,0.4)", color: "#ef4444", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                    style={{ background: "transparent", border: "1px solid var(--bk-negative)", color: "var(--bk-negative)", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
                   >Mark as Sold</button>
                 </div>
 
                 {sellModal && (
-                  <div style={{ marginTop: 14, background: "#0f1a28", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 10, padding: 14 }}>
-                    <div style={{ fontWeight: 800, color: "#ef4444", marginBottom: 10, fontSize: 13 }}>Log Sale</div>
+                  <div style={{ marginTop: 14, background: "var(--bk-surface)", border: "1px solid var(--bk-negative)", borderRadius: 10, padding: 14 }}>
+                    <div style={{ fontWeight: 800, color: "var(--bk-negative)", marginBottom: 10, fontSize: 13 }}>Log Sale</div>
                     <div style={formGrid}>
                       <label>
                         Sold Price ($)
@@ -2831,7 +2831,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                       </label>
                     </div>
                     <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                      <button onClick={() => logSale(selectedSetIndex)} style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: 10, padding: "8px 18px", fontWeight: 800, cursor: "pointer" }}>
+                      <button onClick={() => logSale(selectedSetIndex)} style={{ background: "var(--bk-negative)", color: "#fff", border: "none", borderRadius: 10, padding: "8px 18px", fontWeight: 800, cursor: "pointer" }}>
                         Confirm Sale
                       </button>
                       <button onClick={() => setSellModal(false)} style={ghostBtn}>Cancel</button>
@@ -2850,12 +2850,12 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
       {purchaseModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
           onClick={e => { if (e.target === e.currentTarget) setPurchaseModal(null); }}>
-          <div style={{ background: "#0d1a2a", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, padding: 24, width: "100%", maxWidth: 440, boxShadow: "0 16px 48px rgba(0,0,0,0.7)" }}>
+          <div style={{ background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 14, padding: 24, width: "100%", maxWidth: 440, boxShadow: "0 16px 48px rgba(0,0,0,0.7)" }}>
             {/* Header */}
             <div style={{ marginBottom: 18 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 }}>Log Purchase</div>
-              <div style={{ fontWeight: 800, fontSize: 16, color: "#e8e2d5" }}>{purchaseModal.name || purchaseModal.setNumber}</div>
-              <div style={{ fontSize: 12, color: "#5d6f80", marginTop: 2 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 }}>Log Purchase</div>
+              <div style={{ fontWeight: 800, fontSize: 16, color: "var(--bk-text)" }}>{purchaseModal.name || purchaseModal.setNumber}</div>
+              <div style={{ fontSize: 12, color: "var(--bk-text-muted)", marginTop: 2 }}>
                 #{purchaseModal.setNumber} · Qty {purchaseModal.qty} · {money(purchaseModal.price)} ea
               </div>
             </div>
@@ -2863,37 +2863,37 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
             {/* Fields */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 18 }}>
               <label style={{ display: "flex", flexDirection: "column", gap: 5, gridColumn: "1 / -1" }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Store</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Store</span>
                 <select value={pmForm.store} onChange={e => setPmForm(p => ({ ...p, store: e.target.value }))}
-                  style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "#e8e2d5", padding: "8px 10px", fontSize: 14, width: "100%" }}>
+                  style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)", padding: "8px 10px", fontSize: 14, width: "100%" }}>
                   <option value="">— select store —</option>
                   {savedStores.map(s => <option key={s}>{s}</option>)}
                 </select>
               </label>
               <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Date</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Date</span>
                 <input type="date" value={pmForm.date} onChange={e => setPmForm(p => ({ ...p, date: e.target.value }))}
-                  style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "#e8e2d5", padding: "8px 10px", fontSize: 14, width: "100%" }} />
+                  style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)", padding: "8px 10px", fontSize: 14, width: "100%" }} />
               </label>
               <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Order #</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Order #</span>
                 <input placeholder="optional" value={pmForm.orderLabel} onChange={e => setPmForm(p => ({ ...p, orderLabel: e.target.value }))}
-                  style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "#e8e2d5", padding: "8px 10px", fontSize: 14, width: "100%" }} />
+                  style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)", padding: "8px 10px", fontSize: 14, width: "100%" }} />
               </label>
               <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Tax / Fee</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Tax / Fee</span>
                 <input type="number" min="0" step="0.01" placeholder="0.00" value={pmForm.tax} onChange={e => setPmForm(p => ({ ...p, tax: e.target.value }))}
-                  style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "#e8e2d5", padding: "8px 10px", fontSize: 14, width: "100%" }} />
+                  style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)", padding: "8px 10px", fontSize: 14, width: "100%" }} />
               </label>
               <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>Shipping</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Shipping</span>
                 <input type="number" min="0" step="0.01" placeholder="0.00" value={pmForm.shipping} onChange={e => setPmForm(p => ({ ...p, shipping: e.target.value }))}
-                  style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "#e8e2d5", padding: "8px 10px", fontSize: 14, width: "100%" }} />
+                  style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)", padding: "8px 10px", fontSize: 14, width: "100%" }} />
               </label>
               <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6 }}>GC / Rewards</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>GC / Rewards</span>
                 <input type="number" min="0" step="0.01" placeholder="0.00" value={pmForm.gc} onChange={e => setPmForm(p => ({ ...p, gc: e.target.value }))}
-                  style={{ background: "#0f1c2e", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "#e8e2d5", padding: "8px 10px", fontSize: 14, width: "100%" }} />
+                  style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)", padding: "8px 10px", fontSize: 14, width: "100%" }} />
               </label>
             </div>
 
@@ -2902,20 +2902,20 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
               const total    = Math.round((purchaseModal.price * purchaseModal.qty + (asNumber(pmForm.tax) || 0) + (asNumber(pmForm.shipping) || 0)) * 100) / 100;
               const cashPaid = Math.max(0, Math.round((total - (asNumber(pmForm.gc) || 0)) * 100) / 100);
               return (
-                <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 14px", marginBottom: 18, display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                  <span style={{ color: "#5d6f80" }}>Total</span><span style={{ color: "#e8e2d5", fontWeight: 700 }}>{money(total)}</span>
-                  <span style={{ color: "#5d6f80", marginLeft: 16 }}>Cash Paid</span><span style={{ color: "#c9a84c", fontWeight: 700 }}>{money(cashPaid)}</span>
+                <div style={{ background: "var(--bk-surface-2)", borderRadius: 8, padding: "10px 14px", marginBottom: 18, display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <span style={{ color: "var(--bk-text-muted)" }}>Total</span><span style={{ color: "var(--bk-text)", fontWeight: 700 }}>{money(total)}</span>
+                  <span style={{ color: "var(--bk-text-muted)", marginLeft: 16 }}>Cash Paid</span><span style={{ color: "var(--bk-gold-ink)", fontWeight: 700 }}>{money(cashPaid)}</span>
                 </div>
               );
             })()}
 
             {/* Actions */}
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={commitPurchaseLog} style={{ ...actionBtn, flex: 1, padding: "11px", fontSize: 14, fontWeight: 700 }}>
+              <button onClick={commitPurchaseLog} className="bk-action-btn" style={{ ...actionBtn, flex: 1, padding: "11px", fontSize: 14, fontWeight: 700 }}>
                 Log Purchase
               </button>
               <button onClick={() => setPurchaseModal(null)}
-                style={{ flex: 1, padding: "11px", fontSize: 14, fontWeight: 700, background: "transparent", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, color: "#8a9bb0", cursor: "pointer" }}>
+                style={{ flex: 1, padding: "11px", fontSize: 14, fontWeight: 700, background: "transparent", border: "1px solid var(--bk-border)", borderRadius: 10, color: "var(--bk-text-muted)", cursor: "pointer" }}>
                 Skip
               </button>
             </div>
@@ -2928,20 +2928,20 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
 function Card({ title, value, good, sub, subTip, hero = false }) {
   const [tip, setTip] = useState(false);
-  const accentColor = good === undefined ? "#c9a84c" : good ? "#5aa832" : "#ff8b8b";
+  const accentColor = good === undefined ? "var(--bk-gold)" : good ? "var(--bk-positive)" : "var(--bk-negative)";
   // Hero (raised, full border, larger number, accent stripe) vs secondary metric card (flat,
   // borderless, recedes) — panel-design SOP rule 1.
   const box = hero ? { ...heroCardBase, borderLeft: `3px solid ${accentColor}` } : metricCardBase;
   return (
     <div style={box}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: "#5d6f80", textTransform: "uppercase", letterSpacing: 0.6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
       <div style={{ position: "relative" }} onMouseEnter={() => setTip(true)} onMouseLeave={() => setTip(false)}>
-        <div className="stat-card-val" style={{ fontSize: hero ? 27 : 21, fontWeight: 900, color: good === undefined ? "#e8e2d5" : good ? "#5aa832" : "#ff8b8b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "default", lineHeight: 1.12 }}>
+        <div className="stat-card-val" style={{ fontSize: hero ? 27 : 21, fontWeight: 900, color: good === undefined ? "var(--bk-text)" : good ? "var(--bk-positive)" : "var(--bk-negative)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "default", lineHeight: 1.12 }}>
           {value}
         </div>
-        {tip && <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: 0, zIndex: 50, background: "#0b1520", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, padding: "5px 10px", fontSize: 15, fontWeight: 700, color: "#e8e2d5", whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,0,0,0.5)", pointerEvents: "none" }}>{value}</div>}
+        {tip && <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: 0, zIndex: 50, background: "var(--bk-bg)", border: "1px solid var(--bk-border)", borderRadius: 8, padding: "5px 10px", fontSize: 15, fontWeight: 700, color: "var(--bk-text)", whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,0,0,0.5)", pointerEvents: "none" }}>{value}</div>}
       </div>
-      <div style={{ fontSize: 11, color: "#3d4f60", minHeight: 14, display: "flex", alignItems: "center", gap: 4 }}>
+      <div style={{ fontSize: 11, color: "var(--bk-text-muted)", minHeight: 14, display: "flex", alignItems: "center", gap: 4 }}>
         {sub || ""}
         {sub && subTip ? <InfoTip text={subTip} size={13} /> : null}
       </div>
@@ -2949,35 +2949,35 @@ function Card({ title, value, good, sub, subTip, hero = false }) {
   );
 }
 
-const page = { background: "transparent", color: "#e8e2d5", minHeight: "100vh", padding: 22 };
+const page = { background: "transparent", color: "var(--bk-text)", minHeight: "100vh", padding: 22 };
 const tabHeader = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 8 };
 const tabBar = { display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" };
-const tabBtnStyle = { background: "none", border: "none", borderBottom: "2px solid transparent", color: "#5d6f80", padding: "8px 0 10px", fontWeight: 700, cursor: "pointer", fontSize: 14, lineHeight: 1 };
-const activeTabStyle = { ...tabBtnStyle, color: "#e8e2d5", borderBottom: "2px solid #c9a84c" };
-const addSetBtn = { background: "none", border: "1px solid rgba(90,168,50,0.3)", borderRadius: 8, color: "#5aa832", padding: "5px 12px", fontWeight: 700, fontSize: 13, cursor: "pointer" };
-const addSetBtnActive = { ...addSetBtn, background: "#1a3a1a", border: "1px solid #2d5a2d" };
+const tabBtnStyle = { background: "none", border: "none", borderBottom: "2px solid transparent", color: "var(--bk-text-muted)", padding: "8px 0 10px", fontWeight: 700, cursor: "pointer", fontSize: 14, lineHeight: 1 };
+const activeTabStyle = { ...tabBtnStyle, color: "var(--bk-text)", borderBottom: "2px solid var(--bk-gold)" };
+const addSetBtn = { background: "none", border: "1px solid var(--bk-gold-deep)", borderRadius: 8, color: "var(--bk-gold-ink)", padding: "5px 12px", fontWeight: 700, fontSize: 13, cursor: "pointer" };
+const addSetBtnActive = { ...addSetBtn, background: "var(--bk-active)", border: "1px solid var(--bk-gold-deep)" };
 const metricGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 14, marginTop: 20 };
 const overviewGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 14, marginTop: 14 };
-const panel = { background: "rgba(20,31,48,0.82)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginTop: 18, boxShadow: "0 4px 24px rgba(0,0,0,0.35)" };
+const panel = { background: "var(--bk-surface)", backdropFilter: "blur(10px)", border: "1px solid var(--bk-border)", borderRadius: 14, padding: 20, marginTop: 18, boxShadow: "0 4px 24px rgba(0,0,0,0.35)" };
 const formGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 };
 // ── Collection Stats tiered layout (panel-design SOP) ─────────────────────────
 // One responsive grid per tier reflows 4→2→1 by available width (auto-fit); the hero tier
 // (larger min) pins on top. Hero cards rise (raised bg + border + bigger number); secondary
 // "metric" cards recede (flat, near-borderless). Card + the newUsed split card share the bases.
-const tierLabel = { color: "#5d6f80", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 };
+const tierLabel = { color: "var(--bk-text-muted)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 };
 const heroGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 12 };
 const cardGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 };
 const cardBoxBase = { overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "space-between", borderRadius: 12 };
-const heroCardBase = { ...cardBoxBase, minHeight: 96, padding: "15px 17px", background: "rgba(255,255,255,0.075)", border: "1px solid rgba(255,255,255,0.18)", boxShadow: "0 4px 18px rgba(0,0,0,0.35)" };
-const metricCardBase = { ...cardBoxBase, minHeight: 84, padding: "12px 14px", background: "rgba(255,255,255,0.035)", border: "1px solid transparent" };
-const muted = { color: "#8a9bb0" };
-const mutedSmall = { color: "#8a9bb0", fontSize: 13 };
+const heroCardBase = { ...cardBoxBase, minHeight: 96, padding: "15px 17px", background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", boxShadow: "0 4px 18px rgba(0,0,0,0.35)" };
+const metricCardBase = { ...cardBoxBase, minHeight: 84, padding: "12px 14px", background: "var(--bk-surface-2)", border: "1px solid transparent" };
+const muted = { color: "var(--bk-text-muted)" };
+const mutedSmall = { color: "var(--bk-text-muted)", fontSize: 13 };
 const th = {
-  background: "#0b1520",
-  color: "#8a9bb0",
+  background: "var(--bk-bg)",
+  color: "var(--bk-text-muted)",
   padding: "10px 10px 10px 10px",
   textAlign: "left",
-  borderBottom: "1px solid rgba(255,255,255,0.07)",
+  borderBottom: "1px solid var(--bk-border)",
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis",
@@ -2990,16 +2990,16 @@ const thButton = { ...th, cursor: "pointer", userSelect: "none" };
 const thRight = { ...th, textAlign: "right" };
 const thRightButton = { ...thRight, cursor: "pointer", userSelect: "none" };
 const editPanel = {
-  background: "rgba(15,26,40,0.9)",
-  border: "1px solid rgba(255,255,255,0.07)",
+  background: "var(--bk-surface)",
+  border: "1px solid var(--bk-border)",
   borderRadius: 14,
   padding: 18
 };
 
 const circleButton = {
   border: "none",
-  background: "#1a2840",
-  color: "#e8e2d5",
+  background: "var(--bk-surface-2)",
+  color: "var(--bk-text)",
   borderRadius: 999,
   width: 32,
   height: 32,
@@ -3010,7 +3010,7 @@ const circleButton = {
 
 const td = {
   padding: 10,
-  borderTop: "1px solid rgba(255,255,255,0.05)",
+  borderTop: "1px solid var(--bk-surface-2)",
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis"
@@ -3021,18 +3021,18 @@ const stickyCheckbox = {
   position: "sticky",
   left: 0,
   zIndex: 6,
-  background: "#0b1520"
+  background: "var(--bk-bg)"
 };
 
-const thStyle = { color: "#8a9bb0", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, padding: "6px 10px", borderBottom: "1px solid rgba(255,255,255,0.07)", whiteSpace: "nowrap" };
-const tdStyle  = { padding: "8px 10px", borderTop: "1px solid rgba(255,255,255,0.05)", whiteSpace: "nowrap" };
+const thStyle = { color: "var(--bk-text-muted)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, padding: "6px 10px", borderBottom: "1px solid var(--bk-border)", whiteSpace: "nowrap" };
+const tdStyle  = { padding: "8px 10px", borderTop: "1px solid var(--bk-surface-2)", whiteSpace: "nowrap" };
 const tdStyleR = { ...tdStyle, textAlign: "right", fontWeight: 700 };
 
 const hoverCtrlBtn = {
-  background: "rgba(11,21,32,0.92)",
-  border: "1px solid rgba(255,255,255,0.18)",
+  background: "var(--bk-surface)",
+  border: "1px solid var(--bk-border)",
   borderRadius: 6,
-  color: "#8a9bb0",
+  color: "var(--bk-text-muted)",
   fontSize: 13,
   cursor: "pointer",
   padding: "3px 8px",

@@ -326,16 +326,16 @@ export default function App() {
       {syncConflict && (
         <div style={{
           position: "fixed", inset: 0, zIndex: 9999,
-          background: "rgba(6,10,18,0.82)", backdropFilter: "blur(4px)",
+          background: "var(--bk-scrim)", backdropFilter: "blur(4px)",
           display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
           fontFamily: "'Inter', sans-serif",
         }}>
           <div style={{
-            background: "#0d1623", border: "1px solid rgba(201,168,76,0.35)", borderRadius: 16,
+            background: "var(--bk-surface)", border: "1px solid var(--bk-gold-deep)", borderRadius: 16,
             maxWidth: 460, width: "100%", padding: 28, boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
           }}>
-            <h2 style={{ margin: "0 0 6px", fontSize: 20, color: "#e8e2d5", fontWeight: 800 }}>Choose which data to keep</h2>
-            <p style={{ margin: "0 0 20px", fontSize: 13.5, lineHeight: 1.5, color: "#8a9bb0" }}>
+            <h2 style={{ margin: "0 0 6px", fontSize: 20, color: "var(--bk-text)", fontWeight: 800 }}>Choose which data to keep</h2>
+            <p style={{ margin: "0 0 20px", fontSize: 13.5, lineHeight: 1.5, color: "var(--bk-text-muted)" }}>
               This device has data that doesn't match your account. Pick which copy to keep —
               the other will be replaced. This won't merge them.
             </p>
@@ -344,23 +344,23 @@ export default function App() {
                 { title: "This device", s: syncConflict.local },
                 { title: "Your account", s: syncConflict.cloudSummary },
               ].map(({ title, s }) => (
-                <div key={title} style={{ flex: 1, background: "#0b1520", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#c9a84c", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>{title}</div>
-                  <div style={{ fontSize: 13, color: "#cdd6e2", lineHeight: 1.7 }}>
+                <div key={title} style={{ flex: 1, background: "var(--bk-bg)", border: "1px solid var(--bk-border)", borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--bk-gold-ink)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>{title}</div>
+                  <div style={{ fontSize: 13, color: "var(--bk-text)", lineHeight: 1.7 }}>
                     {s.sets} sets<br />{s.wanted} wanted<br />{s.purchases} purchases
                   </div>
                 </div>
               ))}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button onClick={resolveConflictUseCloud} style={{ background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 9, padding: "11px 16px", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+              <button onClick={resolveConflictUseCloud} style={{ background: "var(--bk-action)", color: "var(--bk-action-ink)", border: "none", borderRadius: 9, padding: "11px 16px", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
                 Use my account data
               </button>
-              <button onClick={resolveConflictKeepLocal} style={{ background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 9, padding: "11px 16px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+              <button onClick={resolveConflictKeepLocal} style={{ background: "transparent", color: "var(--bk-text-muted)", border: "1px solid var(--bk-border)", borderRadius: 9, padding: "11px 16px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
                 Keep this device's data
               </button>
             </div>
-            <p style={{ margin: "16px 0 0", fontSize: 11.5, color: "#5d6f80", textAlign: "center" }}>
+            <p style={{ margin: "16px 0 0", fontSize: 11.5, color: "var(--bk-text-muted)", textAlign: "center" }}>
               Tip: export a backup first (Settings → Data) if you're unsure.
             </p>
           </div>
@@ -384,6 +384,7 @@ export default function App() {
         }
         * { box-sizing: border-box; }
         .stat-card-val { font-variant-numeric: tabular-nums; } /* Heritage Luxe — aligned KPI figures */
+        .bk-action-btn:hover { background: var(--bk-action-hover); } /* gold CTA hover (inline styles can't :hover) */
         @media (max-width: 700px) {
           .app-shell { padding: 6px !important; }
           .app-title { font-size: 26px !important; letter-spacing: 1px !important; }
@@ -392,7 +393,7 @@ export default function App() {
         @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
         .owned-table-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
         .owned-table-scroll::-webkit-scrollbar-track { background: transparent; }
-        .owned-table-scroll::-webkit-scrollbar-thumb { background: #2f3446; border-radius: 10px; }
+        .owned-table-scroll::-webkit-scrollbar-thumb { background: var(--bk-border); border-radius: 10px; }
         /* Below ~800px the centered pill grows wide enough to collide with the
            absolutely-positioned auth controls (worst case: signed-out, two buttons).
            Stack the controls below the tabs instead of overlapping them. */
@@ -425,22 +426,22 @@ export default function App() {
         }
       `}</style>
 
-      <div className="app-shell" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", background: "radial-gradient(ellipse at top, #1a2840 0%, #0d1623 55%, #0b1020 100%)", minHeight: "100vh", padding: 0 }}>
+      <div className="app-shell" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", background: "radial-gradient(ellipse at top, var(--bk-surface-2) 0%, var(--bk-bg) 55%, var(--bk-bg) 100%)", minHeight: "100vh", padding: 0 }}>
         <div style={{ maxWidth: 1400, margin: "0 auto" }}>
-          <div className="app-header" style={{ background: "linear-gradient(180deg, #111e30 0%, #0d1623 100%)", padding: "28px 32px", textAlign: "center", borderBottom: "1px solid rgba(201,168,76,0.25)", boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}>
+          <div className="app-header" style={{ background: "linear-gradient(180deg, var(--bk-surface) 0%, var(--bk-bg) 100%)", padding: "28px 32px", textAlign: "center", borderBottom: "1px solid var(--bk-gold-deep)", boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}>
             <h1 className="app-title" style={{ margin: 0, fontFamily: "var(--bk-font-display)", fontSize: 36, fontWeight: 900, letterSpacing: 1, color: "var(--bk-gold-ink)" }}>
               Brickuity
             </h1>
             <div style={{ width: 48, height: 2, background: "linear-gradient(90deg, transparent, var(--bk-gold), transparent)", margin: "12px auto 0", borderRadius: 999 }} />
           </div>
 
-          <div className="nav-wrap" style={{ display: "flex", justifyContent: "center", padding: "12px 24px", position: "sticky", top: 0, zIndex: 100, background: "rgba(11,16,32,0.9)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="nav-wrap" style={{ display: "flex", justifyContent: "center", padding: "12px 24px", position: "sticky", top: 0, zIndex: 100, background: "var(--bk-bg)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: "1px solid var(--bk-border)" }}>
             <div className="nav-pill" style={{
               display: "inline-flex",
               gap: 4,
-              background: "rgba(20,31,48,0.85)",
+              background: "var(--bk-surface)",
               backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,255,255,0.07)",
+              border: "1px solid var(--bk-border)",
               borderRadius: 999,
               padding: 5,
               boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
@@ -465,8 +466,8 @@ export default function App() {
                     fontWeight: 800,
                     fontSize: 13,
                     letterSpacing: 0.3,
-                    background: view === tab.key ? "#c9a84c" : "transparent",
-                    color: view === tab.key ? "#0d1623" : "#8a9bb0",
+                    background: view === tab.key ? "var(--bk-action)" : "transparent",
+                    color: view === tab.key ? "var(--bk-action-ink)" : "var(--bk-text-muted)",
                     transition: "all 0.15s ease"
                   }}
                 >
@@ -484,7 +485,7 @@ export default function App() {
                 <div style={{
                   display: "flex", alignItems: "center", gap: 5,
                   fontSize: 11, fontWeight: 600, pointerEvents: "none",
-                  color: syncStatus === "saved" ? "#22c55e" : "#c9a84c",
+                  color: syncStatus === "saved" ? "var(--bk-positive)" : "var(--bk-gold-ink)",
                 }}>
                   {syncStatus === "pending" && <span style={{ fontSize: 7, animation: "pulse-dot 1.5s ease-in-out infinite" }}>●</span>}
                   {syncStatus === "syncing" && <span style={{ display: "inline-block", animation: "spin 0.8s linear infinite" }}>↻</span>}
@@ -495,12 +496,12 @@ export default function App() {
               {/* Auth controls */}
               <Show when="signed-out">
                 <SignInButton mode="modal">
-                  <button style={{ background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 999, padding: "6px 13px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                  <button style={{ background: "transparent", color: "var(--bk-text-muted)", border: "1px solid var(--bk-border)", borderRadius: 999, padding: "6px 13px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
                     Sign In
                   </button>
                 </SignInButton>
                 <SignUpButton mode="modal">
-                  <button style={{ background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 999, padding: "6px 13px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                  <button style={{ background: "var(--bk-action)", color: "var(--bk-action-ink)", border: "none", borderRadius: 999, padding: "6px 13px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
                     Sign Up
                   </button>
                 </SignUpButton>
@@ -516,16 +517,16 @@ export default function App() {
             toastOptions={{
               duration: 4000,
               style: {
-                background: "#0d1623",
-                color: "#e8e2d5",
-                border: "1px solid rgba(255,255,255,0.12)",
+                background: "var(--bk-surface)",
+                color: "var(--bk-text)",
+                border: "1px solid var(--bk-border)",
                 borderRadius: 10,
                 fontSize: 13,
                 fontFamily: "'Inter', sans-serif",
                 boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
               },
-              success: { iconTheme: { primary: "#5aa832", secondary: "#0d1623" } },
-              error:   { iconTheme: { primary: "#ff8b8b", secondary: "#0d1623" } },
+              success: { iconTheme: { primary: "#22C55E", secondary: "#0C0F14" } }, // literal: react-hot-toast SVG icon
+              error:   { iconTheme: { primary: "#EF4444", secondary: "#0C0F14" } },
             }}
           />
 
@@ -552,9 +553,9 @@ export default function App() {
           style={{
             position: "fixed", bottom: 24, right: 24, zIndex: 200,
             width: 38, height: 38, borderRadius: "50%",
-            background: "rgba(20,31,48,0.92)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
-            border: "1px solid rgba(255,255,255,0.14)",
-            color: "#c9a84c", fontSize: 18, lineHeight: 1,
+            background: "var(--bk-surface)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+            border: "1px solid var(--bk-border)",
+            color: "var(--bk-gold-ink)", fontSize: 18, lineHeight: 1,
             cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
             boxShadow: "0 4px 20px rgba(0,0,0,0.45)",
             transition: "opacity 0.15s ease",

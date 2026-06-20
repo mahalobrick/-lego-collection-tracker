@@ -5,22 +5,22 @@ body,
   padding: 0;
   width: 100%;
   min-height: 100%;
-  background: #050505;
+  background: var(--bk-bg);
 }
 
 body {
   overflow-x: hidden;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  color: #e8e2d5;
+  color: var(--bk-text);
 }
 
 /* ── Global form element reset ───────────────────────────────── */
 input,
 select,
 textarea {
-  background: #1e3248;
-  color: #e8e2d5;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bk-surface-2);
+  color: var(--bk-text);
+  border: 1px solid var(--bk-border);
   border-radius: 8px;
   padding: 9px 11px;
   font-family: inherit;
@@ -33,20 +33,20 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: rgba(201, 168, 76, 0.5);
+  border-color: var(--bk-focus);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #4d5e70;
+  color: var(--bk-text-muted);
 }
 
 /* Remove white autofill flash in Chrome */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
-  -webkit-text-fill-color: #e8e2d5;
-  -webkit-box-shadow: 0 0 0px 1000px #1e3248 inset;
+  -webkit-text-fill-color: var(--bk-text);
+  -webkit-box-shadow: 0 0 0px 1000px var(--bk-surface-2) inset;
   transition: background-color 5000s ease-in-out 0s;
 }
 
@@ -78,5 +78,5 @@ input[type="radio"] {
   padding: 0;
   border-radius: 4px;
   cursor: pointer;
-  accent-color: #c9a84c;
+  accent-color: var(--bk-gold);
 }

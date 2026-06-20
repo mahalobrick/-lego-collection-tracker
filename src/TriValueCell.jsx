@@ -26,10 +26,10 @@ import { confidenceBadge } from "./uiStyles";
 //   density {"full" | "compact"}                      defaults to "full".
 // ─────────────────────────────────────────────────────────────────────────────
 
-const labelStyle = { color: "#5d6f80", fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase" };
+const labelStyle = { color: "var(--bk-text-muted)", fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase" };
 const rowStyle = { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6, lineHeight: 1.45 };
-const dimFigure = { color: "#8a9bb0", fontWeight: 600 };
-const marketFigure = { color: "#e8e2d5", fontWeight: 800 };
+const dimFigure = { color: "var(--bk-text-muted)", fontWeight: 600 };
+const marketFigure = { color: "var(--bk-text)", fontWeight: 800 };
 
 export default function TriValueCell({ retail, paid, market, density = "full" }) {
   const conf = valueConfidence(market);
