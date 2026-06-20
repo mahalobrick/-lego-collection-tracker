@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
-import { Show, SignInButton, SignUpButton, UserButton, useAuth } from "@clerk/react";
+import { useAuth } from "@clerk/react";
 import BudgetDashboard from "./BudgetDashboard";
 import WantedList from "./WantedList";
 import MyCollection from "./MyCollection";
@@ -426,38 +426,9 @@ export default function App() {
           onToggleTheme={toggleTheme}
           pinned={sidebarPinned}
           onTogglePin={() => setSidebarPinned(p => !p)}
+          syncStatus={syncStatus}
         />
         <div className="app-main" style={{ marginLeft: sidebarPinned ? 232 : 64, transition: "margin-left 0.18s ease", minHeight: "100vh" }}>
-          {/* Slim top bar — sync + auth only (wordmark + nav moved to the sidebar). Its height
-              feeds --bl-nav-h so the My Collection quick-nav sticks directly below it. */}
-          <header className="app-topbar" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, padding: "10px 24px", position: "sticky", top: 0, zIndex: 100, background: "var(--bk-bg)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: "1px solid var(--bk-border)" }}>
-            {/* Cloud sync status — shown for signed-in users */}
-            {userId && syncStatus !== "idle" && (
-              <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 600, pointerEvents: "none", color: syncStatus === "saved" ? "var(--bk-positive)" : "var(--bk-gold-ink)" }}>
-                {syncStatus === "pending" && <span style={{ fontSize: 7, animation: "pulse-dot 1.5s ease-in-out infinite" }}>●</span>}
-                {syncStatus === "syncing" && <span style={{ display: "inline-block", animation: "spin 0.8s linear infinite" }}>↻</span>}
-                {syncStatus === "saved"   && <span>✓</span>}
-                <span>{syncStatus === "pending" ? "Unsaved" : syncStatus === "syncing" ? "Syncing…" : "Saved"}</span>
-              </div>
-            )}
-            {/* Auth controls */}
-            <Show when="signed-out">
-              <SignInButton mode="modal">
-                <button style={{ background: "transparent", color: "var(--bk-text-muted)", border: "1px solid var(--bk-border)", borderRadius: 999, padding: "6px 13px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                  Sign In
-                </button>
-              </SignInButton>
-              <SignUpButton mode="modal">
-                <button style={{ background: "var(--bk-action)", color: "var(--bk-action-ink)", border: "none", borderRadius: 999, padding: "6px 13px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                  Sign Up
-                </button>
-              </SignUpButton>
-            </Show>
-            <Show when="signed-in">
-              <UserButton appearance={{ elements: { avatarBox: { width: 28, height: 28 } } }} />
-            </Show>
-          </header>
-
           <Toaster
             position="bottom-right"
             toastOptions={{

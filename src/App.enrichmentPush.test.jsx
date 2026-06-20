@@ -26,6 +26,7 @@ vi.mock("./utils/beSyncValues", () => ({ runDailyBEBatch: vi.fn(async () => {}) 
 
 vi.mock("@clerk/react", () => ({
   useAuth: () => ({ getToken: async () => "tok", userId: "user_1", isLoaded: true }),
+  useUser: () => ({ user: null }),
   Show: () => null,
   SignInButton: () => null,
   SignUpButton: () => null,
