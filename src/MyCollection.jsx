@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { searchInput, filterSelect, clearFilterButton, filterBar } from "./uiStyles";
+import { searchInput, filterSelect, clearFilterButton, filterBar, actionBtn, ghostBtn } from "./uiStyles";
 import { DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, AreaChart, Area, CartesianGrid } from "recharts";
 import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
@@ -2167,7 +2167,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
           </label>
         </div>
 
-        <button onClick={addSet} style={{ ...redBtn, width: "100%", padding: "13px", fontSize: 15, letterSpacing: 0.3 }}>
+        <button onClick={addSet} style={{ ...actionBtn, width: "100%", padding: "13px", fontSize: 15, letterSpacing: 0.3 }}>
           Add to Collection
         </button>
         </>)}
@@ -2911,7 +2911,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
 
             {/* Actions */}
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={commitPurchaseLog} style={{ ...redBtn, flex: 1, padding: "11px", fontSize: 14, fontWeight: 700 }}>
+              <button onClick={commitPurchaseLog} style={{ ...actionBtn, flex: 1, padding: "11px", fontSize: 14, fontWeight: 700 }}>
                 Log Purchase
               </button>
               <button onClick={() => setPurchaseModal(null)}
@@ -2972,8 +2972,6 @@ const heroCardBase = { ...cardBoxBase, minHeight: 96, padding: "15px 17px", back
 const metricCardBase = { ...cardBoxBase, minHeight: 84, padding: "12px 14px", background: "rgba(255,255,255,0.035)", border: "1px solid transparent" };
 const muted = { color: "#8a9bb0" };
 const mutedSmall = { color: "#8a9bb0", fontSize: 13 };
-const redBtn = { display: "inline-block", background: "#c9a84c", color: "#0d1623", border: "none", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" };
-const ghostBtn = { background: "transparent", color: "#8a9bb0", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" };
 const th = {
   background: "#0b1520",
   color: "#8a9bb0",

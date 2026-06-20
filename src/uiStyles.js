@@ -1,6 +1,6 @@
 export const searchInput = {
-  color: "#e8e2d5",
-  border: "1px solid rgba(255,255,255,0.1)",
+  color: "var(--bk-text)",
+  border: "1px solid var(--bk-border)",
   borderRadius: 999,
   padding: "10px 14px",
   minWidth: 190,
@@ -8,8 +8,8 @@ export const searchInput = {
 };
 
 export const filterSelect = {
-  color: "#e8e2d5",
-  border: "1px solid rgba(255,255,255,0.1)",
+  color: "var(--bk-text)",
+  border: "1px solid var(--bk-border)",
   borderRadius: 999,
   padding: "10px 14px",
   fontWeight: 800,
@@ -20,8 +20,8 @@ export const filterSelect = {
 
 export const clearFilterButton = {
   background: "transparent",
-  color: "#8a9bb0",
-  border: "1px solid rgba(255,255,255,0.1)",
+  color: "var(--bk-text-muted)",
+  border: "1px solid var(--bk-border)",
   borderRadius: 999,
   padding: "10px 14px",
   cursor: "pointer",
@@ -47,11 +47,18 @@ export const confidenceBadge = {
   lineHeight: "14px",
   letterSpacing: 0.3,
   textTransform: "lowercase",
-  color: "#8a9bb0",
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.12)",
+  color: "var(--bk-text-muted)",
+  background: "var(--bk-surface-2)",
+  border: "1px solid var(--bk-border)",
   borderRadius: 6,
   verticalAlign: "middle",
   cursor: "help",
   whiteSpace: "nowrap"
 };
+
+// Heritage Luxe shared CTAs (gold-forward). actionBtn = primary FILL (the former misnamed
+// local "redBtn"); ghostBtn = secondary gold outline. The --bk-action-hover interaction is
+// applied via the global `.bk-action-btn:hover` rule (App.jsx) — inline styles can't do :hover.
+export const actionBtn = { display: "inline-block", background: "var(--bk-action)", color: "var(--bk-action-ink)", border: "none", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer", transition: "background 0.15s ease" };
+
+export const ghostBtn = { background: "transparent", color: "var(--bk-gold-ink)", border: "1px solid var(--bk-gold-deep)", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer" };
