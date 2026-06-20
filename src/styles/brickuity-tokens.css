@@ -117,5 +117,5 @@
    .gain       { color: var(--bk-positive); }   .loss { color: var(--bk-negative); }
    .card       { background: var(--bk-surface); border: 1px solid var(--bk-border); }
    .btn-action { background: var(--bk-action); color: var(--bk-action-ink); }
-   a, .link    { color: var(--bk-gold-ink); }   /* readable both modes */
+   a, .link    { color: var(--bk-gold-ink); }   (readable both modes)
    ------------------------------------------------------------ */
