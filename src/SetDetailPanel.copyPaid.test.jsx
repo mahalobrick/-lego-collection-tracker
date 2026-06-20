@@ -4,15 +4,17 @@ import { createRoot } from "react-dom/client";
 import SetDetailPanel from "./SetDetailPanel";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Per-copy paid input — render contract (regression lock for the gate fix).
+// Per-copy breakdown is READ-ONLY (regression lock for the editing relocation).
 //
-// 91d721e added per-copy paid editing, but its render gate keyed on detailSet.source
-// === "BrickEconomy" — and openSetDetail hands the panel the raw blob row, which has
-// NO `source` field — so the gate was always false and the input never rendered. The
-// gate now keys on entries-bearing (Array.isArray(detailSet.entries)), the same sets
-// where editCopyPaid is valid. This pins the panel half: when per-copy paid editing is
-// enabled (onEditCopyPaid provided), the input renders + is wired ALONGSIDE the per-copy
-// condition control; otherwise the paid figure stays read-only.
+// History: 91d721e added a per-copy PAID input here (alongside the per-copy condition
+// toggle). Both have now MOVED to the MyCollection Edit window's "Individual copies"
+// section — the single, deliberate edit surface. The SetDetailPanel breakdown DISPLAYS
+// condition + paid + value with NO controls. The onEditCopy* props were removed from the
+// signature, so passing them is inert. This pins the panel half: no editable input or
+// toggle ever renders here; the per-copy paid shows as read-only money text.
+//
+// (The Edit-window relocation half — the section gating + edit→handler→persist routing —
+// is pinned in MyCollection.individualCopies.test.jsx.)
 // ─────────────────────────────────────────────────────────────────────────────
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -38,33 +40,26 @@ const ENTRIES_SET = {
 
 const q = (sel) => [...container.querySelectorAll(sel)];
 
-describe("SetDetailPanel — per-copy paid input render contract", () => {
-  it("renders an editable paid input per copy when onEditCopyPaid is provided, alongside the condition control", () => {
+describe("SetDetailPanel — per-copy breakdown is read-only", () => {
+  it("renders NO per-copy edit controls (no paid input, no condition toggle)", () => {
+    act(() => root.render(<SetDetailPanel item={ENTRIES_SET} onClose={() => {}} />));
+    expect(q('[data-testid="copy-paid-edit"]').length).toBe(0);
+    expect(q('[data-testid="copy-cond-edit"]').length).toBe(0);
+  });
+
+  it("ignores the legacy onEditCopy* props — still no controls (props removed from the signature)", () => {
     act(() => root.render(
       <SetDetailPanel item={ENTRIES_SET} onClose={() => {}} onEditCopyCondition={() => {}} onEditCopyPaid={() => {}} />,
     ));
-    // Was 0 under the source-gate regression; now one input per copy.
-    expect(q('[data-testid="copy-paid-edit"]').length).toBe(2);
-    // The per-copy condition control still renders alongside (both show together for BE sets).
-    expect(q('[data-testid="copy-cond-edit"]').length).toBe(2);
-  });
-
-  it("the paid input is wired to onEditCopyPaid(copyIndex, amount) on commit", () => {
-    const calls = [];
-    act(() => root.render(
-      <SetDetailPanel item={ENTRIES_SET} onClose={() => {}} onEditCopyPaid={(i, amt) => calls.push([i, amt])} />,
-    ));
-    const input = q('[data-testid="copy-paid-edit"]')[0];
-    act(() => {
-      input.value = "950";
-      // React delegates onBlur via the bubbling focusout event.
-      input.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
-    });
-    expect(calls).toEqual([[0, 950]]); // first copy, committed numeric amount
-  });
-
-  it("is ABSENT (paid stays read-only) when onEditCopyPaid is not provided — the no-entries/manual path", () => {
-    act(() => root.render(<SetDetailPanel item={ENTRIES_SET} onClose={() => {}} />));
     expect(q('[data-testid="copy-paid-edit"]').length).toBe(0);
+    expect(q('[data-testid="copy-cond-edit"]').length).toBe(0);
+  });
+
+  it("still SHOWS the per-copy breakdown read-only — paid as money text, zero inputs in the panel", () => {
+    act(() => root.render(<SetDetailPanel item={ENTRIES_SET} onClose={() => {}} />));
+    expect(container.textContent).toContain("Per-Copy Breakdown");
+    expect(container.textContent).toContain("$800"); // each copy's paid, rendered as text
+    // The panel is now fully display-only: not a single editable field anywhere.
+    expect(q("input").length).toBe(0);
   });
 });

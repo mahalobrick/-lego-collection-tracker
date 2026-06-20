@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { asNumber, money, setImageUrl, daysUntilRetirement } from "./utils/formatting";
-import { conditionDisplayLabel, conditionDisplayColor, conditionBucket } from "./utils/condition";
+import { conditionDisplayLabel, conditionDisplayColor } from "./utils/condition";
 import { materializeEntries } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { setValueProvenance, setGain, setROI, copyValueProvenance, setRetailProvenance, isPromoNoRetail } from "./utils/portfolio";
@@ -38,7 +38,7 @@ export function openSetDetail(setNumber) {
   return col.find(n => n.setNumber === setNumber) || null;
 }
 
-export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEditCopyCondition, onEditCopyPaid }) {
+export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
   const [blPrice, setBlPrice] = useState(null);
   useEffect(() => {
     if (!item?.setNumber || !hasBrickLinkAuth()) { setBlPrice(null); return; }
@@ -69,9 +69,9 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
   if (!item) return null;
 
   // Per-copy rows via the G4 read funnel: an entries[]-backed set passes through faithfully;
-  // a manual (line-level) set is materialized into `qty` read-only copies (Phase 2 — display
-  // only; editing is gated separately by `onEditCopyCondition`, off for manual sets until
-  // Phase 3 persists real entries). The money StatBoxes below are untouched — value/gain/ROI
+  // a manual (line-level) set is materialized into `qty` copies. This breakdown is READ-ONLY —
+  // all per-copy editing moved to the MyCollection Edit window's "Individual copies" section
+  // (the deliberate edit surface). The money StatBoxes below are untouched — value/gain/ROI
   // still come from setValueProvenance(item), not from these rows.
   const entries = materializeEntries(item);
   const qty = item.quantity || entries.length || 1;
@@ -308,28 +308,13 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
                   <div key={i} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 14px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        {onEditCopyCondition ? (
-                          // Editable per-copy condition — flipping one copy of a uniform set makes the
-                          // set Mixed (derived by setConditionDisplay; nothing "mixed" is stored).
-                          <div style={{ display: "inline-flex", gap: 4 }} data-testid="copy-cond-edit">
-                            {["new", "used"].map(b => {
-                              const active = conditionBucket(entry.condition) === b;
-                              const c = conditionDisplayColor(b);
-                              return (
-                                <button key={b}
-                                  onClick={() => onEditCopyCondition(i, b)}
-                                  style={{ border: `1px solid ${active ? c : "rgba(255,255,255,0.12)"}`, background: active ? `${c}22` : "transparent", color: active ? c : "#5d6f80", borderRadius: 999, padding: "2px 9px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
-                                >{conditionDisplayLabel(b)}</button>
-                              );
-                            })}
-                          </div>
-                        ) : cond ? (
+                        {cond ? (
                           <span style={{ background: "#0b1520", border: `1px solid ${conditionDisplayColor(entry.condition)}`, color: conditionDisplayColor(entry.condition), borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>
                             {cond}
                           </span>
                         ) : null}
                         {acquired && <span style={{ color: "#5d6f80", fontSize: 12 }}>{acquired}</span>}
-                        {!onEditCopyCondition && !cond && !acquired && <span style={{ color: "#5d6f80", fontSize: 13 }}>Copy {i + 1}</span>}
+                        {!cond && !acquired && <span style={{ color: "#5d6f80", fontSize: 13 }}>Copy {i + 1}</span>}
                       </div>
                       <span style={{ color: r === null ? "#5d6f80" : r >= 0 ? "#5aa832" : "#ff8b8b", fontWeight: 900, fontSize: 13 }}>
                         {r === null ? "—" : `${r >= 0 ? "+" : ""}${r.toFixed(1)}%`}
@@ -338,26 +323,7 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                       <div>
                         <div style={{ color: "#5d6f80", fontSize: 11 }}>Paid</div>
-                        {onEditCopyPaid ? (
-                          // Editable per-copy paid (BE-only) — sets THIS copy's paid without flattening
-                          // the others (reconcileCopyPaidEdit). Commits on blur / Enter; Escape reverts.
-                          // key carries `paid` so the input remounts to the fresh value after a commit.
-                          <input
-                            key={`cp-paid-${i}-${paid}`}
-                            type="number" step="0.01" min="0"
-                            defaultValue={paid}
-                            data-testid="copy-paid-edit"
-                            onClick={e => e.stopPropagation()}
-                            onBlur={e => { const v = asNumber(e.target.value); if (v !== paid) onEditCopyPaid(i, v); }}
-                            onKeyDown={e => {
-                              if (e.key === "Enter") e.currentTarget.blur();
-                              if (e.key === "Escape") { e.currentTarget.value = String(paid); e.currentTarget.blur(); }
-                            }}
-                            style={{ width: "100%", boxSizing: "border-box", background: "#0b1520", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 6, color: "#e8e2d5", fontSize: 13, fontWeight: 700, padding: "3px 7px", outline: "none" }}
-                          />
-                        ) : (
-                          <div style={{ fontWeight: 700, fontSize: 13, color: "#e8e2d5" }}>{money(paid)}</div>
-                        )}
+                        <div style={{ fontWeight: 700, fontSize: 13, color: "#e8e2d5" }}>{money(paid)}</div>
                       </div>
                       <div>
                         <div style={{ color: "#5d6f80", fontSize: 11 }}>Value</div>

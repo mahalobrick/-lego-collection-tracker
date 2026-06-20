@@ -11,7 +11,7 @@ import ConditionPill from "./ConditionPill";
 import InfoTip from "./InfoTip";
 import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
 import { setConditionDisplay, conditionBucket, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
-import { applyCopyConditionEdit, applyQtyEdit } from "./utils/percopy";
+import { applyCopyConditionEdit, applyQtyEdit, materializeEntries } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, cmfSeriesRetailTargets, getBricksetCache } from "./utils/brickset";
 import { makeRetailResolver } from "./utils/retailResolver";
@@ -2160,12 +2160,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
         valueMap={valueMap}
         onClose={() => { setDetailSet(null); setDetailSetIndex(null); }}
         onEdit={detailSetIndex !== null ? () => { setDetailSet(null); setDetailSetIndex(null); setSelectedSetIndex(detailSetIndex); } : undefined}
-        onEditCopyCondition={detailSetIndex !== null
-          ? (copyIndex, bucket) => editCopyCondition(detailSetIndex, copyIndex, bucket)
-          : undefined}
-        onEditCopyPaid={detailSetIndex !== null && Array.isArray(detailSet?.entries)
-          ? (copyIndex, amount) => editCopyPaid(detailSetIndex, copyIndex, amount)
-          : undefined}
       />
       <WatchDetailPanel
         item={detailWatchItem}
@@ -2736,9 +2730,20 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                   const lbl = { fontSize: 10, fontWeight: 700, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 5, display: "block" };
                   const inp = { width: "100%", background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)", fontSize: 13, padding: "7px 10px", outline: "none", boxSizing: "border-box" };
                   const row = { display: "grid", gap: 10, marginBottom: 10 };
-                  const isUsed = String(s.condition || "new").startsWith("used");
+                  const sectionHeader = { fontSize: 11, fontWeight: 800, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.7, margin: "0 0 10px", paddingBottom: 6, borderBottom: "1px solid var(--bk-border)" };
+                  // Per-copy editing lives here now (relocated from SetDetailPanel, which is read-only).
+                  // materializeEntries passes BE entries through / synthesizes manual copies; the
+                  // "Individual copies" section shows only for >1 copy. setConditionDisplay derives the
+                  // bulk Mixed signal, and divergent per-copy paids blank the bulk Paid — so a bulk edit
+                  // reads as a deliberate overwrite-all (the per-copy reconcilers spread evenly).
+                  const copyEntries = materializeEntries(s);
+                  const copies = copyEntries.length;
+                  const condDisplay = setConditionDisplay(s); // 'new' | 'used' | 'mixed' (Mixed when copies diverge)
+                  const paidDiverges = copies > 1 && new Set(copyEntries.map(e => asNumber(e.paid_price))).size > 1;
                   return (
                     <div>
+                      {/* ── Set all copies — holding-level fields; an edit here applies to EVERY copy ── */}
+                      <div style={sectionHeader}>Set all copies</div>
                       {/* Row 1: Set # + Set Name */}
                       <div style={{ ...row, gridTemplateColumns: "110px 1fr" }}>
                         <label><span style={lbl}>Set #</span><input style={inp} value={s.setNumber || ""} onChange={e => updateSet(selectedSetIndex, "setNumber", e.target.value)} /></label>
@@ -2756,13 +2761,17 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                         </label>
                         <label>
                           <span style={lbl}>Condition</span>
-                          <div style={{ display: "flex", gap: 4, marginTop: 1 }}>
-                            {[["new","New","var(--bk-cat-3)"],["used","Used","var(--bk-cat-1)"]].map(([val, label, color]) => (
-                              <button key={val}
-                                onClick={() => updateSet(selectedSetIndex, "condition", val)}
-                                style={{ border: `1px solid ${(!isUsed && val==="new") || (isUsed && val==="used") ? color : "var(--bk-border)"}`, borderRadius: 8, padding: "7px 14px", fontWeight: 700, fontSize: 12, cursor: "pointer", background: (!isUsed && val==="new") || (isUsed && val==="used") ? `${color}22` : "transparent", color: (!isUsed && val==="new") || (isUsed && val==="used") ? color : "var(--bk-text-muted)", transition: "all 0.12s" }}
-                              >{label}</button>
-                            ))}
+                          <div style={{ display: "flex", gap: 4, marginTop: 1, alignItems: "center" }}>
+                            {[["new","New","var(--bk-cat-3)"],["used","Used","var(--bk-cat-1)"]].map(([val, label, color]) => {
+                              const active = condDisplay === val; // neither active when Mixed → pick one to overwrite all copies
+                              return (
+                                <button key={val}
+                                  onClick={() => updateSet(selectedSetIndex, "condition", val)}
+                                  style={{ border: `1px solid ${active ? color : "var(--bk-border)"}`, borderRadius: 8, padding: "7px 14px", fontWeight: 700, fontSize: 12, cursor: "pointer", background: active ? `${color}22` : "transparent", color: active ? color : "var(--bk-text-muted)", transition: "all 0.12s" }}
+                                >{label}</button>
+                              );
+                            })}
+                            {condDisplay === "mixed" && <span data-testid="bulk-cond-mixed" title="Copies differ — pick New or Used to set all" style={{ fontSize: 11, fontWeight: 700, color: "var(--bk-cat-5)" }}>Mixed</span>}
                           </div>
                         </label>
                       </div>
@@ -2779,13 +2788,14 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                             after a commit (and when a different holding is selected). Escape reverts. */}
                         <label><span style={lbl}>Qty</span><input style={inp} type="number" min="1" value={s.qty || 1} onChange={e => updateSet(selectedSetIndex, "qty", e.target.value)} /></label>
                         <label><span style={lbl}>Paid</span><input
-                          key={`paid-${selectedSetIndex}-${s.paidPrice}`}
+                          key={`paid-${selectedSetIndex}-${s.paidPrice}-${paidDiverges}`}
                           data-testid="holding-paid-edit"
-                          style={inp} type="number" step="0.01" defaultValue={s.paidPrice || ""}
+                          style={inp} type="number" step="0.01" defaultValue={paidDiverges ? "" : (s.paidPrice || "")}
+                          placeholder={paidDiverges ? "—" : undefined}
                           onBlur={e => { const v = asNumber(e.target.value); if (v !== asNumber(s.paidPrice)) updateSet(selectedSetIndex, "paidPrice", e.target.value); }}
-                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { e.currentTarget.value = s.paidPrice || ""; e.currentTarget.blur(); } }}
+                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { e.currentTarget.value = paidDiverges ? "" : (s.paidPrice || ""); e.currentTarget.blur(); } }}
                         /></label>
-                        <label><span style={lbl}>Value</span><input
+                        <label><span style={lbl}>{copies > 1 ? "Value (all copies)" : "Value"}</span><input
                           key={`value-${selectedSetIndex}-${s.currentValue}`}
                           data-testid="holding-value-edit"
                           style={inp} type="number" step="0.01" defaultValue={s.currentValue || ""}
@@ -2806,6 +2816,44 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                         <label><span style={lbl}>Acquired</span><input style={inp} type="date" value={s.acquiredDate || ""} onChange={e => updateSet(selectedSetIndex, "acquiredDate", e.target.value)} /></label>
                         <label><span style={lbl}>Notes</span><input style={inp} value={s.notes || ""} onChange={e => updateSet(selectedSetIndex, "notes", e.target.value)} /></label>
                       </div>
+
+                      {/* ── Individual copies — relocated per-copy controls; multi-copy holdings only.
+                          Rendered from materializeEntries; each row reuses the EXISTING editCopyCondition /
+                          editCopyPaid handlers UNCHANGED (pure relocation). Per-copy paid is BE-only
+                          (editCopyPaid early-returns for a manual set → a dead control, harmless: there are
+                          0 multi-copy manual sets; folds into the per-copy-paid-for-manual follow-up). ── */}
+                      {copies > 1 && (
+                        <div style={{ marginTop: 18 }} data-testid="individual-copies">
+                          <div style={sectionHeader}>Individual copies</div>
+                          <div style={{ display: "grid", gap: 8 }}>
+                            {copyEntries.map((e, i) => (
+                              <div key={e.id ?? i} style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", borderRadius: 8, padding: "8px 10px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: "var(--bk-text-muted)" }}>Copy {i + 1}</span>
+                                  <div style={{ display: "flex", gap: 4 }} data-testid="copy-cond-edit">
+                                    {[["new","New","var(--bk-cat-3)"],["used","Used","var(--bk-cat-1)"]].map(([val, label, color]) => {
+                                      const active = conditionBucket(e.condition) === val;
+                                      return (
+                                        <button key={val}
+                                          onClick={() => editCopyCondition(selectedSetIndex, i, val)}
+                                          style={{ border: `1px solid ${active ? color : "var(--bk-border)"}`, borderRadius: 8, padding: "5px 12px", fontWeight: 700, fontSize: 11, cursor: "pointer", background: active ? `${color}22` : "transparent", color: active ? color : "var(--bk-text-muted)", transition: "all 0.12s" }}
+                                        >{label}</button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                                <label style={{ display: "block" }}><span style={lbl}>Paid</span><input
+                                  key={`copy-paid-${selectedSetIndex}-${i}-${e.paid_price}`}
+                                  data-testid="copy-paid-edit"
+                                  style={inp} type="number" step="0.01" min="0" defaultValue={e.paid_price || ""}
+                                  onBlur={ev => { const v = asNumber(ev.target.value); if (v !== asNumber(e.paid_price)) editCopyPaid(selectedSetIndex, i, v); }}
+                                  onKeyDown={ev => { if (ev.key === "Enter") ev.currentTarget.blur(); if (ev.key === "Escape") { ev.currentTarget.value = e.paid_price || ""; ev.currentTarget.blur(); } }}
+                                /></label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
