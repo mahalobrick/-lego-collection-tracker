@@ -10,8 +10,9 @@ const EXPANDED_W = 232;
 // acquisition / settings) — the sidebar is pure presentation over switchTab().
 const NAV = [
   { key: "collection", icon: "collection", label: "Collection" },
-  { key: "budget", icon: "budget", label: "Budget" },
   { key: "acquisition", icon: "wanted", label: "Wanted" },
+  { key: "budget", icon: "budget", label: "Budget" },
+  { key: "performance", icon: "performance", label: "Performance" },
   { key: "settings", icon: "settings", label: "Settings" },
 ];
 

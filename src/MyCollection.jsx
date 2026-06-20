@@ -61,10 +61,9 @@ function fmtShortDate(dateStr) {
   return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
-export default function MyCollection({ onBuyNow, onSwitchTab }) {
-  const [tab, setTab] = useState("overview");
+export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection" }) {
+  const [tab, setTab] = useState("owned"); // Collection segment: "owned" | "sold"
   const [addOpen, setAddOpen] = useState(false); // §Add collapse on the combined Overview page
-  const [activeSection, setActiveSection] = useState("bl-sec-stats"); // combined-Overview quick-nav scroll-spy
   const [searchText, setSearchText] = useState("");
   const [filterTheme, setFilterTheme] = useState("");
   const [filterCondition, setFilterCondition] = useState("");
@@ -418,51 +417,16 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     });
   }
 
-  // Refresh localStorage-backed memos when returning to overview sub-tab
+  // Refresh localStorage-backed memos when entering the Performance view
   useEffect(() => {
-    if (tab === "overview") setRefreshKey(k => k + 1);
-  }, [tab]);
+    if (mode === "performance") setRefreshKey(k => k + 1);
+  }, [mode]);
 
   // Refresh when another window/tab writes to localStorage (e.g. Budget opened in a second tab)
   useEffect(() => {
     const handler = () => setRefreshKey(k => k + 1);
     window.addEventListener("storage", handler);
     return () => window.removeEventListener("storage", handler);
-  }, []);
-
-  // Combined-Overview quick-nav scroll-spy: mark which section sits under the sticky navs as active.
-  useEffect(() => {
-    if (tab !== "overview" || sets.length === 0) return;
-    if (typeof IntersectionObserver === "undefined") return; // jsdom / older browsers: skip scroll-spy, nav still jumps
-    const els = ["bl-sec-stats", "bl-sec-table", "bl-sec-add"].map(id => document.getElementById(id)).filter(Boolean);
-    if (!els.length) return;
-    const io = new IntersectionObserver((entries) => {
-      const vis = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-      if (vis[0]) setActiveSection(vis[0].target.id);
-    }, { rootMargin: "-110px 0px -70% 0px", threshold: 0 });
-    els.forEach(el => io.observe(el));
-    return () => io.disconnect();
-  }, [tab, sets.length]);
-
-  // Measure the sticky app nav's height into --bl-nav-h so the quick-nav pills can stick directly
-  // below it (top: var(--bl-nav-h, 56px)). nav-wrap height is responsive (single row on desktop,
-  // column stack on mobile) and shifts with auth state (sign-in/out toggles the in-flow auth row on
-  // mobile) and button wrap — none of which a window 'resize' catches — so observe it with a
-  // ResizeObserver. Mirrors the jump handler's existing document.querySelector(".app-topbar"). jsdom:
-  // ResizeObserver is absent and offsetHeight is 0, so guard both — the var stays unset and the
-  // consumer's 56px fallback applies, keeping the test env identical to today (top:56), not top:0.
-  useLayoutEffect(() => {
-    const nav = document.querySelector(".app-topbar");
-    if (!nav) return;
-    const apply = () => {
-      const h = nav.offsetHeight;
-      if (h > 0) document.documentElement.style.setProperty("--bl-nav-h", h + "px");
-    };
-    apply(); // initial synchronous measure (pre-paint, no flash)
-    if (typeof ResizeObserver === "undefined") return; // jsdom / older browsers: 56px fallback applies
-    const ro = new ResizeObserver(apply);
-    ro.observe(nav);
-    return () => ro.disconnect();
   }, []);
 
   const stats = useMemo(() => {
@@ -1336,39 +1300,36 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     <div className="tab-page" style={page} onMouseMove={e => setTipPos({ x: e.clientX, y: e.clientY })} onTouchStart={() => { setHoveredSet(null); setHoveredWatchItem(null); }}>
       <div style={tabHeader}>
         <div>
-          <h2 style={{ margin: 0 }}>My Collection</h2>
-          <p style={{ ...muted, margin: "4px 0 0" }}>Track collection value, growth, and ROI across your sets.</p>
+          <h2 style={{ margin: 0 }}>{mode === "performance" ? "Performance" : "Collection"}</h2>
+          <p style={{ ...muted, margin: "4px 0 0" }}>{mode === "performance" ? "Track collection value, growth, and ROI across your sets." : "Browse, search, and manage your sets."}</p>
         </div>
-        <div style={tabBar}>
-          {[
-            { key: "overview", label: "Overview" },
-            { key: "sold", label: soldSets.length > 0 ? `Sold (${soldSets.length})` : "Sold" },
-          ].map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)} style={tab === t.key ? activeTabStyle : tabBtnStyle}>
-              {t.label}
+        {mode === "collection" && (
+          <div style={tabBar}>
+            {[
+              { key: "owned", label: "Owned" },
+              { key: "sold", label: soldSets.length > 0 ? `Sold (${soldSets.length})` : "Sold" },
+            ].map(t => (
+              <button key={t.key} onClick={() => setTab(t.key)} style={tab === t.key ? activeTabStyle : tabBtnStyle}>
+                {t.label}
+              </button>
+            ))}
+            <div style={{ width: 1, height: 18, background: "var(--bk-border)", alignSelf: "center" }} />
+            <button onClick={() => { setTab("owned"); setAddOpen(true); requestAnimationFrame(() => document.getElementById("bl-sec-add")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} style={addOpen ? addSetBtnActive : addSetBtn}>
+              + Add Set
             </button>
-          ))}
-          <div style={{ width: 1, height: 18, background: "var(--bk-border)", alignSelf: "center" }} />
-          <button onClick={() => { setTab("overview"); setAddOpen(true); requestAnimationFrame(() => document.getElementById("bl-sec-add")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} style={addOpen ? addSetBtnActive : addSetBtn}>
-            + Add Set
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
-      {tab === "overview" && sets.length > 0 && (
-        <nav className="cs-quicknav" style={{ position: "sticky", top: "var(--bl-nav-h, 56px)", zIndex: 90, display: "flex", gap: 6, padding: "8px 0", marginBottom: 6, background: "var(--bk-surface)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", borderBottom: "1px solid var(--bk-border)" }}>
-          {[{ key: "bl-sec-stats", label: "Stats" }, { key: "bl-sec-table", label: "Table" }, { key: "bl-sec-add", label: "Add" }].map(s => (
-            <button key={s.key}
-              onClick={() => { if (s.key === "bl-sec-add") setAddOpen(true); requestAnimationFrame(() => { const el = document.getElementById(s.key); if (el) { const off = (document.querySelector(".app-topbar")?.offsetHeight || 56) + (document.querySelector(".cs-quicknav")?.offsetHeight || 44) + 8; window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - off, behavior: "smooth" }); } }); }}
-              style={{ background: activeSection === s.key ? "var(--bk-action)" : "transparent", color: activeSection === s.key ? "var(--bk-action-ink)" : "var(--bk-text-muted)", border: "1px solid " + (activeSection === s.key ? "var(--bk-action)" : "var(--bk-border)"), borderRadius: 999, padding: "6px 16px", fontWeight: 800, fontSize: 12.5, cursor: "pointer", transition: "all 0.15s ease" }}>
-              {s.label}
-            </button>
-          ))}
-        </nav>
-      )}
-
       <div className="cs-overview-sections" style={{ display: "flex", flexDirection: "column" }}>
-      {tab === "overview" && sets.length === 0 && (
+      {mode === "performance" && sets.length === 0 && (
+        <div style={{ textAlign: "center", padding: "60px 24px", color: "var(--bk-text-muted)" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📈</div>
+          <div style={{ fontWeight: 800, fontSize: 17, color: "var(--bk-text)", marginBottom: 6 }}>Add sets to see performance</div>
+          <div style={{ fontSize: 14, maxWidth: 380, margin: "0 auto", lineHeight: 1.6 }}>Your collection's value, gain, and ROI appear here once you add sets.</div>
+        </div>
+      )}
+      {mode === "collection" && sets.length === 0 && (
         <div style={{ textAlign: "center", padding: "60px 24px" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>📦</div>
           <div style={{ fontWeight: 900, fontSize: 20, color: "var(--bk-text)", marginBottom: 8 }}>Start your collection</div>
@@ -1387,7 +1348,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         </div>
       )}
 
-      {tab === "overview" && sets.length > 0 && (
+      {mode === "performance" && sets.length > 0 && (
         <div id="bl-sec-stats" style={{ order: 1, minWidth: 0 }}>
           {/* ── Stat pill container ─────────────────────────────────── */}
           <div style={{ background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 14, padding: "14px 16px", marginBottom: 14, marginTop: 8, position: "relative" }}>
@@ -1881,7 +1842,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         </div>
       )}
 
-      {tab === "sold" && (
+      {mode === "collection" && tab === "sold" && (
         <section style={panel}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
             <div>
@@ -1954,7 +1915,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         </section>
       )}
 
-      {tab === "overview" && (
+      {mode === "collection" && tab === "owned" && (
       <section id="bl-sec-add" style={{ ...panel, order: 4, minWidth: 0 }}>
 
         {/* ── Header (with §Add collapse toggle — combined Overview) ── */}
@@ -2221,7 +2182,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         </div>
       )}
 
-      {tab === "overview" && sets.length > 0 && retirementAlertsForOwned.length > 0 && (
+      {mode === "collection" && tab === "owned" && sets.length > 0 && retirementAlertsForOwned.length > 0 && (
         <div style={{ background: "var(--bk-warning-bg)", border: "1px solid var(--bk-warning-bg)", borderRadius: 12, padding: "14px 16px", marginTop: 10, order: 2, minWidth: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <div style={{ fontWeight: 800, color: "var(--bk-warning)", fontSize: 14 }}>
@@ -2281,7 +2242,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         </div>
       )}
 
-      {tab === "overview" && sets.length > 0 && (
+      {mode === "collection" && tab === "owned" && sets.length > 0 && (
       <section id="bl-sec-table" style={{ ...panel, order: 3, minWidth: 0 }}>
         <div style={{
           display: "flex",

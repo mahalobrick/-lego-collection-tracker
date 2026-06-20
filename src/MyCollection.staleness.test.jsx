@@ -46,7 +46,7 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); container.remove(); vi.restoreAllMocks(); });
 
 async function render() {
-  await act(async () => { root.render(<MyCollection onBuyNow={() => {}} onSwitchTab={() => {}} />); });
+  await act(async () => { root.render(<MyCollection mode="performance" onBuyNow={() => {}} onSwitchTab={() => {}} />); });
   await act(async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); });
 }
 

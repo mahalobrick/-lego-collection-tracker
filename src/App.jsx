@@ -477,7 +477,7 @@ export default function App() {
           />
 
           <div className="page-content" style={{ maxWidth: 1400, margin: "0 auto" }}>
-            {view === "collection" && <MyCollection onBuyNow={handleBuyNow} onSwitchTab={switchTab} />}
+            {(view === "collection" || view === "performance") && <MyCollection mode={view} onBuyNow={handleBuyNow} onSwitchTab={switchTab} />}
             {view === "acquisition" && <WantedList onBuyNow={handleBuyNow} />}
             {view === "budget" && (
               <BudgetDashboard
