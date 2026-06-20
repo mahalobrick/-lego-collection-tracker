@@ -19,7 +19,7 @@ import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
 import { ownedSetFromBlob } from "./utils/beCollection";
-import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, conditionValueBuckets, freebieValue, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit, reconcileCopyPaidEdit } from "./utils/portfolio";
+import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, conditionValueBuckets, freebieValue, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit, reconcileCopyPaidEdit, reconcileValueEdit } from "./utils/portfolio";
 import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailCoverageCounts, retailCoverageTooltip, vsdEsdNote, VSD_ESD_TOOLTIP, estimatedCostNote, roiScopeNote, roiScopeTooltip, freebieNote, FREEBIE_TOOLTIP, netGainBasisNote, signColor, TOTAL_SETS_TOOLTIP, NEW_USED_COUNT_TOOLTIP, CONDITION_VALUE_TOOLTIP, RETIRED_TOOLTIP, COST_BASIS_TOOLTIP } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { valuesAsOf, freshness } from "./utils/freshness";
@@ -1253,6 +1253,13 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
       // msrp is an app-level override, NOT a native BE blob field — persist it (+ its retailPrice
       // mirror) onto the blob so a hand-entered MSRP for an existing (BE-imported) set survives reload.
       persistBESetEdit(cur.setNumber, manualMsrpPatch(value));
+    } else if (cur.source === "BrickEconomy" && field === "currentValue") {
+      // For a BE set the Value field holds the AGGREGATE (ownedSetFromBlob loads currentValue from the
+      // blob's totalValue), and rawSetValue reads totalValue FIRST — so editing currentValue alone was
+      // invisible on value/gain/ROI AND (no blob branch → the else) reverted on reload. reconcileValueEdit
+      // re-derives the canonical (totalValue + currentValue + entries[].current_value + the roiPct hover
+      // snapshot) so the edit lands on the value layer and persists to the blob. Twin of the paidPrice branch.
+      persistBESetEdit(cur.setNumber, reconcileValueEdit(cur, coerced));
     } else {
       setSets(prev => prev.map((s, i) => (i === index ? rec : s)));
     }
@@ -2763,10 +2770,35 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                       {/* Row 3: Qty + Paid + Current Value + MSRP. Auto-fit so the four number inputs
                           wrap to 2×2 on a narrow / mobile panel instead of squeezing MSRP off (F1). */}
                       <div style={{ ...row, gridTemplateColumns: "repeat(auto-fit, minmax(76px, 1fr))" }}>
+                        {/* Qty stays controlled (integer — no partial-decimal hazard). Paid/Value/MSRP are
+                            UNCONTROLLED (defaultValue + commit-on-blur), mirroring SetDetailPanel's per-copy
+                            paid input: a controlled type=number coerces every keystroke through asNumber, and
+                            "49." sanitizes to "" → asNumber("")=0 → the field re-renders empty and the decimal
+                            is lost. Uncontrolled lets the native field hold the partial value; we read + commit
+                            ONCE on blur/Enter. `key` carries the value so the input remounts to the fresh figure
+                            after a commit (and when a different holding is selected). Escape reverts. */}
                         <label><span style={lbl}>Qty</span><input style={inp} type="number" min="1" value={s.qty || 1} onChange={e => updateSet(selectedSetIndex, "qty", e.target.value)} /></label>
-                        <label><span style={lbl}>Paid</span><input style={inp} type="number" step="0.01" value={s.paidPrice || ""} onChange={e => updateSet(selectedSetIndex, "paidPrice", e.target.value)} /></label>
-                        <label><span style={lbl}>Value</span><input style={inp} type="number" step="0.01" value={s.currentValue || ""} onChange={e => updateSet(selectedSetIndex, "currentValue", e.target.value)} /></label>
-                        <label><span style={lbl}>MSRP</span><input style={inp} type="number" min="0" step="0.01" value={s.msrp || ""} onChange={e => updateSet(selectedSetIndex, "msrp", e.target.value)} /></label>
+                        <label><span style={lbl}>Paid</span><input
+                          key={`paid-${selectedSetIndex}-${s.paidPrice}`}
+                          data-testid="holding-paid-edit"
+                          style={inp} type="number" step="0.01" defaultValue={s.paidPrice || ""}
+                          onBlur={e => { const v = asNumber(e.target.value); if (v !== asNumber(s.paidPrice)) updateSet(selectedSetIndex, "paidPrice", e.target.value); }}
+                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { e.currentTarget.value = s.paidPrice || ""; e.currentTarget.blur(); } }}
+                        /></label>
+                        <label><span style={lbl}>Value</span><input
+                          key={`value-${selectedSetIndex}-${s.currentValue}`}
+                          data-testid="holding-value-edit"
+                          style={inp} type="number" step="0.01" defaultValue={s.currentValue || ""}
+                          onBlur={e => { const v = asNumber(e.target.value); if (v !== asNumber(s.currentValue)) updateSet(selectedSetIndex, "currentValue", e.target.value); }}
+                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { e.currentTarget.value = s.currentValue || ""; e.currentTarget.blur(); } }}
+                        /></label>
+                        <label><span style={lbl}>MSRP</span><input
+                          key={`msrp-${selectedSetIndex}-${s.msrp}`}
+                          data-testid="holding-msrp-edit"
+                          style={inp} type="number" min="0" step="0.01" defaultValue={s.msrp || ""}
+                          onBlur={e => { const v = asNumber(e.target.value); if (v !== asNumber(s.msrp)) updateSet(selectedSetIndex, "msrp", e.target.value); }}
+                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { e.currentTarget.value = s.msrp || ""; e.currentTarget.blur(); } }}
+                        /></label>
                       </div>
 
                       {/* Row 4: Acquired Date + Notes */}

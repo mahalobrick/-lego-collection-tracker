@@ -580,6 +580,40 @@ export function reconcileCopyPaidEdit(set, copyIndex, amount) {
 }
 
 /**
+ * Canonical-VALUE patch for a holding-level value edit — the value twin of {@link reconcilePaidEdit}.
+ * For a BE set the "Value" field holds the AGGREGATE (ownedSetFromBlob loads both currentValue AND
+ * totalValue from the blob's totalValue — so currentValue mirrors the total, NOT a per-unit figure as on
+ * a manual set), and rawSetValue reads `totalValue` FIRST. So editing currentValue alone was a no-op on
+ * value/gain/ROI AND (no blob branch → the in-memory else) reverted on reload. This re-derives the
+ * canonical from the new TOTAL the field shows:
+ *   - totalValue   = newTotal                      → rawSetValue / setGain / setROI now reflect the edit
+ *   - currentValue = newTotal                      (kept == totalValue, the BE load convention)
+ *   - entries[].current_value = newTotal / copies (when present) → keeps Σ entries.current_value ===
+ *     totalValue (the overlay invariant) and the SetDetailPanel per-copy rows in sync — mirroring how
+ *     reconcilePaidEdit flattens paid_price across copies on a holding-level (bulk) edit. Per-copy
+ *     divergence is the job of the SetDetailPanel per-copy controls, not this set-level field.
+ *   - roiPct = ((totalValue − totalPaid)/totalPaid)·100 | null  (the stored hover-card ROI snapshot,
+ *     recomputed off the NEW value so RowHoverCard tracks the edit — mirrors reconcileCopyPaidEdit).
+ * Pure; the returned patch persists via persistBESetEdit unchanged (currentValue / totalValue / entries /
+ * roiPct share their names across the in-memory + blob shapes). `entries` is omitted when the set has none.
+ *
+ * @param {Object} s                set with its entries + totalPaid in place (a value edit changes neither)
+ * @param {number|string} newTotal  new aggregate value the field shows (coerced via asNumber)
+ * @returns {{ currentValue: number, totalValue: number, roiPct: number|null, entries?: Array }}
+ */
+export function reconcileValueEdit(s, newTotal) {
+  const total = asNumber(newTotal);
+  const totalPaid = asNumber(s.totalPaid);
+  const roiPct = totalPaid ? ((total - totalPaid) / totalPaid) * 100 : null;
+  const patch = { currentValue: total, totalValue: total, roiPct };
+  if (Array.isArray(s.entries) && s.entries.length) {
+    const per = total / s.entries.length;
+    patch.entries = s.entries.map((e) => ({ ...e, current_value: per }));
+  }
+  return patch;
+}
+
+/**
  * Is a set eligible for the PERCENTAGE ROI? Only when its value is known AND it
  * has a positive cost. Unknown-value and cost ≤ 0 (incl. $0/GWP) are excluded.
  *
