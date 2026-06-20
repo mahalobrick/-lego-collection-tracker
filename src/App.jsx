@@ -376,16 +376,17 @@ export default function App() {
           src: url('/fonts/inter-variable.woff2') format('woff2');
         }
         @font-face {
-          font-family: 'JetBrains Mono';
+          font-family: 'Playfair Display';
           font-style: normal;
-          font-weight: 100 800;
+          font-weight: 400 900;
           font-display: swap;
-          src: url('/fonts/jetbrains-mono-variable.woff2') format('woff2');
+          src: url('/fonts/playfair-display.woff2') format('woff2');
         }
         * { box-sizing: border-box; }
+        .stat-card-val { font-variant-numeric: tabular-nums; } /* Heritage Luxe — aligned KPI figures */
         @media (max-width: 700px) {
           .app-shell { padding: 6px !important; }
-          .app-title { font-size: 26px !important; letter-spacing: 3px !important; }
+          .app-title { font-size: 26px !important; letter-spacing: 1px !important; }
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
@@ -427,10 +428,10 @@ export default function App() {
       <div className="app-shell" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", background: "radial-gradient(ellipse at top, #1a2840 0%, #0d1623 55%, #0b1020 100%)", minHeight: "100vh", padding: 0 }}>
         <div style={{ maxWidth: 1400, margin: "0 auto" }}>
           <div className="app-header" style={{ background: "linear-gradient(180deg, #111e30 0%, #0d1623 100%)", padding: "28px 32px", textAlign: "center", borderBottom: "1px solid rgba(201,168,76,0.25)", boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}>
-            <h1 className="app-title" style={{ margin: 0, fontSize: 36, fontWeight: 900, letterSpacing: 5, color: "#e8e2d5", textTransform: "uppercase" }}>
+            <h1 className="app-title" style={{ margin: 0, fontFamily: "var(--bk-font-display)", fontSize: 36, fontWeight: 900, letterSpacing: 1, color: "var(--bk-gold-ink)" }}>
               Brickuity
             </h1>
-            <div style={{ width: 48, height: 2, background: "linear-gradient(90deg, transparent, #c9a84c, transparent)", margin: "12px auto 0", borderRadius: 999 }} />
+            <div style={{ width: 48, height: 2, background: "linear-gradient(90deg, transparent, var(--bk-gold), transparent)", margin: "12px auto 0", borderRadius: 999 }} />
           </div>
 
           <div className="nav-wrap" style={{ display: "flex", justifyContent: "center", padding: "12px 24px", position: "sticky", top: 0, zIndex: 100, background: "rgba(11,16,32,0.9)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>

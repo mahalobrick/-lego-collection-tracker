@@ -1014,7 +1014,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
     // Hold value-bearing cells at a loading state until the BL overlay resolves (no BE→BL flash).
     if (!valuesReady && (column.key === "value" || column.key === "gain" || column.key === "roi")) return "…";
 
-    if (column.key === "setNumber") return <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{set.setNumber || "—"}</span>;
+    if (column.key === "setNumber") return <span style={{ fontFamily: "var(--bk-font-mono)", fontSize: 12 }}>{set.setNumber || "—"}</span>;
     if (column.key === "name") return set.name || "—";
     if (column.key === "theme") return set.theme || "—";
     if (column.key === "qty") return qty;
@@ -2495,7 +2495,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                           {/* Sub-line: set# · theme · condition */}
                           {(colByKey.setNumber || colByKey.theme || colByKey.condition) && (
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: "#8a9bb0" }}>
-                            {colByKey.setNumber && <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{renderOwnedCell(set, colByKey.setNumber)}</span>}
+                            {colByKey.setNumber && <span style={{ fontFamily: "var(--bk-font-mono)" }}>{renderOwnedCell(set, colByKey.setNumber)}</span>}
                             {colByKey.theme && <span>· {renderOwnedCell(set, colByKey.theme)}</span>}
                             {colByKey.condition && <ConditionPill set={set} />}
                           </div>
@@ -3017,7 +3017,7 @@ const td = {
   overflow: "hidden",
   textOverflow: "ellipsis"
 };
-const tdRight = { ...td, textAlign: "right", fontWeight: 800, fontFamily: "'JetBrains Mono', monospace" };
+const tdRight = { ...td, textAlign: "right", fontWeight: 800, fontFamily: "var(--bk-font-mono)", fontVariantNumeric: "tabular-nums" };
 
 const stickyCheckbox = {
   position: "sticky",

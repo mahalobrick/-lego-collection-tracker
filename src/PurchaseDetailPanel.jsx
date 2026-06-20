@@ -125,7 +125,7 @@ export default function PurchaseDetailPanel({ item, onClose, onEdit }) {
             {item.orderLabel && (
               <div>
                 <div style={{ color: "#5d6f80", fontSize: 11, marginBottom: 3 }}>Order #</div>
-                <div style={{ fontFamily: "monospace", color: "#c9a84c", fontWeight: 700, fontSize: 14, letterSpacing: 0.5 }}>{item.orderLabel}</div>
+                <div style={{ fontFamily: "var(--bk-font-mono)", color: "#c9a84c", fontWeight: 700, fontSize: 14, letterSpacing: 0.5 }}>{item.orderLabel}</div>
               </div>
             )}
             {item.orderNotes && (

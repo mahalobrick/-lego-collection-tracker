@@ -45,12 +45,12 @@ export default function TriValueCell({ retail, paid, market, density = "full" })
   // Compact: the prior single Market cell, unchanged (net-first pin). Same testid so the row's
   // Market figure is found the same way in both modes.
   if (density === "compact") {
-    return <span title={marketTip} data-testid="tri-market">{marketFigureEl}</span>;
+    return <span title={marketTip} data-testid="tri-market" style={{ fontVariantNumeric: "tabular-nums" }}>{marketFigureEl}</span>;
   }
 
   const retailMark = retailSourceMarker(retail);
   return (
-    <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
+    <div style={{ display: "flex", flexDirection: "column", fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
       <div style={rowStyle} title={retailCellTooltip(retail) || undefined}>
         <span style={labelStyle}>MSRP</span>
         <span style={dimFigure} data-testid="tri-retail">

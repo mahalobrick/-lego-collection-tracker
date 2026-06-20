@@ -609,7 +609,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
       ) : money(cash);
     }
     if (column.key === "orderLabel") return p.orderLabel
-      ? <span style={{ fontFamily: "monospace", fontSize: 11, color: "#c9a84c", fontWeight: 700, letterSpacing: 0.5 }}>{p.orderLabel}</span>
+      ? <span style={{ fontFamily: "var(--bk-font-mono)", fontSize: 11, color: "#c9a84c", fontWeight: 700, letterSpacing: 0.5 }}>{p.orderLabel}</span>
       : <span style={{ color: "#3a4f63" }}>—</span>;
     if (column.key === "notes") return p.notes || "";
     return "";
@@ -1685,7 +1685,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                     placeholder="auto · or paste real order #"
                     value={form.orderLabel}
                     onChange={e => setForm(prev => ({ ...prev, orderLabel: e.target.value, _orderLabelAuto: false }))}
-                    style={{ width: 170, background: "#0a1624", border: `1px solid ${form.orderLabel ? "rgba(201,168,76,0.4)" : "#1a2d42"}`, borderRadius: 6, color: form.orderLabel ? "#c9a84c" : "#5d6f80", fontSize: 12, padding: "4px 8px", outline: "none", fontFamily: "monospace", fontWeight: form.orderLabel ? 700 : 400, letterSpacing: form.orderLabel ? 0.5 : 0 }}
+                    style={{ width: 170, background: "#0a1624", border: `1px solid ${form.orderLabel ? "rgba(201,168,76,0.4)" : "#1a2d42"}`, borderRadius: 6, color: form.orderLabel ? "#c9a84c" : "#5d6f80", fontSize: 12, padding: "4px 8px", outline: "none", fontFamily: "var(--bk-font-mono)", fontWeight: form.orderLabel ? 700 : 400, letterSpacing: form.orderLabel ? 0.5 : 0 }}
                   />
                   {(form.lines[0]?.store && form.lines[0]?.date) && (
                     <button
@@ -2320,7 +2320,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
                       {p.orderLabel && (
                         <div style={{ marginTop: 4 }}>
                           <span style={lbl}>Order #</span>
-                          <div style={{ fontFamily: "monospace", color: "#c9a84c", fontWeight: 700, fontSize: 13, letterSpacing: 0.5 }}>{p.orderLabel}</div>
+                          <div style={{ fontFamily: "var(--bk-font-mono)", color: "#c9a84c", fontWeight: 700, fontSize: 13, letterSpacing: 0.5 }}>{p.orderLabel}</div>
                         </div>
                       )}
                       {p.orderNotes && (
@@ -2359,7 +2359,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
               <div style={{ fontWeight: 700, color: "#e8e2d5", marginBottom: 6, fontSize: 13 }}>{hoveredPurchase.name || hoveredPurchase.setNumber || "Purchase"}</div>
               <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "3px 12px", fontSize: 12 }}>
                 {hoveredPurchase.setNumber && <><span style={{ color: "#5d6f80" }}>Set #</span><span style={{ color: "#e8e2d5" }}>{hoveredPurchase.setNumber}</span></>}
-                {hoveredPurchase.orderLabel && <><span style={{ color: "#5d6f80" }}>Order #</span><span style={{ color: "#c9a84c", fontFamily: "monospace", fontWeight: 700, fontSize: 11 }}>{hoveredPurchase.orderLabel}</span></>}
+                {hoveredPurchase.orderLabel && <><span style={{ color: "#5d6f80" }}>Order #</span><span style={{ color: "#c9a84c", fontFamily: "var(--bk-font-mono)", fontWeight: 700, fontSize: 11 }}>{hoveredPurchase.orderLabel}</span></>}
                 <span style={{ color: "#5d6f80" }}>Store</span><span style={{ color: "#e8e2d5" }}>{hoveredPurchase.store || "—"}</span>
                 <span style={{ color: "#5d6f80" }}>Date</span><span style={{ color: "#e8e2d5" }}>{usDate(hoveredPurchase.date) || "—"}</span>
                 {hoveredPurchase.orderNotes && <><span style={{ color: "#5d6f80" }}>Order Note</span><span style={{ color: "#8a9bb0" }}>{hoveredPurchase.orderNotes}</span></>}
