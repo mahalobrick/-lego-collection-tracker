@@ -1300,7 +1300,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     <div className="tab-page" style={page} onMouseMove={e => setTipPos({ x: e.clientX, y: e.clientY })} onTouchStart={() => { setHoveredSet(null); setHoveredWatchItem(null); }}>
       <div style={tabHeader}>
         <div>
-          <h2 style={{ margin: 0 }}>{mode === "performance" ? "Performance" : "Collection"}</h2>
+          <h2 style={{ margin: 0, fontFamily: "var(--bk-font-display)", color: "var(--bk-text)" }}>{mode === "performance" ? "Performance" : "Collection"}</h2>
           <p style={{ ...muted, margin: "4px 0 0" }}>{mode === "performance" ? "Track collection value, growth, and ROI across your sets." : "Browse, search, and manage your sets."}</p>
         </div>
         {mode === "collection" && (

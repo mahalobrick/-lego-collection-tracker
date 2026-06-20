@@ -1253,7 +1253,7 @@ export default function BudgetDashboard({ pendingPurchase, onPendingPurchaseCons
     <div className="tab-page" style={page} onMouseMove={e => setTipPos({ x: e.clientX, y: e.clientY })} onTouchStart={() => setHoveredPurchase(null)}>
       <div style={header}>
         <div>
-          <h2 style={{ margin: 0 }}>Budget</h2>
+          <h2 style={{ margin: 0, fontFamily: "var(--bk-font-display)", color: "var(--bk-text)" }}>Budget</h2>
           <p style={{ margin: "4px 0 0", color: "#8a9bb0" }}>Track spending and purchase history.</p>
         </div>
         <div style={tabs}>

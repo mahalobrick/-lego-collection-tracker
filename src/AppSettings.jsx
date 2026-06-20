@@ -1141,7 +1141,7 @@ export default function AppSettings() {
     <div className="tab-page" style={page}>
       <div style={stTabHeader}>
         <div>
-          <h2 style={{ margin: 0 }}>Settings</h2>
+          <h2 style={{ margin: 0, fontFamily: "var(--bk-font-display)", color: "var(--bk-text)" }}>Settings</h2>
           <p style={{ ...muted, margin: "4px 0 0" }}>App-wide configuration and data management.</p>
         </div>
         <div style={stTabBar}>
