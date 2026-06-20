@@ -196,10 +196,10 @@ export const TOTAL_SETS_TOOLTIP =
 export const NEW_USED_COUNT_TOOLTIP =
   "Counted per copy — each copy is classed new or used.";
 
-// New / Used / Mixed Sets VALUE cards — counted per SET; the three values partition Collection Value.
+// New / Used Sets VALUE cards — counted per COPY; the two values partition Collection Value.
 export const CONDITION_VALUE_TOOLTIP =
-  "Counted per set — New = all copies new, Used = all used, Mixed = you own both. " +
-  "The three values sum to your collection value.";
+  "Counted per copy — each copy's value scores New or Used by its condition. " +
+  "The two values sum to your collection value.";
 
 // Retired Sets — explains the sub-line %: retired ÷ unique sets, each set counted once (not per copy).
 export const RETIRED_TOOLTIP =

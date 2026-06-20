@@ -466,22 +466,21 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     const allEntries    = sets.flatMap(s => s.entries?.length ? s.entries : [{ condition: s.condition, current_value: asNumber(s.currentValue), retired: s.retired }]);
     const newEntries    = allEntries.filter(e => conditionBucket(e.condition) === "new").length;
     const usedEntries   = allEntries.filter(e => conditionBucket(e.condition) === "used").length;
-    // New / Used / Mixed Sets Value via the canonical setConditionDisplay partition (conditionValueBuckets):
-    // three exhaustive + disjoint buckets, so New + Used + Mixed === Collection Value by construction — a
-    // 'mixed' BE set (both new + used copies) no longer falls between New and Used (the ~$3.4k gap). Each
-    // bucket routes value/known through the null-aware funnel, so unknown contributes 0 and an all-unknown
-    // bucket renders "—", never a phantom $0. `count` is set-level — the grain its value is summed at. (Workstream A)
+    // New / Used Sets Value — COPY-GRAIN partition (conditionValueBuckets): each owned copy's
+    // condition-matched value scores New or Used by its own condition, so New + Used === Collection Value
+    // by construction (no return of the old ~$3.4k mixed gap). "Mixed" is no longer a value bucket — a
+    // multi-condition set's new copies count New and its used copies count Used. Unknown value contributes
+    // 0 → an all-unknown bucket renders "—", never a phantom $0. `copies` is per-copy and sums to Total Sets.
     const condBuckets = conditionValueBuckets(sets, valueMap);
 
     return {
       totalQty, costBasis, value, valuedSets, themes, duplicates,
       retiredSets, avgValue, avgPaid,
       pieces, retailValue, retailValueKnown, retailEstimated, retailEstimatedTotal, retailPromo, retailPromoTotal, retailNotListed, minifigs, newEntries, usedEntries,
-      // New / Used / Mixed value partition (set-level grain): count is set-level so each tile's "N sets"
-      // sub agrees with its value (was the per-copy entry count, which double-counted a mixed set into both).
-      newSetsValue: condBuckets.new.value,     newValueKnown: condBuckets.new.known,     newSetsCount: condBuckets.new.count,
-      usedSetsValue: condBuckets.used.value,   usedValueKnown: condBuckets.used.known,   usedSetsCount: condBuckets.used.count,
-      mixedSetsValue: condBuckets.mixed.value, mixedValueKnown: condBuckets.mixed.known, mixedSetsCount: condBuckets.mixed.count,
+      // New / Used value partition (COPY-grain): `*Copies` is the per-copy count (Σ === Total Sets), shown
+      // as each tile's "N copies" sub AND read by the Condition Breakdown donut so the two can't diverge.
+      newSetsValue: condBuckets.new.value,   newValueKnown: condBuckets.new.known,   newCopies: condBuckets.new.copies,
+      usedSetsValue: condBuckets.used.value, usedValueKnown: condBuckets.used.known, usedCopies: condBuckets.used.copies,
       // Paid-provenance split (Step 2 revised): msrpCost/msrpCount drive the quality disclosure
       // beside the TOTAL cost-basis headline. realCost/realCount kept for any consumer needing them.
       realCost: costSplit.realCost, realCount: costSplit.realCount,
@@ -512,15 +511,14 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   }, [sets, valueMap]);
 
   const conditionBreakdownData = useMemo(() => {
-    // Bucketed to New / Used / Mixed per SET (matches the column + filter),
-    // labelled + coloured via the one condition normalizer — no raw tokens,
-    // no split used-grades, and Mixed gets its own slice.
-    const counts = { new: 0, used: 0, mixed: 0 };
-    sets.forEach(s => { counts[setConditionDisplay(s)] += 1; });
-    return ["new", "used", "mixed"]
-      .filter(b => counts[b] > 0)
-      .map(b => ({ name: conditionDisplayLabel(b), value: counts[b], color: conditionDisplayColor(b) }));
-  }, [sets]);
+    // COPY-GRAIN: each owned copy classed New or Used by its own condition — read from the SAME
+    // conditionValueBuckets copy counts the New/Used value cards use, so the donut and the cards can't
+    // diverge. No Mixed slice (a multi-condition set splits its copies); the two counts sum to the
+    // all-copies "Total Sets" figure (Σ qty). Labelled + coloured via the one condition normalizer.
+    return [["new", stats.newCopies], ["used", stats.usedCopies]]
+      .filter(([, n]) => n > 0)
+      .map(([b, n]) => ({ name: conditionDisplayLabel(b), value: n, color: conditionDisplayColor(b) }));
+  }, [stats.newCopies, stats.usedCopies]);
 
   const topRoiSets = useMemo(() => {
     return [...sets]
@@ -1440,9 +1438,8 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                              key === "pieces"       ? <Card hero={isHero} title="Total Pieces"     value={(stats.pieces || beSyncInfo.piecesCount || 0).toLocaleString()} /> :
                              key === "minifigs"     ? <Card hero={isHero} title="Minifigs"         value={(stats.minifigs || beSyncInfo.minifsCount || 0).toLocaleString()} /> :
                              key === "retailValue"  ? (() => { const r = { known: stats.retailValueKnown, estimated: stats.retailEstimated, estimatedTotal: stats.retailEstimatedTotal, promo: stats.retailPromo, promoTotal: stats.retailPromoTotal, notListed: stats.retailNotListed }; return <Card hero={isHero} title="MSRP Value" value={formatAggregateValue(stats.retailValue, stats.retailValueKnown)} sub={retailCoverageCounts(r)} subTip={retailCoverageTooltip(r)} />; })() :
-                             key === "newValue"     ? <Card hero={isHero} title="New Sets Value"   value={fmtAgg(stats.newSetsValue, stats.newValueKnown)} sub={`${stats.newSetsCount} set${stats.newSetsCount === 1 ? "" : "s"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
-                             key === "usedValue"    ? <Card hero={isHero} title="Used Sets Value"  value={fmtAgg(stats.usedSetsValue, stats.usedValueKnown)} sub={`${stats.usedSetsCount} set${stats.usedSetsCount === 1 ? "" : "s"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
-                             key === "mixedValue"   ? <Card hero={isHero} title="Mixed Sets Value" value={fmtAgg(stats.mixedSetsValue, stats.mixedValueKnown)} sub={`${stats.mixedSetsCount} set${stats.mixedSetsCount === 1 ? "" : "s"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
+                             key === "newValue"     ? <Card hero={isHero} title="New Sets Value"   value={fmtAgg(stats.newSetsValue, stats.newValueKnown)} sub={`${stats.newCopies} cop${stats.newCopies === 1 ? "y" : "ies"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
+                             key === "usedValue"    ? <Card hero={isHero} title="Used Sets Value"  value={fmtAgg(stats.usedSetsValue, stats.usedValueKnown)} sub={`${stats.usedCopies} cop${stats.usedCopies === 1 ? "y" : "ies"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
                              key === "watchList"    ? <Card hero={isHero} title="Wanted List"      value={watchListHighlights.total} /> : null}
                           </div>
                         ))}
@@ -1514,7 +1511,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                                   <Pie isAnimationActive={false} data={data} cx="50%" cy="50%" innerRadius={44} outerRadius={70} dataKey="value" paddingAngle={2}>
                                     {data.map((d, i) => <Cell key={i} fill={d.color} />)}
                                   </Pie>
-                                  <Tooltip formatter={v => [v, "Sets"]} contentStyle={{ background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)" }} />
+                                  <Tooltip formatter={v => [v, "Copies"]} contentStyle={{ background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)" }} />
                                 </PieChart>
                               </ResponsiveContainer>
                               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: 4 }}>

@@ -1,6 +1,6 @@
 import { asNumber } from "./formatting";
 import { toValue, valueAmount } from "./value";
-import { conditionBucket, setConditionDisplay } from "./condition";
+import { conditionBucket } from "./condition";
 import { materializeEntries } from "./percopy";
 import { isFrozenValueSet, frozenValue } from "./frozenValue";
 
@@ -107,8 +107,8 @@ function resolveCopies(s, valueMap) {
     const blc = rec && rec[g.cond];
     const blAmt = blc && typeof blc.amount === "number" ? blc.amount : null; // amount != null wins
     const copy = blAmt !== null
-      ? { amount: blAmt, basis: blc.basis ?? null, source: BL_SOURCE, lots: typeof blc.lots === "number" ? blc.lots : null, asOf: blc.asOf ?? null }
-      : { amount: g.be, basis: null, source: "be", lots: null, asOf: null }; // basis:"unknown"/miss → BE fallback
+      ? { amount: blAmt, basis: blc.basis ?? null, source: BL_SOURCE, lots: typeof blc.lots === "number" ? blc.lots : null, asOf: blc.asOf ?? null, cond: g.cond }
+      : { amount: g.be, basis: null, source: "be", lots: null, asOf: null, cond: g.cond }; // basis:"unknown"/miss → BE fallback. cond: per-copy New/Used bucket (additive — for the copy-grain condition rollup; value/overlay consumers ignore it)
     for (let i = 0; i < g.units; i++) out.push(copy);
   }
   return out;
@@ -855,26 +855,62 @@ export function groupRollup(sets, keyFn, valueMap) {
 }
 
 /**
- * Collection value split by the canonical New / Used / Mixed condition bucket — the value twin of the
- * Condition Breakdown pie (both route through {@link import("./condition").setConditionDisplay}). Every
- * set lands in EXACTLY one bucket: setConditionDisplay is total over its 'new'|'used'|'mixed' output and
- * the three are disjoint, so by construction
- *   new.value + used.value + mixed.value === {@link portfolioValue}(sets)   (the headline Collection Value)
- * — no set's value can fall between buckets. This is the fix for the Overview gap: the old per-card raw
- * filters (`s.condition === "new"` / `s.condition.startsWith("used")`) dropped a 'mixed' set — a BE
- * multi-copy set with both new and used copies, stored set-level condition "mixed" (beCollection.js) —
- * from BOTH New and Used, so its value vanished from the New+Used decomposition. Each bucket routes its
- * value + known-count through the SAME null-aware funnel ({@link portfolioValue} / {@link knownValueCount}),
- * so unknown value contributes 0 and an all-unknown bucket reads "—", never a phantom $0. `count` is the
- * set-level total (the grain the value is computed at), distinct from a per-copy entry count.
+ * Collection value + copy counts split by the binary New / Used valuation bucket — COPY-GRAIN.
+ * Supersedes the prior SET-grain New/Used/**Mixed** partition: every owned COPY lands in exactly one
+ * bucket via its OWN condition ({@link resolveCopies} → {@link import("./condition").conditionBucket}),
+ * so a multi-condition ("mixed") set is no longer a third bucket — its new copies score New and its used
+ * copies score Used. "Mixed" still renders on the row + per-copy detail (setConditionDisplay, untouched);
+ * it just stops being a value/donut bucket.
+ *
+ * VALUE is anchored to each set's authoritative {@link setValueProvenance} amount — the EXACT figure
+ * {@link portfolioValue} sums — and distributed across the buckets in proportion to the per-copy
+ * condition-matched values, so by construction
+ *     new.value + used.value === portfolioValue(sets, valueMap)   (the headline Collection Value)
+ * — no value falls between buckets. This replaces the set-grain new+used+mixed===portfolioValue invariant
+ * with the SAME "no dropped value" guarantee, two buckets not three (no return of the old ~$3.4k gap).
+ * For a BL-covered set the proportion is EXACT (Σ per-copy === the set total), so each copy contributes
+ * its own condition-matched value; the ratio only re-scales the degenerate case where the row total and
+ * the per-copy values disagree (lazy/stale `entries[].current_value` vs a synced row `totalValue`). A set
+ * whose total is known but has NO per-copy value signal splits evenly across its copies — nothing dropped.
+ * Unknown set value contributes 0 and leaves `known` at 0 → the card reads "—", never a phantom $0.
+ *
+ * `copies` is COPY-grain and reconciles to the all-copies "Total Sets" figure: Σ(new.copies + used.copies)
+ * === Σ qty, because resolveCopies yields exactly `qty` copies per set (entries.length for BE — quantity
+ * === entries by aggregateFromEntries — or `qty` synthesized for manual). The Condition Breakdown donut
+ * reads these, so the donut total can't diverge from Total Sets.
  *
  * @param {Array<Object>} sets
  * @param {Object} [valueMap]
- * @returns {{ new:{value:number,known:number,count:number}, used:{value:number,known:number,count:number}, mixed:{value:number,known:number,count:number} }}
+ * @returns {{ new:{value:number,known:number,copies:number}, used:{value:number,known:number,copies:number} }}
  */
 export function conditionValueBuckets(sets, valueMap) {
-  const groups = { new: [], used: [], mixed: [] };
-  for (const s of sets) groups[setConditionDisplay(s)].push(s);
-  const roll = (g) => ({ value: portfolioValue(g, valueMap), known: knownValueCount(g, valueMap), count: g.length });
-  return { new: roll(groups.new), used: roll(groups.used), mixed: roll(groups.mixed) };
+  const acc = {
+    new:  { value: 0, known: 0, copies: 0 },
+    used: { value: 0, known: 0, copies: 0 },
+  };
+  for (const s of sets) {
+    const copies = resolveCopies(s, valueMap); // one entry per owned copy, each carrying { amount, cond }
+    for (const c of copies) acc[c.cond].copies += 1;
+
+    // Anchor the value split to the set's authoritative amount so the buckets sum to portfolioValue exactly.
+    const total = setValueProvenance(s, valueMap).amount;
+    if (total === null) continue; // unknown value — copies counted, nothing to distribute
+
+    const known = copies.filter((c) => c.amount !== null);
+    const copySum = known.reduce((sum, c) => sum + c.amount, 0);
+    if (copySum > 0) {
+      for (const c of known) {
+        acc[c.cond].value += total * (c.amount / copySum); // exact when copySum === total (BL-covered)
+        acc[c.cond].known += 1;
+      }
+    } else {
+      // Known total, no per-copy value signal (e.g. lazy entries pre-overlay) → spread evenly so it lands.
+      const per = total / copies.length;
+      for (const c of copies) {
+        acc[c.cond].value += per;
+        acc[c.cond].known += 1;
+      }
+    }
+  }
+  return acc;
 }

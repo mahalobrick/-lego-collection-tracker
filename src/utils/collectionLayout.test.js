@@ -110,7 +110,7 @@ describe("CARD_DEFS / CARD_TIERS — registry integrity", () => {
 
   it("defaults to opt-out — only the partition group + Wanted List start hidden", () => {
     const off = Object.entries(CARD_DEFS).filter(([, d]) => !d.defaultVisible).map(([k]) => k).sort();
-    expect(off).toEqual(["mixedValue", "newValue", "usedValue", "watchList"]);
+    expect(off).toEqual(["newValue", "usedValue", "watchList"]);
   });
 });
 
@@ -168,11 +168,11 @@ describe("tieredVisibleCards(overrides)", () => {
 
   it("an override can hide a default-on card and show default-off cards", () => {
     const byId = Object.fromEntries(
-      tieredVisibleCards({ value: false, watchList: true, newValue: true, usedValue: true, mixedValue: true }).map(t => [t.id, t.keys])
+      tieredVisibleCards({ value: false, watchList: true, newValue: true, usedValue: true }).map(t => [t.id, t.keys])
     );
     expect(byId.hero).toEqual(["gain", "roi"]);            // value hidden, tier order preserved
     expect(byId.composition).toContain("watchList");      // Wanted opted in
-    expect(byId.valueCondition).toEqual(["cost", "retailValue", "avgValue", "avgPaid", "newValue", "usedValue", "mixedValue"]);
+    expect(byId.valueCondition).toEqual(["cost", "retailValue", "avgValue", "avgPaid", "newValue", "usedValue"]);
   });
 
   it("drops a tier whose every card is hidden", () => {
@@ -181,45 +181,45 @@ describe("tieredVisibleCards(overrides)", () => {
   });
 });
 
-describe("partition group — New/Used/Mixed travel all-or-none", () => {
-  const PART = ["newValue", "usedValue", "mixedValue"];
+describe("partition group — New/Used travel all-or-none", () => {
+  const PART = ["newValue", "usedValue"];
 
-  it("is the New/Used/Mixed value group", () => {
+  it("is the New/Used value group", () => {
     expect(CARD_GROUPS.partition.keys).toEqual(PART);
   });
 
-  it("all three default OFF and move together via the canonical key", () => {
-    expect(PART.map(k => cardVisible(k, {}))).toEqual([false, false, false]);
-    const on = toggleCardOverride({}, "usedValue");      // toggled via a NON-canonical member
+  it("both default OFF and move together via the canonical key", () => {
+    expect(PART.map(k => cardVisible(k, {}))).toEqual([false, false]);
+    const on = toggleCardOverride({}, "usedValue");      // toggled via the NON-canonical member
     expect(on).toEqual({ newValue: true });              // stored under the canonical key only
-    expect(PART.map(k => cardVisible(k, on))).toEqual([true, true, true]);
+    expect(PART.map(k => cardVisible(k, on))).toEqual([true, true]);
   });
 
   it("a stray partial override can never split the group (canonical decides)", () => {
-    expect(PART.map(k => cardVisible(k, { usedValue: true }))).toEqual([false, false, false]);            // mirrored-only → all hidden
-    expect(PART.map(k => cardVisible(k, { newValue: true, usedValue: false }))).toEqual([true, true, true]); // canonical wins
+    expect(PART.map(k => cardVisible(k, { usedValue: true }))).toEqual([false, false]);            // mirrored-only → all hidden
+    expect(PART.map(k => cardVisible(k, { newValue: true, usedValue: false }))).toEqual([true, true]); // canonical wins
   });
 
-  it("tieredVisibleCards renders all three or none, never a partial partition", () => {
+  it("tieredVisibleCards renders both or none, never a partial partition", () => {
     const shown = (ov) => {
       const vc = tieredVisibleCards(ov).find(t => t.id === "valueCondition")?.keys || [];
       return PART.filter(k => vc.includes(k));
     };
     expect(shown({})).toEqual([]);                  // none by default
-    expect(shown({ newValue: true })).toEqual(PART); // all three when the group is on
+    expect(shown({ newValue: true })).toEqual(PART); // both when the group is on
     expect(shown({ usedValue: true })).toEqual([]);  // stray mirrored member → still none
   });
 
   it("loadCardOverrides strips mirrored members, keeping only the canonical key", () => {
-    const raw = JSON.stringify({ newValue: true, usedValue: true, mixedValue: false, value: false });
+    const raw = JSON.stringify({ newValue: true, usedValue: true, value: false });
     expect(loadCardOverrides(raw)).toEqual({ newValue: true, value: false });
   });
 
   it("the gear collapses the partition into ONE row in the valueCondition tier", () => {
     const vc = gearCardRowsByTier().find(t => t.id === "valueCondition");
     const partRows = vc.rows.filter(r => PART.includes(r.key));
-    expect(partRows).toEqual([{ key: "newValue", label: "New / Used / Mixed value" }]);
-    expect(vc.rows.some(r => r.key === "usedValue" || r.key === "mixedValue")).toBe(false);
+    expect(partRows).toEqual([{ key: "newValue", label: "New / Used value" }]);
+    expect(vc.rows.some(r => r.key === "usedValue")).toBe(false);
   });
 });
 
@@ -237,7 +237,7 @@ describe("gearCardRowsByTier() — gear grouped by tier (on/off within fixed tie
     expect(hero.rows.map(r => r.key)).toEqual(["value", "gain", "roi"]);
   });
 
-  it("total rows = 16 (18 cards − 3 partition members + 1 group row) with no mirrored keys", () => {
+  it("total rows = 16 (17 cards − 2 partition members + 1 group row) with no mirrored keys", () => {
     const keys = gearCardRowsByTier().flatMap(t => t.rows.map(r => r.key));
     expect(keys).toHaveLength(16);
     expect(keys).not.toContain("usedValue");

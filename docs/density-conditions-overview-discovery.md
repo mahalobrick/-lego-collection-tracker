@@ -165,6 +165,33 @@ richer per-copy UI must keep tolerating (or normalize once — see §3 caveat).
 >
 > **Conditions arc COMPLETE through Phase 2.** Remaining cleanup (parked, see `docs/backlog.md`): the
 > BE-ingest token normalization (display already buckets the raw tokens; this tidies the source).
+>
+> **Update — 2026-06-20 — Performance condition rollup moved SET-grain → COPY-grain.** The Overview's
+> condition VALUE cards and the Condition Breakdown donut now aggregate per COPY, not per set.
+> - **Value:** the New / Used / **Mixed** value cards (set-grain) are replaced by **two** cards — New and
+>   Used. `conditionValueBuckets(sets, valueMap)` (`portfolio.js`) now returns `{ new, used }` only: each
+>   set's authoritative `setValueProvenance` amount is distributed across the buckets in proportion to its
+>   per-copy condition-matched values (`resolveCopies`, which gained an additive `cond` field). A
+>   multi-condition ("mixed") set's new copies score New and its used copies score Used. **NEW INVARIANT:**
+>   `new.value + used.value === portfolioValue(sets, valueMap)` — anchoring to `setValueProvenance` (the
+>   exact summand `portfolioValue` sums) makes this exact BY CONSTRUCTION; for a BL-covered set each copy
+>   contributes its own condition-matched value, and the proportion only re-scales the degenerate
+>   stale/lazy-entries case (a known row total but no per-copy value splits evenly). This **supersedes**
+>   the set-grain `new + used + mixed === portfolioValue` invariant, with the SAME "no dropped value"
+>   guarantee — no return of the ~$3.4k mixed gap — two buckets, not three.
+> - **Count donut:** copy-grain — counts COPIES by condition (New / Used, no Mixed slice), read from the
+>   SAME `conditionValueBuckets` copy counts so the donut and the value cards can't diverge. **It
+>   reconciles to the all-copies "Total Sets" figure (Σ qty), NOT to unique sets:** `resolveCopies` yields
+>   exactly `qty` copies per set (entries.length for BE — `quantity === entries` by `aggregateFromEntries`
+>   — or `qty` synthesized for manual), so `new.copies + used.copies === Σ qty`. Live data (2026-06-20):
+>   **New 419 + Used 353 = 772 copies**, reconciling to Total Sets 772; **unique sets unchanged at 600**
+>   (its figure + tooltip untouched).
+> - **Unchanged:** `setConditionDisplay` and every per-set / row / detail condition display — "Mixed"
+>   still renders on the table row and in the per-copy detail breakdown. Only the aggregate Performance
+>   value split + count donut moved to copy-grain. The `mixedValue` card dropped out of the layout
+>   registry (`collectionLayout.js`); the New/Used partition group is now two members.
+> Pinned: `portfolio.conditionBuckets.test.js` (copy-grain invariant + manual single-bucket + BL per-copy
+> split + donut-reconciles-to-Σqty) and `collectionLayout.test.js` (two-member partition).
 
 ### What actually exists
 

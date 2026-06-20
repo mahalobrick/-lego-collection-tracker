@@ -2,74 +2,93 @@ import { describe, it, expect } from "vitest";
 import { conditionValueBuckets, portfolioValue } from "./portfolio";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// New / Used / Mixed value partition (Overview gap fix).
+// New / Used value partition — COPY-GRAIN (supersedes the set-grain New/Used/Mixed).
 //
-// THE BUG this pins: the Overview's New/Used value cards bucketed on the RAW
-// set-level condition string —
-//     new  = s.condition === "new" || s.condition === "sealed"
-//     used = s.condition.startsWith("used")
-// so a BE multi-copy set with both new and used copies (stored set-level
-// condition "mixed", via setConditionDisplay in beCollection.js) matched
-// NEITHER filter. Its value vanished from New+Used — the ~$3,388 gap vs the
-// Collection Value headline.
+// THE DECISION: each owned COPY's condition-matched value scores New or Used by its
+// OWN condition; "Mixed" stops being a value bucket — a multi-condition set's new
+// copies count New and its used copies count Used.
 //
-// THE INVARIANT (pinned below): the three buckets are total + disjoint over
-// setConditionDisplay's 'new'|'used'|'mixed', so
-//     new.value + used.value + mixed.value === portfolioValue(sets)
-// by construction — no set's value can fall between buckets.
+// THE INVARIANT (pinned below): two exhaustive + disjoint buckets, value anchored to
+// each set's authoritative setValueProvenance amount, so
+//     new.value + used.value === portfolioValue(sets, valueMap)
+// by construction — no value falls between buckets. This REPLACES the old set-grain
+// new.value + used.value + mixed.value === portfolioValue, with the same "no dropped
+// value" guarantee (no return of the ~$3.4k mixed gap), two buckets not three.
+//
+// `copies` is COPY-grain and reconciles to the all-copies "Total Sets" figure (Σ qty):
+// resolveCopies yields exactly `qty` copies per set (entries.length for BE — quantity
+// === entries by aggregateFromEntries — or `qty` synthesized for manual).
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PURE_NEW   = { setNumber: "10300-1", currentValue: 100, condition: "new",          qty: 1 }; // new
-const SEALED_NEW = { setNumber: "75313-1", currentValue: 75,  condition: "sealed",       qty: 1 }; // sealed → new
-const PURE_USED  = { setNumber: "10221-1", currentValue: 50,  condition: "usedcomplete", qty: 1 }; // used
-const UNKNOWN_NEW = { setNumber: "21330-1", condition: "new", qty: 1 };                            // new, value unknown
-// A BE multi-copy set: one new copy + one used copy. beCollection.js stores set-level
-// condition = setConditionDisplay(item) === "mixed" (the exact shape that made the old raw
-// `!s.condition`/`startsWith("used")` filters drop it from BOTH New and Used).
+const PURE_NEW    = { setNumber: "10300-1", currentValue: 100, condition: "new",          qty: 1 }; // 1 new copy, $100
+const SEALED_NEW  = { setNumber: "75313-1", currentValue: 75,  condition: "sealed",       qty: 1 }; // sealed → new, $75
+const PURE_USED   = { setNumber: "10221-1", currentValue: 50,  condition: "usedcomplete", qty: 1 }; // 1 used copy, $50
+const UNKNOWN_NEW = { setNumber: "21330-1", condition: "new", qty: 1 };                              // 1 new copy, value unknown
+// BE multi-copy mixed set: 1 new + 1 used copy; qty matches entries.length (aggregateFromEntries
+// guarantees quantity === entries). No per-copy current_value (lazy) + no valueMap → the known row
+// total ($200) splits evenly across its copies so nothing is dropped.
 const MIXED = {
-  setNumber: "71043-1",
-  condition: "mixed",
-  totalValue: 200,
+  setNumber: "71043-1", condition: "mixed", qty: 2, totalValue: 200,
   entries: [{ condition: "new" }, { condition: "usedcomplete" }],
 };
+// Manual multi-qty used set: no entries[] → materializeEntries synthesizes `qty` copies, all used.
+const MANUAL_MULTI = { setNumber: "10256-1", currentValue: 300, condition: "used", qty: 3 };          // 3 used copies, $900
 
-const ALL = [PURE_NEW, SEALED_NEW, PURE_USED, UNKNOWN_NEW, MIXED];
+const ALL = [PURE_NEW, SEALED_NEW, PURE_USED, UNKNOWN_NEW, MIXED, MANUAL_MULTI];
+// The all-copies figure the Overview "Total Sets" card sums (Σ qty) — the donut must reconcile to THIS.
+const TOTAL_COPIES = ALL.reduce((n, s) => n + (Number(s.qty) || 1), 0); // 1+1+1+1+2+3 = 9
 
-describe("conditionValueBuckets()", () => {
-  it("partitions value into New / Used / Mixed that sum to the Collection Value headline", () => {
+describe("conditionValueBuckets() — copy-grain New / Used", () => {
+  it("value: new + used === portfolioValue (zero gap — the copy-grain invariant)", () => {
     const b = conditionValueBuckets(ALL);
-    // THE pinned invariant: New + Used + Mixed === portfolioValue (value-known total).
-    expect(b.new.value + b.used.value + b.mixed.value).toBeCloseTo(portfolioValue(ALL), 5);
-    // Concrete partition: new = 100 + 75 + 0(unknown), used = 50, mixed = 200.
-    expect(b.new.value).toBeCloseTo(175, 5);
-    expect(b.used.value).toBeCloseTo(50, 5);
-    expect(b.mixed.value).toBeCloseTo(200, 5);
+    expect(b.new.value + b.used.value).toBeCloseTo(portfolioValue(ALL), 5);
+    // Concrete partition: new = 100 + 75 + 0(unknown) + 100(mixed half) = 275;
+    //                     used = 50 + 100(mixed half) + 900(manual×3) = 1050.
+    expect(b.new.value).toBeCloseTo(275, 5);
+    expect(b.used.value).toBeCloseTo(1050, 5);
+    // Two buckets, not three — Mixed is gone as a value bucket.
+    expect(b).not.toHaveProperty("mixed");
   });
 
-  it("lands a mixed (new+used copies) set in Mixed — not dropped from both buckets", () => {
+  it("counts copies (not sets) and reconciles to the all-copies Total Sets figure (Σ qty)", () => {
     const b = conditionValueBuckets(ALL);
-    expect(b.mixed.count).toBe(1);
-    expect(b.mixed.value).toBeCloseTo(200, 5); // the mixed set's value, present (was the gap)
-
-    // The exact regression: the OLD raw-condition filters dropped the mixed set's value.
-    const rawNew  = ALL.filter(s => !s.condition || s.condition === "new" || s.condition === "sealed");
-    const rawUsed = ALL.filter(s => s.condition && s.condition.startsWith("used"));
-    const rawSplit = portfolioValue(rawNew) + portfolioValue(rawUsed);
-    expect(rawSplit).toBeLessThan(portfolioValue(ALL));            // old way leaked $200
-    expect(portfolioValue(ALL) - rawSplit).toBeCloseTo(200, 5);    // …exactly the mixed set
+    expect(b.new.copies + b.used.copies).toBe(TOTAL_COPIES); // 9 — donut total === Total Sets
+    expect(b.new.copies).toBe(4);  // PURE_NEW, SEALED_NEW, UNKNOWN_NEW, MIXED's new copy
+    expect(b.used.copies).toBe(5); // PURE_USED, MIXED's used copy, MANUAL_MULTI's 3 copies
   });
 
-  it("counts every set into exactly one bucket (counts sum to sets.length)", () => {
+  it("excludes unknown value from the known-count but still counts the copy", () => {
     const b = conditionValueBuckets(ALL);
-    expect(b.new.count + b.used.count + b.mixed.count).toBe(ALL.length);
-    expect(b.new.count).toBe(3);  // PURE_NEW, SEALED_NEW, UNKNOWN_NEW
-    expect(b.used.count).toBe(1);
-    expect(b.mixed.count).toBe(1);
+    expect(b.new.copies).toBe(4);  // includes UNKNOWN_NEW's copy
+    expect(b.new.known).toBe(3);   // …but UNKNOWN_NEW contributes no known value
   });
 
-  it("excludes unknown value from the known-count but keeps it in the set count", () => {
-    const b = conditionValueBuckets(ALL);
-    expect(b.new.count).toBe(3);  // includes UNKNOWN_NEW
-    expect(b.new.known).toBe(2);  // …but only PURE_NEW + SEALED_NEW have a value
+  it("splits a mixed set across New and Used — its value is not dropped from both (the old gap)", () => {
+    const b = conditionValueBuckets([MIXED]);
+    // no per-copy value + no cache → the known row total ($200) splits evenly across its 2 copies
+    expect(b.new.value).toBeCloseTo(100, 5);
+    expect(b.used.value).toBeCloseTo(100, 5);
+    expect(b.new.copies).toBe(1);
+    expect(b.used.copies).toBe(1);
+    expect(b.new.value + b.used.value).toBeCloseTo(portfolioValue([MIXED]), 5); // 200, fully present
+  });
+
+  it("a mixed set with a condition-matched cache splits by the EXACT per-copy values, not evenly", () => {
+    // BL covers both conditions at different prices: new $300, used $100.
+    const valueMap = { "71043-1": { new: { amount: 300, basis: "sold" }, used: { amount: 100, basis: "sold" } } };
+    const b = conditionValueBuckets([MIXED], valueMap);
+    expect(b.new.value).toBeCloseTo(300, 5);  // the new copy's own condition-matched value
+    expect(b.used.value).toBeCloseTo(100, 5); // the used copy's own condition-matched value
+    expect(b.new.value + b.used.value).toBeCloseTo(portfolioValue([MIXED], valueMap), 5); // === 400
+    expect(portfolioValue([MIXED], valueMap)).toBeCloseTo(400, 5);
+  });
+
+  it("a manual multi-qty set: whole value + all copies land in its single bucket (never mixed)", () => {
+    const b = conditionValueBuckets([MANUAL_MULTI]);
+    expect(b.used.value).toBeCloseTo(900, 5); // 3 × $300
+    expect(b.used.copies).toBe(3);
+    expect(b.new.value).toBe(0);
+    expect(b.new.copies).toBe(0);
+    expect(b.new.value + b.used.value).toBeCloseTo(portfolioValue([MANUAL_MULTI]), 5);
   });
 });

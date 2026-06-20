@@ -76,9 +76,9 @@ describe("Collection-stats card glossary copy renders the agreed, GENERIC wordin
   it("New/Used COUNT card says per-copy", () => {
     expect(NEW_USED_COUNT_TOOLTIP).toContain("per copy");
   });
-  it("New/Used/Mixed VALUE cards say per-set and that the three sum to collection value", () => {
-    expect(CONDITION_VALUE_TOOLTIP).toContain("per set");
-    expect(CONDITION_VALUE_TOOLTIP).toContain("Mixed = you own both");
+  it("New/Used VALUE cards say per-copy and that the two sum to collection value", () => {
+    expect(CONDITION_VALUE_TOOLTIP).toContain("per copy");
+    expect(CONDITION_VALUE_TOOLTIP).toContain("New or Used");
     expect(CONDITION_VALUE_TOOLTIP).toContain("sum to your collection value");
   });
   it("Retired Sets explains the % (retired ÷ unique sets, counted once per set, not per copy)", () => {

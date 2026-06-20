@@ -22,7 +22,6 @@ export const DEFAULT_COLLECTION_ITEMS = [
   { key: "retailValue",  type: "card",  label: "MSRP Value",       visible: false, width: "auto",  collapsed: false },
   { key: "newValue",     type: "card",  label: "New Sets Value",   visible: false, width: "auto",  collapsed: false },
   { key: "usedValue",    type: "card",  label: "Used Sets Value",  visible: false, width: "auto",  collapsed: false },
-  { key: "mixedValue",   type: "card",  label: "Mixed Sets Value", visible: false, width: "auto",  collapsed: false },
   { key: "watchList",    type: "card",  label: "Wanted List",      visible: false, width: "auto",  collapsed: false },
   { key: "condition-breakdown", type: "panel", label: "Condition Breakdown", visible: false, width: "half", collapsed: false },
   { key: "theme-chart",   type: "panel", label: "Value by Theme",     visible: true,  width: "half",  collapsed: false },
@@ -68,7 +67,7 @@ export function loadCollectionItems(saved) {
 // toggled; effective visibility = override ?? defaultVisible. This means a newly-added card
 // appears automatically (no migration), and changing a default later moves every untouched
 // user with it — the model the other tabs inherit. Default = visible (opt-out), except the two
-// recorded deviations (docs/panel-design-sop.md): the New/Used/Mixed partition group and the
+// recorded deviations (docs/panel-design-sop.md): the New/Used partition group and the
 // cross-tab Wanted List card default OFF.
 export const CARD_DEFS = {
   qty:         { label: "Total Sets",       defaultVisible: true },
@@ -87,7 +86,6 @@ export const CARD_DEFS = {
   retailValue: { label: "MSRP Value",       defaultVisible: true },
   newValue:    { label: "New Sets Value",   defaultVisible: false }, // partition group — deviation
   usedValue:   { label: "Used Sets Value",  defaultVisible: false }, // partition group — deviation
-  mixedValue:  { label: "Mixed Sets Value", defaultVisible: false }, // partition group — deviation
   watchList:   { label: "Wanted List",      defaultVisible: false }, // cross-tab — deviation
 };
 
@@ -98,16 +96,17 @@ export const CARD_DEFS = {
 export const CARD_TIERS = [
   { id: "hero",           label: null,                 keys: ["value", "gain", "roi"] },
   { id: "composition",    label: "Composition",        keys: ["qty", "themes", "duplicates", "newUsed", "retired", "pieces", "minifigs", "watchList"] },
-  { id: "valueCondition", label: "Value & condition",  keys: ["cost", "retailValue", "avgValue", "avgPaid", "newValue", "usedValue", "mixedValue"] },
+  { id: "valueCondition", label: "Value & condition",  keys: ["cost", "retailValue", "avgValue", "avgPaid", "newValue", "usedValue"] },
 ];
 
 // ── Card groups (panel-design SOP rule 3 — partition deviation) ──────────────
 // Some cards must travel together so a PARTIAL set can never render and make the numbers visibly
-// fail to sum. The New / Used / Mixed value cards partition the whole collection, so they toggle
-// all-or-none. The group's state lives under its FIRST (canonical) member's key; the others mirror
-// it — so visibility is single-sourced and a stray per-member override can't split the group.
+// fail to sum. The New / Used value cards partition the whole collection (copy-grain: New + Used ===
+// Collection Value), so they toggle all-or-none. The group's state lives under its FIRST (canonical)
+// member's key; the other mirrors it — so visibility is single-sourced and a stray per-member override
+// can't split the group.
 export const CARD_GROUPS = {
-  partition: { keys: ["newValue", "usedValue", "mixedValue"], label: "New / Used / Mixed value" },
+  partition: { keys: ["newValue", "usedValue"], label: "New / Used value" },
 };
 
 const GROUP_OF = Object.fromEntries(
