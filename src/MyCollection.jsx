@@ -4,6 +4,7 @@ import { searchInput, filterSelect, clearFilterButton, filterBar, actionBtn, gho
 import { DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, AreaChart, Area, CartesianGrid } from "recharts";
 import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
+import Icon from "./Icon";
 import TriValueCell from "./TriValueCell";
 import RowHoverCard from "./RowHoverCard";
 import ConditionPill from "./ConditionPill";
@@ -2361,12 +2362,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
                 style={{ ...hoverCtrlBtn, color: ownedColumnsOpen ? "var(--bk-gold-ink)" : "var(--bk-text-muted)", padding: "5px 8px", display: "flex", alignItems: "center" }}
                 title={`Column visibility — ${ownedColumns.filter(c => c.visible).length} of ${ownedColumns.length} shown`}
               >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
-                  <rect x="0" y="0" width="14" height="3" rx="1"/>
-                  <rect x="0" y="5" width="3.5" height="9" rx="1"/>
-                  <rect x="5.25" y="5" width="3.5" height="9" rx="1"/>
-                  <rect x="10.5" y="5" width="3.5" height="9" rx="1"/>
-                </svg>
+                <Icon name="view-table" size={14} />
               </button>
               {ownedColumnsOpen && (
               <>
