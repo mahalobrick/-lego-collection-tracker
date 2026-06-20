@@ -16,7 +16,8 @@
    --bk-gold-ink (resolves to dark bronze in light mode).
    ============================================================ */
 
-:root {                      /* ---------- DARK (default) ---------- */
+:root,
+[data-theme="dark"] {        /* ---------- DARK (default; [data-theme="dark"] re-pins it for nested scopes, e.g. the sidebar rail) ---------- */
   /* Surfaces */
   --bk-bg:         #0C0F14;  /* Charcoal — page background      */
   --bk-surface:    #1B1D26;  /* Slate — card / raised tier      */

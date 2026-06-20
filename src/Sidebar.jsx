@@ -38,6 +38,7 @@ export default function Sidebar({ view, onNavigate, theme, onToggleTheme, pinned
 
   return (
     <aside
+      data-theme="dark"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
