@@ -2672,6 +2672,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                         return (
                           <td
                             key={col.key}
+                            title={col.key === "name" ? (set.name || undefined) : undefined}
                             style={
                               col.key === "name"
                                 ? { ...td, overflow: "hidden", textOverflow: "ellipsis" }
