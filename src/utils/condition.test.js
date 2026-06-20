@@ -144,8 +144,8 @@ describe("conditionDisplayColor — Mixed is visually distinct (no reuse)", () =
     const nu = conditionDisplayColor("new");
     const us = conditionDisplayColor("used");
     const mx = conditionDisplayColor("mixed");
-    expect(nu).toBe("#5aa832");
-    expect(us).toBe("#f59e0b");
+    expect(nu).toBe("var(--bk-cat-3)");
+    expect(us).toBe("var(--bk-cat-1)");
     expect(mx).not.toBe(nu);
     expect(mx).not.toBe(us);
   });

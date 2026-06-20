@@ -63,10 +63,10 @@ export function setConditionDisplay(set) {
   return conditionBucket(set?.condition);
 }
 
-// Display domain → label / color. `mixed` gets its OWN swatch (indigo), never a
+// Display domain → label / color. `mixed` gets its OWN swatch (blue), never a
 // reuse of New-green or Used-amber, so a multi-condition row is visually distinct.
 const DISPLAY_LABELS = { [NEW]: "New", [USED]: "Used", [MIXED]: "Mixed" };
-const DISPLAY_COLORS = { [NEW]: "#5aa832", [USED]: "#f59e0b", [MIXED]: "#6366f1" }; // green / amber / indigo
+const DISPLAY_COLORS = { [NEW]: "var(--bk-cat-3)", [USED]: "var(--bk-cat-1)", [MIXED]: "var(--bk-cat-5)" }; // green / amber / blue (categorical)
 
 /**
  * Label for a display condition ('new'|'used'|'mixed') → 'New' | 'Used' | 'Mixed'.

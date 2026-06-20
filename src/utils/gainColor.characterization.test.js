@@ -13,7 +13,7 @@ import { asNumber } from "./formatting";
 // (setGain / setROI) via signColor, with unknown → neutral.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GREEN = "#5aa832", RED = "#ff8b8b";
+const GREEN = "var(--bk-positive)", RED = "var(--bk-negative)";
 
 // Replica of the OLD inline color logic (the bug), for contrast.
 const oldGainColor = (s) => {
