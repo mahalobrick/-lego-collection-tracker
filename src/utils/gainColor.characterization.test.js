@@ -47,6 +47,10 @@ describe("gain cell color — characterization flips (bug → fixed)", () => {
     expect(setGain(GAIN)).toBeGreaterThan(0);
     expect(signColor(setGain(GAIN))).toBe(GREEN);
   });
+
+  it("zero gain → neutral, not gain-green (green = gains ONLY)", () => {
+    expect(signColor(0)).toBe(SIGN_COLORS.neutral);
+  });
 });
 
 describe("signColor guard — color sign always matches the DISPLAYED value (gain & ROI)", () => {
@@ -59,13 +63,13 @@ describe("signColor guard — color sign always matches the DISPLAYED value (gai
     it(`${label}: gain color matches sign(setGain)`, () => {
       const g = setGain(set, map);
       expect(signColor(g)).toBe(expected);
-      if (g != null) expect(signColor(g)).toBe(g >= 0 ? GREEN : RED);
+      if (g != null) expect(signColor(g)).toBe(g > 0 ? GREEN : g < 0 ? RED : SIGN_COLORS.neutral);
     });
     it(`${label}: ROI color matches sign(setROI)`, () => {
       const r = setROI(set, map);
       const c = signColor(r);
       if (r == null) expect(c).toBe(SIGN_COLORS.neutral);
-      else expect(c).toBe(r >= 0 ? GREEN : RED);
+      else expect(c).toBe(r > 0 ? GREEN : r < 0 ? RED : SIGN_COLORS.neutral);
     });
   }
 });

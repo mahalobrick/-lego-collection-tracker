@@ -538,7 +538,7 @@ export function roiExclusionNote(excludedCount) {
   return `${excludedCount} set${excludedCount === 1 ? "" : "s"} excluded from ROI (no value or no cost)`;
 }
 
-// Sign-keyed cell colors for gain / ROI. Green ≥ 0, red < 0, NEUTRAL for unknown (null) —
+// Sign-keyed cell colors for gain / ROI. Green > 0 (gains ONLY), red < 0, NEUTRAL for zero or unknown (null) —
 // matching the "—" the value funnel renders. The single rule, so a cell's color always derives
 // from the SAME number it displays (setGain / setROI), never a parallel raw `value − paid` calc.
 export const SIGN_COLORS = { pos: "var(--bk-positive)", neg: "var(--bk-negative)", neutral: "var(--bk-text-muted)" };
@@ -553,5 +553,5 @@ export const SIGN_COLORS = { pos: "var(--bk-positive)", neg: "var(--bk-negative)
  */
 export function signColor(amount) {
   if (amount == null) return SIGN_COLORS.neutral;
-  return amount >= 0 ? SIGN_COLORS.pos : SIGN_COLORS.neg;
+  return amount > 0 ? SIGN_COLORS.pos : amount < 0 ? SIGN_COLORS.neg : SIGN_COLORS.neutral;
 }
