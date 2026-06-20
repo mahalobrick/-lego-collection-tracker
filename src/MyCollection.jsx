@@ -2156,7 +2156,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
         onEditCopyCondition={detailSetIndex !== null
           ? (copyIndex, bucket) => editCopyCondition(detailSetIndex, copyIndex, bucket)
           : undefined}
-        onEditCopyPaid={detailSetIndex !== null && detailSet?.source === "BrickEconomy"
+        onEditCopyPaid={detailSetIndex !== null && Array.isArray(detailSet?.entries)
           ? (copyIndex, amount) => editCopyPaid(detailSetIndex, copyIndex, amount)
           : undefined}
       />
