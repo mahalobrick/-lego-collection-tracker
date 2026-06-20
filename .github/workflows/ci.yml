@@ -23,3 +23,5 @@ jobs:
         run: npm run lint
       - name: Test (incl. SEC-GAP-2 — every /api handler authenticates)
         run: npm test
+      - name: Build (production — catch build-breaks here, not at the Vercel deploy)
+        run: npm run build
