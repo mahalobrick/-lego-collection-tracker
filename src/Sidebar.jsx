@@ -18,7 +18,7 @@ const NAV = [
 function railBtn(active) {
   return {
     display: "flex", alignItems: "center", gap: 12, width: "100%",
-    border: "none", borderLeft: `3px solid ${active ? "var(--bk-action)" : "transparent"}`,
+    borderTop: "none", borderRight: "none", borderBottom: "none", borderLeft: `3px solid ${active ? "var(--bk-action)" : "transparent"}`,
     background: active ? "var(--bk-hover)" : "transparent",
     color: active ? "var(--bk-action)" : "var(--bk-text-muted)",
     borderRadius: 8, padding: "10px 11px", cursor: "pointer",
@@ -76,7 +76,7 @@ export default function Sidebar({ view, onNavigate, theme, onToggleTheme, pinned
           </div>
         ) : (
           <button onClick={onTogglePin} title={pinned ? "Unpin sidebar" : "Pin sidebar open"}
-            style={{ display: "flex", alignItems: "center", width: "100%", border: "none", borderLeft: "3px solid transparent", background: "transparent", cursor: "pointer", padding: "10px 11px", borderRadius: 8, color: pinned ? "var(--bk-action)" : "var(--bk-text-muted)" }}>
+            style={{ display: "flex", alignItems: "center", width: "100%", borderTop: "none", borderRight: "none", borderBottom: "none", borderLeft: "3px solid transparent", background: "transparent", cursor: "pointer", padding: "10px 11px", borderRadius: 8, color: pinned ? "var(--bk-action)" : "var(--bk-text-muted)" }}>
             <Icon name="sidebar" size={22} />
           </button>
         )}
