@@ -38,7 +38,7 @@ export function openSetDetail(setNumber) {
   return col.find(n => n.setNumber === setNumber) || null;
 }
 
-export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEditCopyCondition }) {
+export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEditCopyCondition, onEditCopyPaid }) {
   const [blPrice, setBlPrice] = useState(null);
   useEffect(() => {
     if (!item?.setNumber || !hasBrickLinkAuth()) { setBlPrice(null); return; }
@@ -338,7 +338,26 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap, onEdit
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                       <div>
                         <div style={{ color: "#5d6f80", fontSize: 11 }}>Paid</div>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: "#e8e2d5" }}>{money(paid)}</div>
+                        {onEditCopyPaid ? (
+                          // Editable per-copy paid (BE-only) — sets THIS copy's paid without flattening
+                          // the others (reconcileCopyPaidEdit). Commits on blur / Enter; Escape reverts.
+                          // key carries `paid` so the input remounts to the fresh value after a commit.
+                          <input
+                            key={`cp-paid-${i}-${paid}`}
+                            type="number" step="0.01" min="0"
+                            defaultValue={paid}
+                            data-testid="copy-paid-edit"
+                            onClick={e => e.stopPropagation()}
+                            onBlur={e => { const v = asNumber(e.target.value); if (v !== paid) onEditCopyPaid(i, v); }}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") e.currentTarget.blur();
+                              if (e.key === "Escape") { e.currentTarget.value = String(paid); e.currentTarget.blur(); }
+                            }}
+                            style={{ width: "100%", boxSizing: "border-box", background: "#0b1520", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 6, color: "#e8e2d5", fontSize: 13, fontWeight: 700, padding: "3px 7px", outline: "none" }}
+                          />
+                        ) : (
+                          <div style={{ fontWeight: 700, fontSize: 13, color: "#e8e2d5" }}>{money(paid)}</div>
+                        )}
                       </div>
                       <div>
                         <div style={{ color: "#5d6f80", fontSize: 11 }}>Value</div>

@@ -19,7 +19,7 @@ import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
 import { ownedSetFromBlob } from "./utils/beCollection";
-import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, conditionValueBuckets, freebieValue, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit } from "./utils/portfolio";
+import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, conditionValueBuckets, freebieValue, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit, reconcileCopyPaidEdit } from "./utils/portfolio";
 import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailCoverageCounts, retailCoverageTooltip, vsdEsdNote, VSD_ESD_TOOLTIP, estimatedCostNote, roiScopeNote, roiScopeTooltip, freebieNote, FREEBIE_TOOLTIP, netGainBasisNote, signColor, TOTAL_SETS_TOOLTIP, NEW_USED_COUNT_TOOLTIP, CONDITION_VALUE_TOOLTIP, RETIRED_TOOLTIP, COST_BASIS_TOOLTIP } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { valuesAsOf, freshness } from "./utils/freshness";
@@ -1173,6 +1173,21 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     setDetailSet(prev => (prev ? { ...prev, entries: nextEntries } : prev));
   }
 
+  // Per-copy paid edit (SetDetailPanel's per-copy control) — the paid twin of editCopyCondition. Only the
+  // targeted copy's paid_price changes; the OTHERS keep theirs (divergence preserved — the receipt
+  // scenario), then reconcileCopyPaidEdit re-derives the holding's paid aggregates from entries
+  // (totalPaid = Σ per-copy, paidPrice/averagePaid = avg, roiPct off the stored value). Paid does NOT
+  // drive market value, so there's no re-value (unlike editCopyCondition). BE-only: a manual set has no
+  // entries[] → reconcileCopyPaidEdit returns null and its paid stays on the holding-level field.
+  function editCopyPaid(index, copyIndex, amount) {
+    const cur = sets[index];
+    if (!cur || cur.source !== "BrickEconomy") return;
+    const patch = reconcileCopyPaidEdit(cur, copyIndex, amount);
+    if (!patch) return;
+    persistBESetEdit(cur.setNumber, patch);
+    setDetailSet(prev => (prev ? { ...prev, ...patch } : prev));
+  }
+
   function updateSet(index, field, value) {
     const cur = sets[index];
     if (!cur) return;
@@ -2140,6 +2155,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
         onEdit={detailSetIndex !== null ? () => { setDetailSet(null); setDetailSetIndex(null); setSelectedSetIndex(detailSetIndex); } : undefined}
         onEditCopyCondition={detailSetIndex !== null
           ? (copyIndex, bucket) => editCopyCondition(detailSetIndex, copyIndex, bucket)
+          : undefined}
+        onEditCopyPaid={detailSetIndex !== null && detailSet?.source === "BrickEconomy"
+          ? (copyIndex, amount) => editCopyPaid(detailSetIndex, copyIndex, amount)
           : undefined}
       />
       <WatchDetailPanel

@@ -548,6 +548,38 @@ export function reconcileConditionEdit(set, bucket, copyIndex) {
 }
 
 /**
+ * Patch for a PER-COPY paid edit — the per-copy twin of {@link reconcilePaidEdit}. Sets ONE copy's
+ * `paid_price` and re-derives the holding's paid aggregates from entries, so the OTHER copies are NOT
+ * flattened (divergence preserved — the receipt scenario):
+ *   - entries[copyIndex].paid_price := amount
+ *   - totalPaid   = Σ per-copy paid (alias-coalesced, like SetDetailPanel's `entryPaid`) — so setCost /
+ *                   setROI (which read totalPaid FIRST) pick the edit up live.
+ *   - paidPrice = averagePaid = totalPaid / copies   (the per-unit average; the in-memory↔blob alias).
+ *   - roiPct      = ((totalValue − totalPaid)/totalPaid)·100 | null   (the stored hover-card ROI snapshot,
+ *                   recomputed off the stored value so it tracks the new cost — mirrors aggregateFromEntries).
+ * BE/entries-bearing only — a manual set has no per-copy data → returns `null` (caller keeps the
+ * holding-level paid path). Pure; `entries` / `totalPaid` / `averagePaid` share their names across the
+ * in-memory + blob shapes, so the returned patch persists via persistBESetEdit unchanged.
+ *
+ * @param {Object} set               owned set (must carry entries[])
+ * @param {number} copyIndex         which copy's paid to set
+ * @param {number|string} amount     new per-copy paid (coerced via asNumber)
+ * @returns {{ entries: Array, totalPaid: number, paidPrice: number, averagePaid: number, roiPct: number|null } | null}
+ */
+export function reconcileCopyPaidEdit(set, copyIndex, amount) {
+  const entries = set?.entries;
+  if (!Array.isArray(entries) || !entries.length) return null; // manual — no per-copy data to edit
+  const per = asNumber(amount);
+  const nextEntries = entries.map((e, i) => (i === copyIndex ? { ...e, paid_price: per } : e));
+  const totalPaid = nextEntries.reduce((sum, e) => sum + asNumber(e.paid_price ?? e.Paid ?? e.paid), 0);
+  const copies = nextEntries.length;
+  const avg = copies ? totalPaid / copies : 0;
+  const totalValue = asNumber(set.totalValue);
+  const roiPct = totalPaid ? ((totalValue - totalPaid) / totalPaid) * 100 : null;
+  return { entries: nextEntries, totalPaid, paidPrice: avg, averagePaid: avg, roiPct };
+}
+
+/**
  * Is a set eligible for the PERCENTAGE ROI? Only when its value is known AND it
  * has a positive cost. Unknown-value and cost ≤ 0 (incl. $0/GWP) are excluded.
  *
