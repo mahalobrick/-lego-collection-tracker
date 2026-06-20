@@ -63,20 +63,23 @@ export default function Sidebar({ view, onNavigate, theme, onToggleTheme, pinned
         boxShadow: expanded && !pinned ? "var(--bk-shadow)" : "none",
       }}
     >
-      {/* TOP: panel toggle (pin/unpin) + frameless brand (coin + wordmark) */}
-      <div style={{ padding: expanded ? "10px 12px 6px" : "10px 8px 6px" }}>
-        <div style={{ display: "flex", justifyContent: expanded ? "flex-end" : "center" }}>
+      {/* TOP: expanded = brand + toggle masthead row; collapsed = toggle-only (nav-box rhythm) */}
+      <div style={{ padding: expanded ? "10px 12px 8px" : "10px 8px 8px" }}>
+        {expanded ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <img src={sidebarCoin} alt="" style={{ width: 28, height: "auto", display: "block", flexShrink: 0 }} />
+            <span style={{ fontFamily: "var(--bk-font-display)", color: "var(--bk-gold-ink)", fontSize: 21, fontWeight: 700, letterSpacing: 0.3 }}>Brickuity</span>
+            <button onClick={onTogglePin} title={pinned ? "Unpin sidebar" : "Pin sidebar open"}
+              style={{ display: "flex", border: "none", background: "transparent", cursor: "pointer", padding: 6, borderRadius: 8, color: pinned ? "var(--bk-action)" : "var(--bk-text-muted)", marginLeft: "auto" }}>
+              <Icon name="sidebar" size={20} />
+            </button>
+          </div>
+        ) : (
           <button onClick={onTogglePin} title={pinned ? "Unpin sidebar" : "Pin sidebar open"}
-            style={expanded
-              ? { display: "flex", border: "none", background: "transparent", cursor: "pointer", padding: 6, borderRadius: 8, color: pinned ? "var(--bk-action)" : "var(--bk-text-muted)" }
-              : { display: "flex", alignItems: "center", width: "100%", border: "none", borderLeft: "3px solid transparent", background: "transparent", cursor: "pointer", padding: "10px 11px", borderRadius: 8, color: pinned ? "var(--bk-action)" : "var(--bk-text-muted)" }}>
-            <Icon name="sidebar" size={expanded ? 20 : 22} />
+            style={{ display: "flex", alignItems: "center", width: "100%", border: "none", borderLeft: "3px solid transparent", background: "transparent", cursor: "pointer", padding: "10px 11px", borderRadius: 8, color: pinned ? "var(--bk-action)" : "var(--bk-text-muted)" }}>
+            <Icon name="sidebar" size={22} />
           </button>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: expanded ? "flex-start" : "center", gap: 10, padding: expanded ? "2px 6px 0" : 0 }}>
-          <img src={sidebarCoin} alt="" style={{ width: expanded ? 28 : 26, height: "auto", display: "block", flexShrink: 0 }} />
-          {expanded && <span style={{ fontFamily: "var(--bk-font-display)", color: "var(--bk-gold-ink)", fontSize: 21, fontWeight: 700, letterSpacing: 0.3 }}>Brickuity</span>}
-        </div>
+        )}
       </div>
 
       {/* Destinations */}
