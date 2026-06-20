@@ -5,6 +5,7 @@ import BudgetDashboard from "./BudgetDashboard";
 import WantedList from "./WantedList";
 import MyCollection from "./MyCollection";
 import AppSettings from "./AppSettings";
+import Sidebar from "./Sidebar";
 import { exportFullBackup, applyBackupToLocalStorage, pushToCloudAuth, pushSnapshotIfGrown, fetchFromCloudAuth, markSynced, localContentHash, summarizeLocal, summarizeBackup, clearLocalUserData, hasAnyLocalData, snapshotSig } from "./utils/exportBackup";
 import { runDailyBEBatch } from "./utils/beSyncValues";
 import { restoreEnrichmentSnapshot } from "./utils/enrichmentSnapshot";
@@ -12,6 +13,8 @@ import { setItemSafe } from "./utils/safeStorage";
 
 export default function App() {
   const [view, setView] = useState(() => localStorage.getItem("blLastTab") || "collection");
+  const [theme, setTheme] = useState(() => localStorage.getItem("blTheme") || "dark");
+  const [sidebarPinned, setSidebarPinned] = useState(() => localStorage.getItem("blSidebarPinned") === "true");
   const [pendingPurchase, setPendingPurchase] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | pending | syncing | saved
@@ -27,14 +30,14 @@ export default function App() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Heritage Luxe — reflect the persisted theme (default "dark") onto <html data-theme> so the
-  // token sheet's [data-theme="light"] overrides can engage once a toggle ships. Device-local
-  // preference: blTheme is skip-listed in setItemSafe (no cloud push), exactly like blLastTab.
+  // Heritage Luxe — reflect the theme onto <html data-theme> so the token sheet's
+  // [data-theme="light"] overrides engage. The sidebar foot owns the toggle (toggleTheme below).
+  // Device-local: blTheme + blSidebarPinned are skip-listed in setItemSafe (no cloud push).
   useEffect(() => {
-    const theme = localStorage.getItem("blTheme") || "dark";
     document.documentElement.dataset.theme = theme;
     setItemSafe("blTheme", theme);
-  }, []);
+  }, [theme]);
+  useEffect(() => { setItemSafe("blSidebarPinned", String(sidebarPinned)); }, [sidebarPinned]);
 
   // One-shot toast after a sign-out wipe + reload.
   useEffect(() => {
@@ -57,6 +60,7 @@ export default function App() {
   }, []);
 
   function switchTab(tab) { setView(tab); setItemSafe("blLastTab", tab); }
+  const toggleTheme = () => setTheme(t => (t === "dark" ? "light" : "dark"));
 
   function handleBuyNow(item) {
     setPendingPurchase(item);
@@ -387,25 +391,13 @@ export default function App() {
         .bk-action-btn:hover { background: var(--bk-action-hover); } /* gold CTA hover (inline styles can't :hover) */
         @media (max-width: 700px) {
           .app-shell { padding: 6px !important; }
-          .app-title { font-size: 26px !important; letter-spacing: 1px !important; }
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
         .owned-table-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
         .owned-table-scroll::-webkit-scrollbar-track { background: transparent; }
         .owned-table-scroll::-webkit-scrollbar-thumb { background: var(--bk-border); border-radius: 10px; }
-        /* Below ~800px the centered pill grows wide enough to collide with the
-           absolutely-positioned auth controls (worst case: signed-out, two buttons).
-           Stack the controls below the tabs instead of overlapping them. */
-        @media (max-width: 800px) {
-          .nav-wrap { flex-direction: column !important; gap: 10px !important; }
-          .nav-right { position: static !important; transform: none !important; right: auto !important; top: auto !important; justify-content: center !important; }
-        }
         @media (max-width: 600px) {
-          .app-header { padding: 18px 16px !important; }
-          .nav-wrap { padding: 10px 12px !important; }
-          .nav-pill { gap: 2px !important; padding: 4px !important; width: 100% !important; border-radius: 14px !important; }
-          .nav-pill-btn { flex: 1 !important; padding: 9px 6px !important; font-size: 11px !important; letter-spacing: 0 !important; }
           .page-content { padding: 6px !important; }
           /* Reclaim mobile width (<=600 only): trim each tab's own root padding (22 -> 10) and
              drop the secondary stat-card grids to a smaller min so they sit 2-up on a phone instead
@@ -427,90 +419,44 @@ export default function App() {
       `}</style>
 
       <div className="app-shell" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", background: "radial-gradient(ellipse at top, var(--bk-surface-2) 0%, var(--bk-bg) 55%, var(--bk-bg) 100%)", minHeight: "100vh", padding: 0 }}>
-        <div style={{ maxWidth: 1400, margin: "0 auto" }}>
-          <div className="app-header" style={{ background: "linear-gradient(180deg, var(--bk-surface) 0%, var(--bk-bg) 100%)", padding: "28px 32px", textAlign: "center", borderBottom: "1px solid var(--bk-gold-deep)", boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}>
-            <h1 className="app-title" style={{ margin: 0, fontFamily: "var(--bk-font-display)", fontSize: 36, fontWeight: 900, letterSpacing: 1, color: "var(--bk-gold-ink)" }}>
-              Brickuity
-            </h1>
-            <div style={{ width: 48, height: 2, background: "linear-gradient(90deg, transparent, var(--bk-gold), transparent)", margin: "12px auto 0", borderRadius: 999 }} />
-          </div>
-
-          <div className="nav-wrap" style={{ display: "flex", justifyContent: "center", padding: "12px 24px", position: "sticky", top: 0, zIndex: 100, background: "var(--bk-bg)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: "1px solid var(--bk-border)" }}>
-            <div className="nav-pill" style={{
-              display: "inline-flex",
-              gap: 4,
-              background: "var(--bk-surface)",
-              backdropFilter: "blur(10px)",
-              border: "1px solid var(--bk-border)",
-              borderRadius: 999,
-              padding: 5,
-              boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
-              flexWrap: "wrap",
-              justifyContent: "center"
-            }}>
-              {[
-                { key: "collection", label: "My Collection" },
-                { key: "budget", label: "Budget" },
-                { key: "acquisition", label: "Wanted List" },
-                { key: "settings", label: "Settings" }
-              ].map(tab => (
-                <button
-                  key={tab.key}
-                  className="nav-pill-btn"
-                  onClick={() => switchTab(tab.key)}
-                  style={{
-                    border: "none",
-                    borderRadius: 999,
-                    padding: "10px 20px",
-                    cursor: "pointer",
-                    fontWeight: 800,
-                    fontSize: 13,
-                    letterSpacing: 0.3,
-                    background: view === tab.key ? "var(--bk-action)" : "transparent",
-                    color: view === tab.key ? "var(--bk-action-ink)" : "var(--bk-text-muted)",
-                    transition: "all 0.15s ease"
-                  }}
-                >
-                  {tab.label}
+        <Sidebar
+          view={view}
+          onNavigate={switchTab}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          pinned={sidebarPinned}
+          onTogglePin={() => setSidebarPinned(p => !p)}
+        />
+        <div className="app-main" style={{ marginLeft: sidebarPinned ? 232 : 64, transition: "margin-left 0.18s ease", minHeight: "100vh" }}>
+          {/* Slim top bar — sync + auth only (wordmark + nav moved to the sidebar). Its height
+              feeds --bl-nav-h so the My Collection quick-nav sticks directly below it. */}
+          <header className="app-topbar" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, padding: "10px 24px", position: "sticky", top: 0, zIndex: 100, background: "var(--bk-bg)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: "1px solid var(--bk-border)" }}>
+            {/* Cloud sync status — shown for signed-in users */}
+            {userId && syncStatus !== "idle" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 600, pointerEvents: "none", color: syncStatus === "saved" ? "var(--bk-positive)" : "var(--bk-gold-ink)" }}>
+                {syncStatus === "pending" && <span style={{ fontSize: 7, animation: "pulse-dot 1.5s ease-in-out infinite" }}>●</span>}
+                {syncStatus === "syncing" && <span style={{ display: "inline-block", animation: "spin 0.8s linear infinite" }}>↻</span>}
+                {syncStatus === "saved"   && <span>✓</span>}
+                <span>{syncStatus === "pending" ? "Unsaved" : syncStatus === "syncing" ? "Syncing…" : "Saved"}</span>
+              </div>
+            )}
+            {/* Auth controls */}
+            <Show when="signed-out">
+              <SignInButton mode="modal">
+                <button style={{ background: "transparent", color: "var(--bk-text-muted)", border: "1px solid var(--bk-border)", borderRadius: 999, padding: "6px 13px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                  Sign In
                 </button>
-              ))}
-            </div>
-            {/* Right-side nav controls: sync indicator + auth */}
-            <div className="nav-right" style={{
-              position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)",
-              display: "flex", alignItems: "center", gap: 8,
-            }}>
-              {/* Cloud sync status — shown for signed-in users */}
-              {userId && syncStatus !== "idle" && (
-                <div style={{
-                  display: "flex", alignItems: "center", gap: 5,
-                  fontSize: 11, fontWeight: 600, pointerEvents: "none",
-                  color: syncStatus === "saved" ? "var(--bk-positive)" : "var(--bk-gold-ink)",
-                }}>
-                  {syncStatus === "pending" && <span style={{ fontSize: 7, animation: "pulse-dot 1.5s ease-in-out infinite" }}>●</span>}
-                  {syncStatus === "syncing" && <span style={{ display: "inline-block", animation: "spin 0.8s linear infinite" }}>↻</span>}
-                  {syncStatus === "saved"   && <span>✓</span>}
-                  <span>{syncStatus === "pending" ? "Unsaved" : syncStatus === "syncing" ? "Syncing…" : "Saved"}</span>
-                </div>
-              )}
-              {/* Auth controls */}
-              <Show when="signed-out">
-                <SignInButton mode="modal">
-                  <button style={{ background: "transparent", color: "var(--bk-text-muted)", border: "1px solid var(--bk-border)", borderRadius: 999, padding: "6px 13px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                    Sign In
-                  </button>
-                </SignInButton>
-                <SignUpButton mode="modal">
-                  <button style={{ background: "var(--bk-action)", color: "var(--bk-action-ink)", border: "none", borderRadius: 999, padding: "6px 13px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                    Sign Up
-                  </button>
-                </SignUpButton>
-              </Show>
-              <Show when="signed-in">
-                <UserButton appearance={{ elements: { avatarBox: { width: 28, height: 28 } } }} />
-              </Show>
-            </div>
-          </div>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <button style={{ background: "var(--bk-action)", color: "var(--bk-action-ink)", border: "none", borderRadius: 999, padding: "6px 13px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                  Sign Up
+                </button>
+              </SignUpButton>
+            </Show>
+            <Show when="signed-in">
+              <UserButton appearance={{ elements: { avatarBox: { width: 28, height: 28 } } }} />
+            </Show>
+          </header>
 
           <Toaster
             position="bottom-right"
@@ -530,7 +476,7 @@ export default function App() {
             }}
           />
 
-          <div className="page-content">
+          <div className="page-content" style={{ maxWidth: 1400, margin: "0 auto" }}>
             {view === "collection" && <MyCollection onBuyNow={handleBuyNow} onSwitchTab={switchTab} />}
             {view === "acquisition" && <WantedList onBuyNow={handleBuyNow} />}
             {view === "budget" && (

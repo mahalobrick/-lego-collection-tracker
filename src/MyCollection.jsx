@@ -448,11 +448,11 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
   // below it (top: var(--bl-nav-h, 56px)). nav-wrap height is responsive (single row on desktop,
   // column stack on mobile) and shifts with auth state (sign-in/out toggles the in-flow auth row on
   // mobile) and button wrap — none of which a window 'resize' catches — so observe it with a
-  // ResizeObserver. Mirrors the jump handler's existing document.querySelector(".nav-wrap"). jsdom:
+  // ResizeObserver. Mirrors the jump handler's existing document.querySelector(".app-topbar"). jsdom:
   // ResizeObserver is absent and offsetHeight is 0, so guard both — the var stays unset and the
   // consumer's 56px fallback applies, keeping the test env identical to today (top:56), not top:0.
   useLayoutEffect(() => {
-    const nav = document.querySelector(".nav-wrap");
+    const nav = document.querySelector(".app-topbar");
     if (!nav) return;
     const apply = () => {
       const h = nav.offsetHeight;
@@ -1359,7 +1359,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab }) {
         <nav className="cs-quicknav" style={{ position: "sticky", top: "var(--bl-nav-h, 56px)", zIndex: 90, display: "flex", gap: 6, padding: "8px 0", marginBottom: 6, background: "var(--bk-surface)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", borderBottom: "1px solid var(--bk-border)" }}>
           {[{ key: "bl-sec-stats", label: "Stats" }, { key: "bl-sec-table", label: "Table" }, { key: "bl-sec-add", label: "Add" }].map(s => (
             <button key={s.key}
-              onClick={() => { if (s.key === "bl-sec-add") setAddOpen(true); requestAnimationFrame(() => { const el = document.getElementById(s.key); if (el) { const off = (document.querySelector(".nav-wrap")?.offsetHeight || 56) + (document.querySelector(".cs-quicknav")?.offsetHeight || 44) + 8; window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - off, behavior: "smooth" }); } }); }}
+              onClick={() => { if (s.key === "bl-sec-add") setAddOpen(true); requestAnimationFrame(() => { const el = document.getElementById(s.key); if (el) { const off = (document.querySelector(".app-topbar")?.offsetHeight || 56) + (document.querySelector(".cs-quicknav")?.offsetHeight || 44) + 8; window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - off, behavior: "smooth" }); } }); }}
               style={{ background: activeSection === s.key ? "var(--bk-action)" : "transparent", color: activeSection === s.key ? "var(--bk-action-ink)" : "var(--bk-text-muted)", border: "1px solid " + (activeSection === s.key ? "var(--bk-action)" : "var(--bk-border)"), borderRadius: 999, padding: "6px 16px", fontWeight: 800, fontSize: 12.5, cursor: "pointer", transition: "all 0.15s ease" }}>
               {s.label}
             </button>
