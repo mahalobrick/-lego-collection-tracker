@@ -6,7 +6,8 @@ export function asNumber(value) {
 // ── Date normalization (READ boundary — non-destructive) ──────────────────
 // Coerce a date string to ISO yyyy-mm-dd at read time; callers transform on read and
 // NEVER rewrite stored localStorage. Idempotent on ISO, parses the US "M/D/YYYY" the
-// BE-CSV import leaves behind, empty → "", and anything else is returned UNCHANGED
+// BE-CSV import leaves behind, takes the date portion of an ISO datetime (Brickset
+// launch/exit, e.g. 2017-10-01T00:00:00Z), empty → "", and anything else is returned UNCHANGED
 // (never drop a value we don't recognize). This is the read-side twin of AppSettings'
 // `csvDateToISO`, which runs on the import WRITE path; kept separate so this can't alter
 // import behavior.
@@ -14,6 +15,7 @@ export function toISODate(value) {
   if (!value) return "";
   const raw = String(value).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;           // already ISO — unchanged
+  const dt = /^(\d{4}-\d{2}-\d{2})T/.exec(raw); if (dt) return dt[1];  // ISO datetime → date portion
   const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(raw);     // US M/D/YYYY (4-digit year)
   if (m) return `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
   return raw;                                                // unrecognized — unchanged

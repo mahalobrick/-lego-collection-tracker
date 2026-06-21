@@ -21,6 +21,11 @@ describe("toISODate — read-boundary coercion to ISO yyyy-mm-dd", () => {
     expect(toISODate("2025-07-13")).toBe("2025-07-13");
     expect(toISODate(toISODate("7/13/2025"))).toBe("2025-07-13"); // double-apply
   });
+  it("takes the date portion of an ISO datetime (Brickset launch/exit dates)", () => {
+    expect(toISODate("2017-10-01T00:00:00Z")).toBe("2017-10-01");
+    expect(toISODate("2026-12-31T00:00:00Z")).toBe("2026-12-31");
+    expect(toISODate("2022-01-01T00:00:00.000Z")).toBe("2022-01-01"); // millis variant
+  });
   it("empty / null / undefined → empty string", () => {
     expect(toISODate("")).toBe("");
     expect(toISODate(null)).toBe("");
@@ -49,6 +54,14 @@ describe("parseLocalDate — local date-only (no UTC off-by-one)", () => {
     const d = parseLocalDate("7/13/2025");
     expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2025, 6, 13]);
   });
+  it("parses an ISO datetime as the correct LOCAL day — no UTC off-by-one (the 762bad1 regression)", () => {
+    // Brickset retiredDate/releasedDate are ISO datetimes (e.g. 2017-10-01T00:00:00Z), derived at
+    // read time from bricksetSetCache. The strict ^\d{4}-\d{2}-\d{2}$ check rejected the T…Z suffix
+    // → null → the Retired on / Released on columns rendered "—". Date-portion tolerance fixes it.
+    const d = parseLocalDate("2017-10-01T00:00:00Z");
+    expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2017, 9, 1]); // Oct 1 — NOT Sep 30 (UTC)
+    expect(d.toLocaleDateString("en-US", { month: "short", year: "numeric" })).toBe("Oct 2017");
+  });
   it("formats a first-of-month value to the correct month/year", () => {
     expect(parseLocalDate("2023-12-01").toLocaleDateString("en-US", { month: "short", year: "numeric" })).toBe("Dec 2023");
   });
@@ -56,6 +69,27 @@ describe("parseLocalDate — local date-only (no UTC off-by-one)", () => {
     expect(parseLocalDate("")).toBeNull();
     expect(parseLocalDate(null)).toBeNull();
     expect(parseLocalDate("garbage")).toBeNull();
+  });
+});
+
+// fmtShortDate (MyCollection) is `parseLocalDate(x) ? x.toLocaleDateString("en-US",{month,year}) : "—"`.
+// It is component-private, so we lock its exact behavior through its two public deps — this is the
+// case the suite never exercised: an ISO-datetime input (the Retired on / Released on columns).
+describe("fmtShortDate behavior (parseLocalDate → short month/year, else —)", () => {
+  const fmt = (s) => { const d = parseLocalDate(s); return d ? d.toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—"; };
+  it("renders Brickset ISO-datetime retired/released dates to the correct month", () => {
+    expect(fmt("2017-10-01T00:00:00Z")).toBe("Oct 2017");
+    expect(fmt("2026-12-31T00:00:00Z")).toBe("Dec 2026");
+    expect(fmt("2022-01-01T00:00:00Z")).toBe("Jan 2022"); // first-of-month — no UTC slip to Dec 2021
+  });
+  it("still renders date-only and M/D/YYYY correctly", () => {
+    expect(fmt("2023-12-01")).toBe("Dec 2023");
+    expect(fmt("7/13/2025")).toBe("Jul 2025");
+  });
+  it("empty / unrecognized → —", () => {
+    expect(fmt("")).toBe("—");
+    expect(fmt(null)).toBe("—");
+    expect(fmt("garbage")).toBe("—");
   });
 });
 
