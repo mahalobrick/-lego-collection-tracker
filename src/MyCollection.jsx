@@ -1399,7 +1399,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
       <div style={tabHeader}>
         <div>
           <h2 style={{ margin: 0, fontFamily: "var(--bk-font-display)", color: "var(--bk-text)" }}>{mode === "performance" ? "Performance" : "Collection"}</h2>
-          <p style={{ ...muted, margin: "4px 0 0" }}>{mode === "performance" ? "Track collection value, growth, and ROI across your sets." : "Browse, search, and manage your sets."}</p>
+          {mode === "performance" && <p style={{ ...muted, margin: "4px 0 0" }}>Track collection value, growth, and ROI across your sets.</p>}
         </div>
         {mode === "collection" && (
           <div style={tabBar}>
@@ -2350,8 +2350,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
           flexWrap: "wrap",
           marginBottom: 14
         }}>
-          <h3 style={{ margin: 0 }}>Owned Sets</h3>
-
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <input
               placeholder="Search owned sets..."
@@ -2450,7 +2448,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
           </div>
         </div>
 
-        {sets.length > 0 && (
+        {checkedSets.length > 0 && (
         <div style={{ display: "flex", gap: 10, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <input
@@ -2486,9 +2484,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
             <div style={{ fontSize: 13, color: "var(--bk-text-muted)" }}>Sync from BrickEconomy in Settings → Data, or use the form above to add your first set.</div>
           </div>
         ) : (
-          <div style={{
+          <div data-testid="owned-table-grid" style={{
             display: "grid",
-            gridTemplateColumns: selectedSetIndex !== null ? "1fr 380px" : "1fr",
+            gridTemplateColumns: "1fr", // single column — Edit panel is now a fixed drawer (was "1fr 380px")
             gap: 16,
             alignItems: "start"
           }}>
@@ -2806,7 +2804,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
             })()} {/* end IIFE for scroll/width calc */}
 
             {selectedSetIndex !== null && sets[selectedSetIndex] && (
-              <div style={{ ...editPanel, position: "sticky", top: 16 }}>
+              <>
+              <div onClick={() => setSelectedSetIndex(null)} data-testid="edit-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 999, backdropFilter: "blur(4px)" }} />
+              <div style={editPanel} data-testid="edit-drawer">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                   <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "var(--bk-text)" }}>Edit Set</h3>
                   <button onClick={() => setSelectedSetIndex(null)} style={circleButton}>×</button>
@@ -3021,6 +3021,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                   </div>
                 )}
               </div>
+              </>
             )}
           </div>
         )}
@@ -3172,10 +3173,11 @@ const thButton = { ...th, cursor: "pointer", userSelect: "none" };
 const thRight = { ...th, textAlign: "right" };
 const thRightButton = { ...thRight, cursor: "pointer", userSelect: "none" };
 const editPanel = {
-  background: "var(--bk-surface)",
-  border: "1px solid var(--bk-border)",
-  borderRadius: 14,
-  padding: 18
+  // Fixed right-edge drawer (mirrors SetDetailPanel) — no longer a width-stealing grid column.
+  position: "fixed", top: 0, right: 0, bottom: 0, width: 420, maxWidth: "100vw",
+  background: "var(--bk-surface)", borderLeft: "1px solid var(--bk-border)",
+  zIndex: 1000, overflowY: "auto", padding: 24,
+  boxShadow: "-8px 0 40px rgba(0,0,0,0.6)"
 };
 
 const circleButton = {
