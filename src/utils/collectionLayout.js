@@ -72,7 +72,7 @@ export function loadCollectionItems(saved) {
 export const CARD_DEFS = {
   qty:         { label: "Total Sets",       defaultVisible: true },
   value:       { label: "Collection Value", defaultVisible: true },
-  cost:        { label: "Cost Basis",       defaultVisible: true },
+  cost:        { label: "Total Paid",       defaultVisible: true },
   gain:        { label: "Net Gain / Loss",  defaultVisible: true },
   roi:         { label: "ROI",              defaultVisible: true },
   themes:      { label: "Themes",           defaultVisible: true },
@@ -83,7 +83,7 @@ export const CARD_DEFS = {
   avgPaid:     { label: "Avg Paid / Set",   defaultVisible: true },
   pieces:      { label: "Total Pieces",     defaultVisible: true },
   minifigs:    { label: "Minifigs",         defaultVisible: true },
-  retailValue: { label: "MSRP Value",       defaultVisible: true },
+  retailValue: { label: "Total MSRP",       defaultVisible: true },
   newValue:    { label: "New Sets Value",   defaultVisible: false }, // partition group — deviation
   usedValue:   { label: "Used Sets Value",  defaultVisible: false }, // partition group — deviation
   watchList:   { label: "Wanted List",      defaultVisible: false }, // cross-tab — deviation

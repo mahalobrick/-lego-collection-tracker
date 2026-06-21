@@ -5,18 +5,18 @@
  */
 
 export const DEFAULT_OWNED_COLUMNS = [
-  { key: "thumb",        label: "Image",         visible: false },
-  { key: "setNumber",    label: "Set #",         visible: true  },
+  { key: "thumb",        label: "Img",           visible: false },
+  { key: "setNumber",    label: "Set",           visible: true  },
   { key: "name",         label: "Set Name",      visible: true  },
   { key: "theme",        label: "Theme",         visible: true  },
-  { key: "condition",    label: "Condition",     visible: false },
+  { key: "condition",    label: "Cond",          visible: false },
   { key: "qty",          label: "Qty",           visible: true  },
   { key: "value",        label: "Value",         visible: true  },
   { key: "gain",         label: "Gain",          visible: true  },
   { key: "roi",          label: "ROI",           visible: true  },
-  { key: "minifigs",     label: "Minifigs",      visible: false },
+  { key: "minifigs",     label: "Figs",          visible: false },
   { key: "acquiredDate", label: "Acquired",      visible: false },
-  { key: "retiredDate",  label: "Retired On",    visible: false },
+  { key: "retiredDate",  label: "Retired",       visible: false },
   { key: "releasedDate", label: "Released",      visible: false },
   // blSoldNew / blSoldUsed removed (MC-Browse polish R1): backed only by a non-persisted,
   // auth-gated BL read overlay (usually empty) and already shown in the detail panel.

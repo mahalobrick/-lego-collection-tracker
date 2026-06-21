@@ -50,9 +50,9 @@ const OWNED_COL_WIDTHS = {
   gain:        104,  // money column: fits a worst-case "−$12,345.67" without ellipsis-clipping
   roi:          92,  // percent column: fits a worst-case "+1,234.5%" without ellipsis-clipping
   minifigs:     68,
-  acquiredDate: 90,
+  acquiredDate: 96,  // fits the full "Acquired" header (data "Apr 2022" is narrower)
   retiredDate:  90,
-  releasedDate: 90,
+  releasedDate: 96,  // fits the full "Released" header
   notes:        80,
 };
 
@@ -67,6 +67,12 @@ const OWNED_TABLE_MAX_H = "max(320px, calc(100vh - 224px))";
 // Numeric (money / percent / count) columns — right-aligned, and floored to their default width so a
 // stale-narrow persisted width can't ellipsis-clip a value. Single-sourced (isNumericOwnedColumn).
 const NUMERIC_OWNED_COLS = ["qty", "msrp", "paid", "value", "gain", "roi"];
+
+// Full column names for the header tooltip — the visible labels are abbreviated to fit the column,
+// so the title carries the complete name on hover. Only keys whose label is shortened need an entry.
+const OWNED_COL_FULL_LABEL = {
+  thumb: "Image", setNumber: "Set Number", condition: "Condition", minifigs: "Minifigs", retiredDate: "Retired On",
+};
 
 // Full-density value-column split: the single "Value" column becomes three real, individually
 // sortable/resizable columns. These are DERIVED at render time from rowDensity (not persisted in
@@ -166,10 +172,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     try {
       const saved = JSON.parse(localStorage.getItem("blOwnedColWidths") || "{}");
       const merged = { ...OWNED_COL_WIDTHS, ...saved };
-      // Migration: an older persisted width for a NUMERIC column can be narrower than the current
-      // (widened) default and ellipsis-clip a money/percent value. Floor each numeric column at its
-      // default so stale widths can't truncate numbers; a user's WIDER choice is preserved (max).
-      for (const k of NUMERIC_OWNED_COLS) merged[k] = Math.max(Number(merged[k]) || 0, OWNED_COL_WIDTHS[k]);
+      // Migration: an older persisted width can be narrower than the current (widened) default and
+      // clip a numeric VALUE or a date HEADER. Floor these columns at their default so a stale width
+      // can't truncate; a user's WIDER choice is preserved (max).
+      for (const k of [...NUMERIC_OWNED_COLS, "acquiredDate", "releasedDate"]) merged[k] = Math.max(Number(merged[k]) || 0, OWNED_COL_WIDTHS[k]);
       return merged;
     } catch { return { ...OWNED_COL_WIDTHS }; }
   });
@@ -1416,7 +1422,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
       <div style={tabHeader}>
         <div>
           <h2 style={{ margin: 0, fontFamily: "var(--bk-font-display)", color: "var(--bk-text)" }}>{mode === "performance" ? "Performance" : "Collection"}</h2>
-          {mode === "performance" && <p style={{ ...muted, margin: "4px 0 0" }}>Track collection value, growth, and ROI across your sets.</p>}
         </div>
         {mode === "collection" && (
           <div style={tabBar}>
@@ -1533,7 +1538,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                           <div key={key}>
                             {key === "qty"          ? <Card hero={isHero} title="Total Sets" value={stats.totalQty} sub={`${sets.length} unique set${sets.length !== 1 ? "s" : ""}`} subTip={TOTAL_SETS_TOOLTIP} /> :
                              key === "value"        ? <Card hero={isHero} title="Collection Value" value={fmtAgg(stats.value, stats.valuedSets)} sub={valuesReady ? [unknownValueNote(stats.valuedSets, sets.length), vsdEsdNote(stats.estimatedShare)].filter(Boolean).join(" · ") || null : null} subTip={valuesReady && vsdEsdNote(stats.estimatedShare) ? VSD_ESD_TOOLTIP : undefined} /> :
-                             key === "cost"         ? <Card hero={isHero} title="Cost Basis"       value={money(stats.costBasis)} sub={estimatedCostNote(stats.msrpCount)} subTip={COST_BASIS_TOOLTIP} /> :
+                             key === "cost"         ? <Card hero={isHero} title="Total Paid"       value={money(stats.costBasis)} sub={estimatedCostNote(stats.msrpCount)} subTip={COST_BASIS_TOOLTIP} /> :
                              key === "gain"         ? <Card hero={isHero} title="Net Gain / Loss"  value={fmtAgg(stats.gainLoss, stats.valuedSets)} good={stats.valuedSets > 0 ? stats.gainLoss >= 0 : undefined} sub={valuesReady ? (freebieNote(stats.freebieValue) ?? netGainBasisNote(stats.value, stats.valuedCost, stats.valuedSets, stats.costBasis)) : null} subTip={valuesReady && freebieNote(stats.freebieValue) ? FREEBIE_TOOLTIP : undefined} /> :
                              key === "roi"          ? <Card hero={isHero} title="ROI"              value={!valuesReady ? "…" : stats.roi === null ? "—" : `${stats.roi.toFixed(1)}%`} good={stats.roi === null ? undefined : stats.roi >= 0} sub={roiScopeNote()} subTip={roiScopeTooltip(stats.msrpCount)} /> :
                              key === "themes"       ? <Card hero={isHero} title="Themes"           value={stats.themes} /> :
@@ -1554,7 +1559,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                              key === "avgPaid"      ? <Card hero={isHero} title="Avg Paid / Set"   value={money(stats.avgPaid)} /> :
                              key === "pieces"       ? <Card hero={isHero} title="Total Pieces"     value={(stats.pieces || beSyncInfo.piecesCount || 0).toLocaleString()} /> :
                              key === "minifigs"     ? <Card hero={isHero} title="Minifigs"         value={(stats.minifigs || beSyncInfo.minifsCount || 0).toLocaleString()} /> :
-                             key === "retailValue"  ? (() => { const r = { known: stats.retailValueKnown, estimated: stats.retailEstimated, estimatedTotal: stats.retailEstimatedTotal, promo: stats.retailPromo, promoTotal: stats.retailPromoTotal, notListed: stats.retailNotListed }; return <Card hero={isHero} title="MSRP Value" value={formatAggregateValue(stats.retailValue, stats.retailValueKnown)} sub={retailCoverageCounts(r)} subTip={retailCoverageTooltip(r)} />; })() :
+                             key === "retailValue"  ? (() => { const r = { known: stats.retailValueKnown, estimated: stats.retailEstimated, estimatedTotal: stats.retailEstimatedTotal, promo: stats.retailPromo, promoTotal: stats.retailPromoTotal, notListed: stats.retailNotListed }; return <Card hero={isHero} title="Total MSRP" value={formatAggregateValue(stats.retailValue, stats.retailValueKnown)} sub={retailCoverageCounts(r)} subTip={retailCoverageTooltip(r)} />; })() :
                              key === "newValue"     ? <Card hero={isHero} title="New Sets Value"   value={fmtAgg(stats.newSetsValue, stats.newValueKnown)} sub={`${stats.newCopies} cop${stats.newCopies === 1 ? "y" : "ies"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
                              key === "usedValue"    ? <Card hero={isHero} title="Used Sets Value"  value={fmtAgg(stats.usedSetsValue, stats.usedValueKnown)} sub={`${stats.usedCopies} cop${stats.usedCopies === 1 ? "y" : "ies"}`} subTip={CONDITION_VALUE_TOOLTIP} /> :
                              key === "watchList"    ? <Card hero={isHero} title="Wanted List"      value={watchListHighlights.total} /> : null}
@@ -2649,7 +2654,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                         overflow: "hidden",
                       }}
                       onClick={() => sortHeader(col.key)}
-                      title="Click to sort · Drag label to reorder · Drag right edge to resize"
+                      title={`${OWNED_COL_FULL_LABEL[col.key] || col.label} · click to sort · drag label to reorder · drag right edge to resize`}
                     >
                       <span style={{ color: "var(--bk-border)", fontSize: 9, marginRight: 3, letterSpacing: -1 }}>⠿</span>
                       {sortLabel(col.label, col.key)}
@@ -2773,18 +2778,12 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                           );
                         }
 
-                        // ROI — tinted badge
+                        // ROI — color-coded like Gain, at the SAME numeral size as the other numeric
+                        // cells (tdRight). The prior tinted badge rendered the number at fontSize 12,
+                        // smaller than Gain/Value; a 16px badge would clip in the 92px column, so ROI now
+                        // matches Gain as plain color-coded text. signColor(null)→neutral mirrors Gain's "—".
                         if (col.key === "roi") {
-                          const label = renderOwnedCell(set, col);
-                          // Color from the displayed ROI number (setROI), not string-matching the label.
-                          const roiColor = signColor(setROI(set, valueMap));
-                          return (
-                            <td key="roi" style={tdRight}>
-                              {label !== "—"
-                                ? <span style={{ background: `${roiColor}1a`, color: roiColor, borderRadius: 6, padding: "2px 7px", fontSize: 12, fontWeight: 700 }}>{label}</span>
-                                : <span style={{ color: "var(--bk-text-muted)" }}>—</span>}
-                            </td>
-                          );
+                          return <td key="roi" style={{ ...tdRight, color: signColor(setROI(set, valueMap)) }}>{renderOwnedCell(set, col)}</td>;
                         }
 
                         return (
