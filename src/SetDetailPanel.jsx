@@ -24,6 +24,16 @@ function shortDate(value) {
   return d ? d.toLocaleDateString("en-US", { month: "short", year: "numeric" }) : null;
 }
 
+// Timeline date formatter: ISO-datetime-safe via parseLocalDate (→ toISODate takes the date portion of
+// a Brickset "2017-10-01T00:00:00Z", built from local parts so no UTC off-by-one) and returns "—" when
+// empty — unlike shortDate above, which returns null so the Per-Copy Breakdown can HIDE an absent date.
+// Mirrors MyCollection's fmtShortDate (the table's date columns); kept local because that helper isn't
+// exported from utils/formatting and this pass touches SetDetailPanel only.
+function fmtShortDate(value) {
+  const d = parseLocalDate(value);
+  return d ? d.toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—";
+}
+
 function StatBox({ label, value, color, tip }) {
   return (
     <div title={tip || undefined} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 12px" }}>
@@ -278,6 +288,16 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
               {minifigs != null && <StatBox label="Minifigs" value={minifigs} />}
               {rating && <StatBox label="Rating" value={`★ ${rating.toFixed(1)}`} />}
               {ageMin && <StatBox label="Min Age" value={`${ageMin}+`} />}
+            </div>
+          </div>
+        )}
+
+        {(bs.launch_date || bs.year || item.retired || bs.exit_date) && (
+          <div>
+            <div style={sectionLabel}>Timeline</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <StatBox label="Released" value={bs.launch_date ? fmtShortDate(bs.launch_date) : (bs.year ? String(bs.year) : "—")} />
+              <StatBox label="Retired" value={item.retired ? fmtShortDate(bs.exit_date) : "Active"} />
             </div>
           </div>
         )}
