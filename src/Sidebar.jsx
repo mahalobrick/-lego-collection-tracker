@@ -2,11 +2,14 @@ import { useState } from "react";
 import { Show, SignInButton, SignUpButton, UserButton, useUser } from "@clerk/react";
 import Icon from "./Icon";
 import sidebarCoin from "./assets/sidebar-coin.png"; // frameless coin (brickuity-logo.png stays the favicon/app-icon)
+import { setItemSafe } from "./utils/safeStorage";
 
 const RAIL_W = 64;
 const EXPANDED_W = 232;
 
-// Destinations map to the SAME view keys App.jsx switches on — the sidebar is pure presentation.
+// Destinations map to the SAME view keys App.jsx switches on. The 4 main items are reorderable
+// device-locally (blNavOrder) via hover ▲▼; Settings stays pinned last. Switching is key-based,
+// so reordering NEVER affects routing — only this presentational order changes.
 const NAV = [
   { key: "collection", icon: "collection", label: "Collection" },
   { key: "acquisition", icon: "wanted", label: "Wanted" },
@@ -14,6 +17,11 @@ const NAV = [
   { key: "performance", icon: "performance", label: "Performance" },
   { key: "settings", icon: "settings", label: "Settings" },
 ];
+
+// The 4 reorderable nav keys, in canonical default order (Settings is pinned, excluded).
+// NOTE: "Wanted" is key 'acquisition' — order is persisted/compared by KEY, never label.
+const REORDERABLE_KEYS = ["collection", "acquisition", "budget", "performance"];
+const NAV_BY_KEY = Object.fromEntries(NAV.map(item => [item.key, item]));
 
 function railBtn(active) {
   return {
@@ -46,8 +54,34 @@ function PersonGlyph({ size = 18 }) {
  */
 export default function Sidebar({ view, onNavigate, theme, onToggleTheme, pinned, onTogglePin, syncStatus }) {
   const [hovered, setHovered] = useState(false);
+  const [hoveredNavKey, setHoveredNavKey] = useState(null); // reveals a single item's ▲▼
+  const [navOrder, setNavOrder] = useState(() => {
+    const saved = localStorage.getItem("blNavOrder");
+    if (!saved) return REORDERABLE_KEYS;
+    const parsed = JSON.parse(saved);
+    // Mirror blOwnedColumns load: drop saved keys no longer reorderable, keep saved order,
+    // then append any missing canonical keys in canonical position.
+    const allowed = new Set(REORDERABLE_KEYS);
+    const merged = parsed.filter(k => allowed.has(k));
+    const savedKeys = new Set(merged);
+    const missing = REORDERABLE_KEYS.filter(k => !savedKeys.has(k));
+    return missing.length ? [...merged, ...missing] : merged;
+  });
   const { user } = useUser();
   const expanded = pinned || hovered;
+
+  // Mirror moveOwnedColumn: clone, find, bounds-check (no-op at the ends), splice out + in,
+  // then persist device-local (blNavOrder is in safeStorage's no-sync skip-list).
+  function moveNavItem(key, direction) {
+    const next = [...navOrder];
+    const index = next.findIndex(k => k === key);
+    const newIndex = index + (direction === "up" ? -1 : 1);
+    if (index < 0 || newIndex < 0 || newIndex >= next.length) return;
+    const [item] = next.splice(index, 1);
+    next.splice(newIndex, 0, item);
+    setNavOrder(next);
+    setItemSafe("blNavOrder", JSON.stringify(next));
+  }
 
   return (
     <aside
@@ -82,14 +116,40 @@ export default function Sidebar({ view, onNavigate, theme, onToggleTheme, pinned
         )}
       </div>
 
-      {/* Destinations */}
+      {/* Destinations — 4 reorderable items (hover ▲▼, expanded-only) then pinned Settings */}
       <nav style={{ display: "flex", flexDirection: "column", gap: 4, padding: "8px 8px", flex: 1 }}>
-        {NAV.map(item => (
-          <button key={item.key} onClick={() => onNavigate(item.key)} title={item.label} style={railBtn(view === item.key)}>
-            <Icon name={item.icon} size={22} />
-            {expanded && <span>{item.label}</span>}
-          </button>
-        ))}
+        {navOrder.map((key, i) => {
+          const item = NAV_BY_KEY[key];
+          return (
+            <div
+              key={key}
+              data-testid={`navrow-${key}`}
+              onMouseEnter={() => setHoveredNavKey(key)}
+              onMouseLeave={() => setHoveredNavKey(null)}
+              style={{ display: "flex", alignItems: "center", gap: 4 }}
+            >
+              {/* Nav button — UNCHANGED behavior (key-based onNavigate) */}
+              <button data-testid={`navbtn-${key}`} onClick={() => onNavigate(key)} title={item.label} style={{ ...railBtn(view === key), flex: 1 }}>
+                <Icon name={item.icon} size={22} />
+                {expanded && <span>{item.label}</span>}
+              </button>
+              {/* Reorder ▲▼ — SIBLING of the button (never nested) so a click can't navigate; expanded + hover only */}
+              {expanded && hoveredNavKey === key && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 1, paddingRight: 2 }}>
+                  <button data-testid={`navup-${key}`} onClick={() => moveNavItem(key, "up")} disabled={i === 0} title="Move up"
+                    style={{ background: "none", border: "none", color: i === 0 ? "var(--bk-disabled-tx)" : "var(--bk-text-muted)", cursor: i === 0 ? "default" : "pointer", padding: "0 2px", fontSize: 10, lineHeight: 1 }}>▲</button>
+                  <button data-testid={`navdown-${key}`} onClick={() => moveNavItem(key, "down")} disabled={i === navOrder.length - 1} title="Move down"
+                    style={{ background: "none", border: "none", color: i === navOrder.length - 1 ? "var(--bk-disabled-tx)" : "var(--bk-text-muted)", cursor: i === navOrder.length - 1 ? "default" : "pointer", padding: "0 2px", fontSize: 10, lineHeight: 1 }}>▼</button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {/* Settings — fixed last, never reorderable, no arrows */}
+        <button data-testid="navbtn-settings" onClick={() => onNavigate("settings")} title={NAV_BY_KEY.settings.label} style={railBtn(view === "settings")}>
+          <Icon name={NAV_BY_KEY.settings.icon} size={22} />
+          {expanded && <span>{NAV_BY_KEY.settings.label}</span>}
+        </button>
       </nav>
 
       {/* Foot: account → sync → theme */}

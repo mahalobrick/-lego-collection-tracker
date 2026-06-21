@@ -18,7 +18,7 @@
 // (they're sync bookkeeping or regeneratable caches). Mirrors the old patch's set exactly.
 const SYNC_SKIP_KEYS = new Set([
   "blLastPushHash", "blLastCloudPush", "blLastAutoExport", "blLastTab",
-  "blTheme", "blSidebarPinned", // Heritage Luxe device-local UI prefs (like blLastTab) — never trip a cloud push
+  "blTheme", "blSidebarPinned", "blNavOrder", // Heritage Luxe device-local UI prefs (like blLastTab) — never trip a cloud push
   "blLastNotifyDate", "blSyncedUserId", "bricksetSetCache", "brickEconomySetCache",
   "brickEconomyCollectionCache", "blPriceGuideCache", "blHistoryCache",
   "blSessionToken", "blBrickLinkAccessToken",
