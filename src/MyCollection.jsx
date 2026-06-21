@@ -222,6 +222,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     paidPrice: "",
     msrp: "",
     currentValue: "",
+    acquiredDate: "",
     notes: ""
   });
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -819,7 +820,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
 
     setLookupData({});
     setLookedUpNum("");
-    setForm({ setNumber: "", name: "", theme: "", condition: "new", qty: 1, paidPrice: "", msrp: "", currentValue: "", notes: "" });
+    setForm({ setNumber: "", name: "", theme: "", condition: "new", qty: 1, paidPrice: "", msrp: "", currentValue: "", acquiredDate: "", notes: "" });
     setLookupMessage("");
     setSetNumSuggestions([]);
 
@@ -1977,7 +1978,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
           <div style={{ display: "flex", gap: 8 }}>
           {addOpen && (form.setNumber || form.name || form.theme || form.paidPrice || form.currentValue || form.notes) && (
             <button
-              onClick={() => { setLookupData({}); setLookedUpNum(""); setForm({ setNumber: "", name: "", theme: "", condition: "new", qty: 1, paidPrice: "", msrp: "", currentValue: "", notes: "" }); setLookupMessage(""); setSetNumSuggestions([]); }}
+              onClick={() => { setLookupData({}); setLookedUpNum(""); setForm({ setNumber: "", name: "", theme: "", condition: "new", qty: 1, paidPrice: "", msrp: "", currentValue: "", acquiredDate: "", notes: "" }); setLookupMessage(""); setSetNumSuggestions([]); }}
               style={{ background: "transparent", color: "var(--bk-text-muted)", border: "1px solid var(--bk-border)", borderRadius: 8, padding: "5px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
             >
               Reset
@@ -2167,6 +2168,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Paid Price</span>
             <input type="number" min="0" step="0.01" value={form.paidPrice} onChange={e => setForm({ ...form, paidPrice: e.target.value })} placeholder="0.00" style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", width: "100%" }} />
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Acquired <span style={{ color: "var(--bk-text-muted)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— optional</span></span>
+            <input type="date" value={form.acquiredDate} onChange={e => setForm({ ...form, acquiredDate: e.target.value })} style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", width: "100%" }} />
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>MSRP <span style={{ color: "var(--bk-text-muted)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— retail</span></span>
