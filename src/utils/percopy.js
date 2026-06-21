@@ -33,7 +33,7 @@
 // Phase 5 can point `valueGroups` at this output with no rework.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { asNumber } from "./formatting";
+import { asNumber, toISODate } from "./formatting";
 import { setCost } from "./portfolio";
 
 /**
@@ -68,7 +68,7 @@ function normalizeEntry(e, set, i) {
     paid_price:    asNumber(e.paid_price ?? e.Paid ?? e.paid ?? 0),
     current_value: e.current_value ?? e.Value ?? e.value ?? null, // REAL value preserved
     retail_price:  e.retail_price ?? e.Retail ?? null,
-    acquired_date: e.acquired_date ?? e.aquired_date ?? "",
+    acquired_date: toISODate(e.acquired_date ?? e.aquired_date), // normalize M/D/YYYY → ISO on read
     notes:         e.notes ?? "",
     origin:        e.origin ?? "import",
   };
@@ -117,7 +117,7 @@ export function materializeEntries(set, opts) {
     paid_price:    (baseCents + (i === copies - 1 ? remainderCents : 0)) / 100,
     current_value: null,                 // invariant #1 — value is overlay-driven, never frozen here
     retail_price:  asNumber(set.retailPrice ?? set.msrp) || null,
-    acquired_date: set.acquiredDate ?? set.acquired_date ?? "",
+    acquired_date: toISODate(set.acquiredDate ?? set.acquired_date), // ISO-normalized (idempotent)
     notes:         set.notes ?? "",
     origin:        "manual",
   }));

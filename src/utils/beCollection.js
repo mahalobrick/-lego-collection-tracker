@@ -12,6 +12,7 @@
 
 import { setItemSafe } from "./safeStorage";
 import { setConditionDisplay } from "./condition";
+import { toISODate } from "./formatting";
 
 /**
  * Per-set aggregation over a group of per-copy entries — the roll-up shared by the
@@ -97,8 +98,10 @@ export function ownedSetFromBlob(item, bsCache = {}) {
   const entries = item.entries || [];
   // One bucketed derivation (Phase 1): per-copy entries collapse to New / Used / Mixed.
   const condition = setConditionDisplay(item);
-  // Pull per-entry fields — same across copies for set attributes; pick latest acquired
-  const acquiredDates = entries.map(e => e.aquired_date || e.acquired_date).filter(Boolean).sort();
+  // Pull per-entry fields — same across copies for set attributes; pick latest acquired.
+  // Normalize to ISO FIRST so the lexical .sort() orders chronologically (raw "M/D/YYYY"
+  // sorts wrong, e.g. "10/1/2023" < "9/1/2020"); the derived holding date is then ISO too.
+  const acquiredDates = entries.map(e => toISODate(e.acquired_date || e.aquired_date)).filter(Boolean).sort();
 
   // minifigs / pieces: entries never store these; fall back to the Brickset cache (canonical,
   // backfilled for every owned set by runBricksetEnrichment on mount).

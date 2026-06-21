@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { asNumber, money, setImageUrl, daysUntilRetirement } from "./utils/formatting";
+import { asNumber, money, setImageUrl, daysUntilRetirement, parseLocalDate } from "./utils/formatting";
 import { conditionDisplayLabel, conditionDisplayColor } from "./utils/condition";
 import { materializeEntries } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
@@ -15,11 +15,13 @@ function entryPaid(e) {
   return asNumber(e.paid_price ?? e.Paid ?? e.paid ?? 0);
 }
 
-function shortDate(iso) {
-  if (!iso) return null;
-  const d = new Date(iso + "T00:00:00");
-  if (isNaN(d)) return null;
-  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+function shortDate(value) {
+  // parseLocalDate handles ISO yyyy-mm-dd AND legacy "M/D/YYYY", and builds the date from
+  // local parts so a date-only value renders the correct day (no UTC off-by-one). Prior code
+  // used new Date(value + "T00:00:00"), which returned null for "M/D/YYYY" → ~29 real per-copy
+  // dates rendered as nothing.
+  const d = parseLocalDate(value);
+  return d ? d.toLocaleDateString("en-US", { month: "short", year: "numeric" }) : null;
 }
 
 function StatBox({ label, value, color, tip }) {

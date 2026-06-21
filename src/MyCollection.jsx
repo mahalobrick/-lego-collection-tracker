@@ -9,7 +9,7 @@ import TriValueCell from "./TriValueCell";
 import RowHoverCard from "./RowHoverCard";
 import ConditionPill from "./ConditionPill";
 import InfoTip from "./InfoTip";
-import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
+import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, lineCashPaid, parseLocalDate } from "./utils/formatting";
 import { setConditionDisplay, conditionBucket, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
 import { applyCopyConditionEdit, applyQtyEdit, materializeEntries } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
@@ -55,10 +55,11 @@ const OWNED_COL_WIDTHS = {
 };
 
 function fmtShortDate(dateStr) {
-  if (!dateStr) return "—";
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  // Local parts-build (parseLocalDate) so an ISO date renders the correct day — bare
+  // new Date("yyyy-mm-dd") parses as UTC and shows the prior day/month in Denver (UTC-7).
+  // Still tolerates legacy "M/D/YYYY". Unknown/empty → "—".
+  const d = parseLocalDate(dateStr);
+  return d ? d.toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—";
 }
 
 export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection" }) {

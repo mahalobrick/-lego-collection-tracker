@@ -3,6 +3,34 @@ export function asNumber(value) {
   return Number(String(value || "0").replace(/[$,]/g, "")) || 0;
 }
 
+// ── Date normalization (READ boundary — non-destructive) ──────────────────
+// Coerce a date string to ISO yyyy-mm-dd at read time; callers transform on read and
+// NEVER rewrite stored localStorage. Idempotent on ISO, parses the US "M/D/YYYY" the
+// BE-CSV import leaves behind, empty → "", and anything else is returned UNCHANGED
+// (never drop a value we don't recognize). This is the read-side twin of AppSettings'
+// `csvDateToISO`, which runs on the import WRITE path; kept separate so this can't alter
+// import behavior.
+export function toISODate(value) {
+  if (!value) return "";
+  const raw = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;           // already ISO — unchanged
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(raw);     // US M/D/YYYY (4-digit year)
+  if (m) return `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+  return raw;                                                // unrecognized — unchanged
+}
+
+// Parse a date string (ISO yyyy-mm-dd or US "M/D/YYYY") into a LOCAL date-only Date, or
+// null if empty/unrecognized. Built from y/m/d PARTS — NOT `new Date("yyyy-mm-dd")`, which
+// the spec parses as UTC midnight and renders the PRIOR calendar day in negative-offset
+// zones (e.g. Denver, UTC-7); local construction keeps the intended day.
+export function parseLocalDate(value) {
+  const iso = toISODate(value);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])); // LOCAL midnight
+  return isNaN(d.getTime()) ? null : d;
+}
+
 // ── Purchase line totaling (canonical — use everywhere) ───────────────────
 // lineTotal: face value × qty, respecting newer `total` field and legacy `amount`
 export function lineTotal(p) {
