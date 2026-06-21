@@ -40,7 +40,7 @@ export default function RowHoverCard({ set, retail, market, tipPos }) {
             <span style={label}>Qty</span><span style={{ color: "#e8e2d5" }}>{set.qty || 1}</span>
             <span style={label}>MSRP</span><span style={{ color: "#8a9bb0" }} data-testid="hover-retail">{formatRetailCell(retail)}</span>
             <span style={label}>Paid</span><span style={{ color: "#8a9bb0" }} data-testid="hover-paid">{money(paid)}</span>
-            <span style={label}>Market</span><span style={{ color: "#c9a84c", fontWeight: 700 }} data-testid="hover-market">{formatValue(market?.amount)}</span>
+            <span style={label}>Value</span><span style={{ color: "#c9a84c", fontWeight: 700 }} data-testid="hover-market">{formatValue(market?.amount)}</span>
             {set.roiPct != null && <><span style={label}>ROI</span><span style={{ color: set.roiPct >= 0 ? "#5aa832" : "#ff8b8b", fontWeight: 700 }}>{set.roiPct >= 0 ? "+" : ""}{Number(set.roiPct).toFixed(1)}%</span></>}
             {set.retired != null && <><span style={label}>Status</span><span style={{ color: set.retired ? "#f59e0b" : "#5aa832" }}>{set.retired ? "Retired" : "Active"}</span></>}
           </div>

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { searchInput, filterSelect, clearFilterButton, filterBar, actionBtn, ghostBtn } from "./uiStyles";
+import { searchInput, filterSelect, clearFilterButton, filterBar, actionBtn, ghostBtn, confidenceBadge } from "./uiStyles";
 import { DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, AreaChart, Area, CartesianGrid } from "recharts";
 import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
@@ -20,7 +20,7 @@ import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
 import { ownedSetFromBlob } from "./utils/beCollection";
 import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, conditionValueBuckets, freebieValue, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit, reconcileCopyPaidEdit, reconcileCopyMetaEdit, reconcileValueEdit } from "./utils/portfolio";
-import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailCoverageCounts, retailCoverageTooltip, vsdEsdNote, VSD_ESD_TOOLTIP, estimatedCostNote, roiScopeNote, roiScopeTooltip, freebieNote, FREEBIE_TOOLTIP, netGainBasisNote, signColor, TOTAL_SETS_TOOLTIP, NEW_USED_COUNT_TOOLTIP, CONDITION_VALUE_TOOLTIP, RETIRED_TOOLTIP, COST_BASIS_TOOLTIP } from "./utils/valueDisplay";
+import { formatValue, formatAggregateValue, formatValueCell, formatRetailCell, retailCellTooltip, retailSourceMarker, unknownValueNote, retailCoverageCounts, retailCoverageTooltip, vsdEsdNote, VSD_ESD_TOOLTIP, estimatedCostNote, roiScopeNote, roiScopeTooltip, freebieNote, FREEBIE_TOOLTIP, netGainBasisNote, signColor, TOTAL_SETS_TOOLTIP, NEW_USED_COUNT_TOOLTIP, CONDITION_VALUE_TOOLTIP, RETIRED_TOOLTIP, COST_BASIS_TOOLTIP } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { valuesAsOf, freshness } from "./utils/freshness";
 import { apiFetch } from "./utils/apiFetch";
@@ -44,7 +44,9 @@ const OWNED_COL_WIDTHS = {
   theme:        84,
   condition:    84,
   qty:          66,
-  value:       132,  // three-up: Retail / Paid / Market labels + figures (MSRP Step 2)
+  value:       132,  // Compact: single Value figure (+ hover). Full: the Value column of the MSRP|Paid|Value split.
+  msrp:        104,  // Full-density split column (render-time only; not a persisted column)
+  paid:         84,  // Full-density split column (render-time only; not a persisted column)
   gain:         82,
   roi:          62,
   minifigs:     68,
@@ -53,6 +55,19 @@ const OWNED_COL_WIDTHS = {
   releasedDate: 90,
   notes:        80,
 };
+
+// Full-density value-column split: the single "Value" column becomes three real, individually
+// sortable/resizable columns. These are DERIVED at render time from rowDensity (not persisted in
+// blOwnedColumns / the gear) so density is the single source of truth for the value column set.
+// They reorder/hide as a cohesive group anchored on the persisted "value" column.
+const VALUE_SPLIT_COLS = [
+  { key: "msrp",  label: "MSRP",  visible: true },
+  { key: "paid",  label: "Paid",  visible: true },
+  { key: "value", label: "Value", visible: true },
+];
+// Map a value-split member back to its anchor ("value") so drag-reorder moves the trio together;
+// every other key is itself. Used only for reorder — sort and resize stay per-column.
+const valueGroupKey = (k) => (k === "msrp" || k === "paid" ? "value" : k);
 
 function fmtShortDate(dateStr) {
   // Local parts-build (parseLocalDate) so an ISO date renders the correct day — bare
@@ -984,12 +999,33 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     if (column.key === "theme") return set.theme || "—";
     if (column.key === "qty") return qty;
     if (column.key === "value") {
-      // Three-up (MSRP Step 2): Retail / Paid / Market in one compact cell.
+      const cost = setCost(set);
+      // Desktop FULL splits MSRP + Paid into their own columns (below) → the Value cell is a single
+      // figure (the compact TriValueCell render: Value + confidence badge + tooltip). Compact (single
+      // Value + hover) and mobile (no columns → the density-driven cell) are unchanged.
+      if (!isMobile && rowDensity === "full") {
+        return <TriValueCell density="compact" retail={null} paid={null} market={setValueProvenance(set, valueMap)} />;
+      }
       //   Retail → setRetailProvenance (Brickset canonical, BE deprecated fallback, "—" when none)
       //   Paid   → setCost; $0 / unrecorded → null → "—" (a genuine GWP $0 is indistinguishable here)
-      //   Market → setValueProvenance (the prior cell's value — pinned by TriValueCell's Market line)
-      const cost = setCost(set);
+      //   Value  → setValueProvenance (identical to Performance's value — same call, same valueMap)
       return <TriValueCell density={rowDensity} retail={retailFor(set)} paid={cost > 0 ? cost : null} market={setValueProvenance(set, valueMap)} />;
+    }
+    // Full-density split columns (desktop): MSRP = retailFor, Paid = setCost — the SAME reads the
+    // compact hover card / the Value cell use, just surfaced as their own single-line columns.
+    if (column.key === "msrp") {
+      const retail = retailFor(set);
+      const mark = retailSourceMarker(retail);
+      return (
+        <span title={retailCellTooltip(retail) || undefined} style={{ fontVariantNumeric: "tabular-nums" }} data-testid="owned-msrp">
+          {formatRetailCell(retail)}
+          {mark && <span style={confidenceBadge} title={mark.tooltip}>{mark.marker}</span>}
+        </span>
+      );
+    }
+    if (column.key === "paid") {
+      const cost = setCost(set);
+      return <span data-testid="owned-paid" style={{ fontVariantNumeric: "tabular-nums" }}>{formatValue(cost > 0 ? cost : null)}</span>;
     }
     if (column.key === "gain") return gain === null ? "—" : money(gain);
     if (column.key === "roi") return roi !== null ? `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%` : "—";
@@ -1003,7 +1039,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   }
 
   function isNumericOwnedColumn(key) {
-    return ["qty", "paid", "value", "gain", "roi"].includes(key);
+    return ["qty", "msrp", "paid", "value", "gain", "roi"].includes(key);
   }
 
   const localThemes = Array.from(new Set(sets.map(s => s.theme).filter(Boolean))).sort();
@@ -1019,7 +1055,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
       setSortDirection(prev => prev === "asc" ? "desc" : "asc");
     } else {
       setSortColumn(column);
-      setSortDirection(column === "value" || column === "gain" ? "desc" : "asc");
+      setSortDirection(["value", "gain", "msrp", "paid"].includes(column) ? "desc" : "asc");
     }
   }
 
@@ -1054,6 +1090,13 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
       } else if (sortColumn === "value") {
         // Null-aware: unknown value sorts as 0. (unknown≠0 sweep)
         result = (setValueProvenance(a, valueMap).amount ?? 0) - (setValueProvenance(b, valueMap).amount ?? 0);
+      } else if (sortColumn === "msrp") {
+        // Full-split MSRP column — null-aware (unknown / promo-no-RRP → 0). Mirrors the value case.
+        result = (retailFor(a)?.amount ?? 0) - (retailFor(b)?.amount ?? 0);
+      } else if (sortColumn === "paid") {
+        // Full-split Paid column — setCost; $0 / unrecorded → 0 (the cell shows "—"). Null-aware.
+        const pa = setCost(a), pb = setCost(b);
+        result = (pa > 0 ? pa : 0) - (pb > 0 ? pb : 0);
       } else if (sortColumn === "gain") {
         // Null-aware: unknown-value sets (no computable gain) sort as 0. (unknown≠0 sweep)
         result = (setGain(a, valueMap) ?? 0) - (setGain(b, valueMap) ?? 0);
@@ -1079,7 +1122,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   const ownedRowVirtualizer = useVirtualizer({
     count: isMobile ? 0 : visibleSets.length, // desktop table only; mobile renders the card-list below
     getScrollElement: () => ownedScrollRef.current,
-    estimateSize: () => (rowDensity === "full" ? 64 : 40),
+    estimateSize: () => 40, // single-line rows in both densities now (Full splits into columns, no tall stack)
     overscan: 10,
     getItemKey: (i) => { const s = visibleSets[i]; return s ? `${s.setNumber}-${sets.indexOf(s)}` : i; },
   });
@@ -2361,7 +2404,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
               {rbEnriching ? "…" : rbEnrichResult !== null ? `✓ Filled (${rbEnrichResult})` : "Rebrickable Fill"}
             </button>
             <div style={{ width: 1, height: 16, background: "var(--bk-border)", alignSelf: "center", margin: "0 2px", flexShrink: 0 }} />
-            <div style={{ display: "flex", border: "1px solid var(--bk-border)", borderRadius: 8, overflow: "hidden", flexShrink: 0 }} title="Row density — compact shows Market only (MSRP / Paid on hover); full shows all three">
+            <div style={{ display: "flex", border: "1px solid var(--bk-border)", borderRadius: 8, overflow: "hidden", flexShrink: 0 }} title="Row density — Compact shows a single Value column (MSRP / Paid on hover); Full splits MSRP / Paid / Value into separate sortable columns">
               {[["compact", "Compact"], ["full", "Full"]].map(([val, label]) => (
                 <button
                   key={val}
@@ -2551,7 +2594,12 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                 </div>
               );
             })() : (() => {
-              const visibleCols = ownedColumns.filter(c => c.visible);
+              // Density drives the value column set: Compact = the persisted columns as-is; Full expands
+              // the "value" column into the MSRP|Paid|Value split (render-time only). One derived list
+              // feeds the header, body, width calc and colSpan so they can't diverge.
+              const visibleCols = rowDensity === "full"
+                ? ownedColumns.filter(c => c.visible).flatMap(c => c.key === "value" ? VALUE_SPLIT_COLS : [c])
+                : ownedColumns.filter(c => c.visible);
               const defaultTotalW = 36 + visibleCols.reduce((s, c) => s + (OWNED_COL_WIDTHS[c.key] ?? 80), 0);
               const currentTotalW = 36 + visibleCols.reduce((s, c) => s + (columnWidths[c.key] ?? 80), 0);
               // Only show horizontal scrollbar when the user has deliberately expanded columns beyond defaults.
@@ -2567,20 +2615,20 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
               <thead style={{ position: "sticky", top: 0, zIndex: 5 }}>
                 <tr>
                   <th style={{ ...th, width: 36 }}></th>
-                  {ownedColumns.filter(col => col.visible).map(col => (
+                  {visibleCols.map(col => (
                     <th
                       key={col.key}
                       draggable
                       onDragStart={e => {
                         if (e.target !== e.currentTarget) { e.preventDefault(); return; }
-                        setDraggedOwnedColumn(col.key);
+                        setDraggedOwnedColumn(valueGroupKey(col.key));
                       }}
                       onDragEnd={() => setDraggedOwnedColumn(null)}
                       onDragOver={e => e.preventDefault()}
-                      onDrop={() => dropOwnedColumn(col.key)}
+                      onDrop={() => dropOwnedColumn(valueGroupKey(col.key))}
                       style={{
                         ...(isNumericOwnedColumn(col.key) ? thRightButton : thButton),
-                        opacity: draggedOwnedColumn === col.key ? 0.45 : 1,
+                        opacity: draggedOwnedColumn === valueGroupKey(col.key) ? 0.45 : 1,
                         width: columnWidths[col.key] ?? 80,
                         position: "relative",
                         overflow: "hidden",
@@ -2648,7 +2696,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                         />
                       </td>
 
-                      {ownedColumns.filter(col => col.visible).map(col => {
+                      {visibleCols.map(col => {
                         // Thumbnail image column
                         if (col.key === "thumb") {
                           const imgUrl = set.thumbnail || setImageUrl(set.setNumber);

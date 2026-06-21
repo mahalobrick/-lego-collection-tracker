@@ -67,7 +67,7 @@ export default function TriValueCell({ retail, paid, market, density = "full" })
         </span>
       </div>
       <div style={rowStyle} title={marketTip}>
-        <span style={labelStyle}>Market</span>
+        <span style={labelStyle}>Value</span>
         <span style={marketFigure} data-testid="tri-market">{marketFigureEl}</span>
       </div>
     </div>
