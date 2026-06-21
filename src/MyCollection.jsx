@@ -19,7 +19,7 @@ import { loadRebrickable, rbLookupSet, rbReady } from "./utils/rebrickable";
 import WatchDetailPanel from "./WatchDetailPanel";
 import { beValueForCondition, revalueBESet } from "./utils/beSyncValues";
 import { ownedSetFromBlob } from "./utils/beCollection";
-import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, conditionValueBuckets, freebieValue, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit, reconcileCopyPaidEdit, reconcileValueEdit } from "./utils/portfolio";
+import { portfolioValue, portfolioRetail, knownValueCount, setValueProvenance, manualMsrpPatch, setCost, totalSpent, portfolioGain, portfolioValuedCost, portfolioROI, setROI, setGain, groupRollup, conditionValueBuckets, freebieValue, estimatedValueShare, buildPurchaseMap, costBasisBreakdown, reconcilePaidEdit, reconcileConditionEdit, reconcileCopyPaidEdit, reconcileCopyMetaEdit, reconcileValueEdit } from "./utils/portfolio";
 import { formatValue, formatAggregateValue, formatValueCell, unknownValueNote, retailCoverageCounts, retailCoverageTooltip, vsdEsdNote, VSD_ESD_TOOLTIP, estimatedCostNote, roiScopeNote, roiScopeTooltip, freebieNote, FREEBIE_TOOLTIP, netGainBasisNote, signColor, TOTAL_SETS_TOOLTIP, NEW_USED_COUNT_TOOLTIP, CONDITION_VALUE_TOOLTIP, RETIRED_TOOLTIP, COST_BASIS_TOOLTIP } from "./utils/valueDisplay";
 import { fetchValues, peekValueCache } from "./utils/valueCache";
 import { valuesAsOf, freshness } from "./utils/freshness";
@@ -1189,6 +1189,29 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     setDetailSet(prev => (prev ? { ...prev, ...patch } : prev));
   }
 
+  // Per-copy acquired-date + notes — PURE METADATA twins of editCopyPaid. reconcileCopyMetaEdit sets the
+  // ONE targeted copy's field and passes the OTHERS through byte-exact (divergence preserved). NO re-value:
+  // date/notes drive neither cost nor market value (unlike editCopyPaid's paid aggregates / editCopyCondition's
+  // re-value), so value/gain/ROI are untouched. BE-only, like editCopyPaid (a manual set has no entries[] →
+  // reconcileCopyMetaEdit returns null; the multi-copy gate makes the control BE-only anyway). Date `value`
+  // arrives ISO (yyyy-mm-dd) from the native date input.
+  function editCopyAcquiredDate(index, copyIndex, value) {
+    const cur = sets[index];
+    if (!cur || cur.source !== "BrickEconomy") return;
+    const patch = reconcileCopyMetaEdit(cur, "acquired_date", value, copyIndex);
+    if (!patch) return;
+    persistBESetEdit(cur.setNumber, patch);
+    setDetailSet(prev => (prev ? { ...prev, ...patch } : prev));
+  }
+  function editCopyNotes(index, copyIndex, value) {
+    const cur = sets[index];
+    if (!cur || cur.source !== "BrickEconomy") return;
+    const patch = reconcileCopyMetaEdit(cur, "notes", value, copyIndex);
+    if (!patch) return;
+    persistBESetEdit(cur.setNumber, patch);
+    setDetailSet(prev => (prev ? { ...prev, ...patch } : prev));
+  }
+
   function updateSet(index, field, value) {
     const cur = sets[index];
     if (!cur) return;
@@ -1261,6 +1284,16 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
       // re-derives the canonical (totalValue + currentValue + entries[].current_value + the roiPct hover
       // snapshot) so the edit lands on the value layer and persists to the blob. Twin of the paidPrice branch.
       persistBESetEdit(cur.setNumber, reconcileValueEdit(cur, coerced));
+    } else if (cur.source === "BrickEconomy" && (field === "acquiredDate" || field === "notes")) {
+      // Bulk "Set all copies" date/notes — the metadata twin of the bulk condition branch: reconcileCopyMetaEdit
+      // (copyIndex omitted) writes the SAME value to EVERY copy's entry. Pure metadata → no re-value/ROI. Fixes
+      // the latent bug: for a BE set these used to fall into the in-memory-only else below (no blob write) and
+      // reverted on reload. The holding scalar (acquiredDate/notes) rides along so the column reflects the edit
+      // in-session; entries[] are authoritative — ownedSetFromBlob re-derives the scalar from them on reload, so
+      // the copy stored on the blob is ignored (harmless). acquiredDate→acquired_date / notes share names.
+      const copyKey = field === "acquiredDate" ? "acquired_date" : "notes";
+      const patch = reconcileCopyMetaEdit(cur, copyKey, value);
+      persistBESetEdit(cur.setNumber, { ...(patch || {}), [field]: value });
     } else {
       setSets(prev => prev.map((s, i) => (i === index ? rec : s)));
     }
@@ -2741,6 +2774,14 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                   const copies = copyEntries.length;
                   const condDisplay = setConditionDisplay(s); // 'new' | 'used' | 'mixed' (Mixed when copies diverge)
                   const paidDiverges = copies > 1 && new Set(copyEntries.map(e => asNumber(e.paid_price))).size > 1;
+                  // Date/notes divergence — twins of paidDiverges. Read off copyEntries (materializeEntries,
+                  // recomputed from state entries every render) so the bulk inputs stay fresh after a per-copy
+                  // edit too. When copies disagree, the bulk input shows blank → a bulk edit reads as a
+                  // deliberate overwrite-all; when they agree, the shared value (copyEntries[0]) shows.
+                  const dateDiverges  = copies > 1 && new Set(copyEntries.map(e => e.acquired_date || "")).size > 1;
+                  const notesDiverges = copies > 1 && new Set(copyEntries.map(e => e.notes || "")).size > 1;
+                  const bulkDate  = dateDiverges  ? "" : (copyEntries[0]?.acquired_date || "");
+                  const bulkNotes = notesDiverges ? "" : (copyEntries[0]?.notes || "");
                   return (
                     <div>
                       {/* ── Set all copies — holding-level fields; an edit here applies to EVERY copy ── */}
@@ -2812,10 +2853,26 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                         /></label>
                       </div>
 
-                      {/* Row 4: Acquired Date + Notes */}
+                      {/* Row 4: Acquired Date + Notes — "Set all copies" metadata. Both route to updateSet's
+                          BE branch (writes EVERY copy's entry + persists) so they survive reload (the prior
+                          revert-on-reload bug — they hit the in-memory-only else). Divergent copies → blank
+                          (overwrite-all intent). Date commits on change (native picker emits a complete value);
+                          Notes is UNCONTROLLED commit-on-blur (mirrors bulk Paid) so typing doesn't push per key. */}
                       <div style={{ ...row, gridTemplateColumns: "1fr 1fr" }}>
-                        <label><span style={lbl}>Acquired</span><input style={inp} type="date" value={s.acquiredDate || ""} onChange={e => updateSet(selectedSetIndex, "acquiredDate", e.target.value)} /></label>
-                        <label><span style={lbl}>Notes</span><input style={inp} value={s.notes || ""} onChange={e => updateSet(selectedSetIndex, "notes", e.target.value)} /></label>
+                        <label><span style={lbl}>Acquired</span><input
+                          data-testid="holding-date-edit"
+                          style={inp} type="date" value={bulkDate}
+                          title={dateDiverges ? "Copies differ — pick a date to set all" : undefined}
+                          onChange={e => updateSet(selectedSetIndex, "acquiredDate", e.target.value)}
+                        /></label>
+                        <label><span style={lbl}>Notes</span><input
+                          key={`bulk-notes-${selectedSetIndex}-${bulkNotes}-${notesDiverges}`}
+                          data-testid="holding-notes-edit"
+                          style={inp} defaultValue={bulkNotes}
+                          placeholder={notesDiverges ? "— copies differ" : undefined}
+                          onBlur={e => { if (e.target.value !== bulkNotes) updateSet(selectedSetIndex, "notes", e.target.value); }}
+                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { e.currentTarget.value = bulkNotes; e.currentTarget.blur(); } }}
+                        /></label>
                       </div>
 
                       {/* ── Individual copies — relocated per-copy controls; multi-copy holdings only.
@@ -2843,12 +2900,30 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                                     })}
                                   </div>
                                 </div>
-                                <label style={{ display: "block" }}><span style={lbl}>Paid</span><input
-                                  key={`copy-paid-${selectedSetIndex}-${i}-${e.paid_price}`}
-                                  data-testid="copy-paid-edit"
-                                  style={inp} type="number" step="0.01" min="0" defaultValue={e.paid_price || ""}
-                                  onBlur={ev => { const v = asNumber(ev.target.value); if (v !== asNumber(e.paid_price)) editCopyPaid(selectedSetIndex, i, v); }}
-                                  onKeyDown={ev => { if (ev.key === "Enter") ev.currentTarget.blur(); if (ev.key === "Escape") { ev.currentTarget.value = e.paid_price || ""; ev.currentTarget.blur(); } }}
+                                {/* Paid + Acquired share a 2-col row; Notes spans full width below. Paid stays
+                                    uncontrolled (decimal-safe); Acquired (date) commits on change → editCopyAcquiredDate;
+                                    Notes is uncontrolled commit-on-blur → editCopyNotes. All three are PURE per-copy:
+                                    only the edited copy changes (divergence preserved), no value/ROI recompute. */}
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                                  <label style={{ display: "block" }}><span style={lbl}>Paid</span><input
+                                    key={`copy-paid-${selectedSetIndex}-${i}-${e.paid_price}`}
+                                    data-testid="copy-paid-edit"
+                                    style={inp} type="number" step="0.01" min="0" defaultValue={e.paid_price || ""}
+                                    onBlur={ev => { const v = asNumber(ev.target.value); if (v !== asNumber(e.paid_price)) editCopyPaid(selectedSetIndex, i, v); }}
+                                    onKeyDown={ev => { if (ev.key === "Enter") ev.currentTarget.blur(); if (ev.key === "Escape") { ev.currentTarget.value = e.paid_price || ""; ev.currentTarget.blur(); } }}
+                                  /></label>
+                                  <label style={{ display: "block" }}><span style={lbl}>Acquired</span><input
+                                    data-testid="copy-date-edit"
+                                    style={inp} type="date" value={e.acquired_date || ""}
+                                    onChange={ev => { if (ev.target.value !== (e.acquired_date || "")) editCopyAcquiredDate(selectedSetIndex, i, ev.target.value); }}
+                                  /></label>
+                                </div>
+                                <label style={{ display: "block", marginTop: 8 }}><span style={lbl}>Notes</span><input
+                                  key={`copy-notes-${selectedSetIndex}-${i}-${e.notes}`}
+                                  data-testid="copy-notes-edit"
+                                  style={inp} defaultValue={e.notes || ""}
+                                  onBlur={ev => { if (ev.target.value !== (e.notes || "")) editCopyNotes(selectedSetIndex, i, ev.target.value); }}
+                                  onKeyDown={ev => { if (ev.key === "Enter") ev.currentTarget.blur(); if (ev.key === "Escape") { ev.currentTarget.value = e.notes || ""; ev.currentTarget.blur(); } }}
                                 /></label>
                               </div>
                             ))}

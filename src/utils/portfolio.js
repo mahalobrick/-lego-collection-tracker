@@ -580,6 +580,34 @@ export function reconcileCopyPaidEdit(set, copyIndex, amount) {
 }
 
 /**
+ * Patch for a PURE-METADATA per-copy/bulk edit — the acquired_date / notes twin of
+ * {@link reconcileConditionEdit}, minus any aggregate. `field` is the per-copy key
+ * (`"acquired_date"` | `"notes"`); `value` is written verbatim (date already ISO):
+ *   - bulk (no copyIndex): every copy's `field` := value;
+ *   - per-copy (copyIndex given): only that copy's `field` changes — the OTHERS pass through
+ *     byte-exact, so divergence is preserved (the receipt scenario).
+ * Metadata drives NEITHER cost nor value, so — unlike reconcileCopyPaidEdit / reconcileConditionEdit —
+ * nothing is re-derived or re-valued: the patch is just `entries`. BE/entries-bearing only → returns
+ * `null` for a manual set (no per-copy data; the caller's multi-copy gate makes it BE-only anyway).
+ * Pure; `entries` shares its name across the in-memory + blob shapes, so it persists via
+ * persistBESetEdit unchanged.
+ *
+ * @param {Object} set                 owned set (must carry entries[])
+ * @param {string} field               per-copy metadata key — "acquired_date" | "notes"
+ * @param {string} value               new value (verbatim)
+ * @param {number} [copyIndex]         which copy to change; omit for a bulk (all-copies) edit
+ * @returns {{ entries: Array } | null}
+ */
+export function reconcileCopyMetaEdit(set, field, value, copyIndex) {
+  const entries = set?.entries;
+  if (!Array.isArray(entries) || !entries.length) return null; // manual / no per-copy data
+  if (copyIndex == null) {
+    return { entries: entries.map((e) => ({ ...e, [field]: value })) }; // bulk: every copy
+  }
+  return { entries: entries.map((e, i) => (i === copyIndex ? { ...e, [field]: value } : e)) };
+}
+
+/**
  * Canonical-VALUE patch for a holding-level value edit — the value twin of {@link reconcilePaidEdit}.
  * For a BE set the "Value" field holds the AGGREGATE (ownedSetFromBlob loads both currentValue AND
  * totalValue from the blob's totalValue — so currentValue mirrors the total, NOT a per-unit figure as on

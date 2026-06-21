@@ -62,4 +62,17 @@ describe("SetDetailPanel — per-copy breakdown is read-only", () => {
     // The panel is now fully display-only: not a single editable field anywhere.
     expect(q("input").length).toBe(0);
   });
+
+  it("shows per-copy NOTES as read-only text (no input), alongside the existing read-only fields", () => {
+    const WITH_NOTES = {
+      ...ENTRIES_SET,
+      entries: [
+        { condition: "new", paid_price: 800, current_value: 1000, acquired_date: "2025-03-14", notes: "minty, sealed" },
+        { condition: "new", paid_price: 800, current_value: 1000, notes: "" }, // empty → renders nothing
+      ],
+    };
+    act(() => root.render(<SetDetailPanel item={WITH_NOTES} onClose={() => {}} />));
+    expect(container.textContent).toContain("minty, sealed"); // copy 1's note shows
+    expect(q("input").length).toBe(0);                        // still no editable control
+  });
 });

@@ -339,6 +339,9 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
                         <div style={{ fontWeight: 700, fontSize: 13, color: g === null ? "#5d6f80" : g >= 0 ? "#5aa832" : "#ff8b8b" }}>{g === null ? "—" : money(g)}</div>
                       </div>
                     </div>
+                    {/* Per-copy notes — READ-ONLY (editing lives in the Edit window's Individual copies section).
+                        Shown only when present, consistent with the read-only breakdown. */}
+                    {entry.notes && <div style={{ color: "#8a9bb0", fontSize: 12, marginTop: 8, whiteSpace: "pre-wrap" }}>{entry.notes}</div>}
                   </div>
                 );
               })}

@@ -151,3 +151,42 @@ describe("MyCollection holding-level edit — decimal commit + BE persistence", 
     expect(q('[data-testid="holding-msrp-edit"]').value).toBe("59.99");
   });
 });
+
+describe("MyCollection holding-level edit — bulk Acquired/Notes persist to the BE blob (revert-on-reload fix)", () => {
+  // These two used to fall into updateSet's in-memory-only else branch for a BE set → they never
+  // reached the blob and reverted on reload. They now write the copy entry (+ holding scalar) + persist.
+  function commitDate(value) { // controlled date input → commits on change ('input' event)
+    const input = q('[data-testid="holding-date-edit"]');
+    expect(input, "holding-date-edit renders").toBeTruthy();
+    // Native prototype setter — bypass React's value tracker so the 'input' event fires onChange.
+    act(() => {
+      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+
+  it("Acquired date persists to entries + the holding scalar, and survives reload", () => {
+    openEditPanel();
+    commitDate("2025-06-01");
+    expect(blob()[0].entries[0].acquired_date).toBe("2025-06-01");
+    expect(blob()[0].acquiredDate).toBe("2025-06-01");
+    // Pure metadata — value/cost untouched.
+    expect(blob()[0].totalValue).toBe(1000);
+    expect(blob()[0].totalPaid).toBe(800);
+
+    act(() => root.unmount()); root = createRoot(container);
+    openEditPanel();
+    expect(q('[data-testid="holding-date-edit"]').value).toBe("2025-06-01");
+  });
+
+  it("Notes persist to the entry + survive reload (uncontrolled commit-on-blur)", () => {
+    openEditPanel();
+    commit("holding-notes-edit", "bought at the LEGO store");
+    expect(blob()[0].entries[0].notes).toBe("bought at the LEGO store");
+    expect(blob()[0].notes).toBe("bought at the LEGO store");
+
+    act(() => root.unmount()); root = createRoot(container);
+    openEditPanel();
+    expect(q('[data-testid="holding-notes-edit"]').value).toBe("bought at the LEGO store");
+  });
+});
