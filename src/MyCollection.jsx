@@ -46,15 +46,27 @@ const OWNED_COL_WIDTHS = {
   qty:          66,
   value:       132,  // Compact: single Value figure (+ hover). Full: the Value column of the MSRP|Paid|Value split.
   msrp:        104,  // Full-density split column (render-time only; not a persisted column)
-  paid:         84,  // Full-density split column (render-time only; not a persisted column)
-  gain:         82,
-  roi:          62,
+  paid:         96,  // Full-density split column (render-time only; not a persisted column)
+  gain:        104,  // money column: fits a worst-case "−$12,345.67" without ellipsis-clipping
+  roi:          92,  // percent column: fits a worst-case "+1,234.5%" without ellipsis-clipping
   minifigs:     68,
   acquiredDate: 90,
   retiredDate:  90,
   releasedDate: 90,
   notes:        80,
 };
+
+// Deadlock-safe fill height for the owned-table scroll box. A CONCRETE, content-independent cap
+// (>=320px) resolved from the viewport at FIRST PAINT — the same non-zero-seed property the old
+// fixed maxHeight:560 gave the row virtualizer, so it never measures a zero/unstable box (the
+// documented bootstrap deadlock). Viewport-derived (NOT row-derived) → no circular dependency on
+// the rows it sizes. ~224px ≈ the chrome above the table (header + toolbar band); the max() floor
+// keeps it non-zero on tiny viewports.
+const OWNED_TABLE_MAX_H = "max(320px, calc(100vh - 224px))";
+
+// Numeric (money / percent / count) columns — right-aligned, and floored to their default width so a
+// stale-narrow persisted width can't ellipsis-clip a value. Single-sourced (isNumericOwnedColumn).
+const NUMERIC_OWNED_COLS = ["qty", "msrp", "paid", "value", "gain", "roi"];
 
 // Full-density value-column split: the single "Value" column becomes three real, individually
 // sortable/resizable columns. These are DERIVED at render time from rowDensity (not persisted in
@@ -153,7 +165,12 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   const [columnWidths, setColumnWidths] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("blOwnedColWidths") || "{}");
-      return { ...OWNED_COL_WIDTHS, ...saved };
+      const merged = { ...OWNED_COL_WIDTHS, ...saved };
+      // Migration: an older persisted width for a NUMERIC column can be narrower than the current
+      // (widened) default and ellipsis-clip a money/percent value. Floor each numeric column at its
+      // default so stale widths can't truncate numbers; a user's WIDER choice is preserved (max).
+      for (const k of NUMERIC_OWNED_COLS) merged[k] = Math.max(Number(merged[k]) || 0, OWNED_COL_WIDTHS[k]);
+      return merged;
     } catch { return { ...OWNED_COL_WIDTHS }; }
   });
   const resizingCol = useRef(null); // { key, startX, startWidth }
@@ -1039,7 +1056,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   }
 
   function isNumericOwnedColumn(key) {
-    return ["qty", "msrp", "paid", "value", "gain", "roi"].includes(key);
+    return NUMERIC_OWNED_COLS.includes(key);
   }
 
   const localThemes = Array.from(new Set(sets.map(s => s.theme).filter(Boolean))).sort();
@@ -2598,17 +2615,17 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
               const visibleCols = rowDensity === "full"
                 ? ownedColumns.filter(c => c.visible).flatMap(c => c.key === "value" ? VALUE_SPLIT_COLS : [c])
                 : ownedColumns.filter(c => c.visible);
-              const defaultTotalW = 36 + visibleCols.reduce((s, c) => s + (OWNED_COL_WIDTHS[c.key] ?? 80), 0);
+              // Natural pixel width of all visible columns (+36 for the checkbox column). The table is
+              // sized to this; min-width:100% stretches it to fill a wider container, and the wrapper
+              // scrolls (overflow-x:auto) when the columns total more than the container — so a crowded
+              // column set scrolls sideways instead of compressing numbers until they ellipsis-clip.
               const currentTotalW = 36 + visibleCols.reduce((s, c) => s + (columnWidths[c.key] ?? 80), 0);
-              // Only show horizontal scrollbar when the user has deliberately expanded columns beyond defaults.
-              // This hides the 3px browser-rounding artifact from table-layout:fixed + width:100%.
-              const needsHScroll = currentTotalW > defaultTotalW + 10;
               return (
-            <div className="owned-table-scroll" style={{ overflowX: needsHScroll ? "auto" : "clip" }}>
-            <div ref={ownedScrollRef} className="owned-table-scroll" style={{ overflowY: "auto", maxHeight: 560 }}>
+            <div className="owned-table-scroll" style={{ minWidth: 0 }}>
+            <div ref={ownedScrollRef} className="owned-table-scroll" style={{ overflow: "auto", maxHeight: OWNED_TABLE_MAX_H }}>
               <table style={{
-                borderCollapse: "collapse", tableLayout: "fixed", width: "100%",
-                minWidth: currentTotalW
+                borderCollapse: "collapse", tableLayout: "fixed",
+                width: currentTotalW, minWidth: "100%"
               }}>
               <thead style={{ position: "sticky", top: 0, zIndex: 5 }}>
                 <tr>
