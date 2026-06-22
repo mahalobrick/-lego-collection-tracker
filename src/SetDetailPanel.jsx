@@ -213,14 +213,14 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
                 manual mark + promo/"—" handling, now the anchor-first tile. testid stays msrp-chip. */}
             <StatBox testid="msrp-chip" label="MSRP" tip={retailCellTooltip(retailProv) || undefined}
               value={isPromoNoRrp(retailProv) ? PROMO_NO_RRP_LABEL : <>{formatValue(retailPrice)}{retailManualMark && <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }} title={retailManualMark.tooltip}>{retailManualMark.marker}</span>}</>} />
-            <StatBox label="Cost Basis" value={money(totalPaid)} />
-            <StatBox label="Market Value" tip={provConf?.tooltip}
+            <StatBox label="Paid" value={money(totalPaid)} />
+            <StatBox label="Value" tip={provConf?.tooltip}
               value={<>{formatValueCell(prov)}{provConf && <span style={confidenceBadge}>{provConf.marker}</span>}</>} />
             <StatBox label="Net Gain" value={gain === null ? "—" : money(gain)} color={gain === null ? undefined : gain >= 0 ? "var(--bk-positive)" : "var(--bk-negative)"} />
             <StatBox label="ROI" value={roi === null ? "—" : `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%`} color={roi === null ? undefined : roi >= 0 ? "var(--bk-positive)" : "var(--bk-negative)"} />
             {qty > 1 && <StatBox label="Avg Paid / Copy" value={money(avgPaid)} />}
             {qty > 1 && <StatBox label="Value / Copy" value={valueKnown ? money(totalValue / qty) : "—"} />}
-            {valueKnown && retailPrice && totalPaid > 0 && <StatBox label="vs. MSRP" value={`${(((totalValue / qty) - retailPrice) / retailPrice * 100) >= 0 ? "+" : ""}${(((totalValue / qty) - retailPrice) / retailPrice * 100).toFixed(1)}%`} color={(totalValue / qty) >= retailPrice ? "var(--bk-positive)" : "var(--bk-negative)"} />}
+            {valueKnown && retailPrice && totalPaid > 0 && <StatBox label="vs MSRP" value={`${(((totalValue / qty) - retailPrice) / retailPrice * 100) >= 0 ? "+" : ""}${(((totalValue / qty) - retailPrice) / retailPrice * 100).toFixed(1)}%`} color={(totalValue / qty) >= retailPrice ? "var(--bk-positive)" : "var(--bk-negative)"} />}
           </div>
         </div>
 
@@ -251,12 +251,12 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
                     <LineChart data={series} margin={{ top: 4, right: 10, bottom: 0, left: 0 }}>
                       <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#9a958a" }} tickFormatter={d => d.slice(5)} minTickGap={30} />
                       <YAxis tick={{ fontSize: 10, fill: "#9a958a" }} tickFormatter={v => `$${v}`} width={44} />
-                      <Tooltip contentStyle={{ background: "var(--bk-bg)", border: "1px solid var(--bk-border)", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "var(--bk-text-muted)" }} formatter={v => [money(v), "Market Value"]} />
+                      <Tooltip contentStyle={{ background: "var(--bk-bg)", border: "1px solid var(--bk-border)", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "var(--bk-text-muted)" }} formatter={v => [money(v), "Value"]} />
                       <Line isAnimationActive={false} type="monotone" dataKey="value" stroke="#CDAA5E" strokeWidth={2} dot={false} connectNulls />
                     </LineChart>
                   </ResponsiveContainer>
                   <div style={{ display: "flex", gap: 14, justifyContent: "center", marginTop: 6 }}>
-                    <span style={{ fontSize: 11, color: "var(--bk-gold-ink)" }}>● Market Value (BrickLink sold)</span>
+                    <span style={{ fontSize: 11, color: "var(--bk-gold-ink)" }}>● Value (BrickLink sold)</span>
                   </div>
                 </div>
               </div>

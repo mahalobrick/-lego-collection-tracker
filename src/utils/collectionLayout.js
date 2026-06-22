@@ -8,7 +8,7 @@
 export const DEFAULT_COLLECTION_ITEMS = [
   { key: "qty",          type: "card",  label: "Total Sets",       visible: true,  width: "auto",  collapsed: false },
   { key: "value",        type: "card",  label: "Collection Value", visible: true,  width: "auto",  collapsed: false },
-  { key: "cost",         type: "card",  label: "Cost Basis",       visible: true,  width: "auto",  collapsed: false },
+  { key: "cost",         type: "card",  label: "Total Paid",       visible: true,  width: "auto",  collapsed: false },
   { key: "gain",         type: "card",  label: "Net Gain / Loss",  visible: true,  width: "auto",  collapsed: false },
   { key: "roi",          type: "card",  label: "ROI",              visible: true,  width: "auto",  collapsed: false },
   { key: "themes",       type: "card",  label: "Themes",           visible: true,  width: "auto",  collapsed: false },
@@ -19,7 +19,7 @@ export const DEFAULT_COLLECTION_ITEMS = [
   { key: "avgPaid",      type: "card",  label: "Avg Paid / Set",   visible: false, width: "auto",  collapsed: false },
   { key: "pieces",       type: "card",  label: "Total Pieces",     visible: false, width: "auto",  collapsed: false },
   { key: "minifigs",     type: "card",  label: "Minifigs",         visible: false, width: "auto",  collapsed: false },
-  { key: "retailValue",  type: "card",  label: "MSRP Value",       visible: false, width: "auto",  collapsed: false },
+  { key: "retailValue",  type: "card",  label: "Total MSRP",       visible: false, width: "auto",  collapsed: false },
   { key: "newValue",     type: "card",  label: "New Sets Value",   visible: false, width: "auto",  collapsed: false },
   { key: "usedValue",    type: "card",  label: "Used Sets Value",  visible: false, width: "auto",  collapsed: false },
   { key: "watchList",    type: "card",  label: "Wanted List",      visible: false, width: "auto",  collapsed: false },

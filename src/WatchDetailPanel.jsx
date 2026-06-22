@@ -130,11 +130,11 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
               <StatBox label="Savings" value={money(savings)} color="#5aa832" />
             )}
             {marketValue && (
-              <StatBox label="Market Value" value={money(marketValue)} />
+              <StatBox label="Value" value={money(marketValue)} />
             )}
             {marketValue && msrp > 0 && (
               <StatBox
-                label="Market vs. MSRP"
+                label="vs MSRP"
                 value={`${marketValue >= msrp ? "+" : ""}${(((marketValue - msrp) / msrp) * 100).toFixed(1)}%`}
                 color={marketValue >= msrp ? "#5aa832" : "#ff8b8b"}
               />
@@ -181,13 +181,13 @@ export default function WatchDetailPanel({ item, onClose, onEdit, onBuyNow }) {
                     <Tooltip
                       contentStyle={{ background: "#0d1623", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, fontSize: 12 }}
                       labelStyle={{ color: "#8a9bb0" }}
-                      formatter={v => [money(v), "Market Value"]}
+                      formatter={v => [money(v), "Value"]}
                     />
                     <Line type="monotone" dataKey="value" stroke="#c9a84c" strokeWidth={2} dot={false} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
                 <div style={{ display: "flex", gap: 14, justifyContent: "center", marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "#c9a84c" }}>● Market Value</span>
+                  <span style={{ fontSize: 11, color: "#c9a84c" }}>● Value</span>
                 </div>
               </div>
             </div>

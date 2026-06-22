@@ -50,11 +50,11 @@ function renderPanel(setNumber, extra = {}) {
   return chip ? chip.textContent : null;
 }
 
-// Render and return the "vs. MSRP" StatBox text (label + value), or null if absent.
+// Render and return the "vs MSRP" StatBox text (label + value), or null if absent.
 function renderVsRetail(setNumber, extra = {}) {
   const item = { setNumber, condition: "new", quantity: 1, entries: [], ...extra };
   act(() => root.render(<SetDetailPanel item={item} onClose={() => {}} />));
-  const box = [...container.querySelectorAll("div")].find(d => d.firstChild?.textContent === "vs. MSRP");
+  const box = [...container.querySelectorAll("div")].find(d => d.firstChild?.textContent === "vs MSRP");
   return box ? box.textContent : null;
 }
 
@@ -89,16 +89,16 @@ describe("SetDetailPanel msrp tile — browser-observable (DOM-leaf)", () => {
   });
 });
 
-describe("SetDetailPanel vs. MSRP % — reads the resolved ladder, not a raw field (Phase 3b)", () => {
+describe("SetDetailPanel vs MSRP % — reads the resolved ladder, not a raw field (Phase 3b)", () => {
   // A Brickset-only set carries NO raw retailPrice field — the % must come from the ladder
   // (setRetailProvenance), the SAME source as the chip, so the two can never disagree. If a
   // regression repointed vs-MSRP at item.retailPrice, the guard `retailPrice && …` would be
   // falsy here and the StatBox would vanish — this test fails.
-  it("Brickset-only set (no raw retailPrice) still gets a correct vs. MSRP %", () => {
+  it("Brickset-only set (no raw retailPrice) still gets a correct vs MSRP %", () => {
     seedBrickset("10300-1", 100);
-    // value known (totalValue) + cost > 0 → vs. MSRP renders. Market 150 vs retail 100 → +50.0%.
+    // value known (totalValue) + cost > 0 → vs MSRP renders. Market 150 vs retail 100 → +50.0%.
     const txt = renderVsRetail("10300-1", { totalValue: 150, totalPaid: 90 });
-    expect(txt).toBe("vs. MSRP+50.0%");
+    expect(txt).toBe("vs MSRP+50.0%");
   });
 });
 

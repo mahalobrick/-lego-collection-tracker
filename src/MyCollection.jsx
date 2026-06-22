@@ -1824,7 +1824,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.18)" />
                                 <XAxis dataKey="date" tickFormatter={fmt} tick={{ fill: "#9a958a", fontSize: 10 }} axisLine={false} tickLine={false} minTickGap={40} />
                                 <YAxis tickFormatter={v => `$${(v/1000).toFixed(0)}k`} tick={{ fill: "#9a958a", fontSize: 10 }} axisLine={false} tickLine={false} width={42} />
-                                <Tooltip formatter={(v, n) => [money(v), n === "value" ? "Portfolio Value" : "Cost Basis"]} labelFormatter={fmt} contentStyle={{ background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)" }} />
+                                <Tooltip formatter={(v, n) => [money(v), n === "value" ? "Collection Value" : "Total Paid"]} labelFormatter={fmt} contentStyle={{ background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)" }} />
                                 <Area isAnimationActive={false} type="monotone" dataKey="paid"  stroke="#0072B2" fill="url(#paidGrad)"  strokeWidth={1.5} dot={false} name="paid" />
                                 <Area isAnimationActive={false} type="monotone" dataKey="value" stroke="#CDAA5E" fill="url(#valueGrad)" strokeWidth={2}   dot={false} name="value" />
                               </AreaChart>
@@ -1842,7 +1842,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                               <thead>
                                 <tr>
-                                  {["Theme","Sets","Cost Basis","Value","Gain","ROI"].map(h => (
+                                  {["Theme","Sets","Paid","Value","Gain","ROI"].map(h => (
                                     <th key={h} style={{ ...thStyle, textAlign: h === "Theme" ? "left" : "right" }}>{h}</th>
                                   ))}
                                 </tr>
@@ -2155,7 +2155,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
             <input type="number" min="0" step="0.01" value={form.msrp} onChange={e => setForm({ ...form, msrp: e.target.value })} placeholder="0.00" style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", width: "100%" }} />
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Current Value</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Value</span>
             <input type="number" min="0" step="0.01" value={form.currentValue} onChange={e => setForm({ ...form, currentValue: e.target.value })} placeholder="0.00" style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", width: "100%" }} />
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>

@@ -87,8 +87,8 @@ describe("Collection polish — no page subtitle in performance mode", () => {
     act(() => root.render(React.createElement(MyCollection, { mode: "performance" })));
     expect(container.textContent).not.toContain("Track collection value");
     expect(container.textContent).not.toContain("Browse, search, and manage");
-    // the renamed aggregate cards still render (the const test locks the rename; "Cost Basis" still
-    // legitimately appears as a column in the separate Theme Performance table — out of this scope).
+    // the renamed aggregate cards still render (the const test locks the rename). The Theme
+    // Performance table's cost column now reads "Paid" too (money-terminology unification).
     expect(container.textContent).toContain("Total Paid");
     expect(container.textContent).toContain("Total MSRP");
   });

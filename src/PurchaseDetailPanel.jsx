@@ -100,7 +100,7 @@ export default function PurchaseDetailPanel({ item, onClose, onEdit }) {
           ) : (
             msrp ? (
               <StatBox
-                label="vs. MSRP"
+                label="vs MSRP"
                 value={vsRetail !== null ? `${vsRetail >= 0 ? "+" : ""}${vsRetail.toFixed(1)}%` : "—"}
                 color={vsRetail !== null ? (vsRetail <= 0 ? "#5aa832" : "#ff8b8b") : undefined}
               />
@@ -112,7 +112,7 @@ export default function PurchaseDetailPanel({ item, onClose, onEdit }) {
           {item.shipping != null && <StatBox label="Shipping"  value={money(item.shipping)} />}
           {item.gcApplied != null && msrp && (
             <StatBox
-              label="vs. MSRP"
+              label="vs MSRP"
               value={vsRetail !== null ? `${vsRetail >= 0 ? "+" : ""}${vsRetail.toFixed(1)}%` : "—"}
               color={vsRetail !== null ? (vsRetail <= 0 ? "#5aa832" : "#ff8b8b") : undefined}
             />

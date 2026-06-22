@@ -109,12 +109,12 @@ describe("SetDetailPanel — MSRP in the Value & Returns section (unchanged)", (
     renderPanel({ setNumber: "12345-1" });
     expect(container.querySelector('[data-testid="msrp-chip"]').textContent).toContain("—");
   });
-  it("the MSRP tile precedes Cost Basis in the DOM (anchor-first)", () => {
+  it("the MSRP tile precedes Paid in the DOM (anchor-first)", () => {
     seedBrickset("12345-1", { retail_price_us: 100 });
     renderPanel({ setNumber: "12345-1" });
     const all = [...container.querySelectorAll("div")];
     const msrp = container.querySelector('[data-testid="msrp-chip"]');
-    const cost = all.find(d => d.firstChild?.textContent === "Cost Basis");
+    const cost = all.find(d => d.firstChild?.textContent === "Paid");
     expect(all.indexOf(msrp)).toBeLessThan(all.indexOf(cost));
   });
 });

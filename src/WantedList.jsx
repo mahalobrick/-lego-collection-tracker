@@ -2084,7 +2084,7 @@ export default function WantedList({ onBuyNow }) {
                 </div>
 
                 <div style={miniStat}>
-                  <div style={miniLabel}>Current Value</div>
+                  <div style={miniLabel}>Value</div>
                   <div style={miniValue}>{form.currentValue ? money(form.currentValue) : "—"}</div>
                 </div>
 

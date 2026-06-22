@@ -62,7 +62,7 @@ describe("SetDetailPanel — value-history chart (Phase 2, owned-set, BL)", () =
     fetchHistoryMock.mockResolvedValue({ "10300-1": SERIES });
     await renderPanel();
     expect(hasText("Value History")).toBe(true);
-    expect(hasText("Market Value (BrickLink sold)")).toBe(true); // the BL legend, not a BE label
+    expect(hasText("Value (BrickLink sold)")).toBe(true); // the BL legend, not a BE label
   });
 
   it("hides the chart when the set has no history ([])", async () => {
@@ -97,8 +97,8 @@ describe("SetDetailPanel — value-history chart (Phase 2, owned-set, BL)", () =
     fetchHistoryMock.mockResolvedValue({ "10300-1": [] }); // no chart
     await renderPanel();
     expect(hasText("Value History")).toBe(false);
-    // core panel content is intact (the Cost Basis StatBox, the title)
-    expect(hasText("Cost Basis")).toBe(true);
+    // core panel content is intact (the Paid StatBox, the title)
+    expect(hasText("Paid")).toBe(true);
     expect(hasText("Eiffel Tower")).toBe(true);
   });
 });
