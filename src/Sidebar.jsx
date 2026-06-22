@@ -154,7 +154,9 @@ export default function Sidebar({ view, onNavigate, theme, onToggleTheme, pinned
         {expanded ? (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <img src={sidebarCoin} alt="" style={{ width: 28, height: "auto", display: "block", flexShrink: 0 }} />
-            <span style={{ fontFamily: "var(--bk-font-display)", color: "var(--bk-gold-ink)", fontSize: 21, fontWeight: 700, letterSpacing: 0.3 }}>Brickuity</span>
+            <span style={{ fontFamily: "var(--bk-font-display)", color: "var(--bk-gold-ink)", fontSize: 21, letterSpacing: 0.3 }}>
+              <span style={{ fontWeight: 700 }}>Brick</span><span style={{ fontWeight: 400 }}>uity</span>
+            </span>
             <button onClick={onTogglePin} title={pinned ? "Unpin sidebar" : "Pin sidebar open"}
               style={{ display: "flex", border: "none", background: "transparent", cursor: "pointer", padding: 6, borderRadius: 8, color: pinned ? "var(--bk-action)" : "var(--bk-text-muted)", marginLeft: "auto" }}>
               <Icon name="sidebar" size={20} />
