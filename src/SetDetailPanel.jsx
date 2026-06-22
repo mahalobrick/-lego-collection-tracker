@@ -156,16 +156,16 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              {item.theme && <span data-testid="detail-theme-pill" style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "var(--bk-text-muted)" }}>{item.theme}</span>}
-              <span style={{ fontFamily: "var(--bk-font-mono)", color: "var(--bk-text-muted)", fontSize: 12 }}>#{item.setNumber}</span>
-            </div>
             <h2 style={{ margin: 0, fontFamily: "var(--bk-font-display)", fontSize: 18, lineHeight: 1.3, color: "var(--bk-text)" }}>{item.name || item.setNumber}</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, fontSize: 12, color: "var(--bk-text-muted)", flexWrap: "wrap" }}>
+              <span style={{ fontFamily: "var(--bk-font-mono)" }}>#{item.setNumber}</span>
+              {item.theme && <span>· {item.theme}</span>}
+            </div>
             <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
               <span style={{
-                background: item.retired ? "var(--bk-negative-bg)" : "var(--bk-positive-bg)",
-                border: `1px solid ${item.retired ? "var(--bk-negative)" : "var(--bk-positive)"}`,
-                color: item.retired ? "var(--bk-negative)" : "var(--bk-positive)",
+                background: item.retired ? "var(--bk-warning-bg)" : "var(--bk-positive-bg)",
+                border: `1px solid ${item.retired ? "var(--bk-warning)" : "var(--bk-positive)"}`,
+                color: item.retired ? "var(--bk-warning)" : "var(--bk-positive)",
                 borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 700
               }}>
                 {item.retired ? "Retired" : "Active"}

@@ -119,13 +119,18 @@ describe("SetDetailPanel — MSRP in the Value & Returns section (unchanged)", (
   });
 });
 
-describe("SetDetailPanel — theme pill", () => {
-  it("renders the theme inside a pill, with #setNumber as plain text", () => {
-    renderPanel({ setNumber: "12345-1", theme: "Star Wars" });
-    const pill = container.querySelector('[data-testid="detail-theme-pill"]');
-    expect(pill, "theme renders as a pill element").toBeTruthy();
-    expect(pill.textContent).toBe("Star Wars");
-    expect(container.textContent).toContain("#12345-1"); // set number still shown
+describe("SetDetailPanel — header: name-first, theme as plain muted text (no pill)", () => {
+  it("drops the theme pill; renders #setNumber + theme as a plain muted subtitle after the name", () => {
+    renderPanel({ setNumber: "12345-1", name: "AT-AT", theme: "Star Wars" });
+    expect(container.querySelector('[data-testid="detail-theme-pill"]'), "theme pill dropped").toBeNull();
+    expect(container.textContent).toContain("#12345-1"); // set number still shown (mono)
+    expect(container.textContent).toContain("Star Wars"); // theme still shown (plain muted text)
+    // Set Name (h2) precedes the "#num · theme" subtitle in DOM order (mirrors the Identity cell).
+    const h2 = container.querySelector("h2");
+    const numSpan = [...container.querySelectorAll("span")].find(n => n.textContent.includes("#12345-1"));
+    expect(h2, "set-name h2 renders").toBeTruthy();
+    expect(numSpan, "subtitle #setNumber span renders").toBeTruthy();
+    expect(h2.compareDocumentPosition(numSpan) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 
