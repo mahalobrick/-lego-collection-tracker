@@ -87,6 +87,17 @@ describe("SetDetailPanel msrp tile — browser-observable (DOM-leaf)", () => {
     seedBrickset("10300-1", 199.99);
     expect(renderPanel("10300-1", { msrp: 4.99 })).toBe(`MSRP${money(199.99)}`);
   });
+
+  it("scenario 6 — Brickset present + msrpOverride: the explicit override wins over Brickset", () => {
+    // Option B: an explicit Edit-drawer MSRP correction (msrpOverride) outranks Brickset — and the
+    // add-baked manual (msrp) stays below both. Source 'override' carries no 'manual' tag.
+    seedBrickset("10300-1", 199.99);
+    expect(renderPanel("10300-1", { msrp: 4.99, msrpOverride: 250 })).toBe(`MSRP${money(250)}`);
+  });
+
+  it("scenario 7 — msrpOverride with no Brickset: override shows (beats the add-baked manual, no tag)", () => {
+    expect(renderPanel("33333-1", { msrp: 4.99, msrpOverride: 30 })).toBe(`MSRP${money(30)}`);
+  });
 });
 
 describe("SetDetailPanel vs MSRP % — reads the resolved ladder, not a raw field (Phase 3b)", () => {

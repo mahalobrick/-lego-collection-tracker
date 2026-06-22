@@ -130,11 +130,14 @@ describe("MyCollection holding-level edit — decimal commit + BE persistence", 
     expect(blob()[0].roiPct).toBeCloseTo(54.32, 2);
   });
 
-  it("MSRP: a decimal commits + persists (with its retailPrice mirror)", () => {
+  it("MSRP: an Edit commits to msrpOverride (the override rung); add-baked msrp + cost-axis retailPrice untouched", () => {
     openEditPanel();
+    // The field now writes msrpOverride (beats Brickset), NOT the add-baked s.msrp. This blob set has no
+    // Brickset cache + msrp:null, so the resolved base is null → 59.99 ≠ base → an override IS written.
     commit("holding-msrp-edit", "59.99");
-    expect(blob()[0].msrp).toBe(59.99);
-    expect(blob()[0].retailPrice).toBe(59.99);
+    expect(blob()[0].msrpOverride).toBe(59.99); // the explicit-override rung
+    expect(blob()[0].msrp).toBeNull();          // add-baked manual rung untouched
+    expect(blob()[0].retailPrice).toBe(850);    // cost-axis retailPrice (paidEqualsRetail) untouched
   });
 
   it("all three survive a RELOAD (remount reads the persisted decimals back)", () => {
@@ -149,6 +152,46 @@ describe("MyCollection holding-level edit — decimal commit + BE persistence", 
     expect(q('[data-testid="holding-paid-edit"]').value).toBe("49.5");
     expect(q('[data-testid="holding-value-edit"]').value).toBe("1234.56");
     expect(q('[data-testid="holding-msrp-edit"]').value).toBe("59.99");
+  });
+});
+
+describe("MyCollection — MSRP override is dirty-safe (Brickset-backed set)", () => {
+  // Give the blob set a Brickset retail so the field PREFILLS with the resolved MSRP (850) and the
+  // "typed == Brickset → no override" branch is exercised. getBricksetCache() reads this at mount.
+  const seedBrickset = (retail) => localStorage.setItem("bricksetSetCache", JSON.stringify({
+    "brickset_75313-1": { fetchedAt: "2026-06-01T00:00:00.000Z", data: { retail_price_us: retail } },
+  }));
+
+  it("prefills the field from the RESOLVED MSRP (Brickset 850), not the blank add-baked msrp", () => {
+    seedBrickset(850);
+    openEditPanel();
+    expect(q('[data-testid="holding-msrp-edit"]').value).toBe("850"); // was blank pre-fix (read s.msrp=null)
+  });
+
+  it("open + blur with NO change writes NO override (never freezes a redundant Brickset override)", () => {
+    seedBrickset(850);
+    openEditPanel();
+    commit("holding-msrp-edit", "850"); // == the Brickset-resolved base → must not create an override
+    expect(blob()[0].msrpOverride ?? null).toBeNull();
+  });
+
+  it("a real change writes the override; clearing reverts to the Brickset-resolved value", () => {
+    seedBrickset(850);
+    openEditPanel();
+    commit("holding-msrp-edit", "250");                               // ≠ 850 → override written
+    expect(blob()[0].msrpOverride).toBe(250);
+    expect(q('[data-testid="holding-msrp-edit"]').value).toBe("250"); // field reflects the override
+    commit("holding-msrp-edit", "");                                  // cleared → 0 coalesces to "none"
+    expect(q('[data-testid="holding-msrp-edit"]').value).toBe("850"); // resolves back to Brickset, not frozen 250
+  });
+
+  it("typing the Brickset value while an override exists CLEARS it (revert, not freeze)", () => {
+    seedBrickset(850);
+    openEditPanel();
+    commit("holding-msrp-edit", "250");
+    expect(blob()[0].msrpOverride).toBe(250);
+    commit("holding-msrp-edit", "850"); // == Brickset base → clears the override
+    expect(q('[data-testid="holding-msrp-edit"]').value).toBe("850");
   });
 });
 

@@ -130,6 +130,9 @@ export function ownedSetFromBlob(item, bsCache = {}) {
     // Hand-entered MSRP override (Phase 3a.1) — an app-level field persisted onto the BE blob
     // via persistBESetEdit; read back here so the manual retail rung survives reload.
     msrp:             item.msrp ?? null,
+    // Explicit Edit-drawer MSRP override (beats Brickset) — app-level, persisted via persistBESetEdit;
+    // read back so the override rung survives reload (mirrors `msrp` above).
+    msrpOverride:     item.msrpOverride ?? null,
     roiPct:       item.roiPct,
     retired:      item.retired,
     condition,

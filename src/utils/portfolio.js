@@ -201,7 +201,11 @@ export function setValueProvenance(s, valueMap) {
 // ranked ABOVE cmf (a documented figure beats the era guess) but below brickset/manual. curated_estimated is a
 // proxy/ARV → new basis "estimated" (NOT folded into sourced) and ranked LAST, filling only when nothing real
 // exists. Both are STATIC + research-derived (no network, never source:"brickeconomy" — Phase 3c intact).
-export const RETAIL_SOURCE_ORDER = ["brickset", "manual", "curated_sourced", "cmf", "curated_estimated"];
+// 'override' is the EXPLICIT Edit-drawer MSRP correction (set.msrpOverride) — it BEATS Brickset (a user
+// fix for a wrong/missing sourced figure). DISTINCT from the add-baked 'manual' rung (set.msrp), which
+// stays BELOW Brickset: an add bakes the live Brickset value into msrp as a snapshot, so it must NOT
+// outrank Brickset — only a deliberate override does. (Gate Option B: new rung, no migration.)
+export const RETAIL_SOURCE_ORDER = ["override", "brickset", "manual", "curated_sourced", "cmf", "curated_estimated"];
 
 // The rungs whose resolved value is an ESTIMATE (basis "estimated"), parallel to the VALUE-axis estimate
 // concept (isEstimateBasis / estimatedValueShare) — NOT the cost-axis "estimated at MSRP". Single-sourced.

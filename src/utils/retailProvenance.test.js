@@ -19,8 +19,8 @@ import { retailTooltip } from "./valueDisplay";
 const AS_OF = "2026-06-02T00:00:00.000Z";
 
 describe("setRetailProvenance — ordered-source retail read", () => {
-  it("order is brickset → manual → curated_sourced → cmf → curated_estimated (BE removed in 3c; curated rungs added)", () => {
-    expect(RETAIL_SOURCE_ORDER).toEqual(["brickset", "manual", "curated_sourced", "cmf", "curated_estimated"]);
+  it("order is override → brickset → manual → curated_sourced → cmf → curated_estimated (override added; explicit Edit MSRP beats Brickset)", () => {
+    expect(RETAIL_SOURCE_ORDER).toEqual(["override", "brickset", "manual", "curated_sourced", "cmf", "curated_estimated"]);
   });
 
   it("Brickset leads: a Brickset figure wins; a brickeconomy key is ignored", () => {

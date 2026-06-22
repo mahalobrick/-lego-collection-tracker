@@ -1222,7 +1222,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
       return;
     }
 
-    const coerced = field === "paidPrice" || field === "currentValue" || field === "msrp" ? asNumber(value) : value;
+    const coerced = field === "paidPrice" || field === "currentValue" || field === "msrp" || field === "msrpOverride" ? asNumber(value) : value;
 
     // Paid is a per-unit field, but setCost() reads the precomputed `totalPaid` FIRST — so editing
     // paidPrice alone is a silent no-op on gain/ROI/Cost-Basis for any set carrying totalPaid (every
@@ -1256,6 +1256,11 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
       // msrp is an app-level override, NOT a native BE blob field — persist it (+ its retailPrice
       // mirror) onto the blob so a hand-entered MSRP for an existing (BE-imported) set survives reload.
       persistBESetEdit(cur.setNumber, manualMsrpPatch(value));
+    } else if (cur.source === "BrickEconomy" && field === "msrpOverride") {
+      // Explicit MSRP override (display rung, beats Brickset). App-level, NOT a native BE field — persist
+      // onto the blob so it survives reload (read back in ownedSetFromBlob). NOT mirrored to retailPrice:
+      // retailPrice is the COST-axis basis (paidEqualsRetail) — the add-baked value is left untouched.
+      persistBESetEdit(cur.setNumber, { msrpOverride: coerced });
     } else if (cur.source === "BrickEconomy" && field === "currentValue") {
       // For a BE set the Value field holds the AGGREGATE (ownedSetFromBlob loads currentValue from the
       // blob's totalValue), and rawSetValue reads totalValue FIRST — so editing currentValue alone was
@@ -2829,11 +2834,21 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                           onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { e.currentTarget.value = s.currentValue || ""; e.currentTarget.blur(); } }}
                         /></label>
                         <label><span style={lbl}>MSRP</span><input
-                          key={`msrp-${selectedSetIndex}-${s.msrp}`}
+                          key={`msrpov-${selectedSetIndex}-${retailFor(s)?.amount ?? ""}`}
                           data-testid="holding-msrp-edit"
-                          style={inp} type="number" min="0" step="0.01" defaultValue={s.msrp || ""}
-                          onBlur={e => { const v = asNumber(e.target.value); if (v !== asNumber(s.msrp)) updateSet(selectedSetIndex, "msrp", e.target.value); }}
-                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { e.currentTarget.value = s.msrp || ""; e.currentTarget.blur(); } }}
+                          style={inp} type="number" min="0" step="0.01" defaultValue={retailFor(s)?.amount ?? ""}
+                          onBlur={e => {
+                            // Writes the explicit-override rung (msrpOverride), NOT the add-baked s.msrp. Prefills
+                            // from the RESOLVED MSRP (what the panel/table show). Dirty-safe: blank, or a value equal
+                            // to the Brickset-resolved MSRP, writes NO override (clearing any existing one) — so open/
+                            // close or re-typing the catalog value never freezes a redundant override.
+                            const v = asNumber(e.target.value);
+                            const base = retailFor({ ...s, msrpOverride: null })?.amount ?? null; // resolved WITHOUT override
+                            const curOv = asNumber(s.msrpOverride) || null;
+                            const desired = (v <= 0 || v === base) ? null : v;
+                            if (desired !== curOv) updateSet(selectedSetIndex, "msrpOverride", desired ?? "");
+                          }}
+                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { e.currentTarget.value = retailFor(s)?.amount ?? ""; e.currentTarget.blur(); } }}
                         /></label>
                       </div>
 

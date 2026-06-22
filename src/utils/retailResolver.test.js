@@ -23,6 +23,26 @@ describe("makeRetailResolver — one resolver, every rung (card ↔ export parit
     expect(r).toEqual({ amount: 100, source: "brickset", condition: "new", basis: "retail", asOf: FIXED, lots: null });
   });
 
+  it("override rung: msrpOverride BEATS Brickset — the explicit Edit-drawer correction wins (gate Option B)", () => {
+    const cache = { "brickset_10300-1": { data: { retail_price_us: 100 }, fetchedAt: FIXED } };
+    const r = makeRetailResolver(cache)({ setNumber: "10300-1", condition: "new", msrp: 4.99, msrpOverride: 250 });
+    expect(r).toEqual({ amount: 250, source: "override", condition: "new", basis: "retail", asOf: FIXED, lots: null });
+  });
+
+  it("NO override → Brickset still beats the add-baked manual msrp (precedence below override UNCHANGED)", () => {
+    const cache = { "brickset_10300-1": { data: { retail_price_us: 100 }, fetchedAt: FIXED } };
+    const r = makeRetailResolver(cache)({ setNumber: "10300-1", condition: "new", msrp: 4.99 });
+    expect(r.source).toBe("brickset");
+    expect(r.amount).toBe(100);
+  });
+
+  it("a blank/0/absent override is skipped (valueAmount coalescing) → falls through to Brickset", () => {
+    const cache = { "brickset_10300-1": { data: { retail_price_us: 100 }, fetchedAt: FIXED } };
+    expect(makeRetailResolver(cache)({ setNumber: "10300-1", msrpOverride: 0 }).source).toBe("brickset");
+    expect(makeRetailResolver(cache)({ setNumber: "10300-1", msrpOverride: null }).source).toBe("brickset");
+    expect(makeRetailResolver(cache)({ setNumber: "10300-1" }).source).toBe("brickset");
+  });
+
   it("manual rung: a hand-entered msrp when nothing else has a figure", () => {
     const r = makeRetailResolver({})({ setNumber: "11111-1", msrp: 49.99 });
     expect(r).toEqual({ amount: 49.99, source: "manual", condition: null, basis: "retail", asOf: FIXED, lots: null });

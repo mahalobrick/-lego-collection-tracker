@@ -19,7 +19,7 @@ import { curatedRetail } from "./curatedMsrp";
  * the full number (e.g. "30303-1"), so a stripped "30303" would silently miss them.
  *
  * @param {Object<string, {data?:Object, fetchedAt?:string}>} bricksetCache  the `bricksetSetCache` map.
- * @returns {(set:{setNumber?:string, msrp?:*, condition?:string|null}) => (import("./value").Value | null)}
+ * @returns {(set:{setNumber?:string, msrp?:*, msrpOverride?:*, condition?:string|null}) => (import("./value").Value | null)}
  */
 export function makeRetailResolver(bricksetCache) {
   return function retailFor(set) {
@@ -34,6 +34,9 @@ export function makeRetailResolver(bricksetCache) {
     const cur = curatedRetail(n); // { msrp, tier, confidence, source } | null
     return setRetailProvenance(
       {
+        // override = explicit Edit-drawer MSRP correction (set.msrpOverride). First in RETAIL_SOURCE_ORDER
+        // → beats Brickset. The add-baked `manual` (set.msrp) stays below Brickset (gate Option B).
+        override: { amount: set.msrpOverride },
         brickset: { amount: bsEntry.data?.retail_price_us, asOf: bsEntry.fetchedAt },
         manual:   { amount: set.msrp }, // hand-entered MSRP (Phase 3a rung); 0/absent → skipped
         curated_sourced:   cur?.tier === "sourced"   ? { amount: cur.msrp, confidence: cur.confidence, source: cur.source } : undefined,

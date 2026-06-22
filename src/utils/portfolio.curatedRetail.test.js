@@ -1,7 +1,8 @@
 // @vitest-environment node
 //
 // Curated MSRP rungs in the retail ladder (steps 2–3 of docs/curated-msrp-plan.md).
-// RETAIL_SOURCE_ORDER = ["brickset","manual","curated_sourced","cmf","curated_estimated"]:
+// RETAIL_SOURCE_ORDER = ["override","brickset","manual","curated_sourced","cmf","curated_estimated"]:
+//   - override (explicit Edit-drawer MSRP correction, set.msrpOverride) leads — beats Brickset.
 //   - curated_sourced (researched RRP / LEGO-stated value) → basis "retail", ABOVE cmf (a real
 //     figure beats the era guess), BELOW brickset/manual.
 //   - curated_estimated (proxy/ARV) → new basis "estimated", LAST (only fills when nothing real).
@@ -14,8 +15,8 @@ import { setRetailProvenance, RETAIL_SOURCE_ORDER } from "./portfolio";
 const S = (sources, opts = {}) => setRetailProvenance(sources, opts);
 
 describe("RETAIL_SOURCE_ORDER — curated rungs placed correctly", () => {
-  it("is exactly brickset → manual → curated_sourced → cmf → curated_estimated", () => {
-    expect(RETAIL_SOURCE_ORDER).toEqual(["brickset", "manual", "curated_sourced", "cmf", "curated_estimated"]);
+  it("is exactly override → brickset → manual → curated_sourced → cmf → curated_estimated", () => {
+    expect(RETAIL_SOURCE_ORDER).toEqual(["override", "brickset", "manual", "curated_sourced", "cmf", "curated_estimated"]);
   });
 });
 

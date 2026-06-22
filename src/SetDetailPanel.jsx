@@ -120,6 +120,9 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
   const bsRetail = bsRetailEntry.data || {};
   const retailProv = setRetailProvenance(
     {
+      // override = explicit Edit-drawer MSRP correction (beats Brickset). KEEP IN SYNC with the shared
+      // makeRetailResolver (src/utils/retailResolver.js) — both feed the same RETAIL_SOURCE_ORDER.
+      override: { amount: item.msrpOverride },
       brickset: { amount: bsRetail.retail_price_us, asOf: bsRetailEntry.fetchedAt },
       manual: { amount: item.msrp }, // hand-entered MSRP (Phase 3a rung); 0/absent → skipped
     },
