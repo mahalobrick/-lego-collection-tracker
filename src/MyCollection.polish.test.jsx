@@ -28,11 +28,6 @@ describe("Collection polish — owned column headers are short + complete", () =
     expect(L.thumb).toBe("Img");
     expect(L.setNumber).toBe("Set");
     expect(L.condition).toBe("Cond");
-    expect(L.minifigs).toBe("Figs");
-    expect(L.retiredDate).toBe("Retired");
-    // unchanged full words that already fit
-    expect(L.acquiredDate).toBe("Acquired");
-    expect(L.releasedDate).toBe("Released");
   });
 });
 

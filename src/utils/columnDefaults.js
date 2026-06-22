@@ -14,13 +14,10 @@ export const DEFAULT_OWNED_COLUMNS = [
   { key: "value",        label: "Value",         visible: true  },
   { key: "gain",         label: "Gain",          visible: true  },
   { key: "roi",          label: "ROI",           visible: true  },
-  { key: "minifigs",     label: "Figs",          visible: false },
-  { key: "acquiredDate", label: "Acquired",      visible: false },
-  { key: "retiredDate",  label: "Retired",       visible: false },
-  { key: "releasedDate", label: "Released",      visible: false },
-  // blSoldNew / blSoldUsed removed (MC-Browse polish R1): backed only by a non-persisted,
-  // auth-gated BL read overlay (usually empty) and already shown in the detail panel.
-  { key: "notes",        label: "Notes",         visible: false },
+  // Metadata columns (Figs / Acquired / Retired / Released / Notes) removed — now shown on the
+  // detail page (Timeline, Set Details, per-copy breakdown). blSoldNew / blSoldUsed removed earlier
+  // (MC-Browse polish R1). DEFAULT_OWNED_COLUMNS is the single source of truth: a persisted column
+  // not listed here is dropped on load, so their absence removes them from the menu everywhere.
 ];
 
 /**

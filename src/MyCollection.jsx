@@ -9,7 +9,7 @@ import TriValueCell from "./TriValueCell";
 import RowHoverCard from "./RowHoverCard";
 import ConditionPill from "./ConditionPill";
 import InfoTip from "./InfoTip";
-import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, lineCashPaid, parseLocalDate } from "./utils/formatting";
+import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
 import { setConditionDisplay, conditionBucket, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
 import { applyCopyConditionEdit, applyQtyEdit, materializeEntries } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
@@ -36,7 +36,7 @@ const CONDITION_CYCLE = ["new", "used_as_new", "used_good", "used_acceptable"];
 // DEFAULT_OWNED_COLUMNS imported from ./utils/columnDefaults
 
 // Default column widths (px). All columns are resizable; widths persist in blOwnedColWidths.
-// With Condition + Notes hidden (defaults), visible cols total ~700px — fits a ~720px panel.
+// With Condition hidden (default), visible cols total ~700px — fits a ~720px panel.
 const OWNED_COL_WIDTHS = {
   thumb:        52,
   setNumber:    62,
@@ -49,11 +49,6 @@ const OWNED_COL_WIDTHS = {
   paid:         96,  // Full-density split column (render-time only; not a persisted column)
   gain:        104,  // money column: fits a worst-case "−$12,345.67" without ellipsis-clipping
   roi:          92,  // percent column: fits a worst-case "+1,234.5%" without ellipsis-clipping
-  minifigs:     68,
-  acquiredDate: 96,  // fits the full "Acquired" header (data "Apr 2022" is narrower)
-  retiredDate:  90,
-  releasedDate: 96,  // fits the full "Released" header
-  notes:        80,
 };
 
 // Deadlock-safe fill height for the owned-table scroll box. A CONCRETE, content-independent cap
@@ -71,7 +66,7 @@ const NUMERIC_OWNED_COLS = ["qty", "msrp", "paid", "value", "gain", "roi"];
 // Full column names for the header tooltip — the visible labels are abbreviated to fit the column,
 // so the title carries the complete name on hover. Only keys whose label is shortened need an entry.
 const OWNED_COL_FULL_LABEL = {
-  thumb: "Image", setNumber: "Set Number", condition: "Condition", minifigs: "Minifigs", retiredDate: "Retired On",
+  thumb: "Image", setNumber: "Set Number", condition: "Condition",
 };
 
 // Full-density value-column split: the single "Value" column becomes three real, individually
@@ -86,14 +81,6 @@ const VALUE_SPLIT_COLS = [
 // Map a value-split member back to its anchor ("value") so drag-reorder moves the trio together;
 // every other key is itself. Used only for reorder — sort and resize stay per-column.
 const valueGroupKey = (k) => (k === "msrp" || k === "paid" ? "value" : k);
-
-function fmtShortDate(dateStr) {
-  // Local parts-build (parseLocalDate) so an ISO date renders the correct day — bare
-  // new Date("yyyy-mm-dd") parses as UTC and shows the prior day/month in Denver (UTC-7).
-  // Still tolerates legacy "M/D/YYYY". Unknown/empty → "—".
-  const d = parseLocalDate(dateStr);
-  return d ? d.toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—";
-}
 
 export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection" }) {
   const [tab, setTab] = useState("owned"); // Collection segment: "owned" | "sold"
@@ -173,9 +160,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
       const saved = JSON.parse(localStorage.getItem("blOwnedColWidths") || "{}");
       const merged = { ...OWNED_COL_WIDTHS, ...saved };
       // Migration: an older persisted width can be narrower than the current (widened) default and
-      // clip a numeric VALUE or a date HEADER. Floor these columns at their default so a stale width
-      // can't truncate; a user's WIDER choice is preserved (max).
-      for (const k of [...NUMERIC_OWNED_COLS, "acquiredDate", "releasedDate"]) merged[k] = Math.max(Number(merged[k]) || 0, OWNED_COL_WIDTHS[k]);
+      // clip a numeric VALUE. Floor these columns at their default so a stale width can't truncate;
+      // a user's WIDER choice is preserved (max).
+      for (const k of NUMERIC_OWNED_COLS) merged[k] = Math.max(Number(merged[k]) || 0, OWNED_COL_WIDTHS[k]);
       return merged;
     } catch { return { ...OWNED_COL_WIDTHS }; }
   });
@@ -1052,11 +1039,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     }
     if (column.key === "gain") return gain === null ? "—" : money(gain);
     if (column.key === "roi") return roi !== null ? `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%` : "—";
-    if (column.key === "minifigs") return set.minifigs != null ? set.minifigs : "—";
-    if (column.key === "acquiredDate") return fmtShortDate(set.acquiredDate);
-    if (column.key === "retiredDate")  return fmtShortDate(set.retiredDate);
-    if (column.key === "releasedDate") return fmtShortDate(set.releasedDate);
-    if (column.key === "notes") return set.notes || "";
 
     return "";
   }
@@ -2597,7 +2579,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                             )}
                           </div>
                           )}
-                          {/* Any other enabled column (minifigs / dates / notes) — column-show maps to the card */}
+                          {/* Any other enabled non-primary column — column-show maps to the card */}
                           {extraCols.length > 0 && (
                             <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 14px", fontSize: 11.5, color: "var(--bk-text-muted)" }}>
                               {extraCols.map(c => {
