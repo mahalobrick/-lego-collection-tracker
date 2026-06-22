@@ -11,8 +11,9 @@ import { createRoot } from "react-dom/client";
 //      columns; the Value cell equals setValueProvenance (identical to Performance's value).
 //   2. Unknown MSRP / $0 paid render "—" (null-aware, never a phantom $0).
 //   3. Sort by MSRP, Paid and Value is numeric + null-aware (unknown sorts as 0 → bottom on desc).
-//   4. The hover card still carries MSRP / Paid / Value (untouched this pass — briefly redundant
-//      with the always-on columns).
+//   4. Table-row hover no longer pops the shared RowHoverCard — its MSRP/Paid/Value role is now
+//      redundant with the always-on columns. The shared card is KEPT for the Overview "Most
+//      Valuable" / "ROI Leaders" mini-lists (performance mode), which still trigger it.
 //
 // God-module harness mirrors MyCollection.individualCopies.test.jsx (recharts / panels / network
 // leaves / the virtualizer neutralized) — but KEEPS TriValueCell + RowHoverCard real so the figures
@@ -80,8 +81,8 @@ beforeEach(() => {
 });
 afterEach(() => { act(() => root.unmount()); container.remove(); vi.restoreAllMocks(); });
 
-async function render() {
-  await act(async () => { root.render(<MyCollection mode="collection" onBuyNow={() => {}} onSwitchTab={() => {}} />); });
+async function render(mode = "collection") {
+  await act(async () => { root.render(<MyCollection mode={mode} onBuyNow={() => {}} onSwitchTab={() => {}} />); });
   await act(async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); });
 }
 
@@ -131,18 +132,41 @@ describe("MyCollection — always renders MSRP | Paid | Value as three columns (
   });
 });
 
-describe("MyCollection — hover card still carries MSRP / Paid / Value (untouched this pass)", () => {
-  it("hover card figures match the always-on columns", async () => {
-    await render();
-    await act(async () => { rowByName("Alpha Castle").dispatchEvent(new MouseEvent("mouseover", { bubbles: true })); });
+describe("MyCollection — table rows no longer trigger the shared hover card (table slim-down)", () => {
+  it("hovering a desktop table row renders NO hover card and applies no gold hover styling", async () => {
+    await render(); // collection mode → the owned table renders
+    const alpha = rowByName("Alpha Castle");
+    const checkboxTd = alpha.querySelector("td"); // first cell = sticky checkbox (carried the gold left-border)
+    const borderBefore = checkboxTd.style.borderLeft;
+
+    await act(async () => { alpha.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })); });
+
+    // The shared RowHoverCard no longer fires from a table-row hover — its MSRP / Paid / Value role
+    // now lives in the always-on columns, so hovering a row pops nothing.
+    expect(container.querySelector('[data-testid="hover-retail"]')).toBeNull();
+    expect(container.querySelector('[data-testid="hover-paid"]')).toBeNull();
+    expect(container.querySelector('[data-testid="hover-market"]')).toBeNull();
+    // hoveredSet is never set from the row, so its gold styling (left-border + name) can't activate:
+    // the sticky-checkbox left border is unchanged by hover (no gold border painted in).
+    expect(checkboxTd.style.borderLeft).toBe(borderBefore);
+    expect(checkboxTd.style.borderLeft).not.toContain("gold");
+  });
+});
+
+describe("MyCollection — Overview mini-lists still drive the shared hover card (shared path intact)", () => {
+  it("hovering an Overview mini-list item still renders the RowHoverCard", async () => {
+    await render("performance"); // performance mode → the Overview mini-lists render (the table does not)
+    const item = [...container.querySelectorAll("div")]
+      .find(d => d.style.cursor === "pointer" && d.textContent.includes("Alpha Castle"));
+    expect(item, "an Overview mini-list item should render in performance mode").toBeTruthy();
+
+    await act(async () => { item.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })); });
+
+    // The component, its {hoveredSet && <RowHoverCard/>} mount, and the Overview setHoveredSet
+    // triggers are untouched — the shared card still appears for the mini-lists.
     const hoverRetail = container.querySelector('[data-testid="hover-retail"]');
-    const hoverPaid = container.querySelector('[data-testid="hover-paid"]');
-    const hoverMarket = container.querySelector('[data-testid="hover-market"]');
-    expect(hoverRetail).not.toBeNull(); // hover fired
-    // Same figures the MSRP / Paid / Value columns show (money(850) / money(1600) / money(2000)).
-    expect(hoverRetail.textContent).toBe(money(850));
-    expect(hoverPaid.textContent).toBe(money(1600));
-    expect(hoverMarket.textContent).toBe(money(2000));
+    expect(hoverRetail, "hover card fires from the Overview mini-list").not.toBeNull();
+    expect(hoverRetail.textContent).toBe(money(850)); // Alpha Castle MSRP (Brickset rung)
   });
 });
 

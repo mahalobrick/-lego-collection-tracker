@@ -2650,11 +2650,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                       onClick={() => { setDetailSet(openSetDetail(set.setNumber) || set); setDetailSetIndex(index); }}
                       onMouseEnter={e => {
                         if (selectedSetIndex !== index) e.currentTarget.style.background = "var(--bk-surface-2)";
-                        setHoveredSet(set);
                       }}
                       onMouseLeave={e => {
                         e.currentTarget.style.background = selectedSetIndex === index ? "var(--bk-active)" : "transparent";
-                        setHoveredSet(null);
                       }}
                       style={{
                         cursor: "pointer",
@@ -2662,7 +2660,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                         transition: "background 0.12s ease"
                       }}
                     >
-                      <td style={{ ...td, ...stickyCheckbox, borderLeft: hoveredSet === set ? "2px solid var(--bk-gold)" : "2px solid transparent", transition: "border-color 0.12s ease" }} onClick={e => e.stopPropagation()}>
+                      <td style={{ ...td, ...stickyCheckbox, borderLeft: "2px solid transparent" }} onClick={e => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={checkedSets.includes(index)}
@@ -2754,9 +2752,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                                 : td
                             }
                           >
-                            {col.key === "name"
-                              ? <span style={{ color: hoveredSet === set ? "var(--bk-gold-ink)" : undefined, transition: "color 0.15s" }}>{renderOwnedCell(set, col)}</span>
-                              : renderOwnedCell(set, col)}
+                            {renderOwnedCell(set, col)}
                           </td>
                         );
                       })}
