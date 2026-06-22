@@ -1014,6 +1014,40 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
       return sortDirection === "asc" ? result : -result;
     });
 
+  // Keyboard nav for the open detail panel — MyCollection owns the list + detail state (SetDetailPanel
+  // stays presentational). Refs hold the latest visible (sorted/filtered) order + raw sets so the window
+  // listener reads fresh data WITHOUT re-subscribing every render (the page re-renders on mousemove for
+  // the tooltip). Prev/next walks visibleSets (the on-screen order), clamped at the ends — no wrap.
+  const visibleSetsRef = useRef(visibleSets);
+  visibleSetsRef.current = visibleSets;
+  const allSetsRef = useRef(sets);
+  allSetsRef.current = sets;
+  useEffect(() => {
+    if (!detailSet || selectedSetIndex !== null) return; // detail closed OR Edit drawer open → no nav
+    const onKey = (e) => {
+      if (e.key === "Escape") { setDetailSet(null); setDetailSetIndex(null); return; } // same as onClose
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;      // leave browser/OS arrow shortcuts alone
+      const t = e.target, tag = (t && t.tagName ? t.tagName : "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select" || (t && t.isContentEditable)) return;
+      const vis = visibleSetsRef.current, all = allSetsRef.current;
+      // Current position by the VISIBLE order — by object ref (same instances as `sets`), falling back
+      // to a setNumber match if the indexed instance isn't found.
+      const cur = detailSetIndex != null ? all[detailSetIndex] : null;
+      let vi = cur ? vis.indexOf(cur) : -1;
+      if (vi < 0) vi = vis.findIndex(s => String(s.setNumber) === String(detailSet.setNumber));
+      if (vi < 0) return;                                  // current set filtered out of view → no-op
+      const nextVi = vi + (e.key === "ArrowLeft" ? -1 : 1);
+      if (nextVi < 0 || nextVi >= vis.length) { e.preventDefault(); return; } // clamp at the ends (no wrap)
+      e.preventDefault();
+      const next = vis[nextVi];
+      setDetailSet(openSetDetail(next.setNumber) || next); // same pattern as row-click / view action
+      setDetailSetIndex(all.indexOf(next));                // raw index → Edit handoff targets the right set
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [detailSet, detailSetIndex, selectedSetIndex]);
+
   // Virtualize the owned-sets table (combined-Overview prereq): render only the rows in view inside the
   // existing maxHeight:560 scroll box, so a 600-set collection no longer mounts 600 live <tr>. Dynamic
   // measureElement handles the compact/full row-height swap (and any wrapping). Pure perf — the native
