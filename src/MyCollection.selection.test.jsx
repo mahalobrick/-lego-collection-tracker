@@ -112,6 +112,33 @@ describe("Phase 3 selection — click-to-highlight", () => {
     expect(selectedIdx(), "eye did not select the row").toEqual([]);
   });
 
+  it("the edit icon opens the Edit drawer (single click) and does NOT select the row", () => {
+    render();
+    clickIn(0, '[data-testid="row-action-edit"]');
+    expect(q('[data-testid="edit-drawer"]'), "edit drawer opened").toBeTruthy();
+    expect(selectedIdx(), "edit did not select the row").toEqual([]);
+  });
+
+  it("clicking the Qty cell SELECTS the row — no inline editor steals the click (Qty edits in the drawer)", () => {
+    render();
+    // Qty is now plain text (route a): clicking it must bubble to the row and select, like any cell.
+    const qi = [...container.querySelectorAll("thead th")].findIndex(th => th.textContent.replace(/[↑↓\s]/g, "") === "Qty");
+    expect(qi, "Qty column present").toBeGreaterThan(-1);
+    const qtyCell = row(0).children[qi];
+    expect(qtyCell.querySelector("input"), "Qty cell is plain text, not an inline input").toBeNull();
+    act(() => qtyCell.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(selectedIdx(), "clicking Qty selected the row").toEqual(["0"]);
+  });
+
+  it("action icons carry the bk-row-action class (hover/focus highlight is CSS-driven, no stuck JS color)", () => {
+    render();
+    for (const id of ["row-action-view", "row-action-edit", "row-action-delete"]) {
+      const btn = row(0).querySelector(`[data-testid="${id}"]`);
+      expect(btn, `${id} renders`).toBeTruthy();
+      expect(btn.className, `${id} uses the bk-row-action class`).toContain("bk-row-action");
+    }
+  });
+
   it("no per-row checkboxes remain in the table body (column removed)", () => {
     render();
     expect(qa('tbody input[type="checkbox"]').length).toBe(0);

@@ -36,6 +36,13 @@ textarea:focus {
   border-color: var(--bk-focus);
 }
 
+/* Owned-table row action icons (view / edit / delete): hover-only highlight + keyboard-only
+   focus ring. Replaces a JS onMouseEnter/onMouseLeave color toggle that stuck "active" when a
+   click opened an overlay over the button and the matching mouseleave never fired. */
+.bk-row-action { color: var(--bk-text-muted); }
+.bk-row-action:hover { color: var(--bk-action); }
+.bk-row-action:focus:not(:focus-visible) { outline: none; }
+
 input::placeholder,
 textarea::placeholder {
   color: var(--bk-text-muted);

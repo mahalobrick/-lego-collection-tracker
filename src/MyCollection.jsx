@@ -132,7 +132,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   const [refreshKey, setRefreshKey] = useState(0);
   const [hoveredSet, setHoveredSet] = useState(null);
   const [hoveredWatchItem, setHoveredWatchItem] = useState(null);
-  const [inlineEdit, setInlineEdit] = useState(null); // { index, key, value }
   const [tipPos, setTipPos] = useState({ x: 0, y: 0 });
   const [chartTypes, setChartTypes] = useState(() => {
     try { return JSON.parse(localStorage.getItem("blCollChartTypes") || "{}"); } catch { return {}; }
@@ -2659,37 +2658,13 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                           );
                         }
 
-                        // Qty — double-click to edit inline
+                        // Qty — plain text; editing lives in the Edit drawer (Qty field). The cell carries
+                        // NO onClick/stopPropagation, so a click bubbles to the row → selects it like every
+                        // other cell, with the row's pointer cursor. (Was an inline double-click editor whose
+                        // stopPropagation + cursor:default stole the row-select click — redundant with the drawer.)
                         if (col.key === "qty") {
-                          const isEditing = inlineEdit?.index === index && inlineEdit?.key === "qty";
                           const qty = asNumber(set.qty) || 1;
-                          if (isEditing) {
-                            return (
-                              <td key="qty" style={tdRight} onClick={e => e.stopPropagation()}>
-                                <input
-                                  autoFocus
-                                  type="number"
-                                  min="1"
-                                  value={inlineEdit.value}
-                                  onChange={e => setInlineEdit(v => ({ ...v, value: e.target.value }))}
-                                  onBlur={() => { updateSet(index, "qty", inlineEdit.value); setInlineEdit(null); }}
-                                  onKeyDown={e => {
-                                    if (e.key === "Enter")  { updateSet(index, "qty", inlineEdit.value); setInlineEdit(null); }
-                                    if (e.key === "Escape") setInlineEdit(null);
-                                  }}
-                                  style={{ width: 50, background: "var(--bk-surface)", border: "1px solid var(--bk-gold-deep)", borderRadius: 6, color: "var(--bk-text)", fontSize: 13, padding: "2px 6px", outline: "none", textAlign: "right" }}
-                                />
-                              </td>
-                            );
-                          }
-                          return (
-                            <td key="qty" style={{ ...tdRight, cursor: "default" }}
-                              onClick={e => e.stopPropagation()}
-                              onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ index, key: "qty", value: String(qty) }); }}
-                            >
-                              {qty}
-                            </td>
-                          );
+                          return <td key="qty" style={tdRight}>{qty}</td>;
                         }
 
                         // ROI — color-coded like Gain, at the SAME numeral size as the other numeric
@@ -2737,11 +2712,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                             data-testid="row-action-view"
                             title="View details"
                             aria-label="View details"
+                            className="bk-row-action"
                             style={rowActionBtn}
-                            onClick={e => { e.stopPropagation(); setDetailSet(openSetDetail(set.setNumber) || set); setDetailSetIndex(index); }}
-                            onMouseEnter={e => { e.currentTarget.style.color = "var(--bk-action)"; }}
-                            onMouseLeave={e => { e.currentTarget.style.color = "var(--bk-text-muted)"; }}
-                          >
+                            onClick={e => { e.stopPropagation(); setDetailSet(openSetDetail(set.setNumber) || set); setDetailSetIndex(index); }}                          >
                             <Icon name="eye" size={16} />
                           </button>
                           <button
@@ -2749,11 +2722,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                             data-testid="row-action-edit"
                             title="Edit"
                             aria-label="Edit"
+                            className="bk-row-action"
                             style={rowActionBtn}
-                            onClick={e => { e.stopPropagation(); setSelectedSetIndex(index); }}
-                            onMouseEnter={e => { e.currentTarget.style.color = "var(--bk-action)"; }}
-                            onMouseLeave={e => { e.currentTarget.style.color = "var(--bk-text-muted)"; }}
-                          >
+                            onClick={e => { e.stopPropagation(); setSelectedSetIndex(index); }}                          >
                             <Icon name="edit" size={16} />
                           </button>
                           <button
@@ -2761,15 +2732,13 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                             data-testid="row-action-delete"
                             title="Delete"
                             aria-label="Delete"
+                            className="bk-row-action"
                             style={rowActionBtn}
                             onClick={e => {
                               e.stopPropagation();
                               const clean = String(set.setNumber || "").replace(/-1$/, "").trim();
                               if (window.confirm(clean ? `Delete owned set ${clean}?` : "Delete this owned set?")) deleteSet(index);
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.color = "var(--bk-action)"; }}
-                            onMouseLeave={e => { e.currentTarget.style.color = "var(--bk-text-muted)"; }}
-                          >
+                            }}                          >
                             <Icon name="delete" size={16} />
                           </button>
                         </div>
@@ -3202,9 +3171,10 @@ const tdActions = { ...td, width: ACTIONS_COL_W, textAlign: "right", padding: "4
 // (swapped via onMouseEnter/Leave, the file's established inline-hover pattern). 28px keeps a
 // WCAG-2.5.8 tap target.
 const rowActionBtn = {
+  // color is supplied by the .bk-row-action CSS class (hover-only highlight + keyboard-only focus
+  // ring) so a mouse click leaves no stuck "active" state — see index.css.
   background: "transparent",
   border: "none",
-  color: "var(--bk-text-muted)",
   cursor: "pointer",
   padding: 4,
   borderRadius: 6,
