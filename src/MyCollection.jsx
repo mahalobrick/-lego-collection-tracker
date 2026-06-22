@@ -8,7 +8,7 @@ import TriValueCell from "./TriValueCell";
 import RowHoverCard from "./RowHoverCard";
 import ConditionPill from "./ConditionPill";
 import InfoTip from "./InfoTip";
-import { asNumber, money, setImageUrl, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
+import { asNumber, money, setImageUrl, handleSetImageError, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
 import { setConditionDisplay, conditionBucket, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
 import { applyCopyConditionEdit, applyQtyEdit, materializeEntries } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
@@ -2494,7 +2494,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                             {/* Phase 3: mobile selection deferred — no card checkbox; card-click stays detail-open. */}
                             {colByKey.thumb && (
-                              <img src={set.thumbnail || setImageUrl(set.setNumber)} alt="" onError={e => { e.currentTarget.style.opacity = "0"; }} style={{ width: 40, height: 30, objectFit: "contain", borderRadius: 4, flexShrink: 0 }} />
+                              <img src={set.thumbnail || setImageUrl(set.setNumber)} alt="" onError={e => handleSetImageError(e, set.setNumber)} style={{ width: 40, height: 30, objectFit: "contain", borderRadius: 4, flexShrink: 0 }} />
                             )}
                             <div style={{ flex: 1, minWidth: 0, fontWeight: 800, fontSize: 14, color: "var(--bk-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {set.name || "—"}
@@ -2639,7 +2639,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                                 src={imgUrl}
                                 alt=""
                                 style={{ width: 44, height: 32, objectFit: "contain", borderRadius: 4, display: "block" }}
-                                onError={e => { e.currentTarget.style.opacity = "0"; }}
+                                onError={e => handleSetImageError(e, set.setNumber)}
                               />
                             </td>
                           );

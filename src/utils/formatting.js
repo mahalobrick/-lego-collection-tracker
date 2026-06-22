@@ -1,5 +1,3 @@
-import { CMF_SERIES_BY_BASE } from "./cmfRetail";
-
 export function asNumber(value) {
   if (typeof value === "number") return value;
   return Number(String(value || "0").replace(/[$,]/g, "")) || 0;
@@ -71,21 +69,42 @@ export function money(value, overrideCurrency) {
 
 export { CURRENCIES };
 
+const BRICKSET_IMG = "https://images.brickset.com/sets/small";
+
+// Per-set image URL — built from the FULL set number with its variant PRESERVED. Brickset serves the
+// real per-figure CMF art keyed by the full number: 71045-3 → 71045-3.jpg (= figure 3, verified 200),
+// NOT 71045-1 (figure 1) and NOT 71045-3-1.jpg (404). A bare number with no variant defaults to -1
+// (Brickset's primary variant); any "-N" variant is kept verbatim — so no -1 forcing and no "-1X"
+// corruption. set.thumbnail (the captured Brickset thumbnailURL) still takes precedence at the call site.
 export function setImageUrl(setNumber) {
   if (!setNumber) return "";
-  // Anchored trailing-variant strip → the LEGO base number. The old unanchored .replace("-1", "")
-  // mangled any "-1X" variant (71045-12 → 710452) and, for a non-"-1" variant, built a "${figure}-1.jpg"
-  // path that 404s. Anchoring normalizes every variant to its base, then to the canonical -1 set image.
+  const n = String(setNumber).trim();
+  const num = /-\d+$/.test(n) ? n : `${n}-1`; // keep the variant; only append -1 when absent
+  return `${BRICKSET_IMG}/${num}.jpg`;
+}
+
+// Series/base fallback image — the variant forced to its base "-1" (e.g. 71045-3 → 71045-1). Used by
+// {@link handleSetImageError} so a missing per-figure image degrades to a same-series figure instead of
+// a blank. Empty for a falsy/blank number.
+export function setImageFallbackUrl(setNumber) {
+  if (!setNumber) return "";
   const base = String(setNumber).trim().replace(/-\d+$/, "");
-  // CMF (collectible-minifigure) figures — 71045-3, 71052-5, … — have no per-figure art at the
-  // set-image host; only the SERIES entry (${base}-1) does. Map any numeric-CMF figure to its series
-  // box image so it shows art instead of a 404 blank, using the shared CMF_SERIES_BY_BASE membership
-  // table (no hardcoded list). Per-figure minifig art needs a minifig id the data doesn't carry — out
-  // of scope. (With the anchored base this URL coincides with the normal-set branch below; the explicit
-  // CMF recognition documents the intent and is the hook if CMF art ever moves to a different host.)
-  if (CMF_SERIES_BY_BASE[base]) return `https://images.brickset.com/sets/small/${base}-1.jpg`;
-  // Normal set: ${base}-1 is its own canonical Brickset image (any variant normalizes to the -1 art).
-  return `https://images.brickset.com/sets/small/${base}-1.jpg`;
+  return base ? `${BRICKSET_IMG}/${base}-1.jpg` : "";
+}
+
+// <img> onError handler — swap to the series/base image ONCE (the never-blank fallback), else give up by
+// hiding. `hide`: "opacity" → opacity:0 (table thumbs) | "display" → display:none (detail hero). A dataset
+// flag plus a src-equality check bound it to a single swap so it can never loop.
+export function handleSetImageError(e, setNumber, hide = "opacity") {
+  const img = e.currentTarget;
+  const fb = setImageFallbackUrl(setNumber);
+  if (fb && img.dataset.imgFallback !== "1" && img.src !== fb) {
+    img.dataset.imgFallback = "1";
+    img.src = fb;
+    return;
+  }
+  if (hide === "display") img.style.display = "none";
+  else img.style.opacity = "0";
 }
 
 export const CONDITION_LABELS = {

@@ -19,10 +19,7 @@
 // LEGO set base number → numeric CMF series ordinal (1–29). Spot-checked against
 // Brickset `-0` set names (read-only probe): 8833→S8, 71000→S9, 71002→S11, 71007→S12,
 // 71013→S16, 71018→S17, 71021→S18, 71032→S22, 71034→S23, … 71052→S29.
-// Exported so the image-URL builder (formatting.js → setImageUrl) shares this ONE membership table
-// for "is this a numeric CMF series" — no hardcoded duplicate list. cmfRetail.js imports nothing, so
-// formatting.js → cmfRetail.js is a one-way edge (no cycle).
-export const CMF_SERIES_BY_BASE = {
+const CMF_SERIES_BY_BASE = {
   "8683": 1, "8684": 2, "8803": 3, "8804": 4, "8805": 5, "8827": 6, "8831": 7, "8833": 8,
   "71000": 9, "71001": 10, "71002": 11, "71007": 12, "71008": 13, "71010": 14, "71011": 15,
   "71013": 16, "71018": 17, "71021": 18, "71025": 19, "71027": 20, "71029": 21, "71032": 22,

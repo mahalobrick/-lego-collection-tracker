@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { asNumber, money, setImageUrl, daysUntilRetirement, parseLocalDate } from "./utils/formatting";
+import { asNumber, money, setImageUrl, handleSetImageError, daysUntilRetirement, parseLocalDate } from "./utils/formatting";
 import { conditionDisplayLabel, conditionDisplayColor } from "./utils/condition";
 import { materializeEntries } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
@@ -205,7 +205,7 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
         <img
           src={setImageUrl(item.setNumber)}
           alt=""
-          onError={e => { e.currentTarget.style.display = "none"; }}
+          onError={e => handleSetImageError(e, item.setNumber, "display")}
           style={{ width: "100%", maxHeight: 180, objectFit: "contain", background: "var(--bk-bg)", borderRadius: 10, border: "1px solid var(--bk-border)", padding: 8 }}
         />
 
