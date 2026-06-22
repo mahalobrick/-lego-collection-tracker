@@ -1,3 +1,5 @@
+import { CMF_SERIES_BY_BASE } from "./cmfRetail";
+
 export function asNumber(value) {
   if (typeof value === "number") return value;
   return Number(String(value || "0").replace(/[$,]/g, "")) || 0;
@@ -71,8 +73,19 @@ export { CURRENCIES };
 
 export function setImageUrl(setNumber) {
   if (!setNumber) return "";
-  const clean = String(setNumber).replace("-1", "").trim();
-  return `https://images.brickset.com/sets/small/${clean}-1.jpg`;
+  // Anchored trailing-variant strip → the LEGO base number. The old unanchored .replace("-1", "")
+  // mangled any "-1X" variant (71045-12 → 710452) and, for a non-"-1" variant, built a "${figure}-1.jpg"
+  // path that 404s. Anchoring normalizes every variant to its base, then to the canonical -1 set image.
+  const base = String(setNumber).trim().replace(/-\d+$/, "");
+  // CMF (collectible-minifigure) figures — 71045-3, 71052-5, … — have no per-figure art at the
+  // set-image host; only the SERIES entry (${base}-1) does. Map any numeric-CMF figure to its series
+  // box image so it shows art instead of a 404 blank, using the shared CMF_SERIES_BY_BASE membership
+  // table (no hardcoded list). Per-figure minifig art needs a minifig id the data doesn't carry — out
+  // of scope. (With the anchored base this URL coincides with the normal-set branch below; the explicit
+  // CMF recognition documents the intent and is the hook if CMF art ever moves to a different host.)
+  if (CMF_SERIES_BY_BASE[base]) return `https://images.brickset.com/sets/small/${base}-1.jpg`;
+  // Normal set: ${base}-1 is its own canonical Brickset image (any variant normalizes to the -1 art).
+  return `https://images.brickset.com/sets/small/${base}-1.jpg`;
 }
 
 export const CONDITION_LABELS = {
