@@ -3,17 +3,16 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Value-column density split — the Compact/Full toggle now controls the value COLUMN SET:
-//   • Compact (default): one "Value" column (single figure) + MSRP/Paid in the hover card.
-//   • Full: three separate, individually-sortable columns — MSRP | Paid | Value — replacing the
-//     old three-up stacked cell.
+// Value-column split — the table ALWAYS renders the value column set as three separate,
+// individually-sortable columns: MSRP | Paid | Value (the Compact/Full density toggle is gone).
 //
 // Pins the wiring end-to-end on the REAL component + REAL TriValueCell / RowHoverCard:
-//   1. Full renders MSRP=retailFor, Paid=setCost, Value=setValueProvenance as three columns.
-//   2. The three column figures MATCH the Compact hover-card figures (same reads).
-//   3. Sort by Paid and by MSRP is numeric + null-aware (unknown sorts as 0 → bottom on desc).
-//   4. Compact shows a single Value column (no MSRP/Paid columns) + the hover card.
-//   5. The Value cell equals setValueProvenance(set, valueMap) — identical to Performance's value.
+//   1. By default (no toggle) MSRP=retailFor, Paid=setCost, Value=setValueProvenance render as three
+//      columns; the Value cell equals setValueProvenance (identical to Performance's value).
+//   2. Unknown MSRP / $0 paid render "—" (null-aware, never a phantom $0).
+//   3. Sort by MSRP, Paid and Value is numeric + null-aware (unknown sorts as 0 → bottom on desc).
+//   4. The hover card still carries MSRP / Paid / Value (untouched this pass — briefly redundant
+//      with the always-on columns).
 //
 // God-module harness mirrors MyCollection.individualCopies.test.jsx (recharts / panels / network
 // leaves / the virtualizer neutralized) — but KEEPS TriValueCell + RowHoverCard real so the figures
@@ -81,8 +80,7 @@ beforeEach(() => {
 });
 afterEach(() => { act(() => root.unmount()); container.remove(); vi.restoreAllMocks(); });
 
-async function render(density) {
-  if (density) localStorage.setItem("blOwnedRowDensity", density);
+async function render() {
   await act(async () => { root.render(<MyCollection mode="collection" onBuyNow={() => {}} onSwitchTab={() => {}} />); });
   await act(async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); });
 }
@@ -100,9 +98,14 @@ function clickHeader(label) {
   return act(() => { th.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
 }
 
-describe("MyCollection — Full density: MSRP | Paid | Value as three columns", () => {
-  it("renders three columns with retailFor / setCost / setValueProvenance figures", async () => {
-    await render("full");
+describe("MyCollection — always renders MSRP | Paid | Value as three columns (no toggle)", () => {
+  it("renders the three split columns by default — retailFor / setCost / setValueProvenance figures", async () => {
+    await render();
+    // The Compact/Full density toggle is gone — no such buttons in the toolbar.
+    const buttons = [...container.querySelectorAll("button")].map(b => b.textContent.trim());
+    expect(buttons).not.toContain("Compact");
+    expect(buttons).not.toContain("Full");
+
     const labels = headerLabels();
     expect(labels).toContain("MSRP");
     expect(labels).toContain("Paid");
@@ -120,7 +123,7 @@ describe("MyCollection — Full density: MSRP | Paid | Value as three columns", 
   });
 
   it("unknown MSRP / $0 paid render '—' (null-aware, never a phantom $0)", async () => {
-    await render("full");
+    await render();
     const gamma = rowByName("Gamma Station");
     expect(cell(gamma, "owned-msrp").textContent).toBe("—"); // no MSRP sourced
     expect(cell(gamma, "owned-paid").textContent).toBe("—"); // $0 / unrecorded paid
@@ -128,37 +131,24 @@ describe("MyCollection — Full density: MSRP | Paid | Value as three columns", 
   });
 });
 
-describe("MyCollection — Compact density: single Value column + hover card", () => {
-  it("shows only the Value column (no MSRP/Paid columns)", async () => {
-    await render("compact");
-    const labels = headerLabels();
-    expect(labels).toContain("Value");
-    expect(labels).not.toContain("MSRP");
-    expect(labels).not.toContain("Paid");
-    // No split cells in the body.
-    expect(container.querySelector('[data-testid="owned-msrp"]')).toBeNull();
-    expect(container.querySelector('[data-testid="owned-paid"]')).toBeNull();
-    // The Value figure is still present (TriValueCell compact).
-    expect(cell(rowByName("Alpha Castle"), "tri-market").textContent).toBe(money(2000));
-  });
-
-  it("hover card carries MSRP / Paid / Value matching the Full columns", async () => {
-    await render("compact");
+describe("MyCollection — hover card still carries MSRP / Paid / Value (untouched this pass)", () => {
+  it("hover card figures match the always-on columns", async () => {
+    await render();
     await act(async () => { rowByName("Alpha Castle").dispatchEvent(new MouseEvent("mouseover", { bubbles: true })); });
     const hoverRetail = container.querySelector('[data-testid="hover-retail"]');
     const hoverPaid = container.querySelector('[data-testid="hover-paid"]');
     const hoverMarket = container.querySelector('[data-testid="hover-market"]');
     expect(hoverRetail).not.toBeNull(); // hover fired
-    // Same figures the Full columns show (money(850) / money(1600) / money(2000)).
+    // Same figures the MSRP / Paid / Value columns show (money(850) / money(1600) / money(2000)).
     expect(hoverRetail.textContent).toBe(money(850));
     expect(hoverPaid.textContent).toBe(money(1600));
     expect(hoverMarket.textContent).toBe(money(2000));
   });
 });
 
-describe("MyCollection — Full density: numeric, null-aware sort for the new columns", () => {
+describe("MyCollection — numeric, null-aware sort for the MSRP / Paid / Value columns", () => {
   it("sort by Paid orders numerically (desc then asc); $0 paid sorts as 0", async () => {
-    await render("full");
+    await render();
     await clickHeader("Paid");                                   // first click → desc
     expect(rowOrder()).toEqual(["Alpha Castle", "Beta Explorer", "Gamma Station"]); // 1600, 100, 0
     await clickHeader("Paid");                                   // toggle → asc
@@ -166,10 +156,18 @@ describe("MyCollection — Full density: numeric, null-aware sort for the new co
   });
 
   it("sort by MSRP orders numerically; unknown MSRP sorts as 0", async () => {
-    await render("full");
+    await render();
     await clickHeader("MSRP");                                   // desc
     expect(rowOrder()).toEqual(["Alpha Castle", "Beta Explorer", "Gamma Station"]); // 850, 120, —(0)
     await clickHeader("MSRP");                                   // asc
     expect(rowOrder()).toEqual(["Gamma Station", "Beta Explorer", "Alpha Castle"]); // —(0), 120, 850
+  });
+
+  it("sort by Value orders numerically (desc then asc)", async () => {
+    await render();
+    await clickHeader("Value");                                  // first click → desc
+    expect(rowOrder()).toEqual(["Alpha Castle", "Beta Explorer", "Gamma Station"]); // 2000, 300, 50
+    await clickHeader("Value");                                  // toggle → asc
+    expect(rowOrder()).toEqual(["Gamma Station", "Beta Explorer", "Alpha Castle"]); // 50, 300, 2000
   });
 });

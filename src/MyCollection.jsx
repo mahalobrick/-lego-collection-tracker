@@ -44,9 +44,9 @@ const OWNED_COL_WIDTHS = {
   theme:        84,
   condition:    84,
   qty:          66,
-  value:       132,  // Compact: single Value figure (+ hover). Full: the Value column of the MSRP|Paid|Value split.
-  msrp:        104,  // Full-density split column (render-time only; not a persisted column)
-  paid:         96,  // Full-density split column (render-time only; not a persisted column)
+  value:       132,  // the Value column of the always-on MSRP|Paid|Value split (single Value figure)
+  msrp:        104,  // split column (render-time only; not a persisted column)
+  paid:         96,  // split column (render-time only; not a persisted column)
   gain:        104,  // money column: fits a worst-case "−$12,345.67" without ellipsis-clipping
   roi:          92,  // percent column: fits a worst-case "+1,234.5%" without ellipsis-clipping
 };
@@ -69,10 +69,10 @@ const OWNED_COL_FULL_LABEL = {
   thumb: "Image", setNumber: "Set Number", condition: "Condition",
 };
 
-// Full-density value-column split: the single "Value" column becomes three real, individually
-// sortable/resizable columns. These are DERIVED at render time from rowDensity (not persisted in
-// blOwnedColumns / the gear) so density is the single source of truth for the value column set.
-// They reorder/hide as a cohesive group anchored on the persisted "value" column.
+// Value-column split: the single persisted "Value" column is ALWAYS expanded at render time into
+// three real, individually sortable/resizable columns — MSRP | Paid | Value. Render-only (the gear
+// still lists one "Value" entry; not persisted in blOwnedColumns). They reorder/hide as a cohesive
+// group anchored on the persisted "value" column.
 const VALUE_SPLIT_COLS = [
   { key: "msrp",  label: "MSRP",  visible: true },
   { key: "paid",  label: "Paid",  visible: true },
@@ -90,9 +90,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   const [filterCondition, setFilterCondition] = useState("");
   const [sortColumn, setSortColumn] = useState(() => localStorage.getItem("blOwnedSort") || "setNumber");
   const [sortDirection, setSortDirection] = useState(() => localStorage.getItem("blOwnedSortDir") || "asc");
-  // Row density (blOwnedRowDensity): "compact" = Market-only row + Retail/Paid in the hover card;
-  // "full" = the TriValueCell three-up stack in the row. Default compact.
-  const [rowDensity, setRowDensity] = useState(() => localStorage.getItem("blOwnedRowDensity") || "compact");
   const [checkedSets, setCheckedSets] = useState([]);
 
   // Mobile breakpoint (combined-Overview commit 4): <=600px swaps the wide Sets table for a
@@ -347,10 +344,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     setItemSafe("blOwnedSort", sortColumn);
     setItemSafe("blOwnedSortDir", sortDirection);
   }, [sortColumn, sortDirection]);
-
-  useEffect(() => {
-    setItemSafe("blOwnedRowDensity", rowDensity);
-  }, [rowDensity]);
 
   // ── Rebrickable — load local catalog in background on mount ─────────────
   useEffect(() => { loadRebrickable(); }, []);
@@ -1009,20 +1002,13 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     if (column.key === "theme") return set.theme || "—";
     if (column.key === "qty") return qty;
     if (column.key === "value") {
-      const cost = setCost(set);
-      // Desktop FULL splits MSRP + Paid into their own columns (below) → the Value cell is a single
-      // figure (the compact TriValueCell render: Value + confidence badge + tooltip). Compact (single
-      // Value + hover) and mobile (no columns → the density-driven cell) are unchanged.
-      if (!isMobile && rowDensity === "full") {
-        return <TriValueCell density="compact" retail={null} paid={null} market={setValueProvenance(set, valueMap)} />;
-      }
-      //   Retail → setRetailProvenance (Brickset canonical, BE deprecated fallback, "—" when none)
-      //   Paid   → setCost; $0 / unrecorded → null → "—" (a genuine GWP $0 is indistinguishable here)
-      //   Value  → setValueProvenance (identical to Performance's value — same call, same valueMap)
-      return <TriValueCell density={rowDensity} retail={retailFor(set)} paid={cost > 0 ? cost : null} market={setValueProvenance(set, valueMap)} />;
+      // MSRP + Paid render as their own columns now (the desktop split is always on) → the Value cell
+      // is a single Market figure: the compact TriValueCell (Value + confidence badge + tooltip). On
+      // mobile (unsplit card) the same single figure sits under the card's own "Value" label.
+      return <TriValueCell density="compact" retail={null} paid={null} market={setValueProvenance(set, valueMap)} />;
     }
-    // Full-density split columns (desktop): MSRP = retailFor, Paid = setCost — the SAME reads the
-    // compact hover card / the Value cell use, just surfaced as their own single-line columns.
+    // Split columns (desktop): MSRP = retailFor, Paid = setCost — the SAME reads the Value cell / the
+    // hover card use, just surfaced as their own single-line columns.
     if (column.key === "msrp") {
       const retail = retailFor(set);
       const mark = retailSourceMarker(retail);
@@ -1159,7 +1145,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [isMobile, collPillsCollapsed, rowDensity, visibleSets.length, addOpen, searchText, filterTheme, filterCondition]);
+  }, [isMobile, collPillsCollapsed, visibleSets.length, addOpen, searchText, filterTheme, filterCondition]);
 
   // Persist an edit to a BrickEconomy set. BE data lives in the brickEconomyNormalizedCollection
   // blob, which the blOwnedSets persist effect deliberately skips — so a BE-set edit would
@@ -2405,18 +2391,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
             >
               {rbEnriching ? "…" : rbEnrichResult !== null ? `✓ Filled (${rbEnrichResult})` : "Rebrickable Fill"}
             </button>
-            <div style={{ width: 1, height: 16, background: "var(--bk-border)", alignSelf: "center", margin: "0 2px", flexShrink: 0 }} />
-            <div style={{ display: "flex", border: "1px solid var(--bk-border)", borderRadius: 8, overflow: "hidden", flexShrink: 0 }} title="Row density — Compact shows a single Value column (MSRP / Paid on hover); Full splits MSRP / Paid / Value into separate sortable columns">
-              {[["compact", "Compact"], ["full", "Full"]].map(([val, label]) => (
-                <button
-                  key={val}
-                  onClick={() => setRowDensity(val)}
-                  style={{ background: rowDensity === val ? "var(--bk-active)" : "transparent", color: rowDensity === val ? "var(--bk-gold-ink)" : "var(--bk-text-muted)", border: "none", padding: "5px 9px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
             <div style={{ position: "relative" }}>
               <button
                 onClick={() => setOwnedColumnsOpen(prev => !prev)}
@@ -2596,12 +2570,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                 </div>
               );
             })() : (() => {
-              // Density drives the value column set: Compact = the persisted columns as-is; Full expands
-              // the "value" column into the MSRP|Paid|Value split (render-time only). One derived list
-              // feeds the header, body, width calc and colSpan so they can't diverge.
-              const visibleCols = rowDensity === "full"
-                ? ownedColumns.filter(c => c.visible).flatMap(c => c.key === "value" ? VALUE_SPLIT_COLS : [c])
-                : ownedColumns.filter(c => c.visible);
+              // The "value" column is ALWAYS expanded into the MSRP|Paid|Value split (render-time only;
+              // the gear still lists one "Value" entry). One derived list feeds the header, body, width
+              // calc and colSpan so they can't diverge.
+              const visibleCols = ownedColumns.filter(c => c.visible).flatMap(c => c.key === "value" ? VALUE_SPLIT_COLS : [c]);
               // Natural pixel width of all visible columns (+36 for the checkbox column). The table is
               // sized to this; min-width:100% stretches it to fill a wider container, and the wrapper
               // scrolls (overflow-x:auto) when the columns total more than the container — so a crowded
