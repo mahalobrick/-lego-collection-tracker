@@ -34,9 +34,9 @@ function fmtShortDate(value) {
   return d ? d.toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—";
 }
 
-function StatBox({ label, value, color, tip }) {
+function StatBox({ label, value, color, tip, testid }) {
   return (
-    <div title={tip || undefined} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 12px" }}>
+    <div data-testid={testid || undefined} title={tip || undefined} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 12px" }}>
       <div style={{ color: "#8a9bb0", fontSize: 11, marginBottom: 4 }}>{label}</div>
       <div style={{ fontWeight: 900, fontSize: 15, color: color || "#e8e2d5" }}>{value}</div>
     </div>
@@ -132,8 +132,12 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
   // Pieces / release-year now come from Brickset (`bs`, already in scope) — the BE
   // metadata cache was the prior source (BE removal, panel metadata source-swap).
   const pieces = bs.pieces || null;
-  const subtheme = bs.subtheme || null;
   const minifigs = bs.minifigs != null ? bs.minifigs : null;
+  // Merged spec pill: pieces + minifigs, present parts joined with " · " (absent parts omitted).
+  const specParts = [];
+  if (pieces) specParts.push(`${pieces.toLocaleString()} pcs`);
+  if (minifigs != null) specParts.push(`${minifigs} ${minifigs === 1 ? "minifig" : "minifigs"}`);
+  const specPill = specParts.length ? specParts.join(" · ") : null;
   const exitDate = bs.exit_date || null;
 
   // Last Chance detection from cached codes
@@ -207,23 +211,28 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
           style={{ width: "100%", maxHeight: 180, objectFit: "contain", background: "#0b1520", borderRadius: 10, border: "1px solid rgba(255,255,255,0.07)", padding: 8 }}
         />
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {pieces && <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{pieces.toLocaleString()} pcs</span>}
-          {/* Canonical MSRP (sticker price) — always shown (unknown → "—", never hidden-as-absent). Tooltip
-              flags it as sticker price. Label "MSRP" matches the row column / "vs. MSRP" stat / MSRP Value
-              card — one term across the app (standardized in MC-Browse polish); testid stays msrp-chip. */}
-          <span data-testid="msrp-chip" title={retailCellTooltip(retailProv) || undefined} style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{isPromoNoRrp(retailProv) ? PROMO_NO_RRP_LABEL : <>MSRP {formatValue(retailPrice)}{retailManualMark && <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }} title={retailManualMark.tooltip}>{retailManualMark.marker}</span>}</>}</span>
-        </div>
+        {specPill && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <span data-testid="detail-spec-pill" style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{specPill}</span>
+          </div>
+        )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <StatBox label="Cost Basis" value={money(totalPaid)} />
-          <StatBox label="Market Value" tip={provConf?.tooltip}
-            value={<>{formatValueCell(prov)}{provConf && <span style={confidenceBadge}>{provConf.marker}</span>}</>} />
-          <StatBox label="Net Gain" value={gain === null ? "—" : money(gain)} color={gain === null ? undefined : gain >= 0 ? "#5aa832" : "#ff8b8b"} />
-          <StatBox label="ROI" value={roi === null ? "—" : `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%`} color={roi === null ? undefined : roi >= 0 ? "#5aa832" : "#ff8b8b"} />
-          {qty > 1 && <StatBox label="Avg Paid / Copy" value={money(avgPaid)} />}
-          {qty > 1 && <StatBox label="Value / Copy" value={valueKnown ? money(totalValue / qty) : "—"} />}
-          {valueKnown && retailPrice && totalPaid > 0 && <StatBox label="vs. MSRP" value={`${(((totalValue / qty) - retailPrice) / retailPrice * 100) >= 0 ? "+" : ""}${(((totalValue / qty) - retailPrice) / retailPrice * 100).toFixed(1)}%`} color={(totalValue / qty) >= retailPrice ? "#5aa832" : "#ff8b8b"} />}
+        <div>
+          <div style={sectionLabel}>Value &amp; Returns</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {/* MSRP (sticker price) — relocated from the chips row; SAME setRetailProvenance ladder,
+                manual mark + promo/"—" handling, now the anchor-first tile. testid stays msrp-chip. */}
+            <StatBox testid="msrp-chip" label="MSRP" tip={retailCellTooltip(retailProv) || undefined}
+              value={isPromoNoRrp(retailProv) ? PROMO_NO_RRP_LABEL : <>{formatValue(retailPrice)}{retailManualMark && <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }} title={retailManualMark.tooltip}>{retailManualMark.marker}</span>}</>} />
+            <StatBox label="Cost Basis" value={money(totalPaid)} />
+            <StatBox label="Market Value" tip={provConf?.tooltip}
+              value={<>{formatValueCell(prov)}{provConf && <span style={confidenceBadge}>{provConf.marker}</span>}</>} />
+            <StatBox label="Net Gain" value={gain === null ? "—" : money(gain)} color={gain === null ? undefined : gain >= 0 ? "#5aa832" : "#ff8b8b"} />
+            <StatBox label="ROI" value={roi === null ? "—" : `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%`} color={roi === null ? undefined : roi >= 0 ? "#5aa832" : "#ff8b8b"} />
+            {qty > 1 && <StatBox label="Avg Paid / Copy" value={money(avgPaid)} />}
+            {qty > 1 && <StatBox label="Value / Copy" value={valueKnown ? money(totalValue / qty) : "—"} />}
+            {valueKnown && retailPrice && totalPaid > 0 && <StatBox label="vs. MSRP" value={`${(((totalValue / qty) - retailPrice) / retailPrice * 100) >= 0 ? "+" : ""}${(((totalValue / qty) - retailPrice) / retailPrice * 100).toFixed(1)}%`} color={(totalValue / qty) >= retailPrice ? "#5aa832" : "#ff8b8b"} />}
+          </div>
         </div>
 
         {blPrice && (blPrice.avg_price_new > 0 || blPrice.avg_price_used > 0) && (
@@ -278,16 +287,6 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
         {/* Investment Forecast removed (MC-Browse polish R2): it surfaced raw BrickEconomy
             forecast_value_new_2/5_years projections with no caveat, and BE is retired from value (3c)
             and retail (3c). A BrickLink-grounded forecast is a future feature, not a BE passthrough. */}
-
-        {(subtheme || minifigs != null) && (
-          <div>
-            <div style={sectionLabel}>Set Details</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              {subtheme && <StatBox label="Subtheme" value={subtheme} />}
-              {minifigs != null && <StatBox label="Minifigs" value={minifigs} />}
-            </div>
-          </div>
-        )}
 
         {(bs.launch_date || bs.year || item.retired || bs.exit_date) && (
           <div>

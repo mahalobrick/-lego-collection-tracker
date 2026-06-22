@@ -58,32 +58,34 @@ function renderVsRetail(setNumber, extra = {}) {
   return box ? box.textContent : null;
 }
 
-describe("SetDetailPanel msrp chip — browser-observable (DOM-leaf)", () => {
-  // Label is "MSRP" — unified with the row column / "vs. MSRP" stat / MSRP Value card (MC-Browse polish).
-  it("scenario 1 — Brickset ≠ BrickEconomy: chip shows the Brickset figure", () => {
+describe("SetDetailPanel msrp tile — browser-observable (DOM-leaf)", () => {
+  // MSRP relocated from the chips row to a StatBox tile under "Value & Returns" (testid still
+  // msrp-chip). The box's textContent is label + value with NO separator → "MSRP" + figure
+  // (was a single "MSRP <figure>" span). The figure logic is unchanged (setRetailProvenance ladder).
+  it("scenario 1 — Brickset ≠ BrickEconomy: tile shows the Brickset figure", () => {
     seedBE("10300-1", 80);
     seedBrickset("10300-1", 100);
-    expect(renderPanel("10300-1")).toBe(`MSRP ${money(100)}`);
+    expect(renderPanel("10300-1")).toBe(`MSRP${money(100)}`);
   });
 
-  it("scenario 2 — BrickEconomy only: chip shows \"—\" (BE removed from retail in 3c)", () => {
+  it("scenario 2 — BrickEconomy only: tile shows \"—\" (BE removed from retail in 3c)", () => {
     seedBE("75192-1", 60);
     // no Brickset entry seeded; the BE cache no longer feeds the retail ladder → unknown.
-    expect(renderPanel("75192-1")).toBe("MSRP —");
+    expect(renderPanel("75192-1")).toBe("MSRP—");
   });
 
-  it("scenario 3 — no retail anywhere: chip shows \"—\"", () => {
-    expect(renderPanel("11111-1")).toBe("MSRP —");
+  it("scenario 3 — no retail anywhere: tile shows \"—\"", () => {
+    expect(renderPanel("11111-1")).toBe("MSRP—");
   });
 
-  it("scenario 4 — manual msrp only (no caches): chip shows the figure, tagged 'manual' (Phase 3a)", () => {
+  it("scenario 4 — manual msrp only (no caches): tile shows the figure, tagged 'manual' (Phase 3a)", () => {
     // item.msrp is the hand-entered rung; below Brickset, above BE.
-    expect(renderPanel("33333-1", { msrp: 4.99 })).toBe(`MSRP ${money(4.99)}manual`);
+    expect(renderPanel("33333-1", { msrp: 4.99 })).toBe(`MSRP${money(4.99)}manual`);
   });
 
   it("scenario 5 — Brickset present + manual msrp: Brickset wins, no manual tag", () => {
     seedBrickset("10300-1", 199.99);
-    expect(renderPanel("10300-1", { msrp: 4.99 })).toBe(`MSRP ${money(199.99)}`);
+    expect(renderPanel("10300-1", { msrp: 4.99 })).toBe(`MSRP${money(199.99)}`);
   });
 });
 

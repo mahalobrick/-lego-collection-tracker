@@ -2,14 +2,15 @@ import { afterEach, beforeEach, describe, it, expect } from "vitest";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import SetDetailPanel from "./SetDetailPanel";
+import { money } from "./utils/formatting";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Declutter pass — locks the four removals/changes:
-//   1. the duplicate Year chip is gone from the chips row (Timeline "Released" still carries it);
-//   2. Rating + Min Age tiles are gone; the "Set Details" section no longer renders when ONLY
-//      rating/ageMin would have populated it (gate is now subtheme || minifigs != null);
-//   3. theme renders as a pill (neutral primitive) next to the plain #setNumber;
-//   4. "Avg Paid / Copy" + "Value / Copy" tiles render only when qty > 1.
+// Declutter + reflow — locks the cumulative panel-top changes:
+//   • no Year chip (Timeline "Released" carries it); theme renders as a pill;
+//   • per-copy tiles (Avg Paid / Value per Copy) only when qty > 1;
+//   • pieces + minifigs merged into ONE spec pill (absent parts omitted; singular "1 minifig");
+//   • subtheme dropped and the whole "Set Details" section removed;
+//   • MSRP relocated from the chips row into a "Value & Returns" StatBox (anchor-first tile).
 // Mirrors the Timeline test harness: real panel, Brickset device cache seeded, no mocks.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -39,42 +40,82 @@ const sectionText = (label) => {
   const el = [...container.querySelectorAll("div")].find(d => d.textContent === label);
   return el ? el.parentElement.textContent : null;
 };
-const chipsRowText = () => container.querySelector('[data-testid="msrp-chip"]')?.parentElement.textContent ?? "";
+const specPillText = () => container.querySelector('[data-testid="detail-spec-pill"]')?.textContent ?? "";
 
 describe("SetDetailPanel declutter — year chip", () => {
-  it("drops the Year chip from the chips row, but Timeline 'Released' still shows the year", () => {
+  it("no Year chip in the chips row, but Timeline 'Released' still shows the year", () => {
     seedBrickset("12345-1", { year: 2015, pieces: 500 }); // no launch_date → Released falls back to year
     renderPanel({ setNumber: "12345-1", retired: false });
-    expect(chipsRowText()).toContain("pcs");          // chips row still has Pieces + MSRP
-    expect(chipsRowText()).not.toContain("2015");      // …but NOT a year chip
-    expect(sectionText("Timeline")).toContain("2015"); // Timeline still carries the release year
+    expect(specPillText()).toContain("pcs");           // chips row is now the spec pill (pieces)
+    expect(specPillText()).not.toContain("2015");       // …no year
+    expect(sectionText("Timeline")).toContain("2015");  // Timeline still carries the release year
   });
 });
 
-describe("SetDetailPanel declutter — Rating + Min Age cut", () => {
-  it("renders neither Rating nor Min Age, even when both are cached (section shown via subtheme)", () => {
-    seedBrickset("12345-1", { subtheme: "Modular Buildings", minifigs: 3, rating: 4.5, age_min: 18 });
+describe("SetDetailPanel reflow — merged spec pill (pieces + minifigs)", () => {
+  it("both present → one pill with pcs AND minifigs", () => {
+    seedBrickset("12345-1", { pieces: 1200, minifigs: 4 });
     renderPanel({ setNumber: "12345-1" });
-    const t = sectionText("Set Details");
-    expect(t).toBeTruthy();
-    expect(t).toContain("Subtheme");
-    expect(t).toContain("Modular Buildings");
-    expect(t).toContain("Minifigs");
-    expect(t).not.toContain("Rating");
-    expect(t).not.toContain("★");
-    expect(t).not.toContain("Min Age");
+    expect(specPillText()).toContain("1,200 pcs");
+    expect(specPillText()).toContain("4 minifigs");
   });
-  it("does NOT render the 'Set Details' section when only rating/ageMin would populate it", () => {
-    seedBrickset("12345-1", { rating: 4.5, age_min: 18 }); // no subtheme, no minifigs
+  it("pieces only → pcs, no minifig", () => {
+    seedBrickset("12345-1", { pieces: 1200 });
     renderPanel({ setNumber: "12345-1" });
-    expect(sectionText("Set Details"), "section gated out when only rating/ageMin present").toBeNull();
+    expect(specPillText()).toContain("pcs");
+    expect(specPillText()).not.toContain("minifig");
   });
-  it("still renders the section when minifigs alone is present", () => {
-    seedBrickset("12345-1", { minifigs: 4 });
+  it("minifigs only → 'minifig', no pcs; singularizes 1", () => {
+    seedBrickset("12345-1", { minifigs: 1 });
     renderPanel({ setNumber: "12345-1" });
-    const t = sectionText("Set Details");
-    expect(t).toBeTruthy();
-    expect(t).toContain("Minifigs");
+    expect(specPillText()).toContain("1 minifig");
+    expect(specPillText()).not.toContain("minifigs"); // singular, not "minifigs"
+    expect(specPillText()).not.toContain("pcs");
+  });
+  it("neither present → no spec pill in the DOM", () => {
+    seedBrickset("12345-1", {});
+    renderPanel({ setNumber: "12345-1" });
+    expect(container.querySelector('[data-testid="detail-spec-pill"]')).toBeNull();
+  });
+});
+
+describe("SetDetailPanel reflow — subtheme + Set Details section dropped", () => {
+  it("subtheme is shown nowhere, even when cached", () => {
+    seedBrickset("12345-1", { subtheme: "Modular Buildings", minifigs: 3 });
+    renderPanel({ setNumber: "12345-1" });
+    expect(container.textContent).not.toContain("Modular Buildings");
+    expect(container.textContent).not.toContain("Subtheme");
+  });
+  it("the 'Set Details' section never renders, regardless of metadata", () => {
+    seedBrickset("12345-1", { subtheme: "Modular Buildings", minifigs: 3, pieces: 1200 });
+    renderPanel({ setNumber: "12345-1" });
+    expect(sectionText("Set Details")).toBeNull();
+  });
+});
+
+describe("SetDetailPanel reflow — MSRP in the Value & Returns section", () => {
+  it("renders the MSRP tile with the retail figure, under a 'Value & Returns' header", () => {
+    seedBrickset("12345-1", { retail_price_us: 100 });
+    renderPanel({ setNumber: "12345-1" });
+    expect(sectionText("Value & Returns")).toBeTruthy();        // header renders above the grid
+    const tile = container.querySelector('[data-testid="msrp-chip"]');
+    expect(tile, "MSRP tile renders").toBeTruthy();
+    expect(tile.textContent).toContain("MSRP");
+    expect(tile.textContent).toContain(money(100));
+  });
+  it("no-MSRP set shows the '—' treatment in the tile", () => {
+    seedBrickset("12345-1", {}); // no retail anywhere
+    renderPanel({ setNumber: "12345-1" });
+    expect(container.querySelector('[data-testid="msrp-chip"]').textContent).toContain("—");
+  });
+  it("MSRP is no longer in the chips row, and the MSRP tile precedes Cost Basis in the DOM", () => {
+    seedBrickset("12345-1", { retail_price_us: 100, pieces: 500 });
+    renderPanel({ setNumber: "12345-1" });
+    expect(specPillText()).not.toContain("MSRP");              // chips row (spec pill) carries no MSRP
+    const all = [...container.querySelectorAll("div")];
+    const msrp = container.querySelector('[data-testid="msrp-chip"]');
+    const cost = all.find(d => d.firstChild?.textContent === "Cost Basis");
+    expect(all.indexOf(msrp)).toBeLessThan(all.indexOf(cost)); // anchor-first ordering
   });
 });
 
