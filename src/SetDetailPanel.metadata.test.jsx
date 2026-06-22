@@ -46,20 +46,20 @@ function panelText(setNumber, extra = {}) {
 }
 
 describe("SetDetailPanel — pieces/year sourced from Brickset (BE source-swap)", () => {
-  it("Brickset present: chips show the Brickset pieces/year, never the BrickEconomy ones", () => {
+  it("Brickset present: Set Details/Timeline show the Brickset pieces/year, never the BrickEconomy ones", () => {
     seedBE("10300-1", 1111, 1991);       // BE-shaped, distinct values
     seedBrickset("10300-1", 2222, 2015); // Brickset-shaped — must win
     const txt = panelText("10300-1");
-    expect(txt).toContain(`${(2222).toLocaleString()} pcs`);
+    expect(txt).toContain(`${(2222).toLocaleString()}`); // Set Details "Pieces" tile value
     expect(txt).toContain("2015");
-    expect(txt).not.toContain(`${(1111).toLocaleString()} pcs`);
+    expect(txt).not.toContain(`${(1111).toLocaleString()}`);
     expect(txt).not.toContain("1991");
   });
 
-  it("Brickset absent: no BE value leaks — pieces chip hidden, no crash", () => {
+  it("Brickset absent: no BE value leaks — Pieces tile hidden, no crash", () => {
     seedBE("10300-1", 1111, 1991); // only BE seeded — must be ignored now
     const txt = panelText("10300-1");
-    expect(txt).not.toContain(`${(1111).toLocaleString()} pcs`);
+    expect(txt).not.toContain(`${(1111).toLocaleString()}`);
     expect(txt).not.toContain("1991");
     // panel still renders its header (set number) — no crash from the missing source
     expect(txt).toContain("10300-1");

@@ -133,11 +133,6 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
   // metadata cache was the prior source (BE removal, panel metadata source-swap).
   const pieces = bs.pieces || null;
   const minifigs = bs.minifigs != null ? bs.minifigs : null;
-  // Merged spec pill: pieces + minifigs, present parts joined with " · " (absent parts omitted).
-  const specParts = [];
-  if (pieces) specParts.push(`${pieces.toLocaleString()} pcs`);
-  if (minifigs != null) specParts.push(`${minifigs} ${minifigs === 1 ? "minifig" : "minifigs"}`);
-  const specPill = specParts.length ? specParts.join(" · ") : null;
   const exitDate = bs.exit_date || null;
 
   // Last Chance detection from cached codes
@@ -211,12 +206,6 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
           style={{ width: "100%", maxHeight: 180, objectFit: "contain", background: "#0b1520", borderRadius: 10, border: "1px solid rgba(255,255,255,0.07)", padding: 8 }}
         />
 
-        {specPill && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <span data-testid="detail-spec-pill" style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{specPill}</span>
-          </div>
-        )}
-
         <div>
           <div style={sectionLabel}>Value &amp; Returns</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -287,6 +276,18 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
         {/* Investment Forecast removed (MC-Browse polish R2): it surfaced raw BrickEconomy
             forecast_value_new_2/5_years projections with no caveat, and BE is retired from value (3c)
             and retail (3c). A BrickLink-grounded forecast is a future feature, not a BE passthrough. */}
+
+        {/* Set Details — Pieces + Minifigs as StatBox tiles (unified with the other sections;
+            replaces the chips-row spec pill). Mirrors the Timeline 2-col grid. */}
+        {(pieces || minifigs != null) && (
+          <div>
+            <div style={sectionLabel}>Set Details</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {pieces && <StatBox label="Pieces" value={pieces.toLocaleString()} />}
+              {minifigs != null && <StatBox label="Minifigs" value={minifigs} />}
+            </div>
+          </div>
+        )}
 
         {(bs.launch_date || bs.year || item.retired || bs.exit_date) && (
           <div>
