@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { Show, SignInButton, SignUpButton, UserButton, useUser } from "@clerk/react";
+import { DndContext, PointerSensor, KeyboardSensor, useSensor, useSensors, closestCenter } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import Icon from "./Icon";
 import sidebarCoin from "./assets/sidebar-coin.png"; // frameless coin (brickuity-logo.png stays the favicon/app-icon)
 import { setItemSafe } from "./utils/safeStorage";
@@ -8,8 +11,8 @@ const RAIL_W = 64;
 const EXPANDED_W = 232;
 
 // Destinations map to the SAME view keys App.jsx switches on. The 4 main items are reorderable
-// device-locally (blNavOrder) via hover ▲▼; Settings stays pinned last. Switching is key-based,
-// so reordering NEVER affects routing — only this presentational order changes.
+// device-locally (blNavOrder) via dnd-kit drag-to-reorder; Settings stays pinned last. Switching
+// is key-based, so reordering NEVER affects routing — only this presentational order changes.
 const NAV = [
   { key: "collection", icon: "collection", label: "Collection" },
   { key: "acquisition", icon: "wanted", label: "Wanted" },
@@ -20,8 +23,33 @@ const NAV = [
 
 // The 4 reorderable nav keys, in canonical default order (Settings is pinned, excluded).
 // NOTE: "Wanted" is key 'acquisition' — order is persisted/compared by KEY, never label.
-const REORDERABLE_KEYS = ["collection", "acquisition", "budget", "performance"];
+const REORDERABLE_KEYS = ["performance", "acquisition", "budget", "collection"];
 const NAV_BY_KEY = Object.fromEntries(NAV.map(item => [item.key, item]));
+
+// Load-reconcile (mirrors the blOwnedColumns merge): keep the saved order but drop keys no longer
+// reorderable, then append any missing canonical keys in canonical position. `saved` is the parsed
+// array (or null/garbage) → always returns a canonical-complete key list. This makes the new
+// REORDERABLE_KEYS order the out-of-box default for anyone without a saved blNavOrder.
+export function reconcileNavOrder(saved) {
+  if (!Array.isArray(saved)) return [...REORDERABLE_KEYS];
+  const allowed = new Set(REORDERABLE_KEYS);
+  const merged = saved.filter(k => allowed.has(k));
+  const savedKeys = new Set(merged);
+  const missing = REORDERABLE_KEYS.filter(k => !savedKeys.has(k));
+  return missing.length ? [...merged, ...missing] : merged;
+}
+
+// The reorder primitive dnd-kit's onDragEnd drives: move activeKey into overKey's slot via
+// arrayMove, persist device-local (blNavOrder is in safeStorage's no-sync skip-list), and return
+// the next order. No-op (returns the input ref, no write) when a key is absent or already in place.
+export function reorderNavAndPersist(order, activeKey, overKey) {
+  const oldIndex = order.indexOf(activeKey);
+  const newIndex = order.indexOf(overKey);
+  if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return order;
+  const next = arrayMove(order, oldIndex, newIndex);
+  setItemSafe("blNavOrder", JSON.stringify(next));
+  return next;
+}
 
 function railBtn(active) {
   return {
@@ -47,6 +75,38 @@ function PersonGlyph({ size = 18 }) {
   );
 }
 
+// One reorderable nav row. The WHOLE row is the drag target (no separate handle) — useSortable's
+// pointer/keyboard listeners ride the wrapper while the inner <button> keeps the UNCHANGED
+// key-based onNavigate. With PointerSensor's distance constraint a tap fires the click (navigates)
+// and only real movement starts a drag; the wrapper stays keyboard-focusable for KeyboardSensor.
+// Renders identically in the collapsed rail and expanded sidebar (drag is never gated on width).
+function SortableNavItem({ navKey, item, isActive, expanded, onNavigate }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: navKey });
+  return (
+    <div
+      ref={setNodeRef}
+      data-testid={`navrow-${navKey}`}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.85 : 1,
+        boxShadow: isDragging ? "var(--bk-shadow)" : "none",
+        borderRadius: 8,
+        zIndex: isDragging ? 1 : "auto",
+        position: "relative",
+        touchAction: "none", // the pointer sensor owns the gesture (no touch-scroll hijack)
+      }}
+      {...attributes}
+      {...listeners}
+    >
+      <button data-testid={`navbtn-${navKey}`} onClick={() => onNavigate(navKey)} title={item.label} style={{ ...railBtn(isActive), width: "100%" }}>
+        <Icon name={item.icon} size={22} />
+        {expanded && <span>{item.label}</span>}
+      </button>
+    </div>
+  );
+}
+
 /**
  * Heritage Luxe vertical nav (v2). Icon-rail (~64px) that hover-expands as a fixed OVERLAY
  * (no reflow) or pins (App reserves width). Panel toggle (pin) sits at the top; the foot is
@@ -54,33 +114,25 @@ function PersonGlyph({ size = 18 }) {
  */
 export default function Sidebar({ view, onNavigate, theme, onToggleTheme, pinned, onTogglePin, syncStatus }) {
   const [hovered, setHovered] = useState(false);
-  const [hoveredNavKey, setHoveredNavKey] = useState(null); // reveals a single item's ▲▼
   const [navOrder, setNavOrder] = useState(() => {
     const saved = localStorage.getItem("blNavOrder");
-    if (!saved) return REORDERABLE_KEYS;
-    const parsed = JSON.parse(saved);
-    // Mirror blOwnedColumns load: drop saved keys no longer reorderable, keep saved order,
-    // then append any missing canonical keys in canonical position.
-    const allowed = new Set(REORDERABLE_KEYS);
-    const merged = parsed.filter(k => allowed.has(k));
-    const savedKeys = new Set(merged);
-    const missing = REORDERABLE_KEYS.filter(k => !savedKeys.has(k));
-    return missing.length ? [...merged, ...missing] : merged;
+    return reconcileNavOrder(saved ? JSON.parse(saved) : null);
   });
   const { user } = useUser();
   const expanded = pinned || hovered;
 
-  // Mirror moveOwnedColumn: clone, find, bounds-check (no-op at the ends), splice out + in,
-  // then persist device-local (blNavOrder is in safeStorage's no-sync skip-list).
-  function moveNavItem(key, direction) {
-    const next = [...navOrder];
-    const index = next.findIndex(k => k === key);
-    const newIndex = index + (direction === "up" ? -1 : 1);
-    if (index < 0 || newIndex < 0 || newIndex >= next.length) return;
-    const [item] = next.splice(index, 1);
-    next.splice(newIndex, 0, item);
-    setNavOrder(next);
-    setItemSafe("blNavOrder", JSON.stringify(next));
+  // Pointer: an ~8px movement threshold so a plain click still navigates — only real dragging
+  // starts a reorder (taps are never swallowed). Keyboard: Space/Enter on a focused row begins the
+  // drag, arrows move it, Space/Enter drops — replacing the old ▲▼ keyboard access.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  // Drop onto a different slot → arrayMove + persist (reorderNavAndPersist). No-op in place.
+  function onDragEnd({ active, over }) {
+    if (!over || active.id === over.id) return;
+    setNavOrder(reorderNavAndPersist(navOrder, active.id, over.id));
   }
 
   return (
@@ -116,36 +168,16 @@ export default function Sidebar({ view, onNavigate, theme, onToggleTheme, pinned
         )}
       </div>
 
-      {/* Destinations — 4 reorderable items (hover ▲▼, expanded-only) then pinned Settings */}
+      {/* Destinations — 4 drag-to-reorder items (dnd-kit sortable) then pinned Settings */}
       <nav style={{ display: "flex", flexDirection: "column", gap: 4, padding: "8px 8px", flex: 1 }}>
-        {navOrder.map((key, i) => {
-          const item = NAV_BY_KEY[key];
-          return (
-            <div
-              key={key}
-              data-testid={`navrow-${key}`}
-              onMouseEnter={() => setHoveredNavKey(key)}
-              onMouseLeave={() => setHoveredNavKey(null)}
-              style={{ display: "flex", alignItems: "center", gap: 4 }}
-            >
-              {/* Nav button — UNCHANGED behavior (key-based onNavigate) */}
-              <button data-testid={`navbtn-${key}`} onClick={() => onNavigate(key)} title={item.label} style={{ ...railBtn(view === key), flex: 1 }}>
-                <Icon name={item.icon} size={22} />
-                {expanded && <span>{item.label}</span>}
-              </button>
-              {/* Reorder ▲▼ — SIBLING of the button (never nested) so a click can't navigate; expanded + hover only */}
-              {expanded && hoveredNavKey === key && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 1, paddingRight: 2 }}>
-                  <button data-testid={`navup-${key}`} onClick={() => moveNavItem(key, "up")} disabled={i === 0} title="Move up"
-                    style={{ background: "none", border: "none", color: i === 0 ? "var(--bk-disabled-tx)" : "var(--bk-text-muted)", cursor: i === 0 ? "default" : "pointer", padding: "0 2px", fontSize: 10, lineHeight: 1 }}>▲</button>
-                  <button data-testid={`navdown-${key}`} onClick={() => moveNavItem(key, "down")} disabled={i === navOrder.length - 1} title="Move down"
-                    style={{ background: "none", border: "none", color: i === navOrder.length - 1 ? "var(--bk-disabled-tx)" : "var(--bk-text-muted)", cursor: i === navOrder.length - 1 ? "default" : "pointer", padding: "0 2px", fontSize: 10, lineHeight: 1 }}>▼</button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-        {/* Settings — fixed last, never reorderable, no arrows */}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={navOrder} strategy={verticalListSortingStrategy}>
+            {navOrder.map(key => (
+              <SortableNavItem key={key} navKey={key} item={NAV_BY_KEY[key]} isActive={view === key} expanded={expanded} onNavigate={onNavigate} />
+            ))}
+          </SortableContext>
+        </DndContext>
+        {/* Settings — fixed last, OUTSIDE the sortable context, never reorderable */}
         <button data-testid="navbtn-settings" onClick={() => onNavigate("settings")} title={NAV_BY_KEY.settings.label} style={railBtn(view === "settings")}>
           <Icon name={NAV_BY_KEY.settings.icon} size={22} />
           {expanded && <span>{NAV_BY_KEY.settings.label}</span>}
