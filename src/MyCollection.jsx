@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { searchInput, filterSelect, clearFilterButton, filterBar, actionBtn, ghostBtn, confidenceBadge } from "./uiStyles";
-import { DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, AreaChart, Area, CartesianGrid } from "recharts";
 import SetDetailPanel, { openSetDetail } from "./SetDetailPanel";
 import Icon from "./Icon";
@@ -33,10 +32,8 @@ const PIE_COLORS = ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55
 const CONDITION_CYCLE = ["new", "used_as_new", "used_good", "used_acceptable"];
 
 // DEFAULT_COLLECTION_ITEMS + loadCollectionItems moved to ./utils/collectionLayout
-// DEFAULT_OWNED_COLUMNS imported from ./utils/columnDefaults
-
-// Default column widths (px). All columns are resizable; widths persist in blOwnedColWidths.
-// With Condition hidden (default), visible cols total ~700px — fits a ~720px panel.
+// Default column widths (px). Columns are a FIXED set (configurability retired) — widths come from
+// this map; no per-column resize, no persistence.
 const OWNED_COL_WIDTHS = {
   thumb:        52,
   setNumber:    62,
@@ -69,18 +66,28 @@ const OWNED_COL_FULL_LABEL = {
   thumb: "Image", setNumber: "Set Number", condition: "Condition",
 };
 
-// Value-column split: the single persisted "Value" column is ALWAYS expanded at render time into
-// three real, individually sortable/resizable columns — MSRP | Paid | Value. Render-only (the gear
-// still lists one "Value" entry; not persisted in blOwnedColumns). They reorder/hide as a cohesive
-// group anchored on the persisted "value" column.
+// Fixed owned-table columns — configurability retired (no gear, no reorder, no show/hide, no
+// resize). Single source of column order + visibility (all visible); widths come from
+// OWNED_COL_WIDTHS. Identity (Set#/Name/Theme) stays as separate columns this pass.
+const OWNED_COLUMNS = [
+  { key: "thumb",     label: "Img",      visible: true },
+  { key: "setNumber", label: "Set",      visible: true },
+  { key: "name",      label: "Set Name", visible: true },
+  { key: "theme",     label: "Theme",    visible: true },
+  { key: "value",     label: "Value",    visible: true },
+  { key: "condition", label: "Cond",     visible: true },
+  { key: "qty",       label: "Qty",      visible: true },
+  { key: "gain",      label: "Gain",     visible: true },
+  { key: "roi",       label: "ROI",      visible: true },
+];
+
+// Value-column split: the single "Value" column is ALWAYS expanded at render time into three real,
+// individually sortable columns — MSRP | Paid | Value (render-only; OWNED_COLUMNS lists one "Value").
 const VALUE_SPLIT_COLS = [
   { key: "msrp",  label: "MSRP",  visible: true },
   { key: "paid",  label: "Paid",  visible: true },
   { key: "value", label: "Value", visible: true },
 ];
-// Map a value-split member back to its anchor ("value") so drag-reorder moves the trio together;
-// every other key is itself. Used only for reorder — sort and resize stay per-column.
-const valueGroupKey = (k) => (k === "msrp" || k === "paid" ? "value" : k);
 
 export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection" }) {
   const [tab, setTab] = useState("owned"); // Collection segment: "owned" | "sold"
@@ -135,36 +142,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   const [collectionItems, setCollectionItems] = useState(() => loadCollectionItems(localStorage.getItem("blCollectionItems")));
   // Card visibility = override ?? defaultVisible. Persisted as a sparse map of user-touched cards.
   const [cardOverrides, setCardOverrides] = useState(() => loadCardOverrides(localStorage.getItem("blCardVisOverrides")));
-
-  const [ownedColumnsOpen, setOwnedColumnsOpen] = useState(false);
-  const [draggedOwnedColumn, setDraggedOwnedColumn] = useState(null);
-
-  const [ownedColumns, setOwnedColumns] = useState(() => {
-    const saved = localStorage.getItem("blOwnedColumns");
-    if (!saved) return DEFAULT_OWNED_COLUMNS;
-    const parsed = JSON.parse(saved);
-    const labelMap = Object.fromEntries(DEFAULT_OWNED_COLUMNS.map(c => [c.key, c.label]));
-    // Drop keys no longer in defaults (e.g. the removed "paid" column) so a stale saved
-    // config can't render a headerless, rendererless ghost column.
-    const defaultKeys = new Set(DEFAULT_OWNED_COLUMNS.map(c => c.key));
-    const merged = parsed.filter(c => defaultKeys.has(c.key)).map(c => ({ ...c, label: labelMap[c.key] ?? c.label }));
-    const savedKeys = new Set(merged.map(c => c.key));
-    const missing = DEFAULT_OWNED_COLUMNS.filter(c => !savedKeys.has(c.key));
-    return missing.length ? [...merged, ...missing] : merged;
-  });
-
-  const [columnWidths, setColumnWidths] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem("blOwnedColWidths") || "{}");
-      const merged = { ...OWNED_COL_WIDTHS, ...saved };
-      // Migration: an older persisted width can be narrower than the current (widened) default and
-      // clip a numeric VALUE. Floor these columns at their default so a stale width can't truncate;
-      // a user's WIDER choice is preserved (max).
-      for (const k of NUMERIC_OWNED_COLS) merged[k] = Math.max(Number(merged[k]) || 0, OWNED_COL_WIDTHS[k]);
-      return merged;
-    } catch { return { ...OWNED_COL_WIDTHS }; }
-  });
-  const resizingCol = useRef(null); // { key, startX, startWidth }
 
   const [sets, setSets] = useState(() => {
     // Load BrickEconomy-synced items
@@ -332,14 +309,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   useEffect(() => {
     setItemSafe("blOwnedRetireDismissed", JSON.stringify(retireDismissed));
   }, [retireDismissed]);
-
-  useEffect(() => {
-    setItemSafe("blOwnedColumns", JSON.stringify(ownedColumns));
-  }, [ownedColumns]);
-
-  useEffect(() => {
-    setItemSafe("blOwnedColWidths", JSON.stringify(columnWidths));
-  }, [columnWidths]);
 
   useEffect(() => {
     setItemSafe("blOwnedSort", sortColumn);
@@ -912,80 +881,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
 
   function toggleCollCollapse(key) {
     setCollectionItems(prev => prev.map(i => i.key === key ? { ...i, collapsed: !i.collapsed } : i));
-  }
-
-  function dropOwnedColumn(targetKey) {
-    if (!draggedOwnedColumn || draggedOwnedColumn === targetKey) return;
-
-    setOwnedColumns(prev => {
-      const next = [...prev];
-      const fromIndex = next.findIndex(col => col.key === draggedOwnedColumn);
-      const toIndex = next.findIndex(col => col.key === targetKey);
-
-      if (fromIndex < 0 || toIndex < 0) return prev;
-
-      const [moved] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, moved);
-
-      return next;
-    });
-
-    setDraggedOwnedColumn(null);
-  }
-
-  function toggleOwnedColumn(key) {
-    setOwnedColumns(prev =>
-      prev.map(col =>
-        col.key === key
-          ? { ...col, visible: !col.visible }
-          : col
-      )
-    );
-  }
-
-  function moveOwnedColumn(key, direction) {
-    setOwnedColumns(prev => {
-      const next = [...prev];
-
-      const index = next.findIndex(col => col.key === key);
-      const newIndex = index + direction;
-
-      if (index < 0 || newIndex < 0 || newIndex >= next.length) {
-        return prev;
-      }
-
-      const [item] = next.splice(index, 1);
-      next.splice(newIndex, 0, item);
-
-      return next;
-    });
-  }
-
-  function startResize(colKey, e) {
-    e.preventDefault();
-    e.stopPropagation();
-    resizingCol.current = {
-      key: colKey,
-      startX: e.clientX,
-      startWidth: columnWidths[colKey] ?? 80,
-    };
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-
-    function onMove(ev) {
-      const { key, startX, startWidth } = resizingCol.current;
-      const newW = Math.max(36, startWidth + (ev.clientX - startX));
-      setColumnWidths(prev => ({ ...prev, [key]: newW }));
-    }
-    function onUp() {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      resizingCol.current = null;
-    }
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
   }
 
   function renderOwnedCell(set, column) {
@@ -2403,38 +2298,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
             >
               {rbEnriching ? "…" : rbEnrichResult !== null ? `✓ Filled (${rbEnrichResult})` : "Rebrickable Fill"}
             </button>
-            <div style={{ position: "relative" }}>
-              <button
-                onClick={() => setOwnedColumnsOpen(prev => !prev)}
-                style={{ ...hoverCtrlBtn, color: ownedColumnsOpen ? "var(--bk-gold-ink)" : "var(--bk-text-muted)", padding: "5px 8px", display: "flex", alignItems: "center" }}
-                title={`Column visibility — ${ownedColumns.filter(c => c.visible).length} of ${ownedColumns.length} shown`}
-              >
-                <Icon name="view-table" size={14} />
-              </button>
-              {ownedColumnsOpen && (
-              <>
-                <div onClick={() => setOwnedColumnsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 39 }} />
-                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 40, background: "var(--bk-bg)", border: "1px solid var(--bk-border)", borderRadius: 10, padding: "12px 16px", minWidth: 190, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    <span style={{ color: "var(--bk-text-muted)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Columns</span>
-                    <button onClick={() => setColumnWidths({ ...OWNED_COL_WIDTHS })} style={{ background: "none", border: "1px solid var(--bk-border)", borderRadius: 6, color: "var(--bk-text-muted)", fontSize: 11, cursor: "pointer", padding: "2px 7px" }} title="Reset all column widths to defaults">Reset widths</button>
-                  </div>
-                  {ownedColumns.map((col, i) => (
-                    <div key={col.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, cursor: "pointer", color: col.visible ? "var(--bk-text)" : "var(--bk-text-muted)", fontSize: 13 }}>
-                        <input type="checkbox" checked={col.visible} onChange={() => toggleOwnedColumn(col.key)} style={{ accentColor: "var(--bk-gold)" }} />
-                        {col.label}
-                      </label>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                        <button onClick={() => moveOwnedColumn(col.key, -1)} disabled={i === 0} style={{ background: "none", border: "none", color: i === 0 ? "var(--bk-disabled-tx)" : "var(--bk-text-muted)", cursor: i === 0 ? "default" : "pointer", padding: "0 2px", fontSize: 10, lineHeight: 1 }}>▲</button>
-                        <button onClick={() => moveOwnedColumn(col.key, 1)} disabled={i === ownedColumns.length - 1} style={{ background: "none", border: "none", color: i === ownedColumns.length - 1 ? "var(--bk-disabled-tx)" : "var(--bk-text-muted)", cursor: i === ownedColumns.length - 1 ? "default" : "pointer", padding: "0 2px", fontSize: 10, lineHeight: 1 }}>▼</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-              )}
-            </div>
           </div>
         </div>
 
@@ -2488,7 +2351,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                  column def (column-hide suppresses the field). The PRIMARY keys below get designed
                  slots; any OTHER enabled column is surfaced on a secondary line, so showing a
                  column maps to the card too. */
-              const visibleCols = ownedColumns.filter(c => c.visible);
+              const visibleCols = OWNED_COLUMNS.filter(c => c.visible);
               const colByKey = Object.fromEntries(visibleCols.map(c => [c.key, c]));
               const PRIMARY = ["thumb", "setNumber", "name", "theme", "condition", "qty", "value", "gain", "roi"];
               const extraCols = visibleCols.filter(c => !PRIMARY.includes(c.key));
@@ -2585,12 +2448,12 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
               // The "value" column is ALWAYS expanded into the MSRP|Paid|Value split (render-time only;
               // the gear still lists one "Value" entry). One derived list feeds the header, body, width
               // calc and colSpan so they can't diverge.
-              const visibleCols = ownedColumns.filter(c => c.visible).flatMap(c => c.key === "value" ? VALUE_SPLIT_COLS : [c]);
+              const visibleCols = OWNED_COLUMNS.filter(c => c.visible).flatMap(c => c.key === "value" ? VALUE_SPLIT_COLS : [c]);
               // Natural pixel width of all visible columns (+36 for the checkbox column). The table is
               // sized to this; min-width:100% stretches it to fill a wider container, and the wrapper
               // scrolls (overflow-x:auto) when the columns total more than the container — so a crowded
               // column set scrolls sideways instead of compressing numbers until they ellipsis-clip.
-              const currentTotalW = 36 + visibleCols.reduce((s, c) => s + (columnWidths[c.key] ?? 80), 0) + ACTIONS_COL_W;
+              const currentTotalW = 36 + visibleCols.reduce((s, c) => s + (OWNED_COL_WIDTHS[c.key] ?? 80), 0) + ACTIONS_COL_W;
               return (
             <div className="owned-table-scroll" style={{ minWidth: 0 }}>
             <div ref={ownedScrollRef} className="owned-table-scroll" style={{ overflow: "auto", maxHeight: OWNED_TABLE_MAX_H }}>
@@ -2604,37 +2467,15 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                   {visibleCols.map(col => (
                     <th
                       key={col.key}
-                      draggable
-                      onDragStart={e => {
-                        if (e.target !== e.currentTarget) { e.preventDefault(); return; }
-                        setDraggedOwnedColumn(valueGroupKey(col.key));
-                      }}
-                      onDragEnd={() => setDraggedOwnedColumn(null)}
-                      onDragOver={e => e.preventDefault()}
-                      onDrop={() => dropOwnedColumn(valueGroupKey(col.key))}
                       style={{
                         ...(isNumericOwnedColumn(col.key) ? thRightButton : thButton),
-                        opacity: draggedOwnedColumn === valueGroupKey(col.key) ? 0.45 : 1,
-                        width: columnWidths[col.key] ?? 80,
-                        position: "relative",
+                        width: OWNED_COL_WIDTHS[col.key] ?? 80,
                         overflow: "hidden",
                       }}
                       onClick={() => sortHeader(col.key)}
-                      title={`${OWNED_COL_FULL_LABEL[col.key] || col.label} · click to sort · drag label to reorder · drag right edge to resize`}
+                      title={`${OWNED_COL_FULL_LABEL[col.key] || col.label} · click to sort`}
                     >
-                      <span style={{ color: "var(--bk-border)", fontSize: 9, marginRight: 3, letterSpacing: -1 }}>⠿</span>
                       {sortLabel(col.label, col.key)}
-                      <div
-                        onMouseDown={e => startResize(col.key, e)}
-                        onClick={e => e.stopPropagation()}
-                        style={{
-                          position: "absolute", right: 0, top: 0, bottom: 0, width: 7,
-                          cursor: "col-resize", zIndex: 10,
-                          borderRight: "2px solid transparent",
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.borderRightColor = "var(--bk-gold-deep)"; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderRightColor = "transparent"; }}
-                      />
                     </th>
                   ))}
                   {/* Fixed trailing actions column — rendered directly, never part of the

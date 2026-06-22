@@ -9,8 +9,8 @@ import { createRoot } from "react-dom/client";
 //   • vertical: the scroll box no longer uses the fixed maxHeight:560 cap (now viewport-derived)
 //   • horizontal: table is width:<px columns> + minWidth:100% (stretch-or-scroll), in a
 //     min-width:0 grid item so a wide column set scrolls instead of blowing out the grid
-//   • numeric width floor: a stale-narrow persisted width is raised to the widened default so
-//     money/percent values can't ellipsis-clip ("+71…" / "−$25.…"); a wider user choice is kept
+//   • numeric width: columns render at FIXED defaults (OWNED_COL_WIDTHS) wide enough that
+//     money/percent values can't ellipsis-clip ("+71…" / "−$25.…"); resize + persistence retired
 // Reuses the god-module harness of MyCollection.holdingEdit.test.jsx.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -93,17 +93,16 @@ describe("MyCollection — horizontal scroll-not-clip model (Phase 2)", () => {
   });
 });
 
-describe("MyCollection — numeric columns never clip (width-floor migration)", () => {
-  it("raises a stale-narrow persisted numeric width up to the widened default", () => {
-    // An OLD saved config with the pre-fix narrow widths that clipped "+71.4%" / "−$25.50".
-    localStorage.setItem("blOwnedColWidths", JSON.stringify({ roi: 50, gain: 60, value: 70 }));
+describe("MyCollection — numeric columns render at fixed widths (resize retired)", () => {
+  it("numeric columns use their fixed defaults, wide enough not to clip money/percent", () => {
     render();
-    expect(parseInt(thByText("ROI").style.width, 10)).toBeGreaterThanOrEqual(92);   // floored from 50
-    expect(parseInt(thByText("Gain").style.width, 10)).toBeGreaterThanOrEqual(104);  // floored from 60
+    expect(parseInt(thByText("ROI").style.width, 10)).toBe(92);    // OWNED_COL_WIDTHS.roi
+    expect(parseInt(thByText("Gain").style.width, 10)).toBe(104);  // OWNED_COL_WIDTHS.gain
+    expect(parseInt(thByText("Value").style.width, 10)).toBe(132); // OWNED_COL_WIDTHS.value
   });
-  it("preserves a user's WIDER numeric width (Math.max, not overwrite)", () => {
+  it("ignores any persisted blOwnedColWidths (column resize + width persistence are gone)", () => {
     localStorage.setItem("blOwnedColWidths", JSON.stringify({ roi: 200 }));
     render();
-    expect(parseInt(thByText("ROI").style.width, 10)).toBe(200);
+    expect(parseInt(thByText("ROI").style.width, 10)).toBe(92);    // fixed default wins; persisted 200 ignored
   });
 });
