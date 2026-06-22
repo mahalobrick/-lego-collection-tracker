@@ -36,9 +36,7 @@ const CONDITION_CYCLE = ["new", "used_as_new", "used_good", "used_acceptable"];
 // this map; no per-column resize, no persistence.
 const OWNED_COL_WIDTHS = {
   thumb:        52,
-  setNumber:    62,
-  name:        150,
-  theme:        84,
+  identity:    220,  // stacked Set Name / Set # / Theme (+ Retired) — replaces the 3 separate columns
   condition:    84,
   qty:          66,
   value:       132,  // the Value column of the always-on MSRP|Paid|Value split (single Value figure)
@@ -63,22 +61,21 @@ const NUMERIC_OWNED_COLS = ["qty", "msrp", "paid", "value", "gain", "roi"];
 // Full column names for the header tooltip — the visible labels are abbreviated to fit the column,
 // so the title carries the complete name on hover. Only keys whose label is shortened need an entry.
 const OWNED_COL_FULL_LABEL = {
-  thumb: "Image", setNumber: "Set Number", condition: "Condition",
+  thumb: "Image", condition: "Condition",
 };
 
 // Fixed owned-table columns — configurability retired (no gear, no reorder, no show/hide, no
 // resize). Single source of column order + visibility (all visible); widths come from
-// OWNED_COL_WIDTHS. Identity (Set#/Name/Theme) stays as separate columns this pass.
+// OWNED_COL_WIDTHS. Set#/Name/Theme are collapsed into ONE stacked "identity" cell (Pass 2);
+// their sorts moved to the Sort menu since the identity header is a non-sortable label.
 const OWNED_COLUMNS = [
-  { key: "thumb",     label: "Img",      visible: true },
-  { key: "setNumber", label: "Set",      visible: true },
-  { key: "name",      label: "Set Name", visible: true },
-  { key: "theme",     label: "Theme",    visible: true },
-  { key: "value",     label: "Value",    visible: true },
-  { key: "condition", label: "Cond",     visible: true },
-  { key: "qty",       label: "Qty",      visible: true },
-  { key: "gain",      label: "Gain",     visible: true },
-  { key: "roi",       label: "ROI",      visible: true },
+  { key: "thumb",     label: "Img",   visible: true },
+  { key: "identity",  label: "Set",   visible: true },
+  { key: "value",     label: "Value", visible: true },
+  { key: "condition", label: "Cond",  visible: true },
+  { key: "qty",       label: "Qty",   visible: true },
+  { key: "gain",      label: "Gain",  visible: true },
+  { key: "roi",       label: "ROI",   visible: true },
 ];
 
 // Value-column split: the single "Value" column is ALWAYS expanded at render time into three real,
@@ -893,9 +890,23 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     // Hold value-bearing cells at a loading state until the BL overlay resolves (no BE→BL flash).
     if (!valuesReady && (column.key === "value" || column.key === "gain" || column.key === "roi")) return "…";
 
-    if (column.key === "setNumber") return <span style={{ fontFamily: "var(--bk-font-mono)", fontSize: 12 }}>{set.setNumber || "—"}</span>;
-    if (column.key === "name") return set.name || "—";
-    if (column.key === "theme") return set.theme || "—";
+    if (column.key === "identity") {
+      // Stacked identity cell (mirrors TriValueCell's flex-column + weight/color hierarchy):
+      // Set Name bright/heavy over Set # + Theme (muted), one size family, existing hexes only.
+      // Compact "Retired" pill (existing amber #f59e0b, condition-pill shape) only when set.retired.
+      return (
+        <div data-testid="owned-identity" style={{ display: "flex", flexDirection: "column", gap: 1, lineHeight: 1.3, minWidth: 0 }}>
+          <span style={{ fontWeight: 800, fontSize: 13, color: "var(--bk-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={set.name || undefined}>{set.name || "—"}</span>
+          <span style={{ fontFamily: "var(--bk-font-mono)", fontSize: 11, color: "var(--bk-text-muted)" }}>{set.setNumber || "—"}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+            <span style={{ fontSize: 11, color: "var(--bk-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{set.theme || "—"}</span>
+            {set.retired && (
+              <span data-testid="retired-pill" style={{ flexShrink: 0, background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b50", borderRadius: 10, padding: "0 7px", fontSize: 10, fontWeight: 700, lineHeight: 1.6, whiteSpace: "nowrap" }}>Retired</span>
+            )}
+          </span>
+        </div>
+      );
+    }
     if (column.key === "qty") return qty;
     if (column.key === "value") {
       // MSRP + Paid render as their own columns now (the desktop split is always on) → the Value cell
@@ -942,7 +953,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
       setSortDirection(prev => prev === "asc" ? "desc" : "asc");
     } else {
       setSortColumn(column);
-      setSortDirection(["value", "gain", "msrp", "paid"].includes(column) ? "desc" : "asc");
+      setSortDirection(["value", "gain", "msrp", "paid", "roi"].includes(column) ? "desc" : "asc");
     }
   }
 
@@ -993,6 +1004,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
         result = (rank[setConditionDisplay(a)] ?? 0) - (rank[setConditionDisplay(b)] ?? 0);
       } else if (sortColumn === "addedAt") {
         result = String(a.addedAt || "").localeCompare(String(b.addedAt || ""));
+      } else if (sortColumn === "roi") {
+        // Numeric %ROI (was a string mis-sort via the generic branch: "+35.0%" vs "−10.0%").
+        // Null-aware: unknown → 0, matching the gain/value convention (mid-pack, never NaN).
+        result = (setROI(a, valueMap) ?? 0) - (setROI(b, valueMap) ?? 0);
       } else {
         result = String(a[sortColumn] || "").localeCompare(String(b[sortColumn] || ""));
       }
@@ -2269,17 +2284,22 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                 Clear
               </button>
             )}
-            {/* Sort control trimmed (MC-Browse polish F4) to its one non-redundant option, "Recently
-                Added" (addedAt has no column, so it can't be header-sorted). Every other sort is reached
-                by clicking a column header; when one is active the select reflects that with a disabled
-                placeholder instead of falsely reading "Recently Added". */}
+            {/* Sort menu — carries the now-headerless Identity sorts (Set Name / Set # / Theme) plus
+                Recently Added (addedAt has no column). The money / Qty / Cond columns sort by clicking
+                their header; when one of those is active this reflects it with the disabled placeholder. */}
             <select
-              value={sortColumn === "addedAt" ? "addedAt:desc" : ""}
-              onChange={e => { if (e.target.value === "addedAt:desc") { setSortColumn("addedAt"); setSortDirection("desc"); } }}
+              value={["name", "setNumber", "theme", "addedAt"].includes(sortColumn) ? `${sortColumn}:${sortDirection}` : ""}
+              onChange={e => { const [key, dir] = e.target.value.split(":"); if (key) { setSortColumn(key); setSortDirection(dir); } }}
               style={filterSelect}
-              title="Sort by most recently added — for any other column, click its header"
+              title="Sort by Set Name / Set # / Theme — for the money, Qty and Cond columns, click the column header"
             >
               <option value="" disabled>Sorted by column ↑↓</option>
+              <option value="name:asc">Set Name (A→Z)</option>
+              <option value="name:desc">Set Name (Z→A)</option>
+              <option value="setNumber:asc">Set # (A→Z)</option>
+              <option value="setNumber:desc">Set # (Z→A)</option>
+              <option value="theme:asc">Theme (A→Z)</option>
+              <option value="theme:desc">Theme (Z→A)</option>
               <option value="addedAt:desc">Recently Added</option>
             </select>
             <button
@@ -2392,20 +2412,19 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                               <img src={set.thumbnail || setImageUrl(set.setNumber)} alt="" onError={e => { e.currentTarget.style.opacity = "0"; }} style={{ width: 40, height: 30, objectFit: "contain", borderRadius: 4, flexShrink: 0 }} />
                             )}
                             <div style={{ flex: 1, minWidth: 0, fontWeight: 800, fontSize: 14, color: "var(--bk-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {colByKey.name ? renderOwnedCell(set, colByKey.name) : (set.name || "—")}
+                              {set.name || "—"}
                             </div>
                             {colByKey.roi && (roiLabel !== "—"
                               ? <span style={{ background: `${roiColor}1a`, color: roiColor, borderRadius: 6, padding: "2px 8px", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{roiLabel}</span>
                               : <span style={{ color: "var(--bk-text-muted)", flexShrink: 0 }}>—</span>)}
                           </div>
-                          {/* Sub-line: set# · theme · condition */}
-                          {(colByKey.setNumber || colByKey.theme || colByKey.condition) && (
+                          {/* Sub-line: set# · theme · condition — identity fields always shown now (the
+                              separate setNumber/theme columns folded into the desktop Identity cell). */}
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: "var(--bk-text-muted)" }}>
-                            {colByKey.setNumber && <span style={{ fontFamily: "var(--bk-font-mono)" }}>{renderOwnedCell(set, colByKey.setNumber)}</span>}
-                            {colByKey.theme && <span>· {renderOwnedCell(set, colByKey.theme)}</span>}
+                            <span style={{ fontFamily: "var(--bk-font-mono)" }}>{set.setNumber || "—"}</span>
+                            <span>· {set.theme || "—"}</span>
                             {colByKey.condition && <ConditionPill set={set} />}
                           </div>
-                          )}
                           {/* Money row: Value · Gain · Qty */}
                           {(colByKey.value || colByKey.gain || colByKey.qty) && (
                           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -2465,6 +2484,12 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                 <tr>
                   <th style={{ ...th, width: 36 }}></th>
                   {visibleCols.map(col => (
+                    col.key === "identity" ? (
+                      // Identity is a non-sortable label (Set#/Name/Theme sort via the Sort menu).
+                      <th key="identity" style={{ ...th, width: OWNED_COL_WIDTHS.identity, overflow: "hidden" }} title="Set Name · Set # · Theme — sort via the Sort menu">
+                        {col.label}
+                      </th>
+                    ) : (
                     <th
                       key={col.key}
                       style={{
@@ -2477,6 +2502,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                     >
                       {sortLabel(col.label, col.key)}
                     </th>
+                    )
                   ))}
                   {/* Fixed trailing actions column — rendered directly, never part of the
                       toggleable/sortable/draggable column system. */}
@@ -2592,6 +2618,12 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                         // matches Gain as plain color-coded text. signColor(null)→neutral mirrors Gain's "—".
                         if (col.key === "roi") {
                           return <td key="roi" style={{ ...tdRight, color: signColor(setROI(set, valueMap)) }}>{renderOwnedCell(set, col)}</td>;
+                        }
+
+                        // Identity — stacked Set Name / Set # / Theme (+ Retired). Multi-line cell, so
+                        // it opts out of the single-line nowrap/ellipsis the other cells use.
+                        if (col.key === "identity") {
+                          return <td key="identity" style={{ ...td, whiteSpace: "normal", verticalAlign: "top" }}>{renderOwnedCell(set, col)}</td>;
                         }
 
                         return (

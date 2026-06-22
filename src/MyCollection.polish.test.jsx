@@ -2,14 +2,13 @@ import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { CARD_DEFS } from "./utils/collectionLayout";
-import { DEFAULT_OWNED_COLUMNS } from "./utils/columnDefaults";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Collection-page polish pass (cosmetic). Locks:
 //   • performance-mode page subtitle removed (no subtitle in either mode)
 //   • aggregate cards echo the per-set vocabulary — "Total Paid" / "Total MSRP"
 //     (dropped "Cost Basis" / "MSRP Value"); "Collection Value" kept
-//   • owned headers use short COMPLETE labels (Img / Set / Cond / Figs / Retired)
+//   • Set#/Name/Theme collapse into ONE stacked Identity cell; headers stay short (Img / Set / Cond)
 //   • ROI cell renders as plain color-coded text like Gain (no shrunk fontSize-12 badge)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -22,12 +21,15 @@ describe("Collection polish — aggregate card labels echo Value / Paid / MSRP",
   });
 });
 
-describe("Collection polish — owned column headers are short + complete", () => {
-  it("uses abbreviations that fit the column (no truncation in the default set)", () => {
-    const L = Object.fromEntries(DEFAULT_OWNED_COLUMNS.map(c => [c.key, c.label]));
-    expect(L.thumb).toBe("Img");
-    expect(L.setNumber).toBe("Set");
-    expect(L.condition).toBe("Cond");
+describe("Collection polish — Set#/Name/Theme collapsed into one Identity column", () => {
+  it("renders the fixed header order with a single 'Set' identity column (no separate Set Name / Theme)", () => {
+    act(() => root.render(React.createElement(MyCollection)));
+    const headers = [...container.querySelectorAll(".owned-table-scroll thead th")]
+      .map(h => h.textContent.replace(/[↑↓]/g, "").trim());
+    // [checkbox, ...data columns..., Actions]; identity header is the short "Set" label.
+    expect(headers.slice(1, -1)).toEqual(["Img", "Set", "MSRP", "Paid", "Value", "Cond", "Qty", "Gain", "ROI"]);
+    expect(headers).not.toContain("Set Name");
+    expect(headers).not.toContain("Theme");
   });
 });
 

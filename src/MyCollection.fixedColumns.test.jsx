@@ -79,8 +79,8 @@ describe("MyCollection — fixed columns (desktop), gear retired (Pass 1)", () =
     expect(labels[0]).toBe("");                     // leading checkbox column
     expect(labels[labels.length - 1]).toBe("Actions"); // trailing fixed actions column
     expect(labels.slice(1, -1)).toEqual([
-      "Img", "Set", "Set Name", "Theme", "MSRP", "Paid", "Value", "Cond", "Qty", "Gain", "ROI",
-    ]);
+      "Img", "Set", "MSRP", "Paid", "Value", "Cond", "Qty", "Gain", "ROI",
+    ]); // Set#/Name/Theme collapsed into the one "Set" identity column (Pass 2)
     // thumb + condition are now always present
     expect(labels).toContain("Img");
     expect(labels).toContain("Cond");
@@ -89,13 +89,15 @@ describe("MyCollection — fixed columns (desktop), gear retired (Pass 1)", () =
     expect([...container.querySelectorAll("button")].some(b => b.textContent.includes("Reset widths"))).toBe(false);
   });
 
-  it("header-click sort still works (Set Name reorders the rows)", () => {
+  it("header-click sort still works on a money column header (Value reorders the rows)", () => {
+    // Identity (Set#/Name/Theme) sorts moved to the Sort menu (covered in identityCell.test); the
+    // money/Qty/Cond columns keep header-click sort. Value: Zebra=150, Apple=250.
     render();
     const firstRowText = () => q('tr[data-index="0"]')?.textContent || "";
     expect(firstRowText()).toContain("10000");      // default: setNumber asc → Zebra (10000) first
-    act(() => thByLabel("Set Name").dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    expect(firstRowText()).toContain("20000");      // name asc → Apple (20000) first
-    expect(localStorage.getItem("blOwnedSort")).toBe("name");
+    act(() => thByLabel("Value").dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(firstRowText()).toContain("20000");      // value desc → Apple (20000, value 250) first
+    expect(localStorage.getItem("blOwnedSort")).toBe("value");
   });
 });
 
