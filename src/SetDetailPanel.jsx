@@ -132,11 +132,8 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
   // Pieces / release-year now come from Brickset (`bs`, already in scope) — the BE
   // metadata cache was the prior source (BE removal, panel metadata source-swap).
   const pieces = bs.pieces || null;
-  const releaseYear = bs.year || null;
   const subtheme = bs.subtheme || null;
   const minifigs = bs.minifigs != null ? bs.minifigs : null;
-  const rating = bs.rating ? Number(bs.rating) : null;
-  const ageMin = bs.age_min || null;
   const exitDate = bs.exit_date || null;
 
   // Last Chance detection from cached codes
@@ -160,7 +157,10 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div>
-            <div style={{ color: "#8a9bb0", fontSize: 12, marginBottom: 4 }}>{item.theme || "—"} • #{item.setNumber}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              {item.theme && <span data-testid="detail-theme-pill" style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{item.theme}</span>}
+              <span style={{ color: "#8a9bb0", fontSize: 12 }}>#{item.setNumber}</span>
+            </div>
             <h2 style={{ margin: 0, fontSize: 18, lineHeight: 1.3, color: "#e8e2d5" }}>{item.name || item.setNumber}</h2>
             <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
               <span style={{
@@ -208,7 +208,6 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
         />
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {releaseYear && <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{releaseYear}</span>}
           {pieces && <span style={{ background: "#0f1a28", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 999, padding: "3px 10px", fontSize: 12, color: "#8a9bb0" }}>{pieces.toLocaleString()} pcs</span>}
           {/* Canonical MSRP (sticker price) — always shown (unknown → "—", never hidden-as-absent). Tooltip
               flags it as sticker price. Label "MSRP" matches the row column / "vs. MSRP" stat / MSRP Value
@@ -222,8 +221,8 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
             value={<>{formatValueCell(prov)}{provConf && <span style={confidenceBadge}>{provConf.marker}</span>}</>} />
           <StatBox label="Net Gain" value={gain === null ? "—" : money(gain)} color={gain === null ? undefined : gain >= 0 ? "#5aa832" : "#ff8b8b"} />
           <StatBox label="ROI" value={roi === null ? "—" : `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%`} color={roi === null ? undefined : roi >= 0 ? "#5aa832" : "#ff8b8b"} />
-          <StatBox label="Avg Paid / Copy" value={money(avgPaid)} />
-          <StatBox label="Value / Copy" value={valueKnown && qty > 0 ? money(totalValue / qty) : "—"} />
+          {qty > 1 && <StatBox label="Avg Paid / Copy" value={money(avgPaid)} />}
+          {qty > 1 && <StatBox label="Value / Copy" value={valueKnown ? money(totalValue / qty) : "—"} />}
           {valueKnown && retailPrice && totalPaid > 0 && <StatBox label="vs. MSRP" value={`${(((totalValue / qty) - retailPrice) / retailPrice * 100) >= 0 ? "+" : ""}${(((totalValue / qty) - retailPrice) / retailPrice * 100).toFixed(1)}%`} color={(totalValue / qty) >= retailPrice ? "#5aa832" : "#ff8b8b"} />}
         </div>
 
@@ -280,14 +279,12 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
             forecast_value_new_2/5_years projections with no caveat, and BE is retired from value (3c)
             and retail (3c). A BrickLink-grounded forecast is a future feature, not a BE passthrough. */}
 
-        {(subtheme || minifigs != null || rating || ageMin) && (
+        {(subtheme || minifigs != null) && (
           <div>
             <div style={sectionLabel}>Set Details</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {subtheme && <StatBox label="Subtheme" value={subtheme} />}
               {minifigs != null && <StatBox label="Minifigs" value={minifigs} />}
-              {rating && <StatBox label="Rating" value={`★ ${rating.toFixed(1)}`} />}
-              {ageMin && <StatBox label="Min Age" value={`${ageMin}+`} />}
             </div>
           </div>
         )}
