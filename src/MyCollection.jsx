@@ -58,6 +58,13 @@ const OWNED_TABLE_MAX_H = "max(320px, calc(100vh - 224px))";
 // stale-narrow persisted width can't ellipsis-clip a value. Single-sourced (isNumericOwnedColumn).
 const NUMERIC_OWNED_COLS = ["qty", "msrp", "paid", "value", "gain", "roi"];
 
+// Phase 3 selection identity. A row is NOT uniquely identified by setNumber alone — a manual set can
+// coexist with a BE set of the same number (the `sets` merge is [...beItems, ...manualItems]), so the
+// selection key is source+setNumber. Stable under index shifts → selection survives single-row deletes
+// (the bug the old index-keyed checkedSets had). Residual: two manual rows sharing a setNumber collide —
+// rare, accepted per the Phase 3 decision.
+const rowKey = (set) => `${set?.source ?? "manual"}::${set?.setNumber ?? ""}`;
+
 // Full column names for the header tooltip — the visible labels are abbreviated to fit the column,
 // so the title carries the complete name on hover. Only keys whose label is shortened need an entry.
 const OWNED_COL_FULL_LABEL = {
@@ -94,7 +101,10 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   const [filterCondition, setFilterCondition] = useState("");
   const [sortColumn, setSortColumn] = useState(() => localStorage.getItem("blOwnedSort") || "setNumber");
   const [sortDirection, setSortDirection] = useState(() => localStorage.getItem("blOwnedSortDir") || "asc");
-  const [checkedSets, setCheckedSets] = useState([]);
+  // Phase 3: highlight selection keyed by rowKey() (was index-keyed checkedSets — fragile to index
+  // shifts). selectionAnchor = rowKey of the last plain-clicked row, the origin for shift-range.
+  const [selectedKeys, setSelectedKeys] = useState(() => new Set());
+  const [selectionAnchor, setSelectionAnchor] = useState(null);
 
   // Mobile breakpoint (combined-Overview commit 4): <=600px swaps the wide Sets table for a
   // windowed card-list. Seed from innerWidth (jsdom defaults to 1024 -> false -> the table
@@ -1022,6 +1032,12 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   visibleSetsRef.current = visibleSets;
   const allSetsRef = useRef(sets);
   allSetsRef.current = sets;
+  // Phase 3 selection-keyboard refs: latest selection + delete handler, so the listener reads fresh
+  // values without re-subscribing on every hover re-render (mirrors visibleSetsRef above).
+  const selectedKeysRef = useRef(selectedKeys);
+  selectedKeysRef.current = selectedKeys;
+  const deleteCheckedSetsRef = useRef(null);
+  deleteCheckedSetsRef.current = deleteCheckedSets;
   useEffect(() => {
     if (!detailSet || selectedSetIndex !== null) return; // detail closed OR Edit drawer open → no nav
     const onKey = (e) => {
@@ -1047,6 +1063,31 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [detailSet, detailSetIndex, selectedSetIndex]);
+
+  // Phase 3 selection keyboard — a SEPARATE listener, active ONLY in the owned table with no overlay
+  // open. Mutually exclusive with the detail-nav effect above (that one requires detailSet; this one
+  // requires !detailSet) → Esc never double-fires: detail open → that effect closes detail; detail
+  // closed → this one clears selection. Hot values read via refs so hover re-renders don't re-subscribe.
+  useEffect(() => {
+    if (mode !== "collection" || tab !== "owned" || detailSet || selectedSetIndex !== null) return;
+    const onKey = (e) => {
+      const t = e.target, tag = (t && t.tagName ? t.tagName : "").toLowerCase();
+      const typing = tag === "input" || tag === "textarea" || tag === "select" || (t && t.isContentEditable);
+      if ((e.key === "a" || e.key === "A") && (e.metaKey || e.ctrlKey)) {
+        if (typing) return;                                       // let the browser select text in a field
+        e.preventDefault();
+        setSelectedKeys(new Set(visibleSetsRef.current.map(rowKey))); // select all visible/filtered
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        if (typing || selectedKeysRef.current.size === 0) return; // Backspace must edit text / no-op when empty
+        e.preventDefault();
+        deleteCheckedSetsRef.current?.();                         // reuse: confirm + rowKey-stable filter
+      } else if (e.key === "Escape") {
+        if (selectedKeysRef.current.size > 0) { setSelectedKeys(new Set()); setSelectionAnchor(null); }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mode, tab, detailSet, selectedSetIndex]);
 
   // Virtualize the owned-sets table (combined-Overview prereq): render only the rows in view inside the
   // existing maxHeight:560 scroll box, so a 600-set collection no longer mounts 600 live <tr>. Dynamic
@@ -1283,31 +1324,53 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     }
   }
 
-  function toggleChecked(index) {
-    setCheckedSets(prev =>
-      prev.includes(index)
-        ? prev.filter(i => i !== index)
-        : [...prev, index]
-    );
+  // ── Phase 3 selection (rowKey-keyed; see rowKey() at module scope) ──────────
+  function toggleKey(key) {
+    setSelectedKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  // Row/card click. Plain → replace selection with this row + set the shift anchor. Cmd/Ctrl → additive
+  // toggle (anchor unchanged). Shift → inclusive range from the anchor to this row in visibleSets order
+  // (additive); with no anchor it degrades to a plain click. vIndex is the VISIBLE position (vrow.index).
+  function handleRowSelect(e, set, vIndex) {
+    const key = rowKey(set);
+    if (e.shiftKey && selectionAnchor) {
+      const anchorVi = visibleSets.findIndex(s => rowKey(s) === selectionAnchor);
+      if (anchorVi >= 0) {
+        const [lo, hi] = anchorVi <= vIndex ? [anchorVi, vIndex] : [vIndex, anchorVi];
+        const rangeKeys = visibleSets.slice(lo, hi + 1).map(rowKey);
+        setSelectedKeys(prev => new Set([...prev, ...rangeKeys])); // shift does NOT move the anchor
+        return;
+      }
+    }
+    if (e.metaKey || e.ctrlKey) { toggleKey(key); return; } // additive toggle, anchor unchanged
+    setSelectedKeys(new Set([key]));                         // plain → collapse to this row
+    setSelectionAnchor(key);
   }
 
   function toggleAll() {
-    const visibleIndexes = visibleSets.map(set => sets.indexOf(set));
-    const allChecked = visibleIndexes.length > 0 && visibleIndexes.every(i => checkedSets.includes(i));
-
-    if (allChecked) {
-      setCheckedSets(prev => prev.filter(i => !visibleIndexes.includes(i)));
-    } else {
-      setCheckedSets(prev => Array.from(new Set([...prev, ...visibleIndexes])));
-    }
+    const visKeys = visibleSets.map(rowKey);
+    const allSelected = visKeys.length > 0 && visKeys.every(k => selectedKeys.has(k));
+    setSelectedKeys(prev => {
+      const next = new Set(prev);
+      if (allSelected) visKeys.forEach(k => next.delete(k));
+      else visKeys.forEach(k => next.add(k));
+      return next;
+    });
   }
 
   function deleteCheckedSets() {
-    if (checkedSets.length === 0) return;
-    if (!window.confirm(`Delete ${checkedSets.length} selected owned set(s)?`)) return;
-
-    setSets(prev => prev.filter((_, i) => !checkedSets.includes(i)));
-    setCheckedSets([]);
+    if (selectedKeys.size === 0) return;
+    if (!window.confirm(`Delete ${selectedKeys.size} selected owned set(s)?`)) return;
+    // Filter by rowKey, NOT index — stable even when other rows shifted (e.g. a prior single-delete),
+    // which is exactly the index-keyed bug this re-key fixes.
+    setSets(prev => prev.filter(s => !selectedKeys.has(rowKey(s))));
+    setSelectedKeys(new Set());
+    setSelectionAnchor(null);
     setSelectedSetIndex(null);
   }
 
@@ -2352,33 +2415,31 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
           </div>
         </div>
 
-        {checkedSets.length > 0 && (
+        {selectedKeys.size > 0 && (
         <div style={{ display: "flex", gap: 10, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <input
               type="checkbox"
-              checked={visibleSets.length > 0 && visibleSets.every(set => checkedSets.includes(sets.indexOf(set)))}
+              checked={visibleSets.length > 0 && visibleSets.every(set => selectedKeys.has(rowKey(set)))}
               onChange={toggleAll}
             />
             Check All
           </label>
 
-          {checkedSets.length > 0 && (
-            <button
-              onClick={deleteCheckedSets}
-              style={{
-                background: "var(--bk-negative-bg)",
-                color: "white",
-                border: "none",
-                borderRadius: 8,
-                padding: "8px 12px",
-                cursor: "pointer",
-                fontWeight: 800
-              }}
-            >
-              Delete Selected ({checkedSets.length})
-            </button>
-          )}
+          <button
+            onClick={deleteCheckedSets}
+            style={{
+              background: "var(--bk-negative-bg)",
+              color: "white",
+              border: "none",
+              borderRadius: 8,
+              padding: "8px 12px",
+              cursor: "pointer",
+              fontWeight: 800
+            }}
+          >
+            Delete Selected ({selectedKeys.size})
+          </button>
         </div>
         )}
 
@@ -2432,13 +2493,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                         <div style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", borderRadius: 12, padding: "12px 14px", cursor: "pointer", display: "flex", flexDirection: "column", gap: 8 }}>
                           {/* Header: checkbox · name · ROI badge */}
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <input
-                              type="checkbox"
-                              checked={checkedSets.includes(index)}
-                              onChange={() => toggleChecked(index)}
-                              onClick={e => e.stopPropagation()}
-                              style={{ accentColor: "var(--bk-gold)", flexShrink: 0 }}
-                            />
+                            {/* Phase 3: mobile selection deferred — no card checkbox; card-click stays detail-open. */}
                             {colByKey.thumb && (
                               <img src={set.thumbnail || setImageUrl(set.setNumber)} alt="" onError={e => { e.currentTarget.style.opacity = "0"; }} style={{ width: 40, height: 30, objectFit: "contain", borderRadius: 4, flexShrink: 0 }} />
                             )}
@@ -2513,7 +2568,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
               }}>
               <thead style={{ position: "sticky", top: 0, zIndex: 5 }}>
                 <tr>
-                  <th style={{ ...th, width: 36 }}></th>
                   {visibleCols.map(col => (
                     col.key === "identity" || col.key === "thumb" ? (
                       // Non-sortable label columns: Identity (Set#/Name/Theme sort via the Sort menu)
@@ -2548,40 +2602,34 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                   const totalSize = ownedRowVirtualizer.getTotalSize();
                   const padTop = vItems.length ? vItems[0].start : 0;
                   const padBottom = vItems.length ? totalSize - vItems[vItems.length - 1].end : 0;
-                  const rowColSpan = visibleCols.length + 2; // +1 leading checkbox, +1 trailing actions
+                  const rowColSpan = visibleCols.length + 1; // +1 trailing actions (leading checkbox column removed — Phase 3)
                   return (<>
                   {padTop > 0 && <tr aria-hidden="true"><td colSpan={rowColSpan} style={{ height: padTop, padding: 0, border: 0 }} /></tr>}
                   {vItems.map((vrow) => {
                   const set = visibleSets[vrow.index];
                   const index = sets.indexOf(set);
                   const qty = asNumber(set.qty) || 1;
+                  const isSelected = selectedKeys.has(rowKey(set));
+                  const isEditActive = selectedSetIndex === index; // Edit drawer open for this row
+                  // Selection highlight = gold tint (SELECTION_BG), distinct from the edit-open --bk-active
+                  // tint so a selected row and the row being edited stay visually separable.
+                  const rowBg = isEditActive ? "var(--bk-active)" : (isSelected ? SELECTION_BG : "transparent");
 
                   return (
                     <tr
                       key={`${set.setNumber}-${index}`}
                       data-index={vrow.index}
+                      data-selected={isSelected ? "1" : undefined}
                       ref={ownedRowVirtualizer.measureElement}
-                      onClick={() => { setDetailSet(openSetDetail(set.setNumber) || set); setDetailSetIndex(index); }}
-                      onMouseEnter={e => {
-                        if (selectedSetIndex !== index) e.currentTarget.style.background = "var(--bk-surface-2)";
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.background = selectedSetIndex === index ? "var(--bk-active)" : "transparent";
-                      }}
+                      onClick={e => handleRowSelect(e, set, vrow.index)}
+                      onMouseEnter={e => { if (!isSelected && !isEditActive) e.currentTarget.style.background = "var(--bk-surface-2)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = rowBg; }}
                       style={{
                         cursor: "pointer",
-                        background: selectedSetIndex === index ? "var(--bk-active)" : "transparent",
+                        background: rowBg,
                         transition: "background 0.12s ease"
                       }}
                     >
-                      <td style={{ ...td, ...stickyCheckbox, borderLeft: "2px solid transparent" }} onClick={e => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={checkedSets.includes(index)}
-                          onChange={() => toggleChecked(index)}
-                        />
-                      </td>
-
                       {visibleCols.map(col => {
                         // Thumbnail image column
                         if (col.key === "thumb") {
@@ -3169,12 +3217,9 @@ const rowActionBtn = {
   transition: "color 0.12s ease",
 };
 
-const stickyCheckbox = {
-  position: "sticky",
-  left: 0,
-  zIndex: 6,
-  background: "var(--bk-bg)"
-};
+// Phase 3 selection highlight — --bk-gold (#CDAA5E, identical in both themes) at 16% alpha. A gold wash,
+// distinct from the edit-drawer-open --bk-active tint so a selected row and the edited row stay separable.
+const SELECTION_BG = "rgba(205, 170, 94, 0.16)";
 
 const thStyle = { color: "var(--bk-text-muted)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, padding: "6px 10px", borderBottom: "1px solid var(--bk-border)", whiteSpace: "nowrap" };
 const tdStyle  = { padding: "8px 10px", borderTop: "1px solid var(--bk-surface-2)", whiteSpace: "nowrap" };

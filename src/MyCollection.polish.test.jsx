@@ -26,8 +26,9 @@ describe("Collection polish — Set#/Name/Theme collapsed into one Identity colu
     act(() => root.render(React.createElement(MyCollection)));
     const headers = [...container.querySelectorAll(".owned-table-scroll thead th")]
       .map(h => h.textContent.replace(/[↑↓]/g, "").trim());
-    // [checkbox, ...data columns..., Actions]; identity header is the short "Set" label.
-    expect(headers.slice(1, -1)).toEqual(["", "Set", "MSRP", "Paid", "Value", "Cond", "Qty", "Gain", "ROI"]);
+    // [...data columns (thumb header blank), Actions]; identity header is the short "Set" label.
+    // Phase 3 removed the leading checkbox column → drop only the trailing Actions (slice 0,-1).
+    expect(headers.slice(0, -1)).toEqual(["", "Set", "MSRP", "Paid", "Value", "Cond", "Qty", "Gain", "ROI"]);
     expect(headers).not.toContain("Set Name");
     expect(headers).not.toContain("Theme");
   });

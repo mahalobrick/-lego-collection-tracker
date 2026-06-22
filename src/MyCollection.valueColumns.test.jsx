@@ -136,8 +136,8 @@ describe("MyCollection — table rows no longer trigger the shared hover card (t
   it("hovering a desktop table row renders NO hover card and applies no gold hover styling", async () => {
     await render(); // collection mode → the owned table renders
     const alpha = rowByName("Alpha Castle");
-    const checkboxTd = alpha.querySelector("td"); // first cell = sticky checkbox (carried the gold left-border)
-    const borderBefore = checkboxTd.style.borderLeft;
+    const firstTd = alpha.querySelector("td"); // first cell (Phase 3 removed the leading checkbox column)
+    const borderBefore = firstTd.style.borderLeft;
 
     await act(async () => { alpha.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })); });
 
@@ -146,10 +146,10 @@ describe("MyCollection — table rows no longer trigger the shared hover card (t
     expect(container.querySelector('[data-testid="hover-retail"]')).toBeNull();
     expect(container.querySelector('[data-testid="hover-paid"]')).toBeNull();
     expect(container.querySelector('[data-testid="hover-market"]')).toBeNull();
-    // hoveredSet is never set from the row, so its gold styling (left-border + name) can't activate:
-    // the sticky-checkbox left border is unchanged by hover (no gold border painted in).
-    expect(checkboxTd.style.borderLeft).toBe(borderBefore);
-    expect(checkboxTd.style.borderLeft).not.toContain("gold");
+    // hoveredSet is never set from the row, so no gold styling activates: the first cell's left border
+    // is unchanged by hover (no gold border painted in).
+    expect(firstTd.style.borderLeft).toBe(borderBefore);
+    expect(firstTd.style.borderLeft).not.toContain("gold");
   });
 });
 

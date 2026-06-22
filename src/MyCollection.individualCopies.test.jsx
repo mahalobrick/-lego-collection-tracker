@@ -105,11 +105,13 @@ function seed(b) { localStorage.setItem("brickEconomyNormalizedCollection", JSON
 // Open the holding-level Edit side panel: render → click row 0 → click the (stubbed) Edit button.
 function openEditPanel() {
   act(() => root.render(React.createElement(MyCollection)));
-  const row = q('tr[data-index="0"]');
-  expect(row, "owned row should render").toBeTruthy();
-  act(() => row.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  // Phase 3: detail-open is the eye icon (a plain row click now selects). The mock SetDetailPanel
+  // renders its Edit button once the eye sets detailSet.
+  const eye = q('[data-testid="row-action-view"]');
+  expect(eye, "row view (eye) action should render").toBeTruthy();
+  act(() => eye.dispatchEvent(new MouseEvent("click", { bubbles: true })));
   const edit = q('[data-testid="mock-edit"]');
-  expect(edit, "Edit button should appear after selecting a row").toBeTruthy();
+  expect(edit, "Edit button should appear after opening detail").toBeTruthy();
   act(() => edit.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 }
 

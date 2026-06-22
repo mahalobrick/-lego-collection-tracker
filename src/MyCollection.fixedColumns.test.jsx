@@ -75,15 +75,15 @@ describe("MyCollection — fixed columns (desktop), gear retired (Pass 1)", () =
   it("renders the fixed columns in order, all visible (thumb + condition), with no column gear", () => {
     render();
     const labels = headerLabels();
-    // [checkbox, ...data columns..., Actions]
-    expect(labels[0]).toBe("");                     // leading checkbox column
+    // [...data columns (Image header blank), Actions] — Phase 3 removed the leading checkbox column.
+    expect(labels[0]).toBe("");                     // Image (thumb) column — blank header
     expect(labels[labels.length - 1]).toBe("Actions"); // trailing fixed actions column
-    expect(labels.slice(1, -1)).toEqual([
+    expect(labels.slice(0, -1)).toEqual([
       "", "Set", "MSRP", "Paid", "Value", "Cond", "Qty", "Gain", "ROI",
-    ]); // Image header is now blank (non-sortable); Set#/Name/Theme collapsed into "Set" (Pass 2)
+    ]); // Image header blank (non-sortable); Set#/Name/Theme collapsed into "Set" (Pass 2)
     // condition present; the Image column is present but unlabeled (blank header)
     expect(labels).toContain("Cond");
-    expect(labels.slice(1, -1)[0]).toBe(""); // Image column header blank
+    expect(labels.slice(0, -1)[0]).toBe(""); // Image column header blank
     // gear is gone: no "Column visibility" toggle, no "Reset widths" button
     expect(container.querySelector('[title*="Column visibility"]')).toBeNull();
     expect([...container.querySelectorAll("button")].some(b => b.textContent.includes("Reset widths"))).toBe(false);
@@ -92,7 +92,7 @@ describe("MyCollection — fixed columns (desktop), gear retired (Pass 1)", () =
   it("the Image column is non-sortable — clicking its (blank) header does not change the sort", () => {
     render();
     expect(localStorage.getItem("blOwnedSort")).toBe("setNumber"); // default
-    const thumbTh = container.querySelectorAll("thead th")[1]; // [0]=checkbox, [1]=Image
+    const thumbTh = container.querySelectorAll("thead th")[0]; // [0]=Image (checkbox column removed — Phase 3)
     expect(thumbTh.textContent.trim()).toBe("");                // blank header (no "Img" label)
     act(() => thumbTh.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     expect(localStorage.getItem("blOwnedSort")).toBe("setNumber"); // unchanged → non-sortable

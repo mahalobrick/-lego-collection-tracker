@@ -74,9 +74,11 @@ const q = (sel) => container.querySelector(sel);
 const blob = () => JSON.parse(localStorage.getItem("brickEconomyNormalizedCollection"));
 const render = () => act(() => root.render(React.createElement(MyCollection)));
 const clickRow = () => {
-  const row = q('tr[data-index="0"]');
-  expect(row, "owned row should render").toBeTruthy();
-  act(() => row.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  // Phase 3: a plain row click SELECTS; detail-open moved to the eye icon. The mock SetDetailPanel
+  // renders its Edit button once detailSet is set, which the eye click does.
+  const eye = q('[data-testid="row-action-view"]');
+  expect(eye, "row view (eye) action should render").toBeTruthy();
+  act(() => eye.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 };
 const clickEdit = () => {
   const edit = q('[data-testid="mock-edit"]');
@@ -158,13 +160,15 @@ describe("MyCollection — chrome cleanup", () => {
     expect(container.textContent).not.toContain("Browse, search, and manage");
   });
 
-  it("the bulk-action row is hidden with no selection and appears once a row is selected", () => {
+  it("the bulk-action band is hidden with no selection and appears once a row is selected (click-to-select)", () => {
     render();
-    expect(container.textContent).not.toContain("Check All"); // band reclaimed when nothing selected
-    const cb = q('tr[data-index="0"] input[type="checkbox"]');
-    expect(cb, "per-row checkbox renders (the way to select without Check All)").toBeTruthy();
-    act(() => cb.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    expect(container.textContent).toContain("Check All"); // band appears on selection
+    expect(container.textContent).not.toContain("Delete Selected"); // band reclaimed when nothing selected
+    // Phase 3: no per-row checkbox — a plain row click selects → the band (Check All + Delete Selected) shows.
+    const row = q('tr[data-index="0"]');
+    expect(row, "owned row renders").toBeTruthy();
+    act(() => row.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(container.textContent).toContain("Check All");
+    expect(container.textContent).toContain("Delete Selected (1)");
   });
 });
 
