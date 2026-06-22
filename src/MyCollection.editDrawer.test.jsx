@@ -104,6 +104,22 @@ describe("MyCollection — Edit panel is a fixed right-edge drawer (Phase 1)", (
     expect(backdrop.style.position).toBe("fixed");
   });
 
+  it("the table section has no backdrop-filter trap, so the fixed drawer is viewport-anchored (full height)", () => {
+    // BUG: a non-none backdrop-filter (like transform/filter) on an ancestor makes a position:fixed child
+    // anchor to THAT ancestor, not the viewport. The Edit drawer (top:0/bottom:0) lives inside
+    // #bl-sec-table, whose shared `panel` style carried backdrop-filter:blur — so a filtered-short table
+    // shrank the section and the drawer collapsed with it. Fix: #bl-sec-table sets backdrop-filter:none
+    // (visually inert — opaque surface bg), removing the trap. (SetDetailPanel never had this — page root.)
+    openEditDrawer();
+    const section = q("#bl-sec-table");
+    expect(section, "table section renders").toBeTruthy();
+    expect(section.style.backdropFilter, "no containing-block trap on the drawer's fixed ancestor").toBe("none");
+    const drawer = q('[data-testid="edit-drawer"]');
+    expect(drawer.style.position).toBe("fixed");
+    expect(drawer.style.top, "top set → viewport-anchored span").toBeTruthy();    // 0 (full-height via top+bottom)
+    expect(drawer.style.bottom, "bottom set → viewport-anchored span").toBeTruthy();
+  });
+
   it("keeps the table grid single-column (no 1fr 380px split that stole table width)", () => {
     openEditDrawer();
     const grid = q('[data-testid="owned-table-grid"]');

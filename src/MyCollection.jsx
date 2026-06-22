@@ -2275,7 +2275,11 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
       )}
 
       {mode === "collection" && tab === "owned" && sets.length > 0 && (
-      <section id="bl-sec-table" style={{ ...panel, order: 3, minWidth: 0 }}>
+      // backdropFilter:none overrides panel's (visually-inert, opaque-bg) blur ONLY here: a non-none
+      // backdrop-filter makes this section a containing block for its position:fixed children, so the
+      // Edit drawer (top:0/bottom:0) would anchor to the section — shrinking with a filtered-short table —
+      // instead of the viewport. The Detail panel avoids this by rendering at the page root. (full-height fix)
+      <section id="bl-sec-table" style={{ ...panel, backdropFilter: "none", order: 3, minWidth: 0 }}>
         <div style={{
           display: "flex",
           justifyContent: "space-between",
