@@ -110,6 +110,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   const [selectedSetIndex, setSelectedSetIndex] = useState(null);
   const [detailSet, setDetailSet] = useState(null);
   const [detailSetIndex, setDetailSetIndex] = useState(null);
+  const [copiedIndex, setCopiedIndex] = useState(null); // row whose set number was just copied (icon → ✓ ~1s)
   const [showAllThemes, setShowAllThemes] = useState(false);
   const [showAllRoi, setShowAllRoi] = useState(false);
   const [showAllValuable, setShowAllValuable] = useState(false);
@@ -1366,6 +1367,17 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     setSets(prev => prev.filter((_, i) => i !== index));
   }
 
+  // Per-row "copy" action: writes the BARE set number ("31120-1" → "31120") to the clipboard,
+  // then flips that row's icon to a check for ~1s. Promise.resolve() swallows a writeText
+  // rejection (permissions) without an unhandled-rejection warning and is a no-op when the
+  // clipboard API is absent (mocked/insecure context).
+  function copySetNumber(set, index) {
+    const bare = String(set.setNumber || "").replace(/-1$/, "");
+    Promise.resolve(navigator.clipboard?.writeText(bare)).catch(() => {});
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(cur => (cur === index ? null : cur)), 1000);
+  }
+
   function logSale(index) {
     const s = sets[index];
     const qty  = asNumber(s.qty) || 1;
@@ -2578,7 +2590,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
               // sized to this; min-width:100% stretches it to fill a wider container, and the wrapper
               // scrolls (overflow-x:auto) when the columns total more than the container — so a crowded
               // column set scrolls sideways instead of compressing numbers until they ellipsis-clip.
-              const currentTotalW = 36 + visibleCols.reduce((s, c) => s + (columnWidths[c.key] ?? 80), 0);
+              const currentTotalW = 36 + visibleCols.reduce((s, c) => s + (columnWidths[c.key] ?? 80), 0) + ACTIONS_COL_W;
               return (
             <div className="owned-table-scroll" style={{ minWidth: 0 }}>
             <div ref={ownedScrollRef} className="owned-table-scroll" style={{ overflow: "auto", maxHeight: OWNED_TABLE_MAX_H }}>
@@ -2625,6 +2637,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                       />
                     </th>
                   ))}
+                  {/* Fixed trailing actions column — rendered directly, never part of the
+                      toggleable/sortable/draggable column system. */}
+                  <th style={{ ...thRight, width: ACTIONS_COL_W }}>Actions</th>
                 </tr>
               </thead>
 
@@ -2634,7 +2649,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                   const totalSize = ownedRowVirtualizer.getTotalSize();
                   const padTop = vItems.length ? vItems[0].start : 0;
                   const padBottom = vItems.length ? totalSize - vItems[vItems.length - 1].end : 0;
-                  const rowColSpan = visibleCols.length + 1; // +1 for the leading checkbox column
+                  const rowColSpan = visibleCols.length + 2; // +1 leading checkbox, +1 trailing actions
                   return (<>
                   {padTop > 0 && <tr aria-hidden="true"><td colSpan={rowColSpan} style={{ height: padTop, padding: 0, border: 0 }} /></tr>}
                   {vItems.map((vrow) => {
@@ -2756,6 +2771,68 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                           </td>
                         );
                       })}
+
+                      {/* Fixed trailing actions cell — rendered directly (outside visibleCols), so it
+                          is exempt from the gear toggle, sort, drag-reorder and resize. Each button
+                          stopPropagation()s so it does NOT bubble to the row's open-detail handler;
+                          view re-runs that same open-detail call (its stopPropagation only blocks the
+                          duplicate open the row would otherwise trigger). */}
+                      <td style={tdActions}>
+                        <div style={{ display: "inline-flex", gap: 2, alignItems: "center", justifyContent: "flex-end", width: "100%" }}>
+                          <button
+                            type="button"
+                            data-testid="row-action-view"
+                            title="View details"
+                            aria-label="View details"
+                            style={rowActionBtn}
+                            onClick={e => { e.stopPropagation(); setDetailSet(openSetDetail(set.setNumber) || set); setDetailSetIndex(index); }}
+                            onMouseEnter={e => { e.currentTarget.style.color = "var(--bk-action)"; }}
+                            onMouseLeave={e => { e.currentTarget.style.color = "var(--bk-text-muted)"; }}
+                          >
+                            <Icon name="eye" size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            data-testid="row-action-copy"
+                            title={copiedIndex === index ? "Copied!" : "Copy set number"}
+                            aria-label={copiedIndex === index ? "Copied!" : "Copy set number"}
+                            style={rowActionBtn}
+                            onClick={e => { e.stopPropagation(); copySetNumber(set, index); }}
+                            onMouseEnter={e => { e.currentTarget.style.color = "var(--bk-action)"; }}
+                            onMouseLeave={e => { e.currentTarget.style.color = "var(--bk-text-muted)"; }}
+                          >
+                            <Icon name={copiedIndex === index ? "check" : "copy"} size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            data-testid="row-action-edit"
+                            title="Edit"
+                            aria-label="Edit"
+                            style={rowActionBtn}
+                            onClick={e => { e.stopPropagation(); setSelectedSetIndex(index); }}
+                            onMouseEnter={e => { e.currentTarget.style.color = "var(--bk-action)"; }}
+                            onMouseLeave={e => { e.currentTarget.style.color = "var(--bk-text-muted)"; }}
+                          >
+                            <Icon name="edit" size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            data-testid="row-action-delete"
+                            title="Delete"
+                            aria-label="Delete"
+                            style={rowActionBtn}
+                            onClick={e => {
+                              e.stopPropagation();
+                              const clean = String(set.setNumber || "").replace(/-1$/, "").trim();
+                              if (window.confirm(clean ? `Delete owned set ${clean}?` : "Delete this owned set?")) deleteSet(index);
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.color = "var(--bk-action)"; }}
+                            onMouseLeave={e => { e.currentTarget.style.color = "var(--bk-text-muted)"; }}
+                          >
+                            <Icon name="delete" size={16} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                   })}
@@ -3158,6 +3235,8 @@ const circleButton = {
   fontSize: 16
 };
 
+const ACTIONS_COL_W = 140; // fixed trailing actions column (4 icon buttons) — see desktop table
+
 const td = {
   padding: 10,
   borderTop: "1px solid var(--bk-surface-2)",
@@ -3166,6 +3245,26 @@ const td = {
   textOverflow: "ellipsis"
 };
 const tdRight = { ...td, textAlign: "right", fontWeight: 800, fontFamily: "var(--bk-font-mono)", fontVariantNumeric: "tabular-nums" };
+const tdActions = { ...td, width: ACTIONS_COL_W, textAlign: "right", padding: "4px 8px", overflow: "visible" };
+
+// Borderless row-action icon button: currentColor rides muted → gold accent on hover
+// (swapped via onMouseEnter/Leave, the file's established inline-hover pattern). 28px keeps a
+// WCAG-2.5.8 tap target.
+const rowActionBtn = {
+  background: "transparent",
+  border: "none",
+  color: "var(--bk-text-muted)",
+  cursor: "pointer",
+  padding: 4,
+  borderRadius: 6,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minWidth: 28,
+  minHeight: 28,
+  lineHeight: 0,
+  transition: "color 0.12s ease",
+};
 
 const stickyCheckbox = {
   position: "sticky",
