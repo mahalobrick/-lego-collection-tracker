@@ -79,14 +79,23 @@ describe("MyCollection — fixed columns (desktop), gear retired (Pass 1)", () =
     expect(labels[0]).toBe("");                     // leading checkbox column
     expect(labels[labels.length - 1]).toBe("Actions"); // trailing fixed actions column
     expect(labels.slice(1, -1)).toEqual([
-      "Img", "Set", "MSRP", "Paid", "Value", "Cond", "Qty", "Gain", "ROI",
-    ]); // Set#/Name/Theme collapsed into the one "Set" identity column (Pass 2)
-    // thumb + condition are now always present
-    expect(labels).toContain("Img");
+      "", "Set", "MSRP", "Paid", "Value", "Cond", "Qty", "Gain", "ROI",
+    ]); // Image header is now blank (non-sortable); Set#/Name/Theme collapsed into "Set" (Pass 2)
+    // condition present; the Image column is present but unlabeled (blank header)
     expect(labels).toContain("Cond");
+    expect(labels.slice(1, -1)[0]).toBe(""); // Image column header blank
     // gear is gone: no "Column visibility" toggle, no "Reset widths" button
     expect(container.querySelector('[title*="Column visibility"]')).toBeNull();
     expect([...container.querySelectorAll("button")].some(b => b.textContent.includes("Reset widths"))).toBe(false);
+  });
+
+  it("the Image column is non-sortable — clicking its (blank) header does not change the sort", () => {
+    render();
+    expect(localStorage.getItem("blOwnedSort")).toBe("setNumber"); // default
+    const thumbTh = container.querySelectorAll("thead th")[1]; // [0]=checkbox, [1]=Image
+    expect(thumbTh.textContent.trim()).toBe("");                // blank header (no "Img" label)
+    act(() => thumbTh.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(localStorage.getItem("blOwnedSort")).toBe("setNumber"); // unchanged → non-sortable
   });
 
   it("header-click sort still works on a money column header (Value reorders the rows)", () => {

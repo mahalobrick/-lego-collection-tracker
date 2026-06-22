@@ -3,14 +3,13 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Phase 2 table redesign — per-row action icons on the DESKTOP collection table.
-// Each row carries a fixed trailing actions cell with four icon buttons:
+// Per-row action icons on the DESKTOP collection table. Each row carries a fixed trailing
+// actions cell with three icon buttons:
 //   • view   → opens the detail panel (same call as the row click)
-//   • copy   → writes the BARE set number ("31120-1" → "31120") to the clipboard
 //   • edit   → opens the edit drawer (setSelectedSetIndex)
 //   • delete → window.confirm FIRST, then deleteSet(index)
-// Locks: 4 buttons per row; view opens detail; copy/edit/delete stopPropagation so they do
-// NOT bubble to the row's open-detail handler (view does, intentionally). Mirrors the
+// Locks: 3 buttons per row; view opens detail; edit/delete stopPropagation so they do NOT
+// bubble to the row's open-detail handler (view does, intentionally). Mirrors the
 // MyCollection.editDrawer.test.jsx god-module harness (same mocks + forced virtualizer).
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -51,8 +50,7 @@ import MyCollection from "./MyCollection";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-// Two distinct sets. First number ends in "-1" so the copy action's bare form is asserted:
-// "31120-1" → "31120".
+// Two distinct sets, used across the view / edit / delete cases.
 const BLOB = [
   { setNumber: "31120-1", name: "Medieval Castle", theme: "Creator",
     quantity: 1, averagePaid: 100, totalPaid: 100, totalValue: 150,
@@ -62,12 +60,10 @@ const BLOB = [
     entries: [{ paid_price: 800, current_value: 1000, condition: "new" }] },
 ];
 
-let container, root, writeText;
+let container, root;
 beforeEach(() => {
   localStorage.clear();
   localStorage.setItem("brickEconomyNormalizedCollection", JSON.stringify(BLOB));
-  writeText = vi.fn();
-  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -86,16 +82,16 @@ const clickIn = (el, sel) => {
 };
 
 describe("MyCollection — per-row action icons (desktop table, Phase 2)", () => {
-  it("renders exactly 4 action buttons (view/copy/edit/delete) on every desktop row", () => {
+  it("renders exactly 3 action buttons (view/edit/delete) on every desktop row — no copy", () => {
     render();
     const r = rows();
     expect(r.length, "both seeded sets render as rows").toBe(2);
     for (const row of r) {
-      expect(row.querySelectorAll('[data-testid^="row-action-"]').length).toBe(4);
+      expect(row.querySelectorAll('[data-testid^="row-action-"]').length).toBe(3);
       expect(row.querySelector('[data-testid="row-action-view"]')).toBeTruthy();
-      expect(row.querySelector('[data-testid="row-action-copy"]')).toBeTruthy();
       expect(row.querySelector('[data-testid="row-action-edit"]')).toBeTruthy();
       expect(row.querySelector('[data-testid="row-action-delete"]')).toBeTruthy();
+      expect(row.querySelector('[data-testid="row-action-copy"]'), "copy action removed").toBeNull();
     }
     // The fixed trailing header cell exists (rendered directly, not via the toggleable columns).
     const actionsTh = [...container.querySelectorAll("th")].find(th => th.textContent.trim() === "Actions");
@@ -109,15 +105,6 @@ describe("MyCollection — per-row action icons (desktop table, Phase 2)", () =>
     const detail = q('[data-testid="detail-open"]');
     expect(detail, "view opens the detail panel").toBeTruthy();
     expect(detail.textContent).toBe("31120-1"); // detailSet = openSetDetail("31120-1")
-  });
-
-  it("copy → writes the BARE set number to the clipboard and shows feedback, without opening detail", () => {
-    render();
-    const copyBtn = clickIn(rowByText("31120"), '[data-testid="row-action-copy"]');
-    expect(writeText).toHaveBeenCalledTimes(1);
-    expect(writeText).toHaveBeenCalledWith("31120");        // bare — NOT "31120-1"
-    expect(copyBtn.getAttribute("aria-label")).toBe("Copied!"); // brief feedback (icon → check)
-    expect(q('[data-testid="detail-open"]'), "copy stopPropagation → detail must NOT open").toBeNull();
   });
 
   it("edit → opens the edit drawer (sets selectedSetIndex), without opening detail", () => {

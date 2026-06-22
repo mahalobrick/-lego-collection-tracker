@@ -114,7 +114,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   const [selectedSetIndex, setSelectedSetIndex] = useState(null);
   const [detailSet, setDetailSet] = useState(null);
   const [detailSetIndex, setDetailSetIndex] = useState(null);
-  const [copiedIndex, setCopiedIndex] = useState(null); // row whose set number was just copied (icon → ✓ ~1s)
   const [showAllThemes, setShowAllThemes] = useState(false);
   const [showAllRoi, setShowAllRoi] = useState(false);
   const [showAllValuable, setShowAllValuable] = useState(false);
@@ -1275,17 +1274,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
 
   function deleteSet(index) {
     setSets(prev => prev.filter((_, i) => i !== index));
-  }
-
-  // Per-row "copy" action: writes the BARE set number ("31120-1" → "31120") to the clipboard,
-  // then flips that row's icon to a check for ~1s. Promise.resolve() swallows a writeText
-  // rejection (permissions) without an unhandled-rejection warning and is a no-op when the
-  // clipboard API is absent (mocked/insecure context).
-  function copySetNumber(set, index) {
-    const bare = String(set.setNumber || "").replace(/-1$/, "");
-    Promise.resolve(navigator.clipboard?.writeText(bare)).catch(() => {});
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(cur => (cur === index ? null : cur)), 1000);
   }
 
   function logSale(index) {
@@ -2484,10 +2472,11 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                 <tr>
                   <th style={{ ...th, width: 36 }}></th>
                   {visibleCols.map(col => (
-                    col.key === "identity" ? (
-                      // Identity is a non-sortable label (Set#/Name/Theme sort via the Sort menu).
-                      <th key="identity" style={{ ...th, width: OWNED_COL_WIDTHS.identity, overflow: "hidden" }} title="Set Name · Set # · Theme — sort via the Sort menu">
-                        {col.label}
+                    col.key === "identity" || col.key === "thumb" ? (
+                      // Non-sortable label columns: Identity (Set#/Name/Theme sort via the Sort menu)
+                      // and Image (sorting by image URL is meaningless → no sort, blank header).
+                      <th key={col.key} style={{ ...th, width: OWNED_COL_WIDTHS[col.key] ?? 80, overflow: "hidden" }} title={col.key === "identity" ? "Set Name · Set # · Theme — sort via the Sort menu" : undefined}>
+                        {col.key === "identity" ? col.label : null}
                       </th>
                     ) : (
                     <th
@@ -2663,18 +2652,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                             onMouseLeave={e => { e.currentTarget.style.color = "var(--bk-text-muted)"; }}
                           >
                             <Icon name="eye" size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            data-testid="row-action-copy"
-                            title={copiedIndex === index ? "Copied!" : "Copy set number"}
-                            aria-label={copiedIndex === index ? "Copied!" : "Copy set number"}
-                            style={rowActionBtn}
-                            onClick={e => { e.stopPropagation(); copySetNumber(set, index); }}
-                            onMouseEnter={e => { e.currentTarget.style.color = "var(--bk-action)"; }}
-                            onMouseLeave={e => { e.currentTarget.style.color = "var(--bk-text-muted)"; }}
-                          >
-                            <Icon name={copiedIndex === index ? "check" : "copy"} size={16} />
                           </button>
                           <button
                             type="button"
@@ -3108,7 +3085,7 @@ const circleButton = {
   fontSize: 16
 };
 
-const ACTIONS_COL_W = 140; // fixed trailing actions column (4 icon buttons) — see desktop table
+const ACTIONS_COL_W = 108; // fixed trailing actions column (3 icon buttons) — see desktop table
 
 const td = {
   padding: 10,
