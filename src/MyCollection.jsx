@@ -1421,7 +1421,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   }
 
   return (
-    <div className="tab-page" style={page} onMouseMove={e => setTipPos({ x: e.clientX, y: e.clientY })} onTouchStart={() => { setHoveredSet(null); setHoveredWatchItem(null); }}>
+    <div className="tab-page" style={page} onMouseMove={e => { if (hoveredSet || hoveredWatchItem) setTipPos({ x: e.clientX, y: e.clientY }); }} onTouchStart={() => { setHoveredSet(null); setHoveredWatchItem(null); }}>
       <div style={tabHeader}>
         <div>
           <h2 style={{ margin: 0, fontFamily: "var(--bk-font-display)", color: "var(--bk-text)" }}>{mode === "performance" ? "Performance" : "Collection"}</h2>
@@ -1728,7 +1728,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                               return (
                                 <div key={`${s.setNumber}-${i}`}
                                   onClick={() => { setDetailSet(openSetDetail(s.setNumber) || s); setDetailSetIndex(realIndex); }}
-                                  onMouseEnter={e => { e.currentTarget.style.border = "1px solid var(--bk-border)"; setHoveredSet(s); }}
+                                  onMouseEnter={e => { e.currentTarget.style.border = "1px solid var(--bk-border)"; setTipPos({ x: e.clientX, y: e.clientY }); setHoveredSet(s); }}
                                   onMouseLeave={e => { e.currentTarget.style.border = "1px solid var(--bk-border)"; setHoveredSet(null); }}
                                   style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
                                   <div>
@@ -1765,7 +1765,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                               return (
                                 <div key={`${s.setNumber}-${i}`}
                                   onClick={() => { setDetailSet(openSetDetail(s.setNumber) || s); setDetailSetIndex(sets.indexOf(s)); }}
-                                  onMouseEnter={e => { e.currentTarget.style.border = "1px solid var(--bk-border)"; setHoveredSet(s); }}
+                                  onMouseEnter={e => { e.currentTarget.style.border = "1px solid var(--bk-border)"; setTipPos({ x: e.clientX, y: e.clientY }); setHoveredSet(s); }}
                                   onMouseLeave={e => { e.currentTarget.style.border = "1px solid var(--bk-border)"; setHoveredSet(null); }}
                                   style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
                                   <div>
@@ -1806,7 +1806,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                                 return (
                                   <div key={`${wlItem.setNumber}-${i}`}
                                     onClick={() => setDetailWatchItem(wlItem)}
-                                    onMouseEnter={e => { e.currentTarget.style.border = "1px solid var(--bk-border)"; setHoveredWatchItem(wlItem); }}
+                                    onMouseEnter={e => { e.currentTarget.style.border = "1px solid var(--bk-border)"; setTipPos({ x: e.clientX, y: e.clientY }); setHoveredWatchItem(wlItem); }}
                                     onMouseLeave={e => { e.currentTarget.style.border = "1px solid var(--bk-border)"; setHoveredWatchItem(null); }}
                                     style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, padding: "9px 12px", cursor: "pointer" }}>
                                     <div>
