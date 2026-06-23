@@ -4,6 +4,8 @@
 // size is injected from the prop. Vite's import.meta.glob(?raw) pulls every icon in as a
 // build-time string, so dropping a new SVG into src/icons/ui/ registers it automatically.
 
+import { memo } from "react";
+
 const RAW = import.meta.glob("./icons/ui/*.svg", { query: "?raw", eager: true, import: "default" });
 
 const ICONS = Object.fromEntries(
@@ -18,7 +20,7 @@ export const ICON_NAMES = Object.keys(ICONS);
  *
  * @param {{ name: string, size?: number, title?: string, style?: object, className?: string }} props
  */
-export default function Icon({ name, size = 20, title, style, className }) {
+function Icon({ name, size = 20, title, style, className }) {
   const raw = ICONS[name];
   if (!raw) {
     if (import.meta.env?.DEV) console.warn(`<Icon>: unknown name "${name}"`);
@@ -37,3 +39,11 @@ export default function Icon({ name, size = 20, title, style, className }) {
     />
   );
 }
+
+// Memoized so the parent's per-mousemove re-render storm (MyCollection setTipPos) can't re-invoke
+// Icon and re-inject its dangerouslySetInnerHTML <svg> — that node swap was breaking a cold click
+// whose mousedown/mouseup straddled a re-render (see the cold-click-race diagnosis). Props are stable
+// primitives (name/size) at the row-action call sites, so memo skips those churn renders entirely;
+// a genuine name/size change still re-renders (shallow prop compare). Color rides currentColor (CSS),
+// so theming never needs an Icon re-render.
+export default memo(Icon);
