@@ -119,6 +119,37 @@ describe("Phase 3 selection — click-to-highlight", () => {
     expect(selectedIdx(), "edit did not select the row").toEqual([]);
   });
 
+  it("clicking the Actions cell's EMPTY area is a no-op — it does NOT select the row (kills the dead-zone)", () => {
+    // The icons are short islands in a ~68px row; the Actions <td> now stops propagation so a
+    // near-miss click in its empty space no longer bubbles to the row's handleRowSelect.
+    render();
+    const actionsTd = row(0).querySelector('[data-testid="row-action-view"]').closest("td");
+    expect(actionsTd, "Actions cell found").toBeTruthy();
+    act(() => actionsTd.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(selectedIdx(), "empty Actions-cell click did not select").toEqual([]);
+    expect(q('[data-testid="detail-open"]'), "empty Actions-cell click did not open detail").toBeFalsy();
+    // Contrast: a NON-Actions data cell still selects — the guard is scoped to the Actions cell only.
+    act(() => row(1).children[0].dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(selectedIdx(), "a data cell still selects").toEqual(["1"]);
+  });
+
+  it("Actions hit-area spans the full row: cell is positioned, container is absolute+stretch, buttons stretch", () => {
+    // Geometry wiring for the enlarged hit target (the real coordinate behaviour is live-only —
+    // jsdom has no layout — but the style props that drive it are a deterministic regression guard).
+    // A %-height child of a table-cell doesn't resolve, so the container is absolute inset:0 against
+    // a position:relative <td>, with align-items:stretch + each button align-self:stretch.
+    render();
+    const innerDiv = row(0).querySelector('[data-testid="row-action-view"]').parentElement;
+    const actionsTd = innerDiv.parentElement;
+    expect(actionsTd.style.position, "Actions <td> is the positioned containing block").toBe("relative");
+    expect(innerDiv.style.position, "actions container fills the cell").toBe("absolute");
+    expect(innerDiv.style.alignItems, "actions container stretches its children").toBe("stretch");
+    for (const id of ["row-action-view", "row-action-edit", "row-action-delete"]) {
+      const btn = row(0).querySelector(`[data-testid="${id}"]`);
+      expect(btn.style.alignSelf, `${id} stretches to the full row height`).toBe("stretch");
+    }
+  });
+
   it("clicking the Qty cell SELECTS the row — no inline editor steals the click (Qty edits in the drawer)", () => {
     render();
     // Qty is now plain text (route a): clicking it must bubble to the row and select, like any cell.

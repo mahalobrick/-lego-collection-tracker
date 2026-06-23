@@ -2706,9 +2706,16 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                           is exempt from the gear toggle, sort, drag-reorder and resize. Each button
                           stopPropagation()s so it does NOT bubble to the row's open-detail handler;
                           view re-runs that same open-detail call (its stopPropagation only blocks the
-                          duplicate open the row would otherwise trigger). */}
-                      <td style={tdActions}>
-                        <div style={{ display: "inline-flex", gap: 2, alignItems: "center", justifyContent: "flex-end", width: "100%" }}>
+                          duplicate open the row would otherwise trigger).
+                          CELL-LEVEL GUARD: the whole Actions <td> stops propagation so a near-miss click
+                          in the cell's empty space (28px icons are short islands in a ~68px row) is a
+                          no-op instead of bubbling to the row's handleRowSelect — kills the click
+                          dead-zone. The inner row is absolutely stretched to the cell (a %-height child
+                          of a table-cell doesn't resolve, so position:absolute inset:0 against the
+                          position:relative <td> is what makes it full-height) and stretches each button
+                          vertically so the clickable band spans the whole row (icon stays centered). */}
+                      <td style={tdActions} onClick={e => e.stopPropagation()}>
+                        <div style={{ position: "absolute", inset: 0, display: "flex", gap: 2, alignItems: "stretch", justifyContent: "flex-end", paddingRight: 8 }}>
                           <button
                             type="button"
                             data-testid="row-action-view"
@@ -3154,11 +3161,13 @@ const td = {
   textOverflow: "ellipsis"
 };
 const tdRight = { ...td, textAlign: "right", fontWeight: 800, fontFamily: "var(--bk-font-mono)", fontVariantNumeric: "tabular-nums" };
-const tdActions = { ...td, width: ACTIONS_COL_W, textAlign: "right", padding: "4px 8px", overflow: "visible" };
+const tdActions = { ...td, width: ACTIONS_COL_W, textAlign: "right", padding: "4px 8px", overflow: "visible", position: "relative" };
 
 // Borderless row-action icon button: currentColor rides muted → gold accent on hover
-// (swapped via onMouseEnter/Leave, the file's established inline-hover pattern). 28px keeps a
-// WCAG-2.5.8 tap target.
+// (swapped via onMouseEnter/Leave, the file's established inline-hover pattern). 28px is the MIN
+// tap target (WCAG-2.5.8); alignSelf:stretch grows the *clickable* area to the full row height
+// (the parent fills the cell via position:absolute inset:0 + align-items:stretch) so a click
+// anywhere in the icon's column band fires it — the 16px icon stays centered, appearance unchanged.
 const rowActionBtn = {
   // color is supplied by the .bk-row-action CSS class (hover-only highlight + keyboard-only focus
   // ring) so a mouse click leaves no stuck "active" state — see index.css.
@@ -3170,6 +3179,7 @@ const rowActionBtn = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
+  alignSelf: "stretch",
   minWidth: 28,
   minHeight: 28,
   lineHeight: 0,
