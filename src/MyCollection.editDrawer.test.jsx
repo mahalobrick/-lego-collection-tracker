@@ -163,11 +163,11 @@ describe("MyCollection — chrome cleanup", () => {
   it("the bulk-action band is hidden with no selection and appears once a row is selected (click-to-select)", () => {
     render();
     expect(container.textContent).not.toContain("Delete Selected"); // band reclaimed when nothing selected
-    // Phase 3: no per-row checkbox — a plain row click selects → the band (Check All + Delete Selected) shows.
+    // Phase 3: no per-row checkbox — a plain row click selects → the band (Delete Selected) shows.
     const row = q('tr[data-index="0"]');
     expect(row, "owned row renders").toBeTruthy();
     act(() => row.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    expect(container.textContent).toContain("Check All");
+    expect(container.textContent).not.toContain("Check All"); // Check All checkbox removed (Ctrl/Cmd+A selects all)
     expect(container.textContent).toContain("Delete Selected (1)");
   });
 });

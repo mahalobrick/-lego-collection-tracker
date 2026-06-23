@@ -1351,17 +1351,6 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     setSelectionAnchor(key);
   }
 
-  function toggleAll() {
-    const visKeys = visibleSets.map(rowKey);
-    const allSelected = visKeys.length > 0 && visKeys.every(k => selectedKeys.has(k));
-    setSelectedKeys(prev => {
-      const next = new Set(prev);
-      if (allSelected) visKeys.forEach(k => next.delete(k));
-      else visKeys.forEach(k => next.add(k));
-      return next;
-    });
-  }
-
   function deleteCheckedSets() {
     if (selectedKeys.size === 0) return;
     if (!window.confirm(`Delete ${selectedKeys.size} selected owned set(s)?`)) return;
@@ -2414,17 +2403,9 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
           </div>
         </div>
 
+        {/* TODO(toolbar-redesign): relocate Delete Selected into the header toolbar. */}
         {selectedKeys.size > 0 && (
         <div style={{ display: "flex", gap: 10, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <input
-              type="checkbox"
-              checked={visibleSets.length > 0 && visibleSets.every(set => selectedKeys.has(rowKey(set)))}
-              onChange={toggleAll}
-            />
-            Check All
-          </label>
-
           <button
             onClick={deleteCheckedSets}
             style={{

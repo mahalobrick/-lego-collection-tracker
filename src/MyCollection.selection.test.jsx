@@ -143,6 +143,15 @@ describe("Phase 3 selection — click-to-highlight", () => {
     render();
     expect(qa('tbody input[type="checkbox"]').length).toBe(0);
   });
+
+  it("the selection band has NO 'Check All' checkbox — only Delete Selected (Ctrl/Cmd+A selects all)", () => {
+    render();
+    clickRow(0);
+    expect(container.textContent).toContain("Delete Selected (1)"); // band is present
+    expect(container.textContent).not.toContain("Check All");       // checkbox + label removed
+    const band = qa("button").find(b => b.textContent.includes("Delete Selected")).parentElement;
+    expect(band.querySelector('input[type="checkbox"]'), "no checkbox left in the band").toBeNull();
+  });
 });
 
 describe("Phase 3 selection — delete + index-shift stability", () => {
