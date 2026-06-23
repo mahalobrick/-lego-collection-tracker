@@ -218,6 +218,11 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   const [sellPrice, setSellPrice] = useState("");
   const [sellDate,  setSellDate]  = useState(() => new Date().toISOString().slice(0, 10));
   const [sellNotes, setSellNotes] = useState("");
+  // Pending row-delete → drives the in-app confirm modal (with its own backdrop). Holds the set
+  // being deleted (resolved by rowKey identity at confirm time, never a stale index), or null.
+  // Replaces the per-row native window.confirm: that left the live, reflowed list exposed, so a
+  // stray/rapid second click deleted a SECOND set. The modal's backdrop absorbs that stray click.
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const [retireDismissed, setRetireDismissed] = useState(() => {
     try { return JSON.parse(localStorage.getItem("blOwnedRetireDismissed") || "[]"); } catch { return []; }
   });
@@ -1073,7 +1078,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   // requires !detailSet) → Esc never double-fires: detail open → that effect closes detail; detail
   // closed → this one clears selection. Hot values read via refs so hover re-renders don't re-subscribe.
   useEffect(() => {
-    if (mode !== "collection" || tab !== "owned" || detailSet || selectedSetIndex !== null) return;
+    if (mode !== "collection" || tab !== "owned" || detailSet || selectedSetIndex !== null || confirmDelete) return; // delete-confirm modal owns the keyboard while open
     const onKey = (e) => {
       const t = e.target, tag = (t && t.tagName ? t.tagName : "").toLowerCase();
       const typing = tag === "input" || tag === "textarea" || tag === "select" || (t && t.isContentEditable);
@@ -1091,7 +1096,16 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mode, tab, detailSet, selectedSetIndex]);
+  }, [mode, tab, detailSet, selectedSetIndex, confirmDelete]);
+
+  // Esc closes the delete-confirm modal (cancels, deletes nothing). Scoped to when it's open so it
+  // doesn't shadow the detail-panel / selection Esc handlers above (both bail while confirmDelete is set).
+  useEffect(() => {
+    if (!confirmDelete) return;
+    const onKey = (e) => { if (e.key === "Escape") setConfirmDelete(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [confirmDelete]);
 
   // Virtualize the owned-sets table (combined-Overview prereq): render only the rows in view inside the
   // existing maxHeight:560 scroll box, so a 600-set collection no longer mounts 600 live <tr>. Dynamic
@@ -2743,11 +2757,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                             aria-label="Delete"
                             className="bk-row-action"
                             style={rowActionBtn}
-                            onClick={e => {
-                              e.stopPropagation();
-                              const clean = String(set.setNumber || "").replace(/-1$/, "").trim();
-                              if (window.confirm(clean ? `Delete owned set ${clean}?` : "Delete this owned set?")) deleteSet(index);
-                            }}                          >
+                            onClick={e => { e.stopPropagation(); setConfirmDelete(set); }}                          >
                             <Icon name="delete" size={16} />
                           </button>
                         </div>
@@ -3064,6 +3074,40 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
           </div>
         </div>
       )}
+
+      {/* ── Row delete confirm — in-app modal WITH a backdrop (replaces the native window.confirm) ──
+          The backdrop is the load-bearing part: it covers the list so a stray/rapid second click after
+          opening lands on the backdrop (→ cancels), NOT on a row that reflowed up under the cursor —
+          which is how one double-click on the native flow could delete TWO sets. Mirrors the Purchase
+          Log Modal's fixed + flex-centered overlay (same zIndex tier). Deletion resolves by rowKey
+          identity (same funnel as deleteCheckedSets), never a stale array index, so the reflow can't
+          delete the wrong set. Centered dialog ⇒ the destructive Delete button is nowhere near the
+          far-right delete-icon column; Cancel is the autofocused default (Enter/second-click = safe). */}
+      {confirmDelete && (() => {
+        const clean = String(confirmDelete.setNumber || "").replace(/-1$/, "").trim();
+        const closeModal = () => setConfirmDelete(null);
+        const doDelete = () => { const key = rowKey(confirmDelete); setSets(prev => prev.filter(s => rowKey(s) !== key)); setConfirmDelete(null); };
+        return (
+          <div data-testid="delete-confirm-backdrop"
+            style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+            onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>
+            <div data-testid="delete-confirm-dialog"
+              style={{ background: "var(--bk-surface)", border: "1px solid var(--bk-negative)", borderRadius: 14, padding: 24, width: "100%", maxWidth: 400, boxShadow: "0 16px 48px rgba(0,0,0,0.7)" }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 }}>Delete owned set</div>
+              <div style={{ fontWeight: 800, fontSize: 16, color: "var(--bk-text)" }}>{confirmDelete.name || (clean ? `Set ${clean}` : "This owned set")}</div>
+              {clean && <div style={{ fontSize: 12, color: "var(--bk-text-muted)", marginTop: 2 }}>#{clean}</div>}
+              <div style={{ fontSize: 13, color: "var(--bk-text-muted)", marginTop: 12 }}>This removes it from your collection — this can't be undone.</div>
+              <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+                <button data-testid="delete-confirm-cancel" autoFocus onClick={closeModal} style={{ ...ghostBtn, flex: 1 }}>Cancel</button>
+                <button data-testid="delete-confirm-delete" onClick={doDelete}
+                  style={{ flex: 1, padding: "8px 18px", fontSize: 14, fontWeight: 800, background: "var(--bk-negative)", color: "#fff", border: "none", borderRadius: 10, cursor: "pointer" }}>
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

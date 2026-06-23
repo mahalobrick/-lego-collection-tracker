@@ -202,7 +202,8 @@ describe("Phase 3 selection — delete + index-shift stability", () => {
     render();
     clickRow(0);                    // A = 10001
     clickRow(2, { metaKey: true }); // C = 10003
-    clickIn(1, '[data-testid="row-action-delete"]'); // single-delete B = 10002 (confirm mocked true) → indices shift
+    clickIn(1, '[data-testid="row-action-delete"]'); // open the in-app confirm modal for B = 10002
+    act(() => q('[data-testid="delete-confirm-delete"]').dispatchEvent(new MouseEvent("click", { bubbles: true }))); // confirm → B removed, indices shift
     clickBand();                    // rowKey-stable: still removes A + C, NOT the shifted neighbour
     expect(bodyCount()).toBe(1);
     expect(bodyText()).toContain("10004");     // D survives

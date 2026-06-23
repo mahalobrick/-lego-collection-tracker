@@ -7,7 +7,8 @@ import { createRoot } from "react-dom/client";
 // actions cell with three icon buttons:
 //   • view   → opens the detail panel (same call as the row click)
 //   • edit   → opens the edit drawer (setSelectedSetIndex)
-//   • delete → window.confirm FIRST, then deleteSet(index)
+//   • delete → opens an in-app confirm modal (with a full-screen backdrop); confirming deletes the
+//              set by rowKey identity (not a stale array index). Backdrop click / Cancel / Esc cancel.
 // Locks: 3 buttons per row; view opens detail; edit/delete stopPropagation so they do NOT
 // bubble to the row's open-detail handler (view does, intentionally). Mirrors the
 // MyCollection.editDrawer.test.jsx god-module harness (same mocks + forced virtualizer).
@@ -115,25 +116,66 @@ describe("MyCollection — per-row action icons (desktop table, Phase 2)", () =>
     expect(q('[data-testid="detail-open"]'), "edit stopPropagation → detail must NOT open").toBeNull();
   });
 
-  it("delete → confirm=true removes the row (and not the others); detail must NOT open", () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+  // dispatch a real bubbling click on an arbitrary element (modal buttons live outside a row).
+  const clickEl = (el) => { expect(el).toBeTruthy(); act(() => el.dispatchEvent(new MouseEvent("click", { bubbles: true }))); };
+
+  it("delete → opens the in-app confirm modal (names the set), gated until confirm; no native confirm", () => {
+    const confirm = vi.spyOn(window, "confirm");                    // must NOT be called anymore
     render();
     expect(rows().length).toBe(2);
+    expect(q('[data-testid="delete-confirm-backdrop"]'), "no modal before clicking delete").toBeNull();
     clickIn(rowByText("31120"), '[data-testid="row-action-delete"]');
-    expect(confirm).toHaveBeenCalledTimes(1);                       // confirms FIRST
-    expect(rowByText("31120"), "the deleted set's row is gone").toBeFalsy();
-    expect(rowByText("75313"), "the other set's row remains").toBeTruthy();
-    expect(rows().length).toBe(1);
+    const backdrop = q('[data-testid="delete-confirm-backdrop"]');
+    expect(backdrop, "delete opens the in-app confirm modal").toBeTruthy();
+    expect(backdrop.style.position, "backdrop is a fixed full-screen overlay").toBe("fixed");
+    expect(backdrop.style.inset, "backdrop covers the viewport (inset:0)").toBe("0px");
+    expect(backdrop.style.zIndex, "backdrop on the modal tier").toBe("1000");
+    const dialog = q('[data-testid="delete-confirm-dialog"]');
+    expect(dialog.textContent, "modal names the set being deleted").toContain("Medieval Castle");
+    expect(dialog.textContent).toContain("31120");
+    expect(confirm, "native window.confirm is NOT used").not.toHaveBeenCalled();
+    expect(rows().length, "nothing deleted until the user confirms").toBe(2);
+    expect(rowByText("31120"), "the row is still present while the modal is open").toBeTruthy();
     expect(q('[data-testid="detail-open"]'), "delete stopPropagation → detail must NOT open").toBeNull();
   });
 
-  it("delete → confirm=false leaves the row in place", () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("delete → confirming removes exactly that row (and not the others); modal closes", () => {
     render();
-    expect(rows().length).toBe(2);
     clickIn(rowByText("31120"), '[data-testid="row-action-delete"]');
-    expect(confirm).toHaveBeenCalledTimes(1);
+    clickEl(q('[data-testid="delete-confirm-delete"]'));            // confirm
+    expect(rowByText("31120"), "the confirmed set's row is gone").toBeFalsy();
+    expect(rowByText("75313"), "the other set's row remains").toBeTruthy();
+    expect(rows().length).toBe(1);
+    expect(q('[data-testid="delete-confirm-backdrop"]'), "modal closes after confirming").toBeNull();
+  });
+
+  it("delete → resolves by identity, not a stale index: confirming the 2nd row deletes THAT set", () => {
+    render();
+    // open the confirm for the SECOND set; an index-0 assumption would wrongly delete 31120.
+    clickIn(rowByText("75313"), '[data-testid="row-action-delete"]');
+    expect(q('[data-testid="delete-confirm-dialog"]').textContent).toContain("75313");
+    clickEl(q('[data-testid="delete-confirm-delete"]'));
+    expect(rowByText("75313"), "the set the user confirmed is deleted").toBeFalsy();
+    expect(rowByText("31120"), "the unrelated first set is untouched").toBeTruthy();
+    expect(rows().length).toBe(1);
+  });
+
+  it("delete → Cancel closes the modal and deletes nothing", () => {
+    render();
+    clickIn(rowByText("31120"), '[data-testid="row-action-delete"]');
+    clickEl(q('[data-testid="delete-confirm-cancel"]'));
+    expect(q('[data-testid="delete-confirm-backdrop"]'), "Cancel closes the modal").toBeNull();
     expect(rowByText("31120"), "cancelled delete leaves the row").toBeTruthy();
     expect(rows().length).toBe(2);
+  });
+
+  it("delete → a click on the backdrop itself cancels (stray-second-click safety); deletes nothing", () => {
+    render();
+    clickIn(rowByText("31120"), '[data-testid="row-action-delete"]');
+    const backdrop = q('[data-testid="delete-confirm-backdrop"]');
+    clickEl(backdrop);                                              // target === currentTarget → cancels
+    expect(q('[data-testid="delete-confirm-backdrop"]'), "backdrop click closes the modal").toBeNull();
+    expect(rows().length, "backdrop click deletes nothing").toBe(2);
+    expect(rowByText("31120")).toBeTruthy();
   });
 });
