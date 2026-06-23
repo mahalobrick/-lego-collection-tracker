@@ -18,7 +18,7 @@ import SetDetailPanel from "./SetDetailPanel";
 // (uniform AND divergent) do NOT move; only manual sets are corrected. Pinned below.
 //
 // These render the REAL panel and read the StatBox leaf text — the reconcile invariant
-// is asserted on what the USER sees: Paid === Value − Net Gain.
+// is asserted on what the USER sees: Paid === Value − Gain (tile relabeled "Net Gain" → "Gain").
 // ─────────────────────────────────────────────────────────────────────────────
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -76,13 +76,13 @@ const IMPORTED_DIVERGENT = {
   ],
 };
 
-describe("panel Paid reconcile — Paid === Value − Net Gain", () => {
+describe("panel Paid reconcile — Paid === Value − Gain", () => {
   it("MANUAL set: Paid is the real $360, reconciling with Gain/ROI (was $0.00)", () => {
     renderPanel(MANUAL);
     // PRE-FIX this StatBox read "$0.00" (item.totalPaid absent) while Gain implied $360.
     expect(statValue("Paid")).toBe("$360.00");
     expect(statValue("Value")).toBe("$900.00");
-    expect(statValue("Net Gain")).toBe("$540.00");
+    expect(statValue("Gain")).toBe("$540.00");
     // The reconcile invariant, on displayed dollars:
     expect(cents(statValue("Paid"))).toBe(cents("$900.00") - cents("$540.00"));
     expect(statValue("ROI")).toBe("+150.0%");
@@ -93,13 +93,13 @@ describe("panel Paid reconcile — Paid === Value − Net Gain", () => {
     renderPanel(IMPORTED_UNIFORM);
     expect(statValue("Paid")).toBe("$1,600.00");
     expect(cents(statValue("Paid")))
-      .toBe(cents(statValue("Value")) - cents(statValue("Net Gain")));
+      .toBe(cents(statValue("Value")) - cents(statValue("Gain")));
   });
 
   it("IMPORTED divergent paids ($100+$300): Paid is the $400 SUM, reconciles", () => {
     renderPanel(IMPORTED_DIVERGENT);
     expect(statValue("Paid")).toBe("$400.00"); // Σ divergent copies, not avg×qty
     expect(cents(statValue("Paid")))
-      .toBe(cents(statValue("Value")) - cents(statValue("Net Gain")));
+      .toBe(cents(statValue("Value")) - cents(statValue("Gain")));
   });
 });

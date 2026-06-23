@@ -9,9 +9,9 @@ import SetDetailPanel from "./SetDetailPanel";
 // year). The panel opens on the RAW BE blob, which carries none of these, so the
 // Timeline derives them from `bs` — the same cache the chips / MSRP already read.
 //   • Released = fmtShortDate(launch_date), falling back to the year string.
-//   • Retired  = item.retired ? fmtShortDate(exit_date) : "Active". A FUTURE
-//     exit_date on an ACTIVE set is NOT rendered as a retirement date — the
-//     header "Retires in Nd" countdown already covers that.
+//   • Retired  = item.retired ? fmtShortDate(exit_date) : "—". An ACTIVE set's
+//     Retired tile shows "—" (NEVER the word "Active" — status lives only in the
+//     header pill now); a FUTURE exit_date is still not rendered as a retirement date.
 // Dates are ISO-datetime-safe (Brickset emits "2017-10-01T00:00:00Z") with no UTC
 // off-by-one. Assertions are scoped to the Timeline section's own DOM so the year
 // chip / header status badge can't satisfy them by accident.
@@ -70,12 +70,13 @@ describe("SetDetailPanel — Timeline (released + retired from Brickset cache)",
     expect(t).toContain(fmt(2017, 9, 1)); // Retired  = "Oct 2017"
   });
 
-  it("active set: Retired shows 'Active', and a future exit_date is NOT rendered as a date", () => {
+  it("active set: Retired tile shows '—' (never 'Active'), and a future exit_date is NOT rendered as a date", () => {
     seedBrickset("12345-1", { launch_date: "2019-05-01T00:00:00Z", year: 2019, exit_date: "2031-01-01T00:00:00Z" });
     renderPanel({ setNumber: "12345-1", retired: false });
     const t = timelineText();
     expect(t).toContain(fmt(2019, 4, 1)); // Released = "May 2019"
-    expect(t).toContain("Active"); // Retired tile
+    expect(t).toContain("—"); // Retired tile = em dash (date de-duped; status word lives in the header pill)
+    expect(t).not.toContain("Active"); // the word "Active" must NOT appear in Timeline anymore
     expect(t).not.toContain(fmt(2031, 0, 1)); // future exit "Jan 2031" not shown as a retirement date
   });
 
@@ -85,6 +86,7 @@ describe("SetDetailPanel — Timeline (released + retired from Brickset cache)",
     const t = timelineText();
     expect(t).toBeTruthy();
     expect(t).toContain("2018"); // Released falls back to the year (scoped to the tile, not the chip)
-    expect(t).toContain("Active"); // Retired tile (not retired)
+    expect(t).toContain("—"); // Retired tile = "—" when not retired (no "Active" duplicate)
+    expect(t).not.toContain("Active");
   });
 });

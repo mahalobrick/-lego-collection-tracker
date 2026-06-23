@@ -219,7 +219,7 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
             <StatBox label="Paid" value={money(totalPaid)} />
             <StatBox label="Value" tip={provConf?.tooltip}
               value={<>{formatValueCell(prov)}{provConf && <span style={confidenceBadge}>{provConf.marker}</span>}</>} />
-            <StatBox label="Net Gain" value={gain === null ? "—" : money(gain)} color={gain === null ? undefined : gain >= 0 ? "var(--bk-positive)" : "var(--bk-negative)"} />
+            <StatBox label="Gain" value={gain === null ? "—" : money(gain)} color={gain === null ? undefined : gain >= 0 ? "var(--bk-positive)" : "var(--bk-negative)"} />
             <StatBox label="ROI" value={roi === null ? "—" : `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%`} color={roi === null ? undefined : roi >= 0 ? "var(--bk-positive)" : "var(--bk-negative)"} />
             {qty > 1 && <StatBox label="Avg Paid / Copy" value={money(avgPaid)} />}
             {qty > 1 && <StatBox label="Value / Copy" value={valueKnown ? money(totalValue / qty) : "—"} />}
@@ -297,16 +297,44 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
             <div style={sectionLabel}>Timeline</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <StatBox label="Released" value={bs.launch_date ? fmtShortDate(bs.launch_date) : (bs.year ? String(bs.year) : "—")} />
-              <StatBox label="Retired" value={item.retired ? fmtShortDate(bs.exit_date) : "Active"} />
+              <StatBox label="Retired" value={item.retired ? fmtShortDate(bs.exit_date) : "—"} />
             </div>
           </div>
         )}
 
-        {entries.length > 0 && (
+        {entries.length > 0 && (qty === 1 ? (
+          // Single copy: the per-copy money quad (Paid / Value / Gain / ROI) merely echoes the
+          // Value & Returns tiles above (set === copy for one copy), so suppress it and surface ONLY
+          // the acquisition facts — condition · acquired date · notes. Self-removes ENTIRELY when the
+          // lone copy carries none of the three (no empty section label, no strip, no "Copy 1" stub).
+          (() => {
+            const entry = entries[0];
+            const cond = entry.condition ? conditionDisplayLabel(entry.condition) : null;
+            const acquired = shortDate(entry.aquired_date || entry.acquired_date);
+            const notes = entry.notes;
+            if (!cond && !acquired && !notes) return null;
+            return (
+              <div>
+                <div style={sectionLabel}>Acquisition</div>
+                <div style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", borderRadius: 10, padding: "10px 14px" }}>
+                  {(cond || acquired) && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      {cond && (
+                        <span style={{ background: "var(--bk-bg)", border: `1px solid ${conditionDisplayColor(entry.condition)}`, color: conditionDisplayColor(entry.condition), borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>
+                          {cond}
+                        </span>
+                      )}
+                      {acquired && <span style={{ color: "var(--bk-text-muted)", fontSize: 12 }}>{acquired}</span>}
+                    </div>
+                  )}
+                  {notes && <div style={{ color: "var(--bk-text-muted)", fontSize: 12, marginTop: (cond || acquired) ? 8 : 0, whiteSpace: "pre-wrap" }}>{notes}</div>}
+                </div>
+              </div>
+            );
+          })()
+        ) : (
           <div>
-            <div style={{ color: "var(--bk-text-muted)", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>
-              Per-Copy Breakdown
-            </div>
+            <div style={sectionLabel}>Per-Copy Breakdown</div>
             <div style={{ display: "grid", gap: 8 }}>
               {entries.map((entry, i) => {
                 const paid = entryPaid(entry);
@@ -338,8 +366,12 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
                         {acquired && <span style={{ color: "var(--bk-text-muted)", fontSize: 12 }}>{acquired}</span>}
                         {!cond && !acquired && <span style={{ color: "var(--bk-text-muted)", fontSize: 13 }}>Copy {i + 1}</span>}
                       </div>
-                      <span style={{ color: r === null ? "var(--bk-text-muted)" : r >= 0 ? "var(--bk-positive)" : "var(--bk-negative)", fontWeight: 900, fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
-                        {r === null ? "—" : `${r >= 0 ? "+" : ""}${r.toFixed(1)}%`}
+                      {/* Corner ROI — LABELED "ROI" to match the set-level ROI StatBox vocabulary (same metric, same word). */}
+                      <span style={{ display: "inline-flex", alignItems: "baseline", gap: 5 }}>
+                        <span style={{ color: "var(--bk-text-muted)", fontSize: 11 }}>ROI</span>
+                        <span style={{ color: r === null ? "var(--bk-text-muted)" : r >= 0 ? "var(--bk-positive)" : "var(--bk-negative)", fontWeight: 900, fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
+                          {r === null ? "—" : `${r >= 0 ? "+" : ""}${r.toFixed(1)}%`}
+                        </span>
                       </span>
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
@@ -367,7 +399,7 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
               })}
             </div>
           </div>
-        )}
+        ))}
       </div>
     </>
   );
