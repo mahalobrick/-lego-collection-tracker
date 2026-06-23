@@ -92,7 +92,7 @@ function openEditPanel() {
   act(() => edit.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 }
 
-// Type into an uncontrolled input and commit via blur (React delegates onBlur via focusout).
+// Type into an input and commit via blur (focusout) → writes the DRAFT (not the store).
 function commit(testid, value) {
   const input = q(`[data-testid="${testid}"]`);
   expect(input, `${testid} should render in the panel`).toBeTruthy();
@@ -100,6 +100,12 @@ function commit(testid, value) {
     input.value = value;
     input.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
   });
+}
+// Draft model: edits buffer until SAVE folds + persists once (and closes the drawer).
+function clickSave() {
+  const btn = q('[data-testid="edit-save"]');
+  expect(btn, "Save button should render").toBeTruthy();
+  act(() => btn.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 }
 
 describe("MyCollection holding-level edit — decimal commit + BE persistence", () => {
@@ -115,38 +121,42 @@ describe("MyCollection holding-level edit — decimal commit + BE persistence", 
     expect(q('[data-testid="holding-value-edit"]').value).toBe("1000");
   });
 
-  it("Paid: a decimal commits intact (49.50 → 49.5, not 0) and persists to the BE blob", () => {
+  it("Paid: a decimal commits intact (49.50 → 49.5, not 0) and persists to the BE blob on Save", () => {
     openEditPanel();
     commit("holding-paid-edit", "49.50");
+    clickSave();                              // draft model: nothing persists until Save folds it
     expect(blob()[0].averagePaid).toBe(49.5); // not 0 — the decimal survived
     expect(blob()[0].paidPrice).toBe(49.5);
     expect(blob()[0].totalPaid).toBe(49.5); // qty 1 → reconciled cost basis
   });
 
-  it("Value: a decimal commits + persists totalValue (the branch that used to revert)", () => {
+  it("Value: a decimal commits + persists totalValue on Save (the branch that used to revert)", () => {
     openEditPanel();
     commit("holding-value-edit", "1234.56");
+    clickSave();
     expect(blob()[0].totalValue).toBe(1234.56);
     expect(blob()[0].currentValue).toBe(1234.56);
     // roiPct (hover snapshot) recomputed off the new value: (1234.56 − 800)/800 × 100.
     expect(blob()[0].roiPct).toBeCloseTo(54.32, 2);
   });
 
-  it("MSRP: an Edit commits to msrpOverride (the override rung); add-baked msrp + cost-axis retailPrice untouched", () => {
+  it("MSRP: an Edit commits to msrpOverride on Save (the override rung); add-baked msrp + cost-axis retailPrice untouched", () => {
     openEditPanel();
     // The field now writes msrpOverride (beats Brickset), NOT the add-baked s.msrp. This blob set has no
     // Brickset cache + msrp:null, so the resolved base is null → 59.99 ≠ base → an override IS written.
     commit("holding-msrp-edit", "59.99");
+    clickSave();
     expect(blob()[0].msrpOverride).toBe(59.99); // the explicit-override rung
     expect(blob()[0].msrp).toBeNull();          // add-baked manual rung untouched
     expect(blob()[0].retailPrice).toBe(850);    // cost-axis retailPrice (paidEqualsRetail) untouched
   });
 
-  it("all three survive a RELOAD (remount reads the persisted decimals back)", () => {
+  it("all three commit to one draft, persist on ONE Save, and survive a RELOAD", () => {
     openEditPanel();
     commit("holding-paid-edit", "49.50");
     commit("holding-value-edit", "1234.56");
     commit("holding-msrp-edit", "59.99");
+    clickSave();                              // fold-and-persist-once: all three land in a single write
     // Reload: tear down + remount from localStorage, then reopen the panel.
     act(() => root.unmount());
     root = createRoot(container);
@@ -170,29 +180,40 @@ describe("MyCollection — MSRP override is dirty-safe (Brickset-backed set)", (
     expect(q('[data-testid="holding-msrp-edit"]').value).toBe("850"); // was blank pre-fix (read s.msrp=null)
   });
 
-  it("open + blur with NO change writes NO override (never freezes a redundant Brickset override)", () => {
+  it("blur with NO change → Save writes NO override (never freezes a redundant Brickset override)", () => {
     seedBrickset(850);
     openEditPanel();
     commit("holding-msrp-edit", "850"); // == the Brickset-resolved base → must not create an override
+    clickSave();
     expect(blob()[0].msrpOverride ?? null).toBeNull();
   });
 
-  it("a real change writes the override; clearing reverts to the Brickset-resolved value", () => {
+  it("a real change writes the override on Save; clearing it on a later Save reverts to Brickset", () => {
     seedBrickset(850);
     openEditPanel();
     commit("holding-msrp-edit", "250");                               // ≠ 850 → override written
+    clickSave();
     expect(blob()[0].msrpOverride).toBe(250);
-    expect(q('[data-testid="holding-msrp-edit"]').value).toBe("250"); // field reflects the override
+    openEditPanel();                                                  // reopen — field now reflects the override
+    expect(q('[data-testid="holding-msrp-edit"]').value).toBe("250");
     commit("holding-msrp-edit", "");                                  // cleared → 0 coalesces to "none"
+    clickSave();
+    expect(blob()[0].msrpOverride ?? null).toBeNull();               // override removed
+    openEditPanel();
     expect(q('[data-testid="holding-msrp-edit"]').value).toBe("850"); // resolves back to Brickset, not frozen 250
   });
 
-  it("typing the Brickset value while an override exists CLEARS it (revert, not freeze)", () => {
+  it("typing the Brickset value while an override exists CLEARS it on Save (revert, not freeze)", () => {
     seedBrickset(850);
     openEditPanel();
     commit("holding-msrp-edit", "250");
+    clickSave();
     expect(blob()[0].msrpOverride).toBe(250);
+    openEditPanel();
     commit("holding-msrp-edit", "850"); // == Brickset base → clears the override
+    clickSave();
+    expect(blob()[0].msrpOverride ?? null).toBeNull();
+    openEditPanel();
     expect(q('[data-testid="holding-msrp-edit"]').value).toBe("850");
   });
 });
@@ -210,9 +231,10 @@ describe("MyCollection holding-level edit — bulk Acquired/Notes persist to the
     });
   }
 
-  it("Acquired date persists to entries + the holding scalar, and survives reload", () => {
+  it("Acquired date persists to entries + the holding scalar on Save, and survives reload", () => {
     openEditPanel();
     commitDate("2025-06-01");
+    clickSave();
     expect(blob()[0].entries[0].acquired_date).toBe("2025-06-01");
     expect(blob()[0].acquiredDate).toBe("2025-06-01");
     // Pure metadata — value/cost untouched.
@@ -224,9 +246,10 @@ describe("MyCollection holding-level edit — bulk Acquired/Notes persist to the
     expect(q('[data-testid="holding-date-edit"]').value).toBe("2025-06-01");
   });
 
-  it("Notes persist to the entry + survive reload (uncontrolled commit-on-blur)", () => {
+  it("Notes persist to the entry + holding scalar on Save + survive reload", () => {
     openEditPanel();
     commit("holding-notes-edit", "bought at the LEGO store");
+    clickSave();
     expect(blob()[0].entries[0].notes).toBe("bought at the LEGO store");
     expect(blob()[0].notes).toBe("bought at the LEGO store");
 

@@ -144,10 +144,10 @@ describe("MyCollection — one-slot drawer flow", () => {
     expect(q('[data-testid="mock-edit"]'), "Detail closed when Edit opens").toBeNull();
   });
 
-  it("Done returns to the full-width table — not back to Detail", () => {
+  it("Cancel returns to the full-width table — not back to Detail (no edits → closes silently)", () => {
     openEditDrawer();
-    clickButtonByText("Done");
-    expect(q('[data-testid="edit-drawer"]'), "Edit drawer closed by Done").toBeNull();
+    clickButtonByText("Cancel"); // Done → Save/Cancel: an unedited Cancel discards with no confirm
+    expect(q('[data-testid="edit-drawer"]'), "Edit drawer closed by Cancel").toBeNull();
     expect(q('[data-testid="mock-edit"]'), "does NOT reopen Detail").toBeNull();
     expect(q('tr[data-index="0"]'), "table still rendered").toBeTruthy();
   });
@@ -173,7 +173,7 @@ describe("MyCollection — chrome cleanup", () => {
 });
 
 describe("MyCollection — Edit form still works inside the drawer", () => {
-  it("bulk fields render in the drawer and a Paid edit still commits to the BE blob", () => {
+  it("bulk fields render in the drawer and a Paid edit commits to the BE blob on Save", () => {
     openEditDrawer();
     const drawer = q('[data-testid="edit-drawer"]');
     // The form moved containers only — its fields still live inside the drawer.
@@ -182,8 +182,9 @@ describe("MyCollection — Edit form still works inside the drawer", () => {
     const paid = q('[data-testid="holding-paid-edit"]');
     act(() => {
       paid.value = "49.50";
-      paid.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+      paid.dispatchEvent(new FocusEvent("focusout", { bubbles: true })); // → draft
     });
-    expect(blob()[0].averagePaid).toBe(49.5); // commit-on-blur still persists from the drawer
+    clickButtonByText("Save"); // draft model: Save folds + persists once
+    expect(blob()[0].averagePaid).toBe(49.5);
   });
 });

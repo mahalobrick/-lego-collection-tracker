@@ -163,6 +163,12 @@ function commitBulkNotes(value) {
   expect(input, "bulk notes input").toBeTruthy();
   act(() => { input.value = value; input.dispatchEvent(new FocusEvent("focusout", { bubbles: true })); });
 }
+// Draft model: per-copy + bulk edits buffer until SAVE folds + persists once (and closes the drawer).
+function clickSave() {
+  const btn = q('[data-testid="edit-save"]');
+  expect(btn, "Save button should render").toBeTruthy();
+  act(() => btn.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+}
 
 describe("Edit window — Individual copies section gating", () => {
   it("MULTI-copy: renders the Individual section with a condition toggle + paid input per copy", () => {
@@ -188,21 +194,23 @@ describe("Edit window — Individual copies section gating", () => {
 });
 
 describe("Edit window — per-copy edits route through the existing handlers + persist", () => {
-  it("per-copy CONDITION edit persists only that copy (divergence preserved) → the set reads Mixed", () => {
+  it("per-copy CONDITION edit → derived Mixed shows LIVE; Save persists only that copy (divergence preserved)", () => {
     seed(MULTI);
     openEditPanel();
     clickCopyCond(0, "Used"); // flip copy 0 → Used; copy 1 stays New
+    // The derived bulk condition recomputes to Mixed from the draft — LIVE, before any Save (nothing
+    // "mixed" is stored; it falls out of setConditionDisplay over the disagreeing draft copies).
+    expect(q('[data-testid="bulk-cond-mixed"]'), "bulk Condition shows derived Mixed pre-Save").toBeTruthy();
+    clickSave();
     expect(blob()[0].entries[0].condition).toBe("used");
     expect(blob()[0].entries[1].condition).toBe("new"); // the OTHER copy is untouched
-    // The derived bulk condition recomputes to Mixed (nothing "mixed" is stored — it falls out
-    // of setConditionDisplay from the disagreeing copies) and the Mixed indicator now renders.
-    expect(q('[data-testid="bulk-cond-mixed"]'), "bulk Condition shows derived Mixed").toBeTruthy();
   });
 
-  it("per-copy PAID edit (decimal) persists that copy, preserves the other, recomputes totals + survives reload", () => {
+  it("per-copy PAID edit (decimal) persists that copy on Save, preserves the other, recomputes totals + survives reload", () => {
     seed(MULTI);
     openEditPanel();
     commitCopyPaid(1, "950.50"); // set copy 1 → $950.50; copy 0 stays $800
+    clickSave();
     const b = blob()[0];
     expect(b.entries[1].paid_price).toBe(950.5); // decimal intact on the targeted copy
     expect(b.entries[0].paid_price).toBe(800);   // divergence preserved
@@ -237,6 +245,7 @@ describe("Edit window — per-copy acquired-date + notes (pure metadata)", () =>
     seed(MULTI);
     openEditPanel();
     commitCopyDate(0, "2025-03-14"); // copy 0 acquired; copy 1 untouched
+    clickSave();
     const b = blob()[0];
     expect(b.entries[0].acquired_date).toBe("2025-03-14");
     expect(b.entries[1]).toEqual({ paid_price: 800, current_value: 1000, condition: "new" }); // byte-exact, no acquired_date
@@ -255,6 +264,7 @@ describe("Edit window — per-copy acquired-date + notes (pure metadata)", () =>
     seed(MULTI);
     openEditPanel();
     commitCopyNotes(1, "minty, sealed");
+    clickSave();
     const b = blob()[0];
     expect(b.entries[1].notes).toBe("minty, sealed");
     expect(b.entries[0]).toEqual({ paid_price: 800, current_value: 1000, condition: "new" }); // byte-exact, no notes
@@ -272,6 +282,7 @@ describe("Edit window — bulk 'Set all copies' date + notes (the revert-on-relo
     seed(MULTI);
     openEditPanel();
     commitBulkDate("2024-12-25");
+    clickSave();
     const b = blob()[0];
     expect(b.entries.map(e => e.acquired_date)).toEqual(["2024-12-25", "2024-12-25"]); // every copy
     expect(b.acquiredDate).toBe("2024-12-25"); // holding scalar rides along (column freshness)
@@ -286,6 +297,7 @@ describe("Edit window — bulk 'Set all copies' date + notes (the revert-on-relo
     seed(MULTI);
     openEditPanel();
     commitBulkNotes("warehouse A, bin 3");
+    clickSave();
     const b = blob()[0];
     expect(b.entries.map(e => e.notes)).toEqual(["warehouse A, bin 3", "warehouse A, bin 3"]);
     expect(b.notes).toBe("warehouse A, bin 3");
@@ -303,7 +315,8 @@ describe("Edit window — bulk 'Set all copies' date + notes (the revert-on-relo
     expect(q('[data-testid="holding-notes-edit"]').value).toBe(""); // notes differ → blank
     // A bulk edit from the divergent (blank) state flattens every copy.
     commitBulkDate("2026-01-01");
+    expect(q('[data-testid="holding-date-edit"]').value).toBe("2026-01-01"); // controlled → shows it live, pre-Save
+    clickSave();
     expect(blob()[0].entries.map(e => e.acquired_date)).toEqual(["2026-01-01", "2026-01-01"]);
-    expect(q('[data-testid="holding-date-edit"]').value).toBe("2026-01-01"); // now shared → shows it
   });
 });

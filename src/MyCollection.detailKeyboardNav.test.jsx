@@ -102,17 +102,19 @@ describe("MyCollection — detail keyboard nav (Esc + ←/→)", () => {
     expect(detailNum(), "ArrowRight at last → no change").toBe("30000-1");
   });
 
-  it("does nothing while the Edit drawer is open (Esc and arrows suppressed)", () => {
+  it("while the Edit drawer is open: detail arrows are suppressed; Esc closes the DRAWER (not detail-nav)", () => {
     render();
     openDetail("20000");
     // Open the Edit drawer via the row's edit action (detail stays open underneath).
     act(() => rowByText("20000").querySelector('[data-testid="row-action-edit"]').dispatchEvent(new MouseEvent("click", { bubbles: true })));
     expect(q('[data-testid="edit-drawer"]'), "edit drawer open").toBeTruthy();
     press("ArrowRight");
-    expect(detailNum(), "arrows suppressed while editing").toBe("20000-1");
+    expect(detailNum(), "detail-nav arrows suppressed while the drawer is open").toBe("20000-1");
     press("Escape");
-    expect(detailNum(), "Esc suppressed while editing").toBe("20000-1");
-    expect(q('[data-testid="edit-drawer"]'), "edit drawer still open").toBeTruthy();
+    // The NEW drawer-scoped Esc closes the Edit drawer (clean draft → no confirm); the detail-nav
+    // effect stays out, so the detail neither navigates nor closes from it.
+    expect(q('[data-testid="edit-drawer"]'), "Esc closed the Edit drawer").toBeNull();
+    expect(detailNum(), "detail untouched by the detail-nav effect").toBe("20000-1");
   });
 
   it("does not hijack arrows when focus is in an input", () => {

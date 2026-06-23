@@ -10,7 +10,7 @@ import ConditionPill from "./ConditionPill";
 import InfoTip from "./InfoTip";
 import { asNumber, money, setImageUrl, handleSetImageError, priorityScore, recommendation, daysUntilRetirement, lineCashPaid } from "./utils/formatting";
 import { setConditionDisplay, conditionBucket, conditionDisplayColor, conditionDisplayLabel } from "./utils/condition";
-import { applyCopyConditionEdit, applyQtyEdit, materializeEntries } from "./utils/percopy";
+import { applyQtyEdit, materializeEntries } from "./utils/percopy";
 import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-client";
 import { searchBricksetCatalog, fetchBricksetSet, fetchLegoThemes, cmfSeriesRetailTargets, getBricksetCache } from "./utils/brickset";
 import { makeRetailResolver } from "./utils/retailResolver";
@@ -122,6 +122,11 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   }, []);
 
   const [selectedSetIndex, setSelectedSetIndex] = useState(null);
+  // Edit-drawer DRAFT model: the drawer buffers edits in `draft` (no live commits); SAVE folds the
+  // changed fields over one working copy via the pure reconcilers and persists ONCE. `draftSnap` is the
+  // open-time snapshot — the dirty-diff baseline for the discard confirm + the Mark-as-Sold lock.
+  const [draft, setDraft] = useState(null);
+  const [draftSnap, setDraftSnap] = useState(null);
   const [detailSet, setDetailSet] = useState(null);
   const [detailSetIndex, setDetailSetIndex] = useState(null);
   const [showAllThemes, setShowAllThemes] = useState(false);
@@ -1165,163 +1170,179 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
     return revalueBESet(s, d); // { currentValue, totalValue } | null (pure; mirrors applyCache)
   }
 
-  // Per-copy condition edit (SetDetailPanel's per-copy control). Only the targeted copy changes →
-  // the set reads Mixed when copies disagree (setConditionDisplay derives it; nothing "mixed" is
-  // stored). Two persistence rails by store:
-  //   • BE set → reconcileConditionEdit → re-value from cache → persistBESetEdit (the blob writer).
-  //   • Manual set (G4 Phase 3) → materialize the FULL N-copy array on the FIRST edit (freezing the
-  //     ${setNumber}#i ids), flip the one copy, and set entries[] on the in-memory record. The
-  //     EXISTING blOwnedSets persist effect (state change → rewrite) writes it — no raw setItem
-  //     (DATA-4). Copies stay current_value:null, so value keeps resolving via the overlay /
-  //     set-level scalar after persist AND reload (invariant #1) — never summed from the nulls.
-  function editCopyCondition(index, copyIndex, bucket) {
-    const cur = sets[index];
-    if (!cur) return;
-    if (cur.source === "BrickEconomy") {
-      const condPatch = reconcileConditionEdit(cur, bucket, copyIndex); // { entries: only copyIndex changed }
-      const edited = { ...cur, ...condPatch };
-      const rev = revalueFromCache(edited); // { currentValue, totalValue } | null
-      persistBESetEdit(cur.setNumber, { ...condPatch, condition: setConditionDisplay(edited), ...(rev || {}) });
-      // Refresh the open panel (its item is the blob shape — no per-set condition; entries + value only).
-      setDetailSet(prev => (prev ? { ...prev, ...condPatch, ...(rev || {}) } : prev));
-      return;
+  // ── Edit-drawer DRAFT model ───────────────────────────────────────────────────────────────────
+  // The drawer no longer commits on every blur/change. Edits write `draft`; SAVE folds the CHANGED
+  // fields over one working copy with the EXISTING pure reconcilers (threading `work` so cross-field
+  // deps — value's ROI off the new paid — and entries[] merges are correct, with no stale-closure
+  // replay / clobber), then persists ONCE: BE → persistBESetEdit (one blob write + cloud push), manual
+  // → setSets. Nothing changed → no-op close. X / Cancel / backdrop / Esc discard (confirm when dirty).
+  function buildDraft(src) {
+    const entries = materializeEntries(src);
+    const copies = entries.length;
+    const paidDiv  = copies > 1 && new Set(entries.map(e => asNumber(e.paid_price))).size > 1;
+    const dateDiv  = copies > 1 && new Set(entries.map(e => e.acquired_date || "")).size > 1;
+    const notesDiv = copies > 1 && new Set(entries.map(e => e.notes || "")).size > 1;
+    const resolved = retailFor(src)?.amount; // the RESOLVED MSRP the table/panel show (override-aware)
+    return {
+      setNumber: src.setNumber || "", name: src.name || "", theme: src.theme || "",
+      qty: asNumber(src.qty) || 1,
+      paid:  paidDiv ? "" : (src.paidPrice || ""),
+      value: src.currentValue || "",
+      msrp:  resolved != null ? String(resolved) : "",
+      acquiredDate: dateDiv  ? "" : (entries[0]?.acquired_date || ""),
+      notes:        notesDiv ? "" : (entries[0]?.notes || ""),
+      perCopy: entries.map(e => ({
+        condition: e.condition ?? null,
+        paid: e.paid_price != null ? String(e.paid_price) : "",
+        acquiredDate: e.acquired_date || "",
+        notes: e.notes || "",
+      })),
+    };
+  }
+
+  // Seed/reset the draft when the OPENED holding changes (open / close). Depends only on the index —
+  // NOT on `sets` — so a background value-sync never wipes in-progress edits.
+  useEffect(() => {
+    if (selectedSetIndex === null) { setDraft(null); setDraftSnap(null); return; }
+    const src = sets[selectedSetIndex];
+    if (!src) { setDraft(null); setDraftSnap(null); return; }
+    const d = buildDraft(src);
+    setDraft(d); setDraftSnap(d);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSetIndex]);
+
+  // Pure dirty-diff (draft vs the open snapshot). Numerics compared via asNumber so "800" === "800.00"
+  // and a re-typed identical value isn't "dirty"; conditions compared bucketed.
+  function draftIsDirty(d, snap) {
+    if (!d || !snap) return false;
+    if (d.setNumber !== snap.setNumber || d.name !== snap.name || d.theme !== snap.theme) return true;
+    if (asNumber(d.qty) !== asNumber(snap.qty)) return true;
+    if (asNumber(d.paid) !== asNumber(snap.paid)) return true;
+    if (asNumber(d.value) !== asNumber(snap.value)) return true;
+    if (asNumber(d.msrp) !== asNumber(snap.msrp)) return true;
+    if (d.acquiredDate !== snap.acquiredDate) return true;
+    if (d.notes !== snap.notes) return true;
+    if (d.perCopy.length !== snap.perCopy.length) return true;
+    for (let i = 0; i < d.perCopy.length; i++) {
+      const a = d.perCopy[i], b = snap.perCopy[i];
+      if (conditionBucket(a.condition) !== conditionBucket(b.condition)) return true;
+      if (asNumber(a.paid) !== asNumber(b.paid)) return true;
+      if (a.acquiredDate !== b.acquiredDate) return true;
+      if (a.notes !== b.notes) return true;
     }
-    // Manual set: full-array materialize + edit (persist-on-first-edit via the blOwnedSets effect).
-    const nextEntries = applyCopyConditionEdit(cur, copyIndex, bucket);
-    setSets(prev => prev.map((s, i) => (i === index ? { ...s, entries: nextEntries } : s)));
-    // Refresh the open panel so the flipped copy + derived Mixed read live (value via the overlay).
-    setDetailSet(prev => (prev ? { ...prev, entries: nextEntries } : prev));
+    return false;
   }
 
-  // Per-copy paid edit (SetDetailPanel's per-copy control) — the paid twin of editCopyCondition. Only the
-  // targeted copy's paid_price changes; the OTHERS keep theirs (divergence preserved — the receipt
-  // scenario), then reconcileCopyPaidEdit re-derives the holding's paid aggregates from entries
-  // (totalPaid = Σ per-copy, paidPrice/averagePaid = avg, roiPct off the stored value). Paid does NOT
-  // drive market value, so there's no re-value (unlike editCopyCondition). BE-only: a manual set has no
-  // entries[] → reconcileCopyPaidEdit returns null and its paid stays on the holding-level field.
-  function editCopyPaid(index, copyIndex, amount) {
-    const cur = sets[index];
-    if (!cur || cur.source !== "BrickEconomy") return;
-    const patch = reconcileCopyPaidEdit(cur, copyIndex, amount);
-    if (!patch) return;
-    persistBESetEdit(cur.setNumber, patch);
-    setDetailSet(prev => (prev ? { ...prev, ...patch } : prev));
-  }
+  // SAVE = fold-and-persist-once. Apply ONLY changed fields, in the order the reconcilers require:
+  // qty → scalars → condition (before value, so an explicit value edit wins the re-value) → paid →
+  // value → MSRP override → bulk date/notes → per-copy (copyIndex-based, AFTER qty).
+  function saveDraft() {
+    const idx = selectedSetIndex;
+    const base = idx !== null ? sets[idx] : null;
+    if (!base || !draft || !draftSnap) { setSelectedSetIndex(null); return; }
+    const d = draft, snap = draftSnap;
+    const isBE = base.source === "BrickEconomy";
 
-  // Per-copy acquired-date + notes — PURE METADATA twins of editCopyPaid. reconcileCopyMetaEdit sets the
-  // ONE targeted copy's field and passes the OTHERS through byte-exact (divergence preserved). NO re-value:
-  // date/notes drive neither cost nor market value (unlike editCopyPaid's paid aggregates / editCopyCondition's
-  // re-value), so value/gain/ROI are untouched. BE-only, like editCopyPaid (a manual set has no entries[] →
-  // reconcileCopyMetaEdit returns null; the multi-copy gate makes the control BE-only anyway). Date `value`
-  // arrives ISO (yyyy-mm-dd) from the native date input.
-  function editCopyAcquiredDate(index, copyIndex, value) {
-    const cur = sets[index];
-    if (!cur || cur.source !== "BrickEconomy") return;
-    const patch = reconcileCopyMetaEdit(cur, "acquired_date", value, copyIndex);
-    if (!patch) return;
-    persistBESetEdit(cur.setNumber, patch);
-    setDetailSet(prev => (prev ? { ...prev, ...patch } : prev));
-  }
-  function editCopyNotes(index, copyIndex, value) {
-    const cur = sets[index];
-    if (!cur || cur.source !== "BrickEconomy") return;
-    const patch = reconcileCopyMetaEdit(cur, "notes", value, copyIndex);
-    if (!patch) return;
-    persistBESetEdit(cur.setNumber, patch);
-    setDetailSet(prev => (prev ? { ...prev, ...patch } : prev));
-  }
+    let work = { ...base };
+    const patch = {};
+    let changed = false;
+    const apply = (p) => { if (p) { Object.assign(work, p); Object.assign(patch, p); changed = true; } };
+    const reval = () => { if (isBE) { const r = revalueFromCache(work); if (r) apply(r); } };
 
-  function updateSet(index, field, value) {
-    const cur = sets[index];
-    if (!cur) return;
-
-    // Qty unification (G4 Phase 4): a qty change adds/removes actual COPIES so entries.length tracks
-    // qty and the new qty persists on BOTH stores — closing both halves of backlog #2 (the desync and
-    // the BE persistence gap). applyQtyEdit grows by appending fresh-id copies (per-unit paid,
-    // current_value:null) / shrinks by dropping the last (survivors keep ids). Cost re-derives as the
-    // Σ of per-copy paids; BE value re-derives from the cache for the new count (invariant #1 — never
-    // summed from the stored nulls). Routed here, ahead of the per-unit edit branches.
-    if (field === "qty") {
-      const newQty = Math.max(1, Math.floor(asNumber(value) || 1));
-      const nextEntries = applyQtyEdit(cur, newQty);
+    // 1) qty FIRST (resize copies + re-derive cost + BE re-value). Per-copy editing is disabled while
+    //    qty is dirty, so there are no per-copy edits staged against the OLD copy count.
+    if (asNumber(d.qty) !== asNumber(snap.qty)) {
+      const newQty = Math.max(1, Math.floor(asNumber(d.qty) || 1));
+      const nextEntries = applyQtyEdit(work, newQty);
       const totalPaid = nextEntries.reduce((s, e) => s + asNumber(e.paid_price), 0);
-      if (cur.source === "BrickEconomy") {
-        const rev = revalueFromCache({ ...cur, entries: nextEntries, qty: newQty }); // {currentValue,totalValue}|null
-        persistBESetEdit(cur.setNumber, {
-          entries: nextEntries, quantity: newQty, qty: newQty,
-          totalPaid, averagePaid: totalPaid / newQty, paidPrice: totalPaid / newQty,
-          ...(rev || {}),
-        });
-      } else {
-        // Manual: qty scalar + materialized entries[]; persisted by the blOwnedSets effect (DATA-4 safe).
-        setSets(prev => prev.map((s, i) => (i === index ? { ...s, qty: newQty, entries: nextEntries, totalPaid } : s)));
+      apply({ entries: nextEntries, quantity: newQty, qty: newQty,
+              totalPaid, averagePaid: totalPaid / newQty, paidPrice: totalPaid / newQty });
+      reval();
+    }
+
+    // 2) plain scalars
+    if (d.setNumber !== snap.setNumber) apply({ setNumber: d.setNumber });
+    if (d.name !== snap.name) apply({ name: d.name });
+    if (d.theme !== snap.theme) apply({ theme: d.theme });
+
+    // 3) condition (per-copy diff) — BEFORE value. Bulk + per-copy both write draft.perCopy[].condition,
+    //    so a uniform change folds as N per-copy reconciles (same result as a bulk edit) + one re-value.
+    let condChanged = false;
+    d.perCopy.forEach((c, i) => {
+      const before = snap.perCopy[i];
+      if (before && conditionBucket(c.condition) !== conditionBucket(before.condition)) {
+        apply(reconcileConditionEdit(work, conditionBucket(c.condition), i));
+        condChanged = true;
       }
-      setDetailSet(prev => (prev && prev.setNumber === cur.setNumber
-        ? { ...prev, entries: nextEntries, quantity: newQty, qty: newQty }
-        : prev));
-      return;
+    });
+    if (condChanged) { reval(); work.condition = setConditionDisplay(work); patch.condition = work.condition; }
+
+    // 4) paid (bulk per-unit flatten). reconcilePaidEdit returns { totalPaid, entries? }; paidPrice /
+    //    averagePaid are set explicitly (the in-memory↔blob alias), mirroring the live wrapper.
+    if (asNumber(d.paid) !== asNumber(snap.paid)) {
+      const perUnit = asNumber(d.paid);
+      work.paidPrice = perUnit;
+      const rec = reconcilePaidEdit(work);
+      apply({ paidPrice: perUnit, averagePaid: perUnit, totalPaid: rec.totalPaid, ...(rec.entries ? { entries: rec.entries } : {}) });
     }
 
-    const coerced = field === "paidPrice" || field === "currentValue" || field === "msrp" || field === "msrpOverride" ? asNumber(value) : value;
-
-    // Paid is a per-unit field, but setCost() reads the precomputed `totalPaid` FIRST — so editing
-    // paidPrice alone is a silent no-op on gain/ROI/Cost-Basis for any set carrying totalPaid (every
-    // BE import). reconcilePaidEdit re-derives the canonical (totalPaid + entries[].paid_price) so the
-    // edit lands and paid provenance reclassifies (msrp → manual).
-    const rec = { ...cur, [field]: coerced };
-    if (field === "paidPrice") Object.assign(rec, reconcilePaidEdit(rec));
-    // Hand-entered MSRP mirrors to retailPrice (the shared Add-Set contract) so the manual rung +
-    // the headline card stay in lockstep. (Phase 3a.1)
-    if (field === "msrp") Object.assign(rec, manualMsrpPatch(value));
-
-    // BE sets are excluded from the blOwnedSets effect, so blob-relevant edits must persist via the
-    // blob (persistBESetEdit auto-pushes); manual sets persist via the effect — branch so there's no
-    // double-write.
-    if (cur.source === "BrickEconomy" && field === "paidPrice") {
-      // paidPrice↔averagePaid is the in-memory↔blob alias, so include both names: the one patch
-      // derives paidPrice from averagePaid on reload and updates state.
-      const perUnit = asNumber(rec.paidPrice);
-      const patch = { paidPrice: perUnit, averagePaid: perUnit, totalPaid: rec.totalPaid };
-      if (Array.isArray(rec.entries)) patch.entries = rec.entries;
-      persistBESetEdit(cur.setNumber, patch);
-    } else if (cur.source === "BrickEconomy" && field === "condition") {
-      // Bulk: every copy → the chosen bucket. reconcileConditionEdit rewrites entries[].condition;
-      // condition drives value (new vs used), so re-value immediately (from the BE cache) so
-      // gain/ROI/tri-value move at edit time. entries[].condition shares its name across both shapes.
-      const condPatch = reconcileConditionEdit(cur, value); // { entries: all := bucket }
-      const edited = { ...cur, ...condPatch, condition: value };
-      const rev = revalueFromCache(edited); // { currentValue, totalValue } | null (→ next value-sync)
-      persistBESetEdit(cur.setNumber, { ...condPatch, condition: value, ...(rev || {}) });
-    } else if (cur.source === "BrickEconomy" && field === "msrp") {
-      // msrp is an app-level override, NOT a native BE blob field — persist it (+ its retailPrice
-      // mirror) onto the blob so a hand-entered MSRP for an existing (BE-imported) set survives reload.
-      persistBESetEdit(cur.setNumber, manualMsrpPatch(value));
-    } else if (cur.source === "BrickEconomy" && field === "msrpOverride") {
-      // Explicit MSRP override (display rung, beats Brickset). App-level, NOT a native BE field — persist
-      // onto the blob so it survives reload (read back in ownedSetFromBlob). NOT mirrored to retailPrice:
-      // retailPrice is the COST-axis basis (paidEqualsRetail) — the add-baked value is left untouched.
-      persistBESetEdit(cur.setNumber, { msrpOverride: coerced });
-    } else if (cur.source === "BrickEconomy" && field === "currentValue") {
-      // For a BE set the Value field holds the AGGREGATE (ownedSetFromBlob loads currentValue from the
-      // blob's totalValue), and rawSetValue reads totalValue FIRST — so editing currentValue alone was
-      // invisible on value/gain/ROI AND (no blob branch → the else) reverted on reload. reconcileValueEdit
-      // re-derives the canonical (totalValue + currentValue + entries[].current_value + the roiPct hover
-      // snapshot) so the edit lands on the value layer and persists to the blob. Twin of the paidPrice branch.
-      persistBESetEdit(cur.setNumber, reconcileValueEdit(cur, coerced));
-    } else if (cur.source === "BrickEconomy" && (field === "acquiredDate" || field === "notes")) {
-      // Bulk "Set all copies" date/notes — the metadata twin of the bulk condition branch: reconcileCopyMetaEdit
-      // (copyIndex omitted) writes the SAME value to EVERY copy's entry. Pure metadata → no re-value/ROI. Fixes
-      // the latent bug: for a BE set these used to fall into the in-memory-only else below (no blob write) and
-      // reverted on reload. The holding scalar (acquiredDate/notes) rides along so the column reflects the edit
-      // in-session; entries[] are authoritative — ownedSetFromBlob re-derives the scalar from them on reload, so
-      // the copy stored on the blob is ignored (harmless). acquiredDate→acquired_date / notes share names.
-      const copyKey = field === "acquiredDate" ? "acquired_date" : "notes";
-      const patch = reconcileCopyMetaEdit(cur, copyKey, value);
-      persistBESetEdit(cur.setNumber, { ...(patch || {}), [field]: value });
-    } else {
-      setSets(prev => prev.map((s, i) => (i === index ? rec : s)));
+    // 5) value (bulk aggregate) — AFTER condition so an explicit value beats the condition re-value.
+    if (asNumber(d.value) !== asNumber(snap.value)) {
+      apply(reconcileValueEdit(work, asNumber(d.value)));
     }
+
+    // 6) MSRP override — EXACT dirty-safe transform: base = resolved WITHOUT override; blank/0 or a value
+    //    equal to that base writes NO override (clearing any existing one). Fold only when it changes.
+    {
+      const v = asNumber(d.msrp);
+      const baseRetail = retailFor({ ...work, msrpOverride: null })?.amount ?? null;
+      const curOv = asNumber(base.msrpOverride) || null;
+      const desired = (v <= 0 || v === baseRetail) ? null : v;
+      if (desired !== curOv) apply({ msrpOverride: desired });
+    }
+
+    // 7) bulk date / notes — write EVERY copy (reconcileCopyMetaEdit, no copyIndex) + the holding scalar.
+    if (d.acquiredDate !== snap.acquiredDate) {
+      apply(reconcileCopyMetaEdit(work, "acquired_date", d.acquiredDate) || {});
+      apply({ acquiredDate: d.acquiredDate });
+    }
+    if (d.notes !== snap.notes) {
+      apply(reconcileCopyMetaEdit(work, "notes", d.notes) || {});
+      apply({ notes: d.notes });
+    }
+
+    // 8) per-copy paid / date / notes — copyIndex-based, AFTER qty. Each threads `work` (no clobber).
+    d.perCopy.forEach((c, i) => {
+      const before = snap.perCopy[i];
+      if (!before) return;
+      if (asNumber(c.paid) !== asNumber(before.paid)) apply(reconcileCopyPaidEdit(work, i, asNumber(c.paid)) || {});
+      if (c.acquiredDate !== before.acquiredDate) apply(reconcileCopyMetaEdit(work, "acquired_date", c.acquiredDate, i) || {});
+      if (c.notes !== before.notes) apply(reconcileCopyMetaEdit(work, "notes", c.notes, i) || {});
+    });
+
+    if (!changed) { setSelectedSetIndex(null); return; } // diff-aware: nothing changed → no write
+    if (isBE) persistBESetEdit(base.setNumber, patch);    // ONE blob write + state + cloud push
+    else setSets(prev => prev.map((s, i) => (i === idx ? work : s)));
+    setSelectedSetIndex(null);
   }
+
+  // X / Cancel / backdrop / Esc — discard. Confirm only when the draft diverges from the snapshot.
+  function closeDrawer() {
+    if (draftIsDirty(draft, draftSnap) && !window.confirm("Discard unsaved changes?")) return;
+    setSelectedSetIndex(null);
+    setSellModal(false);
+  }
+
+  // Drawer-scoped Esc (discard). Active only while the drawer is open — the selection + detail-nav
+  // keydown effects are both gated off in that state (they require selectedSetIndex===null / detailSet),
+  // so Esc never double-fires.
+  useEffect(() => {
+    if (selectedSetIndex === null) return;
+    const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); closeDrawer(); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSetIndex, draft, draftSnap]);
 
   // ── Phase 3 selection (rowKey-keyed; see rowKey() at module scope) ──────────
   function toggleKey(key) {
@@ -2737,53 +2758,49 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
               ); // end IIFE return
             })()} {/* end IIFE for scroll/width calc */}
 
-            {selectedSetIndex !== null && sets[selectedSetIndex] && (
+            {selectedSetIndex !== null && sets[selectedSetIndex] && draft && (
               <>
-              <div onClick={() => setSelectedSetIndex(null)} data-testid="edit-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 999, backdropFilter: "blur(4px)" }} />
+              <div onClick={closeDrawer} data-testid="edit-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 999, backdropFilter: "blur(4px)" }} />
               <div style={editPanel} data-testid="edit-drawer">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                   <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "var(--bk-text)" }}>Edit Set</h3>
-                  <button onClick={() => setSelectedSetIndex(null)} style={circleButton}>×</button>
+                  <button onClick={closeDrawer} style={circleButton}>×</button>
                 </div>
 
                 {(() => {
-                  const s = sets[selectedSetIndex];
+                  const d = draft;
                   const lbl = { fontSize: 10, fontWeight: 700, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 5, display: "block" };
                   const inp = { width: "100%", background: "var(--bk-surface)", border: "1px solid var(--bk-border)", borderRadius: 8, color: "var(--bk-text)", fontSize: 13, padding: "7px 10px", outline: "none", boxSizing: "border-box" };
                   const row = { display: "grid", gap: 10, marginBottom: 10 };
                   const sectionHeader = { fontSize: 11, fontWeight: 800, color: "var(--bk-text-muted)", textTransform: "uppercase", letterSpacing: 0.7, margin: "0 0 10px", paddingBottom: 6, borderBottom: "1px solid var(--bk-border)" };
-                  // Per-copy editing lives here now (relocated from SetDetailPanel, which is read-only).
-                  // materializeEntries passes BE entries through / synthesizes manual copies; the
-                  // "Individual copies" section shows only for >1 copy. setConditionDisplay derives the
-                  // bulk Mixed signal, and divergent per-copy paids blank the bulk Paid — so a bulk edit
-                  // reads as a deliberate overwrite-all (the per-copy reconcilers spread evenly).
-                  const copyEntries = materializeEntries(s);
-                  const copies = copyEntries.length;
-                  const condDisplay = setConditionDisplay(s); // 'new' | 'used' | 'mixed' (Mixed when copies diverge)
-                  const paidDiverges = copies > 1 && new Set(copyEntries.map(e => asNumber(e.paid_price))).size > 1;
-                  // Date/notes divergence — twins of paidDiverges. Read off copyEntries (materializeEntries,
-                  // recomputed from state entries every render) so the bulk inputs stay fresh after a per-copy
-                  // edit too. When copies disagree, the bulk input shows blank → a bulk edit reads as a
-                  // deliberate overwrite-all; when they agree, the shared value (copyEntries[0]) shows.
-                  const dateDiverges  = copies > 1 && new Set(copyEntries.map(e => e.acquired_date || "")).size > 1;
-                  const notesDiverges = copies > 1 && new Set(copyEntries.map(e => e.notes || "")).size > 1;
-                  const bulkDate  = dateDiverges  ? "" : (copyEntries[0]?.acquired_date || "");
-                  const bulkNotes = notesDiverges ? "" : (copyEntries[0]?.notes || "");
+                  // The drawer renders from `draft` (the buffered working copy); SAVE folds + persists once.
+                  // Per-copy condition/paid/date/notes live in draft.perCopy[]; the bulk Mixed signal + the
+                  // blank-on-divergence bulk inputs derive from it (mirrors the old materializeEntries reads).
+                  const perCopy = d.perCopy;
+                  const copies = perCopy.length;
+                  const condDisplay = setConditionDisplay({ entries: perCopy.map(c => ({ condition: c.condition })) });
+                  const paidDiverges  = copies > 1 && new Set(perCopy.map(c => asNumber(c.paid))).size > 1;
+                  const dateDiverges  = copies > 1 && new Set(perCopy.map(c => c.acquiredDate || "")).size > 1;
+                  const notesDiverges = copies > 1 && new Set(perCopy.map(c => c.notes || "")).size > 1;
+                  // Qty ↔ per-copy guard: while qty differs from the snapshot the per-copy list is stale (its
+                  // entries don't materialize until Save folds qty FIRST) → disable per-copy editing.
+                  const qtyDirty = asNumber(d.qty) !== asNumber(draftSnap.qty);
+                  const setPerCopy = (i, p) => setDraft(prev => ({ ...prev, perCopy: prev.perCopy.map((c, j) => (j === i ? { ...c, ...p } : c)) }));
                   return (
                     <div>
                       {/* ── Set all copies — holding-level fields; an edit here applies to EVERY copy ── */}
                       <div style={sectionHeader}>Set all copies</div>
                       {/* Row 1: Set # + Set Name */}
                       <div style={{ ...row, gridTemplateColumns: "110px 1fr" }}>
-                        <label><span style={lbl}>Set #</span><input style={inp} value={s.setNumber || ""} onChange={e => updateSet(selectedSetIndex, "setNumber", e.target.value)} /></label>
-                        <label><span style={lbl}>Set Name</span><input style={inp} value={s.name || ""} onChange={e => updateSet(selectedSetIndex, "name", e.target.value)} /></label>
+                        <label><span style={lbl}>Set #</span><input style={inp} value={d.setNumber} onChange={e => setDraft(p => ({ ...p, setNumber: e.target.value }))} /></label>
+                        <label><span style={lbl}>Set Name</span><input style={inp} value={d.name} onChange={e => setDraft(p => ({ ...p, name: e.target.value }))} /></label>
                       </div>
 
                       {/* Row 2: Theme + Condition toggle */}
                       <div style={{ ...row, gridTemplateColumns: "1fr auto" }}>
                         <label>
                           <span style={lbl}>Theme</span>
-                          <select style={inp} value={s.theme || ""} onChange={e => updateSet(selectedSetIndex, "theme", e.target.value)}>
+                          <select style={inp} value={d.theme} onChange={e => setDraft(p => ({ ...p, theme: e.target.value }))}>
                             <option value="">— select —</option>
                             {themes.map(t => <option key={t} value={t}>{t}</option>)}
                           </select>
@@ -2795,7 +2812,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                               const active = condDisplay === val; // neither active when Mixed → pick one to overwrite all copies
                               return (
                                 <button key={val}
-                                  onClick={() => updateSet(selectedSetIndex, "condition", val)}
+                                  onClick={() => setDraft(p => ({ ...p, perCopy: p.perCopy.map(c => ({ ...c, condition: val })) }))}
                                   style={{ border: `1px solid ${active ? color : "var(--bk-border)"}`, borderRadius: 8, padding: "7px 14px", fontWeight: 700, fontSize: 12, cursor: "pointer", background: active ? `${color}22` : "transparent", color: active ? color : "var(--bk-text-muted)", transition: "all 0.12s" }}
                                 >{label}</button>
                               );
@@ -2809,118 +2826,100 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                           wrap to 2×2 on a narrow / mobile panel instead of squeezing MSRP off (F1). */}
                       <div style={{ ...row, gridTemplateColumns: "repeat(auto-fit, minmax(76px, 1fr))" }}>
                         {/* Qty stays controlled (integer — no partial-decimal hazard). Paid/Value/MSRP are
-                            UNCONTROLLED (defaultValue + commit-on-blur), mirroring SetDetailPanel's per-copy
-                            paid input: a controlled type=number coerces every keystroke through asNumber, and
-                            "49." sanitizes to "" → asNumber("")=0 → the field re-renders empty and the decimal
-                            is lost. Uncontrolled lets the native field hold the partial value; we read + commit
-                            ONCE on blur/Enter. `key` carries the value so the input remounts to the fresh figure
-                            after a commit (and when a different holding is selected). Escape reverts. */}
-                        <label><span style={lbl}>Qty</span><input style={inp} type="number" min="1" value={s.qty || 1} onChange={e => updateSet(selectedSetIndex, "qty", e.target.value)} /></label>
+                            UNCONTROLLED (defaultValue + a STABLE per-session key) so a partial "49." survives
+                            mid-draft; they commit to the DRAFT on blur/Enter (not the store). SAVE folds. */}
+                        <label><span style={lbl}>Qty</span><input style={inp} type="number" min="1" value={d.qty} onChange={e => setDraft(p => ({ ...p, qty: e.target.value }))} /></label>
                         <label><span style={lbl}>Paid</span><input
-                          key={`paid-${selectedSetIndex}-${s.paidPrice}-${paidDiverges}`}
+                          key={`paid-${selectedSetIndex}`}
                           data-testid="holding-paid-edit"
-                          style={inp} type="number" step="0.01" defaultValue={paidDiverges ? "" : (s.paidPrice || "")}
+                          style={inp} type="number" step="0.01" defaultValue={d.paid}
                           placeholder={paidDiverges ? "—" : undefined}
-                          onBlur={e => { const v = asNumber(e.target.value); if (v !== asNumber(s.paidPrice)) updateSet(selectedSetIndex, "paidPrice", e.target.value); }}
-                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { e.currentTarget.value = paidDiverges ? "" : (s.paidPrice || ""); e.currentTarget.blur(); } }}
+                          onBlur={e => setDraft(p => ({ ...p, paid: e.target.value }))}
+                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
                         /></label>
                         <label><span style={lbl}>{copies > 1 ? "Value (all copies)" : "Value"}</span><input
-                          key={`value-${selectedSetIndex}-${s.currentValue}`}
+                          key={`value-${selectedSetIndex}`}
                           data-testid="holding-value-edit"
-                          style={inp} type="number" step="0.01" defaultValue={s.currentValue || ""}
-                          onBlur={e => { const v = asNumber(e.target.value); if (v !== asNumber(s.currentValue)) updateSet(selectedSetIndex, "currentValue", e.target.value); }}
-                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { e.currentTarget.value = s.currentValue || ""; e.currentTarget.blur(); } }}
+                          style={inp} type="number" step="0.01" defaultValue={d.value}
+                          onBlur={e => setDraft(p => ({ ...p, value: e.target.value }))}
+                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
                         /></label>
                         <label><span style={lbl}>MSRP</span><input
-                          key={`msrpov-${selectedSetIndex}-${retailFor(s)?.amount ?? ""}`}
+                          key={`msrp-${selectedSetIndex}`}
                           data-testid="holding-msrp-edit"
-                          style={inp} type="number" min="0" step="0.01" defaultValue={retailFor(s)?.amount ?? ""}
-                          onBlur={e => {
-                            // Writes the explicit-override rung (msrpOverride), NOT the add-baked s.msrp. Prefills
-                            // from the RESOLVED MSRP (what the panel/table show). Dirty-safe: blank, or a value equal
-                            // to the Brickset-resolved MSRP, writes NO override (clearing any existing one) — so open/
-                            // close or re-typing the catalog value never freezes a redundant override.
-                            const v = asNumber(e.target.value);
-                            const base = retailFor({ ...s, msrpOverride: null })?.amount ?? null; // resolved WITHOUT override
-                            const curOv = asNumber(s.msrpOverride) || null;
-                            const desired = (v <= 0 || v === base) ? null : v;
-                            if (desired !== curOv) updateSet(selectedSetIndex, "msrpOverride", desired ?? "");
-                          }}
-                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { e.currentTarget.value = retailFor(s)?.amount ?? ""; e.currentTarget.blur(); } }}
+                          style={inp} type="number" min="0" step="0.01" defaultValue={d.msrp}
+                          onBlur={e => setDraft(p => ({ ...p, msrp: e.target.value }))}
+                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
                         /></label>
                       </div>
 
-                      {/* Row 4: Acquired Date + Notes — "Set all copies" metadata. Both route to updateSet's
-                          BE branch (writes EVERY copy's entry + persists) so they survive reload (the prior
-                          revert-on-reload bug — they hit the in-memory-only else). Divergent copies → blank
-                          (overwrite-all intent). Date commits on change (native picker emits a complete value);
-                          Notes is UNCONTROLLED commit-on-blur (mirrors bulk Paid) so typing doesn't push per key. */}
+                      {/* Row 4: Acquired Date + Notes — "Set all copies" metadata. At Save, a change writes
+                          EVERY copy's entry + the holding scalar (survives reload). Divergent copies → blank
+                          (overwrite-all intent). Date controlled; Notes uncontrolled commit-on-blur. */}
                       <div style={{ ...row, gridTemplateColumns: "1fr 1fr" }}>
                         <label><span style={lbl}>Acquired</span><input
                           data-testid="holding-date-edit"
-                          style={inp} type="date" value={bulkDate}
+                          style={inp} type="date" value={d.acquiredDate}
                           title={dateDiverges ? "Copies differ — pick a date to set all" : undefined}
-                          onChange={e => updateSet(selectedSetIndex, "acquiredDate", e.target.value)}
+                          onChange={e => setDraft(p => ({ ...p, acquiredDate: e.target.value }))}
                         /></label>
                         <label><span style={lbl}>Notes</span><input
-                          key={`bulk-notes-${selectedSetIndex}-${bulkNotes}-${notesDiverges}`}
+                          key={`bulk-notes-${selectedSetIndex}`}
                           data-testid="holding-notes-edit"
-                          style={inp} defaultValue={bulkNotes}
+                          style={inp} defaultValue={d.notes}
                           placeholder={notesDiverges ? "— copies differ" : undefined}
-                          onBlur={e => { if (e.target.value !== bulkNotes) updateSet(selectedSetIndex, "notes", e.target.value); }}
-                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { e.currentTarget.value = bulkNotes; e.currentTarget.blur(); } }}
+                          onBlur={e => setDraft(p => ({ ...p, notes: e.target.value }))}
+                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
                         /></label>
                       </div>
 
-                      {/* ── Individual copies — relocated per-copy controls; multi-copy holdings only.
-                          Rendered from materializeEntries; each row reuses the EXISTING editCopyCondition /
-                          editCopyPaid handlers UNCHANGED (pure relocation). Per-copy paid is BE-only
-                          (editCopyPaid early-returns for a manual set → a dead control, harmless: there are
-                          0 multi-copy manual sets; folds into the per-copy-paid-for-manual follow-up). ── */}
+                      {/* ── Individual copies — per-copy controls; multi-copy holdings only. Edits write
+                          draft.perCopy[i]; SAVE folds them with the per-copy reconcilers (AFTER qty).
+                          DISABLED while qty is dirty — the copy list won't materialize until Save. ── */}
                       {copies > 1 && (
-                        <div style={{ marginTop: 18 }} data-testid="individual-copies">
+                        <div style={{ marginTop: 18, opacity: qtyDirty ? 0.5 : 1 }} data-testid="individual-copies">
                           <div style={sectionHeader}>Individual copies</div>
+                          {qtyDirty && <div data-testid="qty-guard-note" style={{ fontSize: 11, color: "var(--bk-text-muted)", marginBottom: 8 }}>Save the quantity change first to edit individual copies.</div>}
                           <div style={{ display: "grid", gap: 8 }}>
-                            {copyEntries.map((e, i) => (
-                              <div key={e.id ?? i} style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", borderRadius: 8, padding: "8px 10px" }}>
+                            {perCopy.map((c, i) => (
+                              <div key={i} style={{ background: "var(--bk-surface-2)", border: "1px solid var(--bk-border)", borderRadius: 8, padding: "8px 10px" }}>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 }}>
                                   <span style={{ fontSize: 11, fontWeight: 700, color: "var(--bk-text-muted)" }}>Copy {i + 1}</span>
                                   <div style={{ display: "flex", gap: 4 }} data-testid="copy-cond-edit">
                                     {[["new","New","var(--bk-cat-3)"],["used","Used","var(--bk-cat-1)"]].map(([val, label, color]) => {
-                                      const active = conditionBucket(e.condition) === val;
+                                      const active = conditionBucket(c.condition) === val;
                                       return (
-                                        <button key={val}
-                                          onClick={() => editCopyCondition(selectedSetIndex, i, val)}
-                                          style={{ border: `1px solid ${active ? color : "var(--bk-border)"}`, borderRadius: 8, padding: "5px 12px", fontWeight: 700, fontSize: 11, cursor: "pointer", background: active ? `${color}22` : "transparent", color: active ? color : "var(--bk-text-muted)", transition: "all 0.12s" }}
+                                        <button key={val} disabled={qtyDirty}
+                                          onClick={() => setPerCopy(i, { condition: val })}
+                                          style={{ border: `1px solid ${active ? color : "var(--bk-border)"}`, borderRadius: 8, padding: "5px 12px", fontWeight: 700, fontSize: 11, cursor: qtyDirty ? "not-allowed" : "pointer", background: active ? `${color}22` : "transparent", color: active ? color : "var(--bk-text-muted)", transition: "all 0.12s" }}
                                         >{label}</button>
                                       );
                                     })}
                                   </div>
                                 </div>
-                                {/* Paid + Acquired share a 2-col row; Notes spans full width below. Paid stays
-                                    uncontrolled (decimal-safe); Acquired (date) commits on change → editCopyAcquiredDate;
-                                    Notes is uncontrolled commit-on-blur → editCopyNotes. All three are PURE per-copy:
-                                    only the edited copy changes (divergence preserved), no value/ROI recompute. */}
+                                {/* Paid + Acquired share a 2-col row; Notes spans full width below. Paid + Notes
+                                    uncontrolled (decimal-safe), commit to draft.perCopy[i] on blur; Acquired (date)
+                                    commits on change. All PURE per-copy at Save (only that copy changes). */}
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                                   <label style={{ display: "block" }}><span style={lbl}>Paid</span><input
-                                    key={`copy-paid-${selectedSetIndex}-${i}-${e.paid_price}`}
-                                    data-testid="copy-paid-edit"
-                                    style={inp} type="number" step="0.01" min="0" defaultValue={e.paid_price || ""}
-                                    onBlur={ev => { const v = asNumber(ev.target.value); if (v !== asNumber(e.paid_price)) editCopyPaid(selectedSetIndex, i, v); }}
-                                    onKeyDown={ev => { if (ev.key === "Enter") ev.currentTarget.blur(); if (ev.key === "Escape") { ev.currentTarget.value = e.paid_price || ""; ev.currentTarget.blur(); } }}
+                                    key={`copy-paid-${selectedSetIndex}-${i}`}
+                                    data-testid="copy-paid-edit" disabled={qtyDirty}
+                                    style={inp} type="number" step="0.01" min="0" defaultValue={c.paid}
+                                    onBlur={ev => setPerCopy(i, { paid: ev.target.value })}
+                                    onKeyDown={ev => { if (ev.key === "Enter") ev.currentTarget.blur(); }}
                                   /></label>
                                   <label style={{ display: "block" }}><span style={lbl}>Acquired</span><input
-                                    data-testid="copy-date-edit"
-                                    style={inp} type="date" value={e.acquired_date || ""}
-                                    onChange={ev => { if (ev.target.value !== (e.acquired_date || "")) editCopyAcquiredDate(selectedSetIndex, i, ev.target.value); }}
+                                    data-testid="copy-date-edit" disabled={qtyDirty}
+                                    style={inp} type="date" value={c.acquiredDate}
+                                    onChange={ev => setPerCopy(i, { acquiredDate: ev.target.value })}
                                   /></label>
                                 </div>
                                 <label style={{ display: "block", marginTop: 8 }}><span style={lbl}>Notes</span><input
-                                  key={`copy-notes-${selectedSetIndex}-${i}-${e.notes}`}
-                                  data-testid="copy-notes-edit"
-                                  style={inp} defaultValue={e.notes || ""}
-                                  onBlur={ev => { if (ev.target.value !== (e.notes || "")) editCopyNotes(selectedSetIndex, i, ev.target.value); }}
-                                  onKeyDown={ev => { if (ev.key === "Enter") ev.currentTarget.blur(); if (ev.key === "Escape") { ev.currentTarget.value = e.notes || ""; ev.currentTarget.blur(); } }}
+                                  key={`copy-notes-${selectedSetIndex}-${i}`}
+                                  data-testid="copy-notes-edit" disabled={qtyDirty}
+                                  style={inp} defaultValue={c.notes}
+                                  onBlur={ev => setPerCopy(i, { notes: ev.target.value })}
+                                  onKeyDown={ev => { if (ev.key === "Enter") ev.currentTarget.blur(); }}
                                 /></label>
                               </div>
                             ))}
@@ -2931,13 +2930,22 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
                   );
                 })()}
 
-                <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-                  <button onClick={() => setSelectedSetIndex(null)}>Done</button>
-                  <button
-                    onClick={() => { setSellModal(v => !v); setSellPrice(""); setSellNotes(""); }}
-                    style={{ background: "transparent", border: "1px solid var(--bk-negative)", color: "var(--bk-negative)", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
-                  >Mark as Sold</button>
-                </div>
+                {(() => {
+                  const dirty = draftIsDirty(draft, draftSnap);
+                  return (
+                    <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+                      <button data-testid="edit-save" onClick={saveDraft} style={{ background: "var(--bk-positive)", color: "#0b0b0b", border: "none", borderRadius: 10, padding: "8px 18px", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>Save</button>
+                      <button data-testid="edit-cancel" onClick={closeDrawer} style={ghostBtn}>Cancel</button>
+                      <button
+                        data-testid="edit-sell"
+                        disabled={dirty}
+                        onClick={() => { if (dirty) return; setSellModal(v => !v); setSellPrice(""); setSellNotes(""); }}
+                        title={dirty ? "Save or cancel your edits first" : undefined}
+                        style={{ background: "transparent", border: "1px solid var(--bk-negative)", color: "var(--bk-negative)", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13, cursor: dirty ? "not-allowed" : "pointer", opacity: dirty ? 0.5 : 1 }}
+                      >Mark as Sold</button>
+                    </div>
+                  );
+                })()}
 
                 {sellModal && (
                   <div style={{ marginTop: 14, background: "var(--bk-surface)", border: "1px solid var(--bk-negative)", borderRadius: 10, padding: 14 }}>
