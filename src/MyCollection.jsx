@@ -1102,7 +1102,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   const ownedRowVirtualizer = useVirtualizer({
     count: isMobile ? 0 : visibleSets.length, // desktop table only; mobile renders the card-list below
     getScrollElement: () => ownedScrollRef.current,
-    estimateSize: () => 40, // single-line rows in both densities now (Full splits into columns, no tall stack)
+    estimateSize: () => 68, // ~68px measured — the stacked 3-line identity cell (Name/Set#/Theme[+Retired pill]) makes rows tall. A too-low estimate (was 40) made measureElement re-anchor the list mid-scroll (total height + scrollTop jumped), shifting icon targets out from under the cursor between mousedown/mouseup → intermittent action-click misses.
     overscan: 10,
     getItemKey: (i) => { const s = visibleSets[i]; return s ? `${s.setNumber}-${sets.indexOf(s)}` : i; },
   });
@@ -1120,7 +1120,7 @@ export default function MyCollection({ onBuyNow, onSwitchTab, mode = "collection
   const [cardScrollMargin, setCardScrollMargin] = useState(0);
   const cardRowVirtualizer = useWindowVirtualizer({
     count: isMobile ? visibleSets.length : 0,
-    estimateSize: () => 132,
+    estimateSize: () => 200, // ~201px measured (image + stacked fields) — was 132; same estimate↔actual gap as the table, kept close so measureElement doesn't re-anchor the list mid-scroll.
     overscan: 6,
     scrollMargin: cardScrollMargin,
     getItemKey: (i) => { const s = visibleSets[i]; return s ? `card-${s.setNumber}-${sets.indexOf(s)}` : i; },
