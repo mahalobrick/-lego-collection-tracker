@@ -6,6 +6,7 @@ import { fetchBrickLinkPriceGuide, hasBrickLinkAuth } from "./utils/bricklink-cl
 import { setValueProvenance, setGain, setROI, copyValueProvenance, setRetailProvenance, isPromoNoRetail } from "./utils/portfolio";
 import { bricksetRetailEntry } from "./utils/brickset";
 import { formatValueCell, formatValue, valueConfidence, lotsLabel, isPromoNoRrp, retailCellTooltip, retailSourceMarker, PROMO_NO_RRP_LABEL } from "./utils/valueDisplay";
+import { freshness } from "./utils/freshness";
 import { confidenceBadge } from "./uiStyles";
 import { fetchHistory, peekHistoryCache } from "./utils/historyCache";
 import { historyFromBL } from "./utils/historyEvents";
@@ -96,6 +97,9 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
   // (unknown≠0 sweep)
   const prov = setValueProvenance(item, valueMap);
   const provConf = valueConfidence(prov); // BL confidence marker (est./thin/ask) or null
+  // BL-only recency: prov.asOf is the cron's real capture date for a "bricklink" value; for a
+  // BE-fallback it is new Date() (the read moment, NOT a capture date) — so never surface it there.
+  const provFresh = prov.source === "bricklink" ? freshness(prov.asOf) : null;
   const valueKnown = prov.amount !== null;
   const totalValue = prov.amount ?? 0;
   const gain = setGain(item, valueMap);   // null when value unknown
@@ -217,8 +221,16 @@ export default function SetDetailPanel({ item, onClose, onEdit, valueMap }) {
             <StatBox testid="msrp-chip" label="MSRP" tip={retailCellTooltip(retailProv) || undefined}
               value={isPromoNoRrp(retailProv) ? PROMO_NO_RRP_LABEL : <>{formatValue(retailPrice)}{retailManualMark && <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }} title={retailManualMark.tooltip}>{retailManualMark.marker}</span>}</>} />
             <StatBox label="Paid" value={money(totalPaid)} />
-            <StatBox label="Value" tip={provConf?.tooltip}
-              value={<>{formatValueCell(prov)}{provConf && <span style={confidenceBadge}>{provConf.marker}</span>}</>} />
+            <StatBox label="Value" testid="value-tile" tip={provConf?.tooltip}
+              value={<>
+                {formatValueCell(prov)}{provConf && <span style={confidenceBadge}>{provConf.marker}</span>}
+                {valueKnown && prov.source !== "frozen" && (
+                  <div style={{ fontSize: 10, fontWeight: 600, marginTop: 3, color: provFresh?.level === "stale" ? "var(--bk-warning)" : "var(--bk-text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                       title={prov.source === "bricklink" ? (prov.asOf ? `BrickLink values as of ${prov.asOf.slice(0, 10)} — refreshed weekly` : "BrickLink sold data") : "Estimated — no recent BrickLink sold sample"}>
+                    {prov.source === "bricklink" ? "BrickLink" : "Estimated"}{provFresh ? ` · ${provFresh.level === "stale" ? "⚠ " : ""}${provFresh.label}` : ""}
+                  </div>
+                )}
+              </>} />
             <StatBox label="Gain" value={gain === null ? "—" : money(gain)} color={gain === null ? undefined : gain >= 0 ? "var(--bk-positive)" : "var(--bk-negative)"} />
             <StatBox label="ROI" value={roi === null ? "—" : `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%`} color={roi === null ? undefined : roi >= 0 ? "var(--bk-positive)" : "var(--bk-negative)"} />
             {qty > 1 && <StatBox label="Avg Paid / Copy" value={money(avgPaid)} />}

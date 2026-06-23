@@ -46,7 +46,10 @@ function statValue(label) {
   const labelDiv = [...container.querySelectorAll("div")].find(
     (d) => d.firstChild && d.firstChild.nodeType === 3 && d.textContent.trim() === label,
   );
-  return labelDiv?.nextElementSibling?.textContent.trim() ?? null;
+  // Read the leading FIGURE (the value div's first text node), not full textContent — the Value
+  // tile now appends a muted provenance sub-line (<div>"BrickLink…"/"Estimated") under the figure.
+  // Other tiles are unaffected: their value is a single text node, so firstChild.textContent === textContent.
+  return labelDiv?.nextElementSibling?.firstChild?.textContent.trim() ?? null;
 }
 
 const cents = (txt) => Math.round(Number(String(txt).replace(/[$,]/g, "")) * 100);
